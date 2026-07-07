@@ -4,7 +4,9 @@ use raw_window_handle::{
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
 use uxfd_rust_core::{
@@ -71,6 +73,10 @@ pub struct NativeAudioWaveformInput {
 pub struct NativeWgpuFrameStageTimings {
     pub setup: Duration,
     pub source_upload: Duration,
+    /// `Surface::get_current_texture()` の同期ブロック待ち時間（CAMetalLayer
+    /// drawable 取得待ち）。live surface 経路以外（export/readback/offscreen）
+    /// では drawable 取得が発生しないため常に `Duration::ZERO`。
+    pub acquire: Duration,
     pub render: Duration,
     pub readback_encode: Duration,
     pub steady_state: Duration,
@@ -112,6 +118,28 @@ pub struct NativeWgpuRenderer {
     bind_group_layout: wgpu::BindGroupLayout,
     output_texture: wgpu::Texture,
     readback_buffer: wgpu::Buffer,
+    /// live surface 専用の base scene（デコレーション上乗せ前の scene）prepared
+    /// clip キャッシュ。呼び出し側が渡す `generation`（scene 世代カウンタ）が
+    /// 前回と同じであれば、`create_texture`/`write_texture`/`create_bind_group`
+    /// を一切行わず前回の GPU リソース（`Arc<PreparedClip>`）を再利用する。
+    /// export / readback / offscreen render の既存経路（`prepare_scene_clips` /
+    /// `prepare_scene_clips_without_upload_fence`）はこのキャッシュを一切参照
+    /// しないため、既存の挙動には影響しない。
+    prepared_scene_cache: Mutex<Option<PreparedSceneCache>>,
+    /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
+    prepared_scene_cache_hits: AtomicU64,
+    prepared_scene_cache_misses: AtomicU64,
+}
+
+/// live surface 専用の prepared clip キャッシュ 1 世代分。
+/// `prepare_scene_clips_with_upload_fence` は内部で clip を z_index 昇順に
+/// ソートしてから prepare するため、呼び出し元の `snapshot.clips`（元の順序）
+/// と `Vec<Arc<PreparedClip>>` のインデックスは対応しない。合成先
+/// （`present_scene_with_decoration_to_surface_texture`）で z_index を正しく
+/// 再構築できるよう、prepared clip とその z_index をペアで保持する。
+struct PreparedSceneCache {
+    generation: u64,
+    prepared_clips: Vec<(u32, Arc<PreparedClip>)>,
 }
 
 pub struct NativeWgpuLiveSurfaceRenderer {
@@ -199,6 +227,9 @@ impl NativeWgpuLiveSurfaceRenderer {
             bind_group_layout,
             output_texture,
             readback_buffer,
+            prepared_scene_cache: Mutex::new(None),
+            prepared_scene_cache_hits: AtomicU64::new(0),
+            prepared_scene_cache_misses: AtomicU64::new(0),
         };
 
         Ok(Self {
@@ -218,10 +249,12 @@ impl NativeWgpuLiveSurfaceRenderer {
         let (prepared_clips, source_upload) = self
             .core
             .prepare_scene_clips_without_upload_fence(snapshot, sources)?;
+        let acquire_start = Instant::now();
         let surface_texture = self
             .surface
             .get_current_texture()
             .map_err(NativeWgpuRenderError::Surface)?;
+        let acquire = acquire_start.elapsed();
         let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -245,9 +278,98 @@ impl NativeWgpuLiveSurfaceRenderer {
             timings: NativeWgpuFrameStageTimings {
                 setup: Duration::ZERO,
                 source_upload,
+                acquire,
                 render,
                 readback_encode: Duration::ZERO,
-                steady_state: source_upload + render,
+                steady_state: source_upload + acquire + render,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+
+    /// live surface 専用: base scene（デコレーション上乗せ前）の prepared clip を
+    /// `base_generation` でキャッシュし、同一世代の再 present ではテクスチャ生成・
+    /// write_texture・bind group 構築を一切行わず前回の GPU リソースを再利用する。
+    /// デコレーション（選択枠 quad 等）は毎回軽量に prepare し直し、base の
+    /// prepared clip 列と z_index 順で合成して 1 回の render pass に描く。
+    ///
+    /// キャッシュキーは scene 世代カウンタのみ（内容の等価性チェックはしない）。
+    /// 呼び出し側（native-overlay）が「シーンが変わったら generation を進める」
+    /// 契約を守る前提。export / readback / offscreen render の既存経路
+    /// （`prepare_scene_clips` / `prepare_scene_clips_without_upload_fence`）は
+    /// このキャッシュを一切参照しないため、既存の挙動には影響しない。
+    pub async fn present_scene_with_decoration_to_surface_texture(
+        &self,
+        base_generation: u64,
+        base_snapshot: &SceneSnapshot,
+        base_sources: &HashMap<String, RgbaFrame>,
+        decoration_clips: &[uxfd_rust_core::EvaluatedClip],
+        decoration_sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        let (base_prepared_clips, base_source_upload) = self
+            .core
+            .prepare_base_scene_clips_cached(base_generation, base_snapshot, base_sources)?;
+        let (decoration_prepared_clips, decoration_source_upload) = self
+            .core
+            .prepare_scene_clips_without_upload_fence(
+                &SceneSnapshot {
+                    frame_index: base_snapshot.frame_index,
+                    colour: base_snapshot.colour.clone(),
+                    clips: decoration_clips.to_vec(),
+                },
+                decoration_sources,
+            )?;
+        let source_upload = base_source_upload + decoration_source_upload;
+
+        // base（キャッシュ済み・既に z_index とペア）と decoration
+        // （SELECTION_DECORATION_*_Z_INDEX が u32::MAX 近傍のため通常は末尾）を
+        // z_index 順に合成する。
+        let mut merged: Vec<(u32, Arc<PreparedClip>)> = base_prepared_clips;
+        merged.extend(
+            decoration_clips
+                .iter()
+                .map(|clip| clip.z_index)
+                .zip(decoration_prepared_clips.into_iter()),
+        );
+        merged.sort_by_key(|(z_index, _)| *z_index);
+        let prepared_clip_count = merged.len();
+        let prepared_clips: Vec<Arc<PreparedClip>> =
+            merged.into_iter().map(|(_, prepared)| prepared).collect();
+
+        let acquire_start = Instant::now();
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(NativeWgpuRenderError::Surface)?;
+        let acquire = acquire_start.elapsed();
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu live surface decoration encoder"),
+                });
+        self.core
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+        let render_start = Instant::now();
+        self.core.queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        let render = render_start.elapsed();
+
+        Ok(NativeWgpuPresentReport {
+            width: self.surface_config.width,
+            height: self.surface_config.height,
+            prepared_clip_count,
+            timings: NativeWgpuFrameStageTimings {
+                setup: Duration::ZERO,
+                source_upload,
+                acquire,
+                render,
+                readback_encode: Duration::ZERO,
+                steady_state: source_upload + acquire + render,
                 total: total_start.elapsed(),
             },
         })
@@ -260,10 +382,12 @@ impl NativeWgpuLiveSurfaceRenderer {
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (prepared_clips, source_upload) = self.core.prepare_scene_clips(snapshot, sources)?;
+        let acquire_start = Instant::now();
         let surface_texture = self
             .surface
             .get_current_texture()
             .map_err(NativeWgpuRenderError::Surface)?;
+        let acquire = acquire_start.elapsed();
         let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -307,9 +431,10 @@ impl NativeWgpuLiveSurfaceRenderer {
             timings: NativeWgpuFrameStageTimings {
                 setup: Duration::ZERO,
                 source_upload,
+                acquire,
                 render,
                 readback_encode,
-                steady_state: source_upload + render + readback_encode,
+                steady_state: source_upload + acquire + render + readback_encode,
                 total: total_start.elapsed(),
             },
         })
@@ -384,6 +509,9 @@ impl NativeWgpuRenderer {
             bind_group_layout,
             output_texture,
             readback_buffer,
+            prepared_scene_cache: Mutex::new(None),
+            prepared_scene_cache_hits: AtomicU64::new(0),
+            prepared_scene_cache_misses: AtomicU64::new(0),
         })
     }
 
@@ -533,6 +661,7 @@ impl NativeWgpuRenderer {
             timings: NativeWgpuFrameStageTimings {
                 setup,
                 source_upload,
+                acquire: Duration::ZERO,
                 render,
                 readback_encode,
                 steady_state: source_upload + render + readback_encode,
@@ -571,6 +700,7 @@ impl NativeWgpuRenderer {
             timings: NativeWgpuFrameStageTimings {
                 setup,
                 source_upload,
+                acquire: Duration::ZERO,
                 render,
                 readback_encode: Duration::ZERO,
                 steady_state: source_upload + render,
@@ -583,7 +713,7 @@ impl NativeWgpuRenderer {
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
-    ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
+    ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         self.prepare_scene_clips_with_upload_fence(snapshot, sources, true)
     }
 
@@ -591,7 +721,7 @@ impl NativeWgpuRenderer {
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
-    ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
+    ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         self.prepare_scene_clips_with_upload_fence(snapshot, sources, false)
     }
 
@@ -600,7 +730,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         wait_for_upload: bool,
-    ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
+    ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         let mut clips = snapshot.clips.clone();
         clips.sort_by_key(|clip| clip.z_index);
 
@@ -633,7 +763,7 @@ impl NativeWgpuRenderer {
             } else {
                 source
             };
-            prepared_clips.push(prepare_clip(
+            prepared_clips.push(Arc::new(prepare_clip(
                 &self.device,
                 &self.queue,
                 &self.bind_group_layout,
@@ -773,7 +903,7 @@ impl NativeWgpuRenderer {
                     _padding9: 0.0,
                     _padding10: 0.0,
                 },
-            ));
+            )));
         }
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
@@ -784,11 +914,72 @@ impl NativeWgpuRenderer {
         Ok((prepared_clips, source_upload))
     }
 
+    /// live surface 専用: `generation` が前回 present 時と同じであれば
+    /// `create_texture`/`write_texture`/`create_bind_group` を一切行わず、
+    /// 前回 prepare した `Arc<PreparedClip>` 列（と 0 秒の source_upload）を
+    /// そのまま返す（キャッシュ hit）。generation が変わっていれば通常どおり
+    /// prepare し直し、結果をこの世代としてキャッシュへ保存する（キャッシュ
+    /// miss）。upload fence は待たない（`prepare_scene_clips_without_upload_fence`
+    /// と同じ扱い。live surface は次の submit/present が実質的な fence になる）。
+    fn prepare_base_scene_clips_cached(
+        &self,
+        generation: u64,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<(Vec<(u32, Arc<PreparedClip>)>, Duration), NativeWgpuRenderError> {
+        {
+            let cache = self
+                .prepared_scene_cache
+                .lock()
+                .expect("prepared scene cache mutex must not be poisoned");
+            if let Some(cached) = cache.as_ref() {
+                if cached.generation == generation {
+                    self.prepared_scene_cache_hits.fetch_add(1, Ordering::Relaxed);
+                    return Ok((cached.prepared_clips.clone(), Duration::ZERO));
+                }
+            }
+        }
+
+        self.prepared_scene_cache_misses.fetch_add(1, Ordering::Relaxed);
+        // prepare_scene_clips_with_upload_fence は内部で z_index 昇順にソートした
+        // クローンを prepare するため、ソート後の z_index をここで再現し、
+        // prepared clip と一対一でペアにしておく。
+        let mut sorted_z_indices: Vec<u32> =
+            snapshot.clips.iter().map(|clip| clip.z_index).collect();
+        sorted_z_indices.sort_unstable();
+        let (prepared_clips, source_upload) =
+            self.prepare_scene_clips_without_upload_fence(snapshot, sources)?;
+        let prepared_clips: Vec<(u32, Arc<PreparedClip>)> = sorted_z_indices
+            .into_iter()
+            .zip(prepared_clips.into_iter())
+            .collect();
+
+        let mut cache = self
+            .prepared_scene_cache
+            .lock()
+            .expect("prepared scene cache mutex must not be poisoned");
+        *cache = Some(PreparedSceneCache {
+            generation,
+            prepared_clips: prepared_clips.clone(),
+        });
+
+        Ok((prepared_clips, source_upload))
+    }
+
+    /// テスト計測用: (hits, misses) を返す。本番コードパスからは参照されない。
+    #[cfg(test)]
+    fn prepared_scene_cache_stats(&self) -> (u64, u64) {
+        (
+            self.prepared_scene_cache_hits.load(Ordering::Relaxed),
+            self.prepared_scene_cache_misses.load(Ordering::Relaxed),
+        )
+    }
+
     fn encode_prepared_clips(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
-        prepared_clips: &[PreparedClip],
+        prepared_clips: &[Arc<PreparedClip>],
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("UXFD native wgpu render pass"),
@@ -2677,5 +2868,192 @@ mod tests {
         let alpha_mode = choose_live_surface_alpha_mode(&[wgpu::CompositeAlphaMode::Auto]);
 
         assert_eq!(alpha_mode, wgpu::CompositeAlphaMode::Auto);
+    }
+
+    fn solid_scene(clip_id: &str, media_id: &str) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: clip_id.to_string(),
+                track_id: "track-1".to_string(),
+                media_id: media_id.to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let sources = HashMap::from([(
+            media_id.to_string(),
+            RgbaFrame::from_rgba8(2, 2, vec![10; 2 * 2 * 4]).expect("valid source frame"),
+        )]);
+        (snapshot, sources)
+    }
+
+    #[test]
+    fn prepare_base_scene_clips_cached_pairs_prepared_clips_with_sorted_z_index() {
+        // `prepare_scene_clips_with_upload_fence` は内部で clip を z_index 昇順に
+        // 並べ替えたクローンを prepare するため、prepared clip の並びは
+        // 呼び出し元の `snapshot.clips`（元の順序）とは対応しない。
+        // `prepare_base_scene_clips_cached` は各 prepared clip をソート後の
+        // z_index と正しくペアにして返す契約を、入力を意図的に降順（未ソート）
+        // にして固定する。
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping z_index pairing test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let source = RgbaFrame::from_rgba8(2, 2, vec![10; 2 * 2 * 4]).expect("valid frame");
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![
+                uxfd_rust_core::EvaluatedClip {
+                    clip_id: "clip-high".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "source-1".to_string(),
+                    source_frame: 0,
+                    z_index: 9,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                },
+                uxfd_rust_core::EvaluatedClip {
+                    clip_id: "clip-low".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "source-1".to_string(),
+                    source_frame: 0,
+                    z_index: 1,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                },
+            ],
+        };
+        let sources = HashMap::from([("source-1".to_string(), source)]);
+
+        let (prepared, _) = renderer
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .expect("prepare must succeed even with unsorted z_index input");
+
+        let z_indices: Vec<u32> = prepared.iter().map(|(z, _)| *z).collect();
+        assert_eq!(
+            z_indices,
+            vec![1, 9],
+            "prepared clip / z_index pairs must be in ascending z_index order \
+             regardless of the input snapshot's clip order"
+        );
+    }
+
+    #[test]
+    fn prepare_base_scene_clips_cached_skips_texture_upload_on_same_generation() {
+        // タスク3: 同一シーン世代の再 present（=デコレーションだけ変わった場合）
+        // では create_texture / write_texture / create_bind_group を行わず、
+        // 前回 prepare した Arc<PreparedClip> をそのまま再利用すること。
+        // ここでは prepare 呼び出し自体のキャッシュ hit/miss カウンタで固定する
+        // （実際の GPU リソース再生成有無を直接観測する術がないため、
+        // 「同じ generation では新規 prepare 経路を通らない」という契約を
+        // カウンタ経由で担保する）。
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping prepared scene cache test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let (snapshot, sources) = solid_scene("clip-1", "source-1");
+
+        let (first_clips, first_upload) = renderer
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .expect("first prepare (miss) must succeed");
+        assert_eq!(renderer.prepared_scene_cache_stats(), (0, 1));
+        assert_eq!(first_clips.len(), 1);
+
+        let (second_clips, second_upload) = renderer
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .expect("second prepare with same generation (hit) must succeed");
+        assert_eq!(
+            renderer.prepared_scene_cache_stats(),
+            (1, 1),
+            "same generation re-present must hit the cache exactly once"
+        );
+        assert_eq!(second_upload, Duration::ZERO, "cache hit must skip upload entirely");
+        assert!(
+            first_upload >= Duration::ZERO,
+            "first (miss) upload measurement must be recorded"
+        );
+        assert!(
+            Arc::ptr_eq(&first_clips[0].1, &second_clips[0].1),
+            "cache hit must return the exact same GPU resource (Arc), not a fresh prepare"
+        );
+    }
+
+    #[test]
+    fn prepare_base_scene_clips_cached_reprepares_on_generation_change() {
+        // シーンが変わったら（generation が進んだら）invalidate されて
+        // 通常どおり prepare し直すこと。
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping prepared scene cache invalidation test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let (snapshot, sources) = solid_scene("clip-1", "source-1");
+
+        let (first_clips, _) = renderer
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .expect("first prepare must succeed");
+        assert_eq!(renderer.prepared_scene_cache_stats(), (0, 1));
+
+        let (second_clips, _) = renderer
+            .prepare_base_scene_clips_cached(2, &snapshot, &sources)
+            .expect("prepare with new generation must succeed");
+        assert_eq!(
+            renderer.prepared_scene_cache_stats(),
+            (0, 2),
+            "generation change must invalidate the cache and re-prepare (miss)"
+        );
+        assert!(
+            !Arc::ptr_eq(&first_clips[0].1, &second_clips[0].1),
+            "generation change must produce a fresh GPU resource, not reuse the stale one"
+        );
+    }
+
+    #[test]
+    fn prepared_clip_is_shared_via_arc_without_deep_cloning_gpu_resource() {
+        // タスク2: last_scene の deep clone 廃止に伴い、prepared clip は
+        // Arc で共有できる（cheap clone）ことを型レベルで固定する。
+        // PreparedClip 自体（wgpu::BindGroup）は Clone を実装しないため、
+        // Vec<Arc<PreparedClip>> の clone が「ポインタコピーのみ」で完結する
+        // ことを確認する。
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping Arc sharing test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let (snapshot, sources) = solid_scene("clip-1", "source-1");
+        let (prepared_clips, _) = renderer
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .expect("prepare must succeed");
+
+        let cloned = prepared_clips.clone();
+
+        // strong_count は「戻り値の Vec」「cloned」「内部キャッシュ」の 3 箇所分。
+        // ここで確認したいのは新規 GPU リソースが増えていないこと（clone しても
+        // strong_count が Vec の複製数ぶんきっちり増えるだけで、bind_group が
+        // 複製されていないこと）。
+        assert_eq!(Arc::strong_count(&prepared_clips[0].1), 3);
+        assert!(Arc::ptr_eq(&prepared_clips[0].1, &cloned[0].1));
     }
 }

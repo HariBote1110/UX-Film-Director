@@ -4,10 +4,12 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
-use uxfd_native_wgpu_renderer::{render_native_wgpu_frame, NativeWgpuLiveSurfaceRenderer};
+use uxfd_native_wgpu_renderer::{
+    render_native_wgpu_frame, NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
+};
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SamplingMode, SceneSnapshot, Transform};
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -287,7 +289,17 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// sources）。選択変更のみが起きた際（動画 present が来ないポーズ中など）に
     /// 同じ scene へデコレーションだけ差し替えて再 present するためのキャッシュ。
     /// 透明クリア（Bug D/F 経路）で None に戻る。
-    last_scene: Option<(SceneSnapshot, HashMap<String, RgbaFrame>)>,
+    ///
+    /// `Arc` で共有することで、選択変更のみの再 present（`present_cached_scene_with_decoration`）
+    /// が `RgbaFrame`（フルHDで約8MBのピクセルバッファ）を含む `HashMap` の
+    /// deep clone を一切発生させない（参照カウントのコピーのみ）。
+    last_scene: Option<Arc<(SceneSnapshot, HashMap<String, RgbaFrame>)>>,
+    /// `last_scene` の世代カウンタ。`present_upload_frame` で新しい scene が
+    /// 来るたびにインクリメントし、native-wgpu-renderer 側の prepared clip
+    /// キャッシュ（`prepare_base_scene_clips_cached`）のキーとして渡す。
+    /// 同じ世代の再 present では GPU テクスチャ生成・アップロードを丸ごと
+    /// スキップできる。
+    scene_generation: u64,
     #[cfg(target_os = "macos")]
     view_handle: usize,
     renderer: NativeWgpuLiveSurfaceRenderer,
@@ -315,6 +327,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             drawable_height: contract.drawable_height,
             contents_scale: contract.contents_scale,
             last_scene: None,
+            scene_generation: 0,
             view_handle,
             renderer,
         })
@@ -329,7 +342,8 @@ impl NativeOverlayLiveSurfaceRenderer {
         let _window_id = self.window_id;
         #[cfg(target_os = "macos")]
         let _view_handle = self.view_handle;
-        let (mut snapshot, mut sources) = upload_frame_to_scene_sources(
+        let trace_start = overlay_trace_enabled().then(Instant::now);
+        let (snapshot, sources) = upload_frame_to_scene_sources(
             upload,
             scene,
             self.drawable_width,
@@ -337,25 +351,45 @@ impl NativeOverlayLiveSurfaceRenderer {
         )?;
         // デコレーション上乗せ前の scene をキャッシュし、選択変更のみの
         // 再 present（present_cached_scene_with_decoration）で再利用する。
-        self.last_scene = Some((snapshot.clone(), sources.clone()));
-        if let Some(state) = decoration {
-            append_selection_decoration_to_scene(
-                &mut snapshot,
-                &mut sources,
-                state,
-                self.drawable_width,
-                self.drawable_height,
-                self.contents_scale,
-            );
-        }
+        // Arc に包むことで、この代入自体は参照カウントのコピーのみで
+        // RgbaFrame ピクセルバッファの deep clone を伴わない。
+        self.last_scene = Some(Arc::new((snapshot, sources)));
+        self.scene_generation += 1;
+        let (base_snapshot, base_sources) = self
+            .last_scene
+            .as_deref()
+            .expect("last_scene was just assigned above");
+
+        let (decoration_clips, decoration_sources) = decoration
+            .map(|state| {
+                build_selection_decoration_clips(
+                    state,
+                    self.drawable_width,
+                    self.drawable_height,
+                    self.contents_scale,
+                )
+            })
+            .unwrap_or_default();
+
         if live_surface_readback_trace_enabled() {
+            // 診断専用の readback 経路。base + decoration を 1 つの snapshot に
+            // 合成してから渡す（この経路は既定無効・deep clone を許容する）。
+            let mut merged_snapshot = base_snapshot.clone();
+            let mut merged_sources = base_sources.clone();
+            merged_snapshot.clips.extend(decoration_clips);
+            merged_sources.extend(decoration_sources);
             let report = pollster::block_on(
-                self.renderer
-                    .present_scene_to_surface_texture_with_readback(&snapshot, &sources),
+                self.renderer.present_scene_to_surface_texture_with_readback(
+                    &merged_snapshot,
+                    &merged_sources,
+                ),
             )
             .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
-            let live_readback_export_max_channel_delta =
-                compare_live_overlay_readback_with_export(&report.frame, &snapshot, &sources)?;
+            let live_readback_export_max_channel_delta = compare_live_overlay_readback_with_export(
+                &report.frame,
+                &merged_snapshot,
+                &merged_sources,
+            )?;
             return Ok(Some(live_surface_diagnostics_from_frame_report(
                 report,
                 Some(live_readback_export_max_channel_delta),
@@ -363,10 +397,18 @@ impl NativeOverlayLiveSurfaceRenderer {
         }
 
         let report = pollster::block_on(
-            self.renderer
-                .present_scene_to_surface_texture(&snapshot, &sources),
+            self.renderer.present_scene_with_decoration_to_surface_texture(
+                self.scene_generation,
+                base_snapshot,
+                base_sources,
+                &decoration_clips,
+                &decoration_sources,
+            ),
         )
         .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
+        if let Some(start) = trace_start {
+            trace_present_stage_timings("present_upload_frame", &report.timings, start.elapsed());
+        }
         Ok(Some(OverlayLiveSurfaceDiagnostics {
             live_prepared_clip_count: report.prepared_clip_count,
             live_readback_non_transparent_pixels: 0,
@@ -378,31 +420,57 @@ impl NativeOverlayLiveSurfaceRenderer {
     /// キャッシュ済み scene（無ければ透明クリア相当の空 scene）にデコレーション
     /// を上乗せして再 present する。noVideoDecodeRequest の透明クリア状態でも
     /// デコレーションのみを present できる（426c の透明クリア機構と両立する）。
+    ///
+    /// `last_scene` は `Arc` 共有のため、ここでは clone してもピクセルバッファの
+    /// 複製は起きない（参照カウントのコピーのみ）。base scene の GPU 側 prepare
+    /// は `scene_generation` が変わらない限り native-wgpu-renderer 側キャッシュが
+    /// ヒットし、テクスチャ再アップロードも起きない（デコレーション quad のみ
+    /// 毎回軽量に prepare し直す）。
     fn present_cached_scene_with_decoration(
         &mut self,
         decoration: Option<&SelectionDecorationState>,
     ) -> Result<(), String> {
-        let (mut snapshot, mut sources) = self
-            .last_scene
-            .clone()
-            .unwrap_or_else(build_empty_scene_snapshot_for_transparent_clear);
-        if let Some(state) = decoration {
-            append_selection_decoration_to_scene(
-                &mut snapshot,
-                &mut sources,
-                state,
-                self.drawable_width,
-                self.drawable_height,
-                self.contents_scale,
-            );
-        }
-        pollster::block_on(
-            self.renderer
-                .present_scene_to_surface_texture(&snapshot, &sources),
+        let trace_start = overlay_trace_enabled().then(Instant::now);
+        let cached = self.last_scene.clone();
+        let owned_empty;
+        let (base_snapshot, base_sources) = match cached.as_deref() {
+            Some((snapshot, sources)) => (snapshot, sources),
+            None => {
+                owned_empty = build_empty_scene_snapshot_for_transparent_clear();
+                (&owned_empty.0, &owned_empty.1)
+            }
+        };
+
+        let (decoration_clips, decoration_sources) = decoration
+            .map(|state| {
+                build_selection_decoration_clips(
+                    state,
+                    self.drawable_width,
+                    self.drawable_height,
+                    self.contents_scale,
+                )
+            })
+            .unwrap_or_default();
+
+        let report = pollster::block_on(
+            self.renderer.present_scene_with_decoration_to_surface_texture(
+                self.scene_generation,
+                base_snapshot,
+                base_sources,
+                &decoration_clips,
+                &decoration_sources,
+            ),
         )
         .map_err(|error| {
             format!("Native overlay selection decoration present failed: {error:?}")
         })?;
+        if let Some(start) = trace_start {
+            trace_present_stage_timings(
+                "present_cached_scene_with_decoration",
+                &report.timings,
+                start.elapsed(),
+            );
+        }
         Ok(())
     }
 }
@@ -1358,6 +1426,24 @@ fn trace_scene_fit(
             after.transform.scale_y,
         );
     }
+}
+
+/// Opt-in trace (`UXFD_OVERLAY_TRACE=1`): shared frame present / デコレーション
+/// only present の各段（scene 合成・prepare(テクスチャ準備+アップロード)・
+/// get_current_texture 待ち・submit+present・合計）の所要時間を stderr へ出力する。
+/// 実機で「デコレーション更新が重い」と感じたとき、どの段が支配的かをここで
+/// 切り分ける。段の対応は `NativeWgpuFrameStageTimings` のフィールド名と揃える
+/// （source_upload=prepare、acquire=get_current_texture 待ち、render=submit+present）。
+fn trace_present_stage_timings(
+    label: &str,
+    timings: &NativeWgpuFrameStageTimings,
+    outer_total: Duration,
+) {
+    eprintln!(
+        "[uxfd-overlay-trace] {label} prepare(upload)={:?} acquire(get_current_texture)={:?} \
+         render(submit+present)={:?} inner_total={:?} outer_total={outer_total:?}",
+        timings.source_upload, timings.acquire, timings.render, timings.total,
+    );
 }
 
 fn live_surface_readback_trace_enabled() -> bool {
@@ -2776,6 +2862,52 @@ mod tests {
         assert!(snapshot.clips[1..].iter().all(|clip| clip.z_index >= u32::MAX - 2));
         assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
         assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
+    }
+
+    #[test]
+    fn last_scene_cache_shares_rgba_pixel_buffers_via_arc_without_deep_clone() {
+        // タスク2: `NativeOverlayLiveSurfaceRenderer.last_scene` は
+        // `Arc<(SceneSnapshot, HashMap<String, RgbaFrame>)>` として保持し、
+        // デコレーションのみの再 present（present_cached_scene_with_decoration
+        // 相当の読み出しパターン: `.clone()` して中身を読む）が RgbaFrame の
+        // ピクセルバッファを deep clone しないことを固定する。
+        // フルHD 相当の 1 ソース（約 8MB）で `Arc::clone` 前後の strong_count と
+        // ポインタ同一性を確認し、「clone のたびに新しい Vec<u8> が確保される」
+        // 回帰を検出できるようにする。
+        let width = 1920_u32;
+        let height = 1080_u32;
+        let frame = RgbaFrame::from_rgba8(width, height, vec![7u8; (width * height * 4) as usize])
+            .expect("valid full-hd frame");
+        let mut sources = HashMap::new();
+        sources.insert("video-1".to_string(), frame);
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        };
+
+        let last_scene: Option<Arc<(SceneSnapshot, HashMap<String, RgbaFrame>)>> =
+            Some(Arc::new((snapshot, sources)));
+
+        // present_cached_scene_with_decoration がやるのと同じ読み出しパターン。
+        let cached = last_scene.clone();
+        let (_, cached_sources) = cached.as_deref().expect("scene must be cached");
+        let (_, original_sources) = last_scene.as_deref().expect("scene must be cached");
+
+        assert_eq!(
+            Arc::strong_count(last_scene.as_ref().unwrap()),
+            2,
+            "cloning the cached scene for re-present must only bump the Arc refcount, \
+             not allocate a fresh RgbaFrame pixel buffer",
+        );
+        assert!(
+            std::ptr::eq(
+                cached_sources.get("video-1").unwrap().pixels.as_ptr(),
+                original_sources.get("video-1").unwrap().pixels.as_ptr(),
+            ),
+            "decoration-only re-present must reuse the exact same pixel buffer allocation, \
+             not a deep copy",
+        );
     }
 
     #[test]
