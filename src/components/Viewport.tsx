@@ -70,6 +70,11 @@ import {
 } from '../utils/sharedRendererExternalVideoMasterClock';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import {
+  NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS,
+  buildNativeOverlayAttachKey,
+  shouldPollNativeOverlayAttach,
+} from '../utils/nativeOverlayAttachPolling';
+import {
   buildSelectionDecorationQuads,
   createNativeOverlaySelectionDecorationSender,
 } from '../utils/nativeOverlaySelectionDecoration';
@@ -606,13 +611,7 @@ const Viewport: React.FC = () => {
         viewportOffsetLeft: visualViewport?.offsetLeft ?? 0,
         viewportOffsetTop: visualViewport?.offsetTop ?? 0,
       });
-      const nextAttachKey = [
-        nextAttachRect.x,
-        nextAttachRect.y,
-        nextAttachRect.width,
-        nextAttachRect.height,
-        nextAttachRect.scaleFactor,
-      ].join(':');
+      const nextAttachKey = buildNativeOverlayAttachKey(nextAttachRect);
       // build_overlay_layer_contract（Rust）と同じ丸めで drawable ピクセルサイズを保持し、
       // preview decode edge を drawable 長辺に追従させる。
       nativeOverlayDrawableSizeRef.current = {
@@ -646,9 +645,19 @@ const Viewport: React.FC = () => {
     document.addEventListener('visibilitychange', attach);
     window.addEventListener('focus', attach);
     window.addEventListener('pageshow', attach);
+    // 発見8 — サイズ不変の要素移動（兄弟ペインの開閉等のレイアウトシフト）は
+    // 上記のどのイベントでも発火しないため、低頻度ポーリングで rect を再計算
+    // して補完する。attach は key（buildNativeOverlayAttachKey）で冪等のため、
+    // rect 不変のポーリング tick は IPC を発行しない。document.hidden 中は
+    // スキップし、復帰は既存の visibilitychange リスナーが即時 attach で拾う。
+    const attachPollTimerId = window.setInterval(() => {
+      if (!shouldPollNativeOverlayAttach(document.hidden)) return;
+      attach();
+    }, NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS);
 
     return () => {
       disposed = true;
+      window.clearInterval(attachPollTimerId);
       observer?.disconnect();
       window.removeEventListener('resize', attach);
       visualViewport?.removeEventListener('resize', attach);
