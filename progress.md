@@ -1,3 +1,39 @@
+## 2026-07-09 — 修正: タイムラインとCanvasのズレ調査の裏取りとTDD修正（版432e）
+
+### 実施内容
+
+- 前回（2026-07-08）の調査で挙げた発見1〜9を実コードで裏取りし、費用対効果で4件をTDD（Red→Green）で修正、3件を分析のみで見送った。
+- **修正1（発見3・最優先）**: `src/utils/sharedRendererNativeReuseCadence.ts` の `resolveSharedRendererNativeReuseReplayTime` を、常に「前回 requestedTime + 1/previewFps」へクランプする方式から、「遅延が既定6フレーム（`catchUpFrameThreshold`、60fpsで100ms）を超えたら clamp を外して pendingTime へ直接追いつく」ハイブリッド方式へ変更。旧実装は decode+present が毎tick(16.7ms)を超え続けると Canvas がヘッドから単調に遅れ続け、回復機構が無いことをコード上で確認済み（呼び出し元: `src/components/Viewport.tsx` 974行付近の publish 入口、1178行付近の native reuse pending replay）。後方シーク（pendingTime<requestedTime）はもともと `Math.min` がクランプ対象外にしていた（`maxReplayTime` は常に requestedTime より大きいため）ことを確認し、この既存の後方シークストーム抑止の挙動を壊さないことをテストで固定した。既存の1件目のテスト（`pendingTime: 3.25`, 2.25秒遅延）は「常に1フレームずつ」という旧仕様（＝今回のバグの温床そのもの）を検証していたため、新契約（3.25へ直接追いつく）へ更新した。
+- **修正2（発見7）**: `src/utils/videoMediaTime.ts` の `mediaTimeInClipForPlayhead` のクリップ終端判定を `local > duration`（閉区間）から `local >= duration`（半開区間）へ変更し、`rustSceneSnapshot.ts` の `collectVisibleObjects`（`time < startTime + duration`）・renderScene 側と統一した。クリップ終端ちょうどの時刻で Vision 検出だけが「在圏」と誤判定し、他経路とヘッド位置がズレる余地を解消。
+- **修正3（発見4）**: `src/utils/rustSceneSnapshot.ts` の `sourceFrameForObject`（動画等のフォールバック経路）で、`Math.round` ベースの frame_index 計算結果をクリップ自身のローカル再生範囲（`offset..offset+duration` に対応する最終有効フレーム）へクランプした。projectFps が 60 の約数でない場合（例: 24fps）、`collectVisibleObjects` の在圏判定（非量子化・半開区間）は満たすのに、round 後の frame_index がクリップ終端を超えてしまう境界揺れを解消。
+- **修正4（発見9）**: `src/utils/nativeOverlayViewportGeometry.ts` の `buildNativeOverlayAttachRect` から `nonNegativeOrZero` によるx/yクランプを撤去。`native-overlay/src/macos_overlay.rs`（`create_overlay_child_window` / `resolve_view_local_rect_for_parent_bounds`）を確認したところ、通常の `convertRect:` 幾何変換のみでx/yの非負性を一切前提にしておらず、TS側の0クランプが不要な制約だったことを確認した。width/height/scaleFactorのフォールバック（最低1px・正のスケール）はnative側がゼロ寸法のdrawable/windowを扱えないため必要であり維持した。
+- **見送り（発見1・2・8）**: いずれも大掛かりなためコード変更は行わず、前回の分析のまま。理由は以下「選定理由」参照。
+- 全4修正について Red（test:）→ Green（fix:）でコミットを分離（計8コミット、`sharedRendererNativeReuseCadence.test.ts`／`.ts`、`videoMediaTime.test.ts`／`.ts`、`rustSceneSnapshot.test.ts`／`.ts`、`nativeOverlayViewportGeometry.test.ts`／`.ts`）。
+- `package.json` の版を `0.1.1-Beta-432d` → `432e`（バグ修正のためSubVerを1文字進行、複数修正だが1セッション1進めの方針に従った）。
+
+### 選定理由・判断の根拠
+
+- 修正の優先順位はユーザー指示どおり「発見3が最優先（実際に回復不能な単調遅延という設計欠陥）」とし、発見7・4・9は境界値・座標の局所的な最小修正として着手した。
+- 発見3のハイブリッド閾値は6フレーム（100ms@60fps）とした。小さすぎると通常の1フレームずつの追従（decode sidecar への forward gap 抑止という元の意図）を壊し、大きすぎると実害のある遅延を長時間放置するため、ユーザー提示の「例: 6フレーム」をそのまま採用した。
+- 発見7は「半開区間へ寄せるのが既存多数派」というユーザー方針どおり、videoMediaTime側を変更しrustSceneSnapshot側は変更しなかった（renderScene・collectVisibleObjects・snapshot全てが既に半開区間で統一されているため）。
+- 発見4はクリップ本体の在圏判定式自体（`time < startTime+duration`）は変更せず、量子化後の frame_index だけをクランプする最小修正にとどめた。在圏判定式まで変更すると再生位置全体の挙動（他の視覚要素・エフェクトのタイミング）に波及するリスクがあるため。
+- 発見9はRust側の座標変換コードを実際に読み、x/y非負の前提が存在しないことを確認したうえで安全と判断してから修正した（指示どおり「native-overlay側の座標系制約を確認してから判断」）。既存テスト「clamps invalid dimensions and scale factor before IPC」のy期待値（0→-1）は、非負クランプ撤去に伴う直接的な影響であるため合わせて更新した（width/height/scaleFactorのフォールバック検証という本来の目的は保持）。
+- 発見1（二重クロック）・2（複数クリップ間の相対ズレ）・8（レイアウトシフト時のoverlay置き去り）は、ユーザー指示どおり「大掛かりなため今回は見送り」とした。
+  - 発見1・2はヘッドと映像クロックの同期方式そのもの（マスタークロックの一本化）に関わる設計変更で、再生中の許容ドリフト（0.35秒トレランス・75msスロットル）が意図的なトレードオフ（シークストーム回避）として運用されている痕跡があり、単発のバグ修正の範疇を超えるため見送った。
+  - 発見8はResizeObserver等のサイズ変化イベント起点の再attach機構に加えて、サイズ不変のレイアウトシフトを検知する新規の監視機構（IntersectionObserver等）が必要で、native-overlayのRust側リビルドも視野に入る規模のため、今回のTypeScript側完結の方針にも合わず見送った。
+- 修正はすべてRust側のリビルドを要さないTypeScript側で完結させた（指示どおり）。
+
+### 検証
+
+- `npx vitest run`: 172ファイル中169 pass / 3 fail（`productionVideoDependencyBoundary.test.ts`・`psdParser.perf.test.ts`・`rustBackendNativeRenderBoundary.test.ts`、計5テスト）。この3ファイル5テストは着手前のベースラインで既に失敗しており（環境依存のPSDベンチfixture欠如・ソース文字列境界チェックの既存不一致）、本セッションの変更とは無関係。新規失敗ゼロ、新規追加6テストすべてgreen（合計1233→1239 pass）。
+- `npx tsc --noEmit`: 78件（着手前と同数、変更対象4ファイルに起因するエラーなし）。
+
+### 残課題・次のステップ
+
+- 発見1・2・8は引き続きバックログ。対策方針案（前回記録のとおり）: 発見1は再生中のヘッドをvideo要素のクロックへ従属させるマスタークロック一本化、発見2はpauseSnapを全クリップへ拡張、発見8はレイアウトシフト検知の追加監視機構（IntersectionObserver等）導入。
+- 発見3の6フレーム閾値は暫定値。実機の重い素材再生でのbench計測（`decodeMs`分布）を踏まえて調整余地がある。
+- `package-lock.json` の `version` フィールドが `package.json` と既に乖離していた（429a vs 432d、本セッション着手前から）。今回は指示範囲外のため未着手。
+
 ## 2026-07-08 — 調査: タイムラインとCanvasがズレる可能性の探索（コード変更なし）
 
 ### 実施内容
