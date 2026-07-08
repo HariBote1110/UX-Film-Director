@@ -15,10 +15,10 @@ use crate::state::BackendState;
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
-    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, CopyOutState, DecodeFrameRequest,
-    DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse, FrameFormat,
-    FrameVerificationReport, FrameVerificationStatus, ReadyFrame, SharedFrame, SharedFrameRing,
-    SlotRecoveryReason,
+    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm, CopyOutState,
+    DecodeFrameRequest, DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse,
+    FrameChecksum, FrameFormat, FrameVerificationReport, FrameVerificationStatus, ReadyFrame,
+    SharedFrame, SharedFrameRing, SlotRecoveryReason,
 };
 
 pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
@@ -379,9 +379,34 @@ pub(crate) fn handle_decode_request_frame(
             control_plane_generation,
         },
     );
+    // The verification checksum is a diagnostic field for the RPC caller:
+    // the frontend only type-checks its shape (algorithm/valueHex/byteLen)
+    // and never compares its value against anything (see
+    // rustBackendVideoDecodeControl.ts), and `status` is unconditionally
+    // `WithinTolerance` here, so nothing in the shipped app depends on a
+    // real CRC32. This backend's own integration tests
+    // (rust-backend/tests/decode_control_plane.rs) do use it as a
+    // decode-correctness oracle though (comparing checksums to assert exact
+    // pixel output for scaling/range-conversion/etc.), so — unlike
+    // `decode_trace_enabled()`, which is opt-in — this stays on by default
+    // and only skips the whole-frame CRC32 pass (the actual per-frame CPU
+    // cost) when explicitly disabled, mirroring the
+    // `UXFD_DISABLE_VIDEOTOOLBOX_DECODE` opt-out pattern below. This mirrors
+    // the JS-side CRC verification that commit 358477d3 already downgraded
+    // to `VITE_UXFD_UPLOAD_CRC_VERIFY=1` (opt-in there, since nothing on the
+    // JS side depends on it either).
+    let checksum = if decode_checksum_enabled() {
+        checksum_for_bytes(&padded_rgba)
+    } else {
+        FrameChecksum {
+            algorithm: ChecksumAlgorithm::Crc32,
+            value_hex: "00000000".to_string(),
+            byte_len: padded_rgba.len() as u64,
+        }
+    };
     let verification = FrameVerificationReport {
         frame_index: parsed.frame_index,
-        checksum: checksum_for_bytes(&padded_rgba),
+        checksum,
         diff: None,
         status: FrameVerificationStatus::WithinTolerance,
     };
@@ -636,6 +661,18 @@ fn decode_trace_enabled() -> bool {
         .unwrap_or(false)
 }
 
+// Whole-frame CRC32 verification is a diagnostic aid, not a correctness
+// dependency in the shipped app (see the comment at its call site in
+// handle_decode_request_frame), but the integration tests use it as a
+// decode-correctness oracle, so it stays on by default and is opted out via
+// UXFD_DISABLE_DECODE_CHECKSUM=1 (which the Electron main process sets when
+// spawning this backend for production preview).
+fn decode_checksum_enabled() -> bool {
+    std::env::var("UXFD_DISABLE_DECODE_CHECKSUM")
+        .map(|value| value != "1")
+        .unwrap_or(true)
+}
+
 fn decode_rgba_frame_for_session(
     session: &mut DecodeSession,
     frame_index: u64,
@@ -716,12 +753,7 @@ fn decode_rgba_frame_for_session(
         });
     }
 
-    let mut decoder = start_streaming_decode_process(session, frame_index, expected_len)?;
-    let mut bytes = vec![0u8; expected_len];
-    decoder
-        .stdout
-        .read_exact(&mut bytes)
-        .map_err(|error| format!("failed to read first streaming decoded frame: {error}"))?;
+    let (mut decoder, bytes) = start_streaming_decode_process(session, frame_index, expected_len)?;
     decoder.next_frame_index = frame_index + 1;
     session.streaming_decoder = Some(decoder);
     remember_decoded_frame(session, frame_index, bytes.clone());
@@ -786,7 +818,7 @@ fn start_streaming_decode_process(
     session: &mut DecodeSession,
     frame_index: u64,
     expected_len: usize,
-) -> Result<StreamingDecodeProcess, String> {
+) -> Result<(StreamingDecodeProcess, Vec<u8>), String> {
     session.streaming_decoder = None;
 
     let input_metadata = probe_video_input_metadata(&session.ffprobe_path, &session.source)?;
@@ -803,49 +835,157 @@ fn start_streaming_decode_process(
     // caller's tick domain. Without this, a slower source (e.g. 30fps) is
     // drained twice as fast as playback advances, causing 2x-speed playback
     // and a stall once the source frames run out.
-    let filter = format!(
-        "fps={}/{},scale=w={}:h={}:in_range={}:out_range=pc,format=rgba",
-        session.start_response.source_rate.numerator,
-        session.start_response.source_rate.denominator,
-        session.start_response.width,
-        session.start_response.height,
-        input_metadata.range
-    );
-    let args = build_streaming_decode_args(&session.source, seek_seconds, &filter);
-    let mut child = Command::new(&session.ffmpeg_path)
+    let numerator = session.start_response.source_rate.numerator;
+    let denominator = session.start_response.source_rate.denominator;
+    let width = session.start_response.width;
+    let height = session.start_response.height;
+    let range = input_metadata.range;
+
+    // When VideoToolbox decode is available, prefer keeping the decoded
+    // frame on the GPU for the resize (`scale_vt`) and only pulling it back
+    // to CPU memory (`hwdownload`) once it is already small, instead of
+    // downloading the full-resolution NV12 frame and letting ffmpeg's CPU
+    // swscale do both the resize and the NV12->RGBA conversion on every
+    // frame. If `scale_vt` is unsupported by the local ffmpeg build (older
+    // version, no VideoToolbox) the first spawn/read below fails fast and
+    // this falls back to the original CPU-scale filter chain, which is also
+    // what runs when VideoToolbox is disabled entirely via
+    // `UXFD_DISABLE_VIDEOTOOLBOX_DECODE=1`.
+    if streaming_decode_scale_vt_enabled() {
+        let hardware_filter =
+            build_streaming_decode_filter(numerator, denominator, width, height, range, true);
+        let hardware_args = build_streaming_decode_args_with_hwaccel(
+            &session.source,
+            seek_seconds,
+            &hardware_filter,
+            true,
+            true,
+        );
+        match spawn_streaming_decode_process(
+            &session.ffmpeg_path,
+            &hardware_args,
+            frame_index,
+            expected_len,
+        ) {
+            Ok(result) => return Ok(result),
+            Err(error) => {
+                if decode_trace_enabled() {
+                    eprintln!(
+                        "[uxfd-decode-trace] scale_vt streaming decode failed, falling back to CPU scale filter: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    let cpu_filter =
+        build_streaming_decode_filter(numerator, denominator, width, height, range, false);
+    let cpu_args = build_streaming_decode_args(&session.source, seek_seconds, &cpu_filter);
+    spawn_streaming_decode_process(&session.ffmpeg_path, &cpu_args, frame_index, expected_len)
+}
+
+fn spawn_streaming_decode_process(
+    ffmpeg_path: &str,
+    args: &[String],
+    frame_index: u64,
+    expected_len: usize,
+) -> Result<(StreamingDecodeProcess, Vec<u8>), String> {
+    let mut child = Command::new(ffmpeg_path)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|error| {
-            format!(
-                "failed to start streaming ffmpeg ({}): {error}",
-                session.ffmpeg_path
-            )
-        })?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "streaming ffmpeg stdout was unavailable".to_string())?;
+        .map_err(|error| format!("failed to start streaming ffmpeg ({ffmpeg_path}): {error}"))?;
+    let mut stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("streaming ffmpeg stdout was unavailable".to_string());
+        }
+    };
 
-    Ok(StreamingDecodeProcess {
-        child,
-        stdout,
-        next_frame_index: frame_index,
-        frame_byte_len: expected_len,
-    })
+    // Reading the first frame here (rather than leaving it to the caller) is
+    // what makes the scale_vt fallback above possible: an unsupported filter
+    // graph does not fail `spawn()` (ffmpeg starts fine, it just errors out
+    // internally and closes stdout), so the failure only becomes observable
+    // once the first read comes up short. Surfacing that as an `Err` here
+    // lets the caller retry with the CPU filter chain instead of the request
+    // stalling or returning garbage.
+    let mut bytes = vec![0u8; expected_len];
+    if let Err(error) = stdout.read_exact(&mut bytes) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("failed to read first streaming decoded frame: {error}"));
+    }
+
+    Ok((
+        StreamingDecodeProcess {
+            child,
+            stdout,
+            next_frame_index: frame_index,
+            frame_byte_len: expected_len,
+        },
+        bytes,
+    ))
+}
+
+// Builds the `-vf` filter graph. `hardware_scale` selects between resizing
+// on the GPU via VideoToolbox (`scale_vt`, paired with
+// `-hwaccel_output_format videotoolbox_vld`) and the original CPU `scale`
+// filter. `scale_vt` itself has no range-conversion option, so the
+// tv->pc range conversion still happens on CPU via a no-resize `scale` pass
+// — but only after `hwdownload`, i.e. on the already-downscaled frame, which
+// is comparatively cheap.
+fn build_streaming_decode_filter(
+    source_rate_numerator: u32,
+    source_rate_denominator: u32,
+    width: u32,
+    height: u32,
+    range: &str,
+    hardware_scale: bool,
+) -> String {
+    if hardware_scale {
+        format!(
+            "fps={source_rate_numerator}/{source_rate_denominator},scale_vt=w={width}:h={height},hwdownload,format=nv12,scale=in_range={range}:out_range=pc,format=rgba"
+        )
+    } else {
+        format!(
+            "fps={source_rate_numerator}/{source_rate_denominator},scale=w={width}:h={height}:in_range={range}:out_range=pc,format=rgba"
+        )
+    }
 }
 
 fn build_streaming_decode_args(source: &str, seek_seconds: f64, filter: &str) -> Vec<String> {
+    build_streaming_decode_args_with_hwaccel(
+        source,
+        seek_seconds,
+        filter,
+        streaming_decode_videotoolbox_enabled(),
+        false,
+    )
+}
+
+fn build_streaming_decode_args_with_hwaccel(
+    source: &str,
+    seek_seconds: f64,
+    filter: &str,
+    videotoolbox_decode: bool,
+    videotoolbox_output_format: bool,
+) -> Vec<String> {
     let mut args = vec![
         "-hide_banner".to_string(),
         "-loglevel".to_string(),
         "error".to_string(),
     ];
-    if streaming_decode_videotoolbox_enabled() {
+    if videotoolbox_decode {
         args.push("-hwaccel".to_string());
         args.push("videotoolbox".to_string());
+        if videotoolbox_output_format {
+            args.push("-hwaccel_output_format".to_string());
+            args.push("videotoolbox_vld".to_string());
+        }
     }
     args.extend([
         "-ss".to_string(),
@@ -873,6 +1013,18 @@ fn streaming_decode_videotoolbox_enabled() -> bool {
 #[cfg(not(target_os = "macos"))]
 fn streaming_decode_videotoolbox_enabled() -> bool {
     false
+}
+
+// `scale_vt` additionally requires VideoToolbox decode to be enabled (it
+// operates on hardware frames), so it is gated on
+// `streaming_decode_videotoolbox_enabled()` plus its own opt-out for
+// isolating scale_vt-specific issues without disabling hardware decode
+// entirely.
+fn streaming_decode_scale_vt_enabled() -> bool {
+    streaming_decode_videotoolbox_enabled()
+        && std::env::var("UXFD_DISABLE_VIDEOTOOLBOX_SCALE")
+            .map(|value| value != "1")
+            .unwrap_or(true)
 }
 
 struct VideoInputMetadata {
@@ -958,5 +1110,81 @@ mod tests {
             hwaccel_index < input_index,
             "VideoToolbox hwaccel must be declared before the input"
         );
+    }
+
+    #[test]
+    fn streaming_decode_filter_uses_scale_vt_and_hwdownload_for_hardware_scale() {
+        let filter = build_streaming_decode_filter(60, 1, 1280, 720, "tv", true);
+        assert_eq!(
+            filter,
+            "fps=60/1,scale_vt=w=1280:h=720,hwdownload,format=nv12,scale=in_range=tv:out_range=pc,format=rgba"
+        );
+    }
+
+    #[test]
+    fn streaming_decode_filter_uses_cpu_scale_for_software_scale() {
+        let filter = build_streaming_decode_filter(60, 1, 1280, 720, "tv", false);
+        assert_eq!(
+            filter,
+            "fps=60/1,scale=w=1280:h=720:in_range=tv:out_range=pc,format=rgba"
+        );
+    }
+
+    #[test]
+    fn streaming_decode_args_with_hwaccel_adds_output_format_only_when_requested() {
+        let filter = "scale_vt=w=1:h=1,hwdownload,format=nv12,format=rgba";
+
+        let with_output_format =
+            build_streaming_decode_args_with_hwaccel("/tmp/input.mp4", 0.0, filter, true, true);
+        assert!(with_output_format
+            .windows(2)
+            .any(|pair| pair == ["-hwaccel_output_format", "videotoolbox_vld"]));
+
+        let without_output_format =
+            build_streaming_decode_args_with_hwaccel("/tmp/input.mp4", 0.0, filter, true, false);
+        assert!(!without_output_format.contains(&"-hwaccel_output_format".to_string()));
+
+        let without_hwaccel_at_all =
+            build_streaming_decode_args_with_hwaccel("/tmp/input.mp4", 0.0, filter, false, true);
+        assert!(!without_hwaccel_at_all.contains(&"-hwaccel".to_string()));
+        assert!(!without_hwaccel_at_all.contains(&"-hwaccel_output_format".to_string()));
+    }
+
+    #[test]
+    fn spawn_streaming_decode_process_falls_back_when_filter_graph_is_unsupported() {
+        // Simulates the scale_vt-unsupported case: ffmpeg spawns successfully
+        // but the filter graph fails internally and stdout closes with no
+        // frame bytes, so the first `read_exact` comes up short and the call
+        // must surface an `Err` rather than hang or panic.
+        let ffmpeg_path =
+            std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+        let args = build_streaming_decode_args_with_hwaccel(
+            "/dev/null",
+            0.0,
+            "definitely_not_a_real_filter",
+            false,
+            false,
+        );
+        let result = spawn_streaming_decode_process(&ffmpeg_path, &args, 0, 16);
+        assert!(
+            result.is_err(),
+            "an invalid filter graph must be reported as an error so the caller can fall back"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn streaming_decode_scale_vt_enabled_respects_its_own_opt_out() {
+        // Deliberately does not touch UXFD_DISABLE_VIDEOTOOLBOX_DECODE here:
+        // that var is also read by
+        // `streaming_decode_args_use_videotoolbox_before_input_on_macos`,
+        // and cargo test runs tests in the same binary concurrently, so
+        // mutating it would risk flaking that other test.
+        std::env::set_var("UXFD_DISABLE_VIDEOTOOLBOX_SCALE", "1");
+        assert!(
+            !streaming_decode_scale_vt_enabled(),
+            "UXFD_DISABLE_VIDEOTOOLBOX_SCALE=1 must disable scale_vt"
+        );
+        std::env::remove_var("UXFD_DISABLE_VIDEOTOOLBOX_SCALE");
     }
 }

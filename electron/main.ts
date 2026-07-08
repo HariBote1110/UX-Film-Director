@@ -358,7 +358,16 @@ const ensureRustBackendProcess = () => {
     );
   }
 
-  const child = spawn(rustBackendPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn(rustBackendPath, [], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      // The per-frame whole-frame CRC32 in decode.requestFrame is a test
+      // oracle, not a runtime integrity check (the shared-ring write/read
+      // CRC still guards the frame handoff), so skip it in the app.
+      UXFD_DISABLE_DECODE_CHECKSUM: process.env.UXFD_DISABLE_DECODE_CHECKSUM ?? '1',
+    },
+  });
   if (!child.stdout || !child.stderr || !child.stdin) {
     throw new Error('Failed to start Rust backend stdio streams.');
   }

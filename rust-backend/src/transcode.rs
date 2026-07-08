@@ -141,10 +141,10 @@ pub(crate) fn handle_encode_transcode_video(
         .arg("error")
         .arg("-nostats")
         .arg("-y");
-    if start_seconds > 0.0 {
-        cmd.arg("-ss").arg(format!("{start_seconds:.6}"));
-    }
-    cmd.arg("-i").arg(&parsed.input_path);
+    cmd.args(build_transcode_main_input_args(
+        start_seconds,
+        &parsed.input_path,
+    ));
     let mut next_input_index = 1_usize;
     let mut overlay_inputs: Vec<Option<usize>> = Vec::with_capacity(overlays.len());
     for overlay in &overlays {
@@ -598,6 +598,55 @@ pub(crate) fn remove_temporary_transcode_overlay_inputs(overlays: &[NormalisedTr
     }
 }
 
+/// Builds the ffmpeg argument sequence that introduces the main video
+/// input, requesting VideoToolbox hardware decode on macOS when enabled.
+///
+/// `-hwaccel` is a decoder option: it must be declared before the `-i` it
+/// applies to and it only affects the input that follows it, so overlay
+/// image/rawvideo inputs (pushed onto the command separately, after this
+/// prefix) are unaffected. `-hwaccel_output_format` is intentionally
+/// omitted: the filter chain below runs CPU scale/pad/crop/overlay filters,
+/// so frames must land back in system memory after decode rather than
+/// staying in a VideoToolbox surface.
+fn build_transcode_main_input_args(start_seconds: f64, input_path: &str) -> Vec<String> {
+    build_transcode_main_input_args_with_hwaccel(
+        start_seconds,
+        input_path,
+        transcode_videotoolbox_decode_enabled(),
+    )
+}
+
+fn build_transcode_main_input_args_with_hwaccel(
+    start_seconds: f64,
+    input_path: &str,
+    hwaccel_enabled: bool,
+) -> Vec<String> {
+    let mut args = Vec::new();
+    if hwaccel_enabled {
+        args.push("-hwaccel".to_string());
+        args.push("videotoolbox".to_string());
+    }
+    if start_seconds > 0.0 {
+        args.push("-ss".to_string());
+        args.push(format!("{start_seconds:.6}"));
+    }
+    args.push("-i".to_string());
+    args.push(input_path.to_string());
+    args
+}
+
+#[cfg(target_os = "macos")]
+fn transcode_videotoolbox_decode_enabled() -> bool {
+    std::env::var("UXFD_DISABLE_VIDEOTOOLBOX_DECODE")
+        .map(|value| value != "1")
+        .unwrap_or(true)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn transcode_videotoolbox_decode_enabled() -> bool {
+    false
+}
+
 fn normalise_hex_colour(value: &str) -> Result<String, String> {
     let trimmed = value.trim();
     let hex = trimmed
@@ -659,4 +708,93 @@ pub(crate) fn build_transcode_filter_complex(
         previous_label = next_label;
     }
     (parts.join(";"), format!("[{previous_label}]"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn transcode_main_input_args_use_videotoolbox_before_input_on_macos() {
+        let args = build_transcode_main_input_args_with_hwaccel(0.0, "/tmp/input.mp4", true);
+
+        let hwaccel_index = args
+            .iter()
+            .position(|arg| arg == "-hwaccel")
+            .expect("macOS transcode decode should request VideoToolbox");
+        let input_index = args
+            .iter()
+            .position(|arg| arg == "-i")
+            .expect("ffmpeg input argument");
+        assert_eq!(args[hwaccel_index + 1], "videotoolbox");
+        assert!(
+            hwaccel_index < input_index,
+            "VideoToolbox hwaccel must be declared before the main input"
+        );
+        assert!(
+            !args.iter().any(|arg| arg == "-hwaccel_output_format"),
+            "hwaccel_output_format must be omitted so CPU filters keep working"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn transcode_main_input_args_keep_hwaccel_before_seek() {
+        let args = build_transcode_main_input_args_with_hwaccel(1.5, "/tmp/input.mp4", true);
+
+        let hwaccel_index = args
+            .iter()
+            .position(|arg| arg == "-hwaccel")
+            .expect("macOS transcode decode should request VideoToolbox");
+        let seek_index = args
+            .iter()
+            .position(|arg| arg == "-ss")
+            .expect("ffmpeg seek argument");
+        let input_index = args
+            .iter()
+            .position(|arg| arg == "-i")
+            .expect("ffmpeg input argument");
+        assert!(
+            hwaccel_index < seek_index,
+            "VideoToolbox hwaccel should precede -ss"
+        );
+        assert!(seek_index < input_index, "-ss must precede -i");
+        assert_eq!(args[seek_index + 1], "1.500000");
+        assert_eq!(args[input_index + 1], "/tmp/input.mp4");
+    }
+
+    #[test]
+    fn transcode_main_input_args_only_target_main_input_slot() {
+        // Regardless of platform, only one `-hwaccel` (if any) and exactly
+        // one `-i` should be produced by this helper: overlay/audio inputs
+        // are appended separately by the caller and must stay unaffected.
+        for hwaccel_enabled in [false, true] {
+            let args = build_transcode_main_input_args_with_hwaccel(
+                0.0,
+                "/tmp/input.mp4",
+                hwaccel_enabled,
+            );
+
+            assert_eq!(args.iter().filter(|arg| *arg == "-i").count(), 1);
+            assert_eq!(
+                args.iter().filter(|arg| *arg == "-hwaccel").count(),
+                usize::from(hwaccel_enabled)
+            );
+        }
+    }
+
+    #[test]
+    fn transcode_main_input_args_disabled_omits_hwaccel() {
+        // Mirrors what `transcode_videotoolbox_decode_enabled()` returns
+        // when `UXFD_DISABLE_VIDEOTOOLBOX_DECODE=1` (or on non-macOS
+        // targets): no `-hwaccel` flag should be emitted at all.
+        let args = build_transcode_main_input_args_with_hwaccel(0.0, "/tmp/input.mp4", false);
+
+        assert!(
+            !args.iter().any(|arg| arg == "-hwaccel"),
+            "disabled hwaccel must not appear in the ffmpeg args"
+        );
+        assert_eq!(args, vec!["-i".to_string(), "/tmp/input.mp4".to_string()]);
+    }
 }

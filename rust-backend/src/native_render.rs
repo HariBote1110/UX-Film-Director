@@ -56,7 +56,12 @@ pub(crate) fn handle_encode_write_native_frame(
     }
 
     let sources =
-        match collect_native_render_sources(&parsed.snapshot, &parsed.media, &parsed.sources) {
+        match collect_native_render_sources(
+            &parsed.snapshot,
+            &parsed.media,
+            &parsed.sources,
+            &mut state.source_frame_cache,
+        ) {
             Ok(value) => value,
             Err(message) => {
                 return response_error(id, native_render_source_error_code(&message), &message);
@@ -227,7 +232,12 @@ pub(crate) fn handle_native_render_shared_frame(
         return response_error(id, -32602, "slotCount must be greater than zero");
     }
     let sources =
-        match collect_native_render_sources(&parsed.snapshot, &parsed.media, &parsed.sources) {
+        match collect_native_render_sources(
+            &parsed.snapshot,
+            &parsed.media,
+            &parsed.sources,
+            &mut state.source_frame_cache,
+        ) {
             Ok(value) => value,
             Err(message) => {
                 return response_error(id, native_render_source_error_code(&message), &message);

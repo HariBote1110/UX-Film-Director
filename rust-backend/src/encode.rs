@@ -504,24 +504,36 @@ fn write_tight_rgba_frame_to_encoder(
         ));
     }
 
-    let mut tight_rgba = Vec::with_capacity(
-        row_bytes
-            .checked_mul(height)
-            .ok_or_else(|| "Encode tight frame byte length overflows".to_string())?,
-    );
+    let tight_len = row_bytes
+        .checked_mul(height)
+        .ok_or_else(|| "Encode tight frame byte length overflows".to_string())?;
+
+    if stride_bytes == row_bytes {
+        // Fast path: the shared buffer is already tight (no row padding), so
+        // it can be handed to the encoder directly without an intermediate
+        // per-frame allocation + copy.
+        session
+            .stdin
+            .write_all(shared_frame)
+            .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
+        return Ok(shared_frame.len());
+    }
+
+    // Padded rows: stream each row straight from the shared buffer to the
+    // encoder's stdin pipe instead of copying every row into a freshly
+    // allocated `Vec` first. This trades a per-row `write_all` syscall for
+    // the per-frame allocation + memcpy that used to happen here.
     for row in 0..height {
         let source_start = row
             .checked_mul(stride_bytes)
             .ok_or_else(|| "Encode source row offset overflows".to_string())?;
-        tight_rgba.extend_from_slice(&shared_frame[source_start..source_start + row_bytes]);
+        session
+            .stdin
+            .write_all(&shared_frame[source_start..source_start + row_bytes])
+            .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
     }
 
-    session
-        .stdin
-        .write_all(&tight_rgba)
-        .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
-
-    Ok(tight_rgba.len())
+    Ok(tight_len)
 }
 
 pub(crate) fn write_rgba_frame_to_encoder(
@@ -537,4 +549,143 @@ pub(crate) fn write_rgba_frame_to_encoder(
         .map_err(|error| format!("Failed to write native RGBA frame to Rust encoder: {error}"))?;
 
     Ok(frame.pixels.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::{Command, Stdio};
+
+    /// Spawns a tiny `sh -c 'cat > <path>'` sink process so tests can drive
+    /// `write_tight_rgba_frame_to_encoder` against a real `ChildStdin` (the
+    /// type is only constructible from an actually-spawned child) without
+    /// depending on ffmpeg being installed.
+    fn spawn_stdin_sink(out_path: &std::path::Path) -> (Child, ChildStdin, ChildStderr) {
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg(format!("cat > {}", out_path.display()))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("failed to spawn stdin sink process");
+        let stdin = child.stdin.take().expect("child stdin should be piped");
+        let stderr = child.stderr.take().expect("child stderr should be piped");
+        (child, stdin, stderr)
+    }
+
+    fn make_test_session(out_path: &std::path::Path, width: u32, height: u32) -> EncodeSession {
+        let (child, stdin, stderr) = spawn_stdin_sink(out_path);
+        EncodeSession {
+            child,
+            stdin,
+            stderr,
+            session_id: "test-session".to_string(),
+            file_path: "unused.mp4".to_string(),
+            audio_path: None,
+            width,
+            height,
+            fps: 30,
+            pixel_format: FrameFormat::Rgba8Srgb,
+            colour: ColourMetadata::rec709_srgb(),
+            frame_count: 0,
+        }
+    }
+
+    fn make_descriptor(width: u32, height: u32, stride_bytes: u32) -> FrameDescriptor {
+        let byte_len = u64::from(stride_bytes) * u64::from(height);
+        FrameDescriptor {
+            memory_id: "test-memory".to_string(),
+            slot_index: 0,
+            generation: 0,
+            byte_offset: 0,
+            byte_len,
+            width,
+            height,
+            stride_bytes,
+            format: FrameFormat::Rgba8Srgb,
+            colour: ColourMetadata::rec709_srgb(),
+        }
+    }
+
+    fn unique_temp_path(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "uxfd_encode_test_{}_{}_{}",
+            std::process::id(),
+            name,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn write_tight_rgba_frame_to_encoder_no_padding_writes_buffer_directly() {
+        let width = 4u32;
+        let height = 3u32;
+        let row_bytes = width * 4;
+        // stride == row_bytes: no padding, should hit the fast direct-write path.
+        let descriptor = make_descriptor(width, height, row_bytes);
+        let shared_frame: Vec<u8> = (0..(row_bytes * height) as usize)
+            .map(|index| (index % 256) as u8)
+            .collect();
+
+        let out_path = unique_temp_path("no_padding");
+        let mut session = make_test_session(&out_path, width, height);
+
+        let written = write_tight_rgba_frame_to_encoder(&mut session, &descriptor, &shared_frame)
+            .expect("write should succeed");
+        assert_eq!(written, shared_frame.len());
+
+        let stdin = session.stdin;
+        drop(stdin);
+        session.child.wait().expect("sink process should exit");
+        let bytes = std::fs::read(&out_path).expect("sink output file should exist");
+        let _ = std::fs::remove_file(&out_path);
+
+        assert_eq!(bytes, shared_frame);
+    }
+
+    #[test]
+    fn write_tight_rgba_frame_to_encoder_with_padding_strips_padding() {
+        let width = 4u32;
+        let height = 3u32;
+        let row_bytes = (width * 4) as usize;
+        let stride_bytes = row_bytes + 8; // padded rows (e.g. alignment padding)
+        let descriptor = make_descriptor(width, height, stride_bytes as u32);
+
+        let mut shared_frame = vec![0u8; stride_bytes * height as usize];
+        let mut expected_tight = Vec::with_capacity(row_bytes * height as usize);
+        for row in 0..height as usize {
+            let row_start = row * stride_bytes;
+            let row_pixels: Vec<u8> = (0..row_bytes)
+                .map(|column| ((row * 31 + column) % 256) as u8)
+                .collect();
+            shared_frame[row_start..row_start + row_bytes].copy_from_slice(&row_pixels);
+            // Fill the padding bytes with a sentinel value that must never
+            // show up in the written output.
+            for padding_byte in &mut shared_frame[row_start + row_bytes..row_start + stride_bytes]
+            {
+                *padding_byte = 0xAA;
+            }
+            expected_tight.extend_from_slice(&row_pixels);
+        }
+
+        let out_path = unique_temp_path("with_padding");
+        let mut session = make_test_session(&out_path, width, height);
+
+        let written = write_tight_rgba_frame_to_encoder(&mut session, &descriptor, &shared_frame)
+            .expect("write should succeed");
+        assert_eq!(written, expected_tight.len());
+
+        let stdin = session.stdin;
+        drop(stdin);
+        session.child.wait().expect("sink process should exit");
+        let bytes = std::fs::read(&out_path).expect("sink output file should exist");
+        let _ = std::fs::remove_file(&out_path);
+
+        assert_eq!(bytes, expected_tight);
+        assert!(!bytes.contains(&0xAA), "padding bytes must not leak into the encoder stream");
+    }
 }
