@@ -59,6 +59,32 @@ describe('nativeOverlayViewportGeometry', () => {
     });
   });
 
+  it('allows a negative x/y when the preview pane extends past the window origin', () => {
+    // native-overlay 側（macos_overlay.rs create_overlay_child_window /
+    // resolve_view_local_rect_for_parent_bounds）は convertRect: による通常の
+    // 座標変換のみを行い、x/y が非負であることを一切前提にしていない。
+    // preview ペインがウィンドウ上端より上（top が負）や、ウィンドウ左端より
+    // 左（left が負）にはみ出す場合、あるいは preview がウィンドウ下端より
+    // 下まで伸びる（top+height > contentHeight）場合、x/y は本来負の値を
+    // 取りうる。0へクランプすると overlay が本来の位置からずれて表示される。
+    expect(buildNativeOverlayAttachRect({
+      viewportRect: {
+        left: -40,
+        top: -20,
+        width: 800,
+        height: 200,
+      },
+      contentHeight: 100,
+      devicePixelRatio: 1,
+    })).toEqual({
+      x: -40,
+      y: -80,
+      width: 800,
+      height: 200,
+      scaleFactor: 1,
+    });
+  });
+
   it('adds visual viewport offsets before converting to the native lower-left origin', () => {
     expect(buildNativeOverlayAttachRect({
       viewportRect: {
