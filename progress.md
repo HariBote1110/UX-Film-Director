@@ -1,3 +1,32 @@
+## 2026-07-09 — 修正: 削除済み動画クリップのフレームがoverlayに残留するレース（版433c）
+
+### 実施内容
+
+- 実機報告「動画をタイムライン上から消してもキャンバス上に動画のフレームが残る」を調査・修正（dev-native-overlay 構成: `VITE_UXFD_RUST_VIDEO_ONLY=1`＋overlay 有効を確認済み）。
+- **確定した真因（仮説A・レース）**: native reuse の single-flight（`sharedRendererNativeReusePreparingRef`）で decode+present が in flight のまま、削除 publish が presenter フル再起動（空セッション → `noVideoDecodeRequest` → Bug F transparent clear）へ進むと、clear の**後**に削除前 tick の present が完了して削除済みフレームを overlay drawable に上書きする。`prepareSharedRendererViewportNativeOverlayPresent` の stale チェックは「自分の requestId と decode 結果の requestId」の照合のみで、「呼び出し後に新しい要求が始まった」ことを検知するガードが無かった。さらに Bug F の `clearedForNoVideo` ガードが true のまま残るため、以後の `noVideoDecodeRequest` でも再 clear されず**残像が恒久化**する（ok present が来るまでガードが解除されない）。
+- **副因（仮説Cの変種）**: reuse `.finally` の pending replay が `pending.objects`（削除**前**の objects スナップショット）で publish を再実行するため、削除済みクリップ入りのセッションが再構築され、キー不一致 → `setSharedRendererPreviewSession` → 再起動でもう一度削除済みフレームを present しうる。
+- **修正**: (1) `prepareSharedRendererViewportNativeOverlayPresent` に `isRequestCurrent` ガードを追加し、decode 完了後・present 直前に追い越しを検知したら decode 済みスロットを解放（`copyOutState: 'rendererUploadAborted'`）して present を抑止（`reason: 'supersededRequest'`）。Viewport の reuse 呼び出しと presenter 再起動 wrapper の双方で、グローバル requestId（`sharedRendererVideoDecodeRequestIdRef`）との照合クロージャを注入。(2) 追い越された tick は「失敗」扱いの fallback 再起動（古い session での `setSharedRendererPreviewSession` ＝削除済みクリップ復活）へ落とさず何もしない。(3) pending replay は `latestObjectsRef.current` を使い、pending ref の objects スナップショット保持を廃止。
+- **棄却した仮説**: 仮説B（clear 不発火）は棄却 — `buildSharedRendererVideoFrameDecodeRequests` は video 無しセッション（空・図形のみ）で `ok, requests=[]` を返し、`noVideoDecodeRequest` → Bug F clear が正しく発火することをコードで確認。仮説C本体（433b の latest session ref が古いセッションを指す）も棄却 — 削除 publish がビルド直後に ref を更新するため再起動は常に削除後セッションを present する。仮説D（DOM canvas 残像）は本報告の説明にならず棄却 — 実機構成では動画フレームは overlay にのみ描かれ、DOM canvas は動画を保持しない。
+- バージョン `0.1.1-Beta-433b` → `433c`（バグ修正のため SubVer 進行）。
+
+### 選定理由・判断の根拠
+
+- ガードの検査点を「decode 完了後・present 直前」の1箇所にしたのは、(a) present こそが残像を作る唯一の副作用であり、(b) decode 前のチェックは最適化に過ぎず検査点を増やすとテスト面が倍増するため。decode 済みスロットの解放は既存の staleDecodeResponse 経路と同じ手順（`rendererUploadAborted`）を踏襲した。
+- 「clear をもう一度発行する」対症案（superseded 検知時に re-clear）は却下 — present 自体を抑止すれば clear は最初の1回で足り、Bug F の「1回だけ clear」設計（GPU 負荷回避）を保てる。
+- pending replay の objects を latest 化するのは、既存の同種対策（presenter 起動 effect の「replay 時点の最新 objects を ref から読む」コメント済み実装）と同一原理で、リポジトリ内の前例に揃えた。
+- ポーズ中削除はレース自体が発生しない（in-flight tick が無い）ため、既存の Bug F 経路（削除 publish → キー変化 → 再起動 → noVideoDecodeRequest → clear）で消えることをコードで確認。今回の修正は「再生中削除」と「削除直後に pause した」ケースの残像を塞ぐ。
+
+### 検証
+
+- `npx vitest run`: 176ファイル中173 pass / 3 fail（5テスト）＝ベースラインと完全一致、新規失敗ゼロ。新規追加6テスト（superseded ガード2＋wiring境界3＋Bug F遷移契約1）green（1269→1275 pass）。既存境界テスト1件（native reuse jobs ref 更新形）は契約不変のまま分岐形の変更に追従して更新。
+- `npx tsc --noEmit`: 78件＝着手前と同数。
+
+### 残課題・次のステップ
+
+- **実機確認ポイント**: (1) 再生中に動画クリップを削除 → 残像が出ないこと。(2) ポーズ中に削除 → 残像が出ないこと。(3) 図形が残る構成（動画＋図形から動画のみ削除）→ 動画は消え図形は表示され続けること。(4) 連続削除・undo/redo でも残像が出ないこと。
+- 非 overlay の reuse サブパス（`prepareSharedRendererViewportNativeRenderUpload` → `presentPreparedNativeRenderFrame`、図形のみセッション）には同型の追い越しガードが未導入。図形ドラッグ中の削除で同種のレースが理論上ありうるが、報告事象（動画残像）の経路外のため今回はスコープ外とした。
+- 追い越された tick が使っていた decode job は停止されず warm のまま残る（次の video present の stale job 掃除で回収される）。リソースリークではないが、削除直後の decode.stop 即時化は将来の最適化候補。
+
 ## 2026-07-09 — 修正: pause時に先頭フレームへ戻る回帰（stale presenter再起動の解消）（版433b）
 
 ### 実施内容
