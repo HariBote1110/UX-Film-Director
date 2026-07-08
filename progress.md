@@ -1,3 +1,35 @@
+## 2026-07-09 — 修正: 二重クロックのマスタークロック一本化とoverlay置き去りポーリング（版433a）
+
+### 実施内容
+
+- 前セッションで見送った大物3件（発見1・2・8）に着手。発見1と8をTDD（Red→Green）で修正、発見2は発見1の帰結の分析のみ文書化した。
+- **修正1（発見1・最優先）— 二重クロックの一本化**: 新規純関数モジュール `src/utils/sharedRendererExternalVideoMasterClock.ts` を追加。再生中、external-video 経路では「z_index 最小の再生中 video クリップ」をマスターとして決定的に選定し（`selectSharedRendererExternalVideoMasterClockCandidate`）、その element.currentTime からタイムライン時刻を逆算（`resolveTimelineTimeFromExternalVideoMasterClock` = clipStart + max(0, currentTime − offset)）、ヘッドとの乖離が1プレビューフレーム（1/60秒）を超えたときのみ吸着時刻を返す（`resolveSharedRendererExternalVideoMasterClockSnapTime`）。`Viewport.tsx` の `syncSharedRendererExternalVideoSources` が再生 tick ごとに候補を収集し、external video reuse 呼び出し点で `useStore.getState().setTime` により吸着させる。rAF 積算（`useAppLogic.ts` の `advanceTime`）は video クリップ不在区間のフォールバックとしてそのまま温存（マスター候補なし→null→吸着なし）。
+- **pauseSnap の整理（発見1の一部）**: 既存 pauseSnap は「play→pause 縁でヘッドを表示フレームへ吸着させる」機構で、マスタークロック吸着（isPlaying 時のみ発火）とは isPlaying で相互排他。撤去せず「pause 縁専用の同原理」として温存した。マスタークロック化により pause 縁での残差は従来の最大0.35秒から約1フレームへ縮小するため、pauseSnap は実質的に最終1フレームの着地補正となる。
+- **修正2（発見8）— レイアウトシフト時の overlay 置き去り**: 新規モジュール `src/utils/nativeOverlayAttachPolling.ts` を追加し、`Viewport.tsx` の attach effect に500ms間隔の低頻度ポーリングを併設。attach rect の key 生成を `buildNativeOverlayAttachKey` として抽出しイベント経路とポーリングで共有、rect 不変の tick は IPC を発行しない（attach は key で冪等）。`document.hidden` 中は `shouldPollNativeOverlayAttach` でスキップし、復帰は既存 visibilitychange リスナーの即時 attach が拾う。
+- **分析のみ（発見2）— 複数クリップ間の相対ズレ**: マスタークロック化後、primary はヘッドと1フレーム以内で一致し、非 primary は「マスター由来のヘッド」に対して既存の再生中トレランス0.35秒＋75msスロットルで再シークされる構図になる。相対ズレの上限は従来の「各要素が独立ドリフトして最大0.7秒」から「0.35秒＋1フレーム」へ半減する。非 primary のトレランスをさらに詰める（例: 0.1秒）ことは可能だが、HTMLVideoElement の再生中シークはシームレスでなく（デコーダ再起動・一瞬の静止）、重なった複数クリップで周期的なカクつきを再発させるリスクと引き換えになるため、実機での頻度計測なしに閾値を動かすのは不適切と判断し今回は変更しなかった。
+- バージョン `0.1.1-Beta-432e` → `433a`（重大な不具合修正のため PhaseVer +1・SubVer 初期化）。
+
+### 選定理由・判断の根拠
+
+- **マスターの選定基準**: 「z_index 最小の再生中 video」とした。snapshot の clips は layer→挿入順でソート済みで z_index は決定的、かつ従来の pauseSnap も「最初の1クリップ」がヘッドを駆動しており原理が一貫する。「element が実際に playing モードであること」を条件にしたのは、シーク直後・起動直後の要素（currentTime がヘッド由来のシーク先そのもの）をマスターにしても情報がなく、状態遷移中の値でヘッドを動かすのを避けるため。
+- **吸着閾値1プレビューフレーム**: 閾値未満だと吸着が quantise（floor@60fps）由来の揺れと区別できず毎 tick setTime が走る。1フレームなら吸着後は必ず閾値内に収束し（純関数テストで固定）、setTime→再publish→再判定のフィードバックループが発振しない。element が僅かに遅い/速い場合も「数秒に1回・1フレーム級の微修正」に留まる。
+- **発振防止の担保方法**: 実プレビューでの確認ができない環境のため、「吸着時刻を新ヘッドとして同じ入力で再判定すると必ず null」という収束性を純関数のユニットテストで固定した。統合レベルの発振（element 側が setTime に反応して動く経路）は、再生中トレランス0.35秒 ≫ 吸着量1フレームのため sync が element を再シークしない構造で遮断されている。
+- **環境変数の逃げ道を用意した**: `VITE_UXFD_EXTERNAL_VIDEO_MASTER_CLOCK=0` で吸着を無効化し従来の rAF 積算のみへ戻せる（既定は有効）。理由: ヘッドの進み方という再生体験の根幹に関わる変更で、実機でのみ判る不快感（タイムラインカーソルの微小な後退・ステップ感）の可能性を静的検証で排除しきれないため。既存フラグ群（`VITE_UXFD_RUST_VIDEO_ONLY` 等）と同じ import.meta.env パターンに揃えた。
+- **発見8でポーリングを選んだ理由**: IntersectionObserver は交差比率の変化でしか発火せず「サイズ不変・可視のままの位置移動」を検出できないため不適（コーディネータ指摘どおり）。MutationObserver で全 DOM 変異を監視する案は発火頻度と監視範囲の調整が難しく過剰。500ms ポーリングは「レイアウトシフトは低頻度・置き去りは数百msで直れば実害が小さい」という性質に合致し、attach の冪等性により安全。
+- **ポーリング間隔500ms**: コーディネータ例示値。1回の tick は getBoundingClientRect＋文字列比較のみで、rect 不変なら IPC も発行しないため負荷は無視できる。
+- **Viewport 配線の検証方法**: 実 DOM/Electron 環境なしで React コンポーネントの結線を検証するため、リポジトリ既存の流儀（`viewportRustVideoOnlyBoundary.test.ts` 等のソース文字列境界テスト）に倣い、純関数テストと同じファイル内に wiring boundary テストを置いた。
+
+### 検証
+
+- `npx vitest run`: 174ファイル中171 pass / 3 fail（5テスト）。失敗はベースライン（`productionVideoDependencyBoundary`・`psdParser.perf`・`rustBackendNativeRenderBoundary`）と完全一致で新規失敗ゼロ。新規追加24テスト（マスタークロック16＋ポーリング8）すべて green（1239→1263 pass）。
+- `npx tsc --noEmit`: 78件＝着手前と同数（変更ファイル起因のエラーなし）。
+
+### 残課題・次のステップ
+
+- **実機確認が必要な点（最重要）**: (1) マスタークロック吸着中のタイムラインカーソルの見た目（微小な後退・ステップ感が体感されるか。不快なら `VITE_UXFD_EXTERNAL_VIDEO_MASTER_CLOCK=0` で切り戻し、閾値を2〜3フレームへ広げる調整が次の一手）。(2) element 停止（バッファリング）時にヘッドが追従して実質停止する挙動が意図どおり受容されるか。(3) レイアウトシフト（ペイン開閉）後500ms以内に overlay が追従すること。
+- 発見2の残り: 非 primary クリップの再生中トレランス（0.35秒）の再検討は、実機での再シーク頻度・カクつきの計測を先行させる。
+- native reuse（rust-video-only）経路はマスタークロックの対象外（HTMLVideoElement を使わないため）。同経路のヘッド従属は decode cadence との統合設計が必要で別課題。
+
 ## 2026-07-09 — 修正: タイムラインとCanvasのズレ調査の裏取りとTDD修正（版432e）
 
 ### 実施内容
