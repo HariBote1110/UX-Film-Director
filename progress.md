@@ -1,3 +1,30 @@
+## 2026-07-09 — 修正: pause時に先頭フレームへ戻る回帰（stale presenter再起動の解消）（版433b）
+
+### 実施内容
+
+- 実機回帰報告「ポーズすると一番最初のフレームが表示される」（マスタークロック変更 3c48e4c4 後に顕在化）を調査・修正。
+- **確定した真因**（コーディネータ仮説をコードで裏取り・一致）: presenter 起動 effect（`Viewport.tsx`、依存配列に isPlaying を含む）は play⇄pause のたびにフル再実行され、state の `sharedRendererPreviewSession` を present する。この state は presenterKey が変わったとき（`setSharedRendererPreviewSession`）にしか更新されず、external-video reuse 経路の再生中 present（publish 内で present して early return）は state を更新しない。従って state は「presenter が最後にフル再起動した時点のセッション」＝典型的にはクリップ読み込み直後の frame 0 のまま古びており、pause 縁の再起動がそれを present していた。
+- **従来見えなかった理由**: pause 縁では二重クロックのドリフト（最大0.35秒）がほぼ必ず `PAUSE_SNAP_MIN_DELTA_SECONDS`（4ms）を超え、pauseSnap の setTime → currentTime 変化 → publish が presenterStarting により pending へ退避 → `.finally` の pending replay が正しいフレームを上書き present していた。マスタークロック化で pause 縁の残差が常時4ms未満になり pauseSnap が不発 → 上書きが走らず stale フレームが残った。つまり本当の欠陥は「pause 縁の presenter フル再起動が stale session を present すること」で、マスタークロックはそのマスキングを外しただけ。
+- **修正（案A・本質修正）**: 毎 publish でビルド直後のセッションを `sharedRendererLatestPublishedPreviewSessionRef` に保持し、presenter 起動 effect は新規純関数 `resolveSharedRendererPresenterRestartSession`（`src/utils/sharedRendererPresenterRestartSession.ts`、ref 優先・state フォールバック）で解決したセッションを present・presenterKey 導出・reuse 述語判定に使う。state は presenterKey 変化検知（再起動トリガー）としてのみ機能する。stale session を present する経路自体が絶たれるため、同根の潜在問題「再生開始縁の一瞬の先頭フレーム表示」も同時に解消。
+- 既存境界テスト2件（`viewportRustVideoOnlyBoundary.test.ts` の presenterKey ミラー・reuse 述語）は契約不変のまま参照識別子のみ `presenterRestartSession` へ更新。
+- バージョン `0.1.1-Beta-433a` → `433b`（バグ修正のため SubVer 進行）。
+
+### 選定理由・判断の根拠
+
+- **案A（最新セッション ref）を選んだ理由**: stale present の経路自体を絶つ本質修正であり、play 縁の潜在問題も同時に直る。案B（起動完了後に再 publish で上書き）は stale フレームが一瞬表示されてから上書きされるチラつきが残る対症療法。案C（pause 縁で再起動しない＝isPlaying を依存から外す）は effect 内の分岐（stagePresenterDiagnostics・cleanup の再生継続判定等）が isPlaying に依存しており影響範囲が読みにくく、症状Bの起動キャンセル連鎖対策との整合確認コストが高いため却下。
+- **key・述語も restart session から導出する理由**: `.finally` の pending replay は「pending の key ≠ 再起動時の key なら再起動」で判定するため、present するセッションと key の導出元が食い違うと replay 判定が壊れる。present・key・述語の3点を同一セッションへ揃えた。
+- ref は publish のビルド直後（defer 判定より前）に更新する。defer で pending へ退避されたセッションも「最新の望ましい表示」であり、再起動がそれを present するのは正しい。
+
+### 検証
+
+- `npx vitest run`: 175ファイル中172 pass / 3 fail（5テスト）＝ベースラインと完全一致、新規失敗ゼロ。新規追加6テスト（純関数3＋wiring境界3）green（1263→1269 pass）。
+- `npx tsc --noEmit`: 78件＝着手前と同数。
+
+### 残課題・次のステップ
+
+- **実機確認ポイント**: (1) 再生→ポーズでプレビューが現在フレームのまま保持されること（先頭フレームへ戻らないこと）。(2) ポーズ→再生の縁で一瞬先頭フレームが表示される現象（従来から潜在）が出ないこと。(3) pauseSnap 依存の従来挙動（ポーズ時のヘッド着地）に変化がないこと。
+- state `sharedRendererPreviewSession` は今や再起動トリガー専用のため、将来的には「presenterKey 文字列を state に持つ」形へ簡素化できる可能性がある（今回は影響範囲を最小化するため見送り）。
+
 ## 2026-07-09 — 修正: 二重クロックのマスタークロック一本化とoverlay置き去りポーリング（版433a）
 
 ### 実施内容
