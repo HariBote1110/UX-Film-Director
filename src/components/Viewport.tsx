@@ -64,6 +64,10 @@ import {
   type SharedRendererExternalVideoSource,
 } from '../utils/sharedRendererExternalVideoSource';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
+import {
+  resolveSharedRendererExternalVideoMasterClockSnapTime,
+  type SharedRendererExternalVideoMasterClockCandidate,
+} from '../utils/sharedRendererExternalVideoMasterClock';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import {
   buildSelectionDecorationQuads,
@@ -264,6 +268,8 @@ const syncSharedRendererExternalVideoSources = ({
   isPlaying,
   onFrameReady,
   onPauseSnap,
+  masterClockHeadTimeSeconds,
+  onMasterClockSnap,
 }: {
   session: SharedRendererPreviewSession;
   objects: TimelineObject[];
@@ -271,6 +277,16 @@ const syncSharedRendererExternalVideoSources = ({
   isPlaying: boolean;
   onFrameReady?: () => void;
   onPauseSnap?: (deltaSeconds: number) => void;
+  /** 吸着判定に使う非量子化のタイムラインヘッド秒（store の currentTime）。 */
+  masterClockHeadTimeSeconds?: number;
+  /**
+   * 二重クロック対策（発見1）— 再生中、primary（z_index 最小の再生中 video）
+   * のメディアクロックから逆算したタイムライン時刻がヘッドと1プレビュー
+   * フレームを超えて乖離したとき、その時刻を渡して呼ばれる。呼び出し側は
+   * setTime でヘッドを吸着させる。pauseSnap（onPauseSnap、play→pause 縁で
+   * のみ発火）の再生中版に相当し、両者は isPlaying で相互排他。
+   */
+  onMasterClockSnap?: (timelineTimeSeconds: number) => void;
 }): Map<string, unknown> => {
   const sourcesByClipId = new Map<string, unknown>();
   if (!session.surfaceGate.ok) {
@@ -281,6 +297,7 @@ const syncSharedRendererExternalVideoSources = ({
   const objectsById = new Map(objects.map((object) => [object.id, object]));
   const mediaById = new Map(session.surfaceGate.media.map((media) => [media.id, media]));
   const activeClipIds = new Set<string>();
+  const masterClockCandidates: SharedRendererExternalVideoMasterClockCandidate[] = [];
   let pauseSnapDeltaSeconds: number | undefined;
 
   session.surfaceGate.snapshot.clips.forEach((clip) => {
@@ -333,6 +350,21 @@ const syncSharedRendererExternalVideoSources = ({
       pauseSnapDeltaSeconds = playbackSyncResult.pauseSnapTimelineDeltaSeconds;
     }
 
+    // 二重クロック対策（発見1）— 再生中のマスタークロック候補を収集する。
+    // element がこの tick で seek された直後（sought=true）は currentTime が
+    // seek 先そのもの（ヘッド由来）を返すため吸着判定は自然に閾値内となり、
+    // ユーザーの再生中シークと競合しない。
+    if (isPlaying && onMasterClockSnap) {
+      masterClockCandidates.push({
+        clipId: clip.clip_id,
+        zIndex: clip.z_index,
+        elementCurrentTimeSeconds: entry.source.source.currentTime,
+        clipStartTimeSeconds: object.startTime,
+        clipOffsetSeconds: object.offset ?? 0,
+        isElementPlaying: entry.playbackState.mode === 'playing',
+      });
+    }
+
     // While paused, a freshly seeked element may not yet hold a presentable
     // frame, so the shared renderer skips it and shows a transient diagnostic.
     // Register a one-shot frame-ready notification to re-present once the frame
@@ -373,6 +405,17 @@ const syncSharedRendererExternalVideoSources = ({
 
   if (onPauseSnap && pauseSnapDeltaSeconds !== undefined) {
     onPauseSnap(pauseSnapDeltaSeconds);
+  }
+
+  if (isPlaying && onMasterClockSnap && typeof masterClockHeadTimeSeconds === 'number') {
+    const masterClockSnapTime = resolveSharedRendererExternalVideoMasterClockSnapTime({
+      candidates: masterClockCandidates,
+      headTimeSeconds: masterClockHeadTimeSeconds,
+      previewFps: SHARED_RENDERER_PLAYBACK_PREVIEW_FPS,
+    });
+    if (masterClockSnapTime !== null) {
+      onMasterClockSnap(masterClockSnapTime);
+    }
   }
 
   return sourcesByClipId;
@@ -518,6 +561,10 @@ const Viewport: React.FC = () => {
       window.nativeOverlay!.setSelectionDecoration(payload)),
   );
   const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
+  // 二重クロック対策（発見1）の逃げ道 — 実機で吸着が不自然に見えた場合は
+  // VITE_UXFD_EXTERNAL_VIDEO_MASTER_CLOCK=0 で無効化して従来の rAF 積算のみに
+  // 戻せる（既定は有効）。
+  const externalVideoMasterClockEnabled = import.meta.env.VITE_UXFD_EXTERNAL_VIDEO_MASTER_CLOCK !== '0';
   const phase0SkipDecodedUploadEnabled = import.meta.env.VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD === '1';
   const phase0WriteTextureNoOpEnabled = import.meta.env.VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP === '1';
   const phase0DiscardNativeRenderOutputEnabled = import.meta.env.VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT === '1';
@@ -1079,6 +1126,19 @@ const Viewport: React.FC = () => {
             // (now paused) and the element stays put, converging in one tick.
             useStore.getState().setTime(previewTime + deltaSeconds);
           },
+          // 二重クロック対策（発見1）— 再生中は primary video 要素のメディア
+          // クロックをマスターとし、rAF 積算のヘッドが1プレビューフレームを
+          // 超えて乖離したら setTime で吸着させる。setTime は再 publish を
+          // 誘発するが、吸着後のヘッドはマスター時刻そのものなので次 tick の
+          // 判定は閾値内に収束し発振しない（純関数テストで固定済み）。
+          masterClockHeadTimeSeconds: externalVideoMasterClockEnabled
+            ? useStore.getState().currentTime
+            : undefined,
+          onMasterClockSnap: externalVideoMasterClockEnabled
+            ? (timelineTimeSeconds) => {
+              useStore.getState().setTime(timelineTimeSeconds);
+            }
+            : undefined,
         });
         const presentation = control.presentExternalVideoFrameScene?.({
           session,
