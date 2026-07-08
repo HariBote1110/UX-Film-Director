@@ -1,3 +1,30 @@
+## 2026-07-08 — 調査: タイムラインとCanvasがズレる可能性の探索（コード変更なし）
+
+### 実施内容
+
+- 再生ヘッド（タイムライン）と Canvas（プレビュー表示フレーム）が乖離しうる経路をコード探索で洗い出した。修正は未実施（調査のみ）。
+- 主要な発見（時間軸のズレ）:
+  1. **二重クロック**: 再生ヘッドは rAF 差分積算（`useAppLogic.ts` → `advanceTime`）、映像は HTMLVideoElement 自身のメディアクロックで進む。`sharedRendererExternalVideoSource.ts` の再生中シークトレランスは **0.35 秒**（`PLAYING_SEEK_DRIFT_TOLERANCE_SECONDS`）で、同期チェック自体も 75ms（`SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS`）にスロットルされるため、再生中は最大 ±0.35 秒のズレが設計上許容されている。pause 時に「ヘッドを映像側へスナップ」する pauseSnap が存在すること自体がこのドリフトの傍証。
+  2. **複数動画クリップ間の相対ズレ**: 各 video 要素が独立にドリフトするため相互に最大 0.7 秒開きうる。pauseSnap は最初の 1 クリップのみがヘッドを駆動し、他クリップはスナップ後のヘッドへ再シークされる。
+  3. **native reuse 経路の追いつき欠如**: rust-video-only ＋ native overlay 再生中、`resolveSharedRendererNativeReuseCadence.ts` が Canvas の前進を「前回提示フレーム＋1/60 秒」に制限する。decode+present が 16.7ms を超え続けると Canvas はヘッドから単調に遅れ、追いつく機構がない（無制限に開く）。
+  4. **量子化の不一致**: ヘッドは連続秒、snapshot の `frame_index` は `Math.round(time × projectFps)`（`rustSceneSnapshot.ts`）、再生中の previewTime は floor@60fps（`quantiseSharedRendererPlaybackPreviewTime`）。projectFps が 60 の約数でない場合（24/30fps 等）、floor→round の合成で ±1 フレームの揺れが出る。クリップ在圏判定は非量子化時刻の半開区間 `time < start+duration` だが frame_index は四捨五入で繰り上がるため、クリップ末尾でクリップ範囲外のフレームを要求しうる。
+  5. **`source_rate` は媒体実フレームレートではなく projectFps**（`rustSceneSnapshot.ts:1321`）。rust-backend は ffmpeg の `fps` フィルタで tick ドメインへ再標本化して整合させているが、`-ss` 秒シーク＋fps フィルタの renumbering はシーク起点で ±1 ソースフレームの差を生みうる（後方シークでのデコーダ再起動時に同一ヘッド位置で違うフレームが出る「1 フレーム跳び」）。
+  6. **音声**: 再生中 |drift|>0.2 秒 / 停止中 >0.05 秒でのみ再シーク（`Viewport.tsx` renderScene）。映像（0.35 秒）と別トレランスのため、音・映像・ヘッドが三すくみで別々にズレる余地。
+  7. **境界の不整合**: `videoMediaTime.ts` はクリップ終端を閉区間（`local <= duration`）、renderScene / snapshot は半開区間で扱うため、終端ちょうどで Vision 系だけが「在圏」と判定する。
+- 空間軸のズレ（native overlay と DOM canvas の位置ずれ）:
+  8. overlay の attach 再計算は ResizeObserver／window resize／visualViewport イベント起点のみ（`Viewport.tsx:585-601`）。サイズ不変のまま preview 要素が移動するレイアウトシフト（兄弟ペインの開閉等）や祖先要素のスクロールでは再 attach されず、overlay が旧位置に残る。
+  9. `buildNativeOverlayAttachRect` は x/y を `nonNegativeOrZero` でクランプするため、preview がウィンドウ外へ負座標ではみ出すと 0 に張り付き位置がずれる。
+
+### 選定理由・判断の根拠
+
+- ユーザー依頼は「ズレる可能性の探索」であり、修正着手前の欠陥仮説の列挙を成果物とした。
+- 1〜3 は設計意図（シークストーム回避・スムーズさ優先）とのトレードオフとして意図的に許容されている痕跡（コメント・診断 dataset `uxfdSharedRendererExternalVideoMaxAbsDriftMs`）があるため、「バグ」ではなく「許容ドリフトの上限と回復機構の欠如」として整理した。
+
+### 残課題・次のステップ
+
+- 最優先の検証候補: (3) native reuse 経路の累積遅延（重い素材で再生し `frame_index/fps` とヘッドの差を計測）、(4)(5) projectFps≠60・可変 fps 素材での ±1 フレーム揺れ、(8) レイアウトシフト時の overlay 置き去り。
+- 対策方針案: (3) は「遅延が n フレーム超で cadence クランプを解除して追いつく」ハイブリッド、(1) は再生中のヘッドを video 要素のクロックへ従属させる（マスタークロック一本化）。
+
 ## 2026-07-04 — 修正: TL右クリックメニューでStage Managerが他アプリを前面に出す（遮蔽orderの全域リオーダー）（版432d）
 
 ### 実施内容
