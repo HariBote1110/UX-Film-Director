@@ -20,6 +20,15 @@ describe('mediaTimeInClipForPlayhead', () => {
     expect(mediaTimeInClipForPlayhead(v, 15.1)).toBeNull();
   });
 
+  it('returns null exactly at clip end (half-open interval, matching renderScene/snapshot)', () => {
+    // rustSceneSnapshot.collectVisibleObjects / renderScene のクリップ在圏判定は
+    // `time < startTime + duration` の半開区間。mediaTimeInClipForPlayhead だけが
+    // 終端を閉区間（local <= duration）で扱うと、ちょうどクリップ終端の時刻で
+    // Vision がここだけ「在圏」と誤判定し、他経路とズレる。
+    const v = baseVideo();
+    expect(mediaTimeInClipForPlayhead(v, v.startTime + v.duration)).toBeNull();
+  });
+
   it('maps start of clip to offset', () => {
     const v = baseVideo();
     expect(mediaTimeInClipForPlayhead(v, 5)).toBe(1.5);
