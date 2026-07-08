@@ -530,6 +530,93 @@ describe('sharedRendererViewportVideoUpload', () => {
     void copyBridge;
   });
 
+  it('releases the decoded frame without presenting when a newer request superseded this native overlay present', async () => {
+    // 実機バグ「動画をタイムラインから消してもキャンバスに動画フレームが残る」
+    // の主因: native reuse の in-flight decode+present は、削除 publish が
+    // presenter を再起動（空セッション → noVideoDecodeRequest → Bug F clear）
+    // した後に完了し、削除済みクリップのフレームを overlay に上書きしていた。
+    // 呼び出し側が isRequestCurrent で「自分が最新の要求か」を注入し、
+    // 追い越された場合は decode 済みスロットを解放して present を抑止する。
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: any) => {
+        calls.push(['presentSharedFrame', payload]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeOverlayPresent({
+      // presentNativeOverlayRustDecodedVideoFrame の module-level visual frame
+      // dedupe cache（windowId:mediaId 鍵）とテスト間で干渉しないよう独立した
+      // windowId を使う。
+      windowId: 71,
+      session: imageVideoSession,
+      requestId: 80,
+      slotCount: 2,
+      activeJob: null,
+      rustBackendBridge,
+      nativeOverlayBridge,
+      copyBridge,
+      isRequestCurrent: () => false,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the superseded present to be suppressed');
+    expect(result.reason).toBe('supersededRequest');
+    expect(calls.some((call) => Array.isArray(call) && call[0] === 'presentSharedFrame')).toBe(false);
+    expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
+      jobId: expectedJobId,
+      slotIndex: 0,
+      generation: 3,
+      copyOutState: 'rendererUploadAborted',
+    }]);
+  });
+
+  it('presents normally when isRequestCurrent confirms the request is still the newest', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: any) => {
+        calls.push(['presentSharedFrame', payload]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeOverlayPresent({
+      windowId: 72,
+      session: imageVideoSession,
+      requestId: 80,
+      slotCount: 2,
+      activeJob: null,
+      rustBackendBridge,
+      nativeOverlayBridge,
+      copyBridge,
+      isRequestCurrent: () => true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls.some((call) => Array.isArray(call) && call[0] === 'presentSharedFrame')).toBe(true);
+  });
+
   it('prepares Rust decoded uploads for every visible video without stopping other active jobs', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
 
