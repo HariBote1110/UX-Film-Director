@@ -343,6 +343,17 @@ impl NativeOverlayLiveSurfaceRenderer {
         #[cfg(target_os = "macos")]
         let _view_handle = self.view_handle;
         let trace_start = overlay_trace_enabled().then(Instant::now);
+        // 残像バグ診断（`UXFD_OVERLAY_TRACE=1`）— clip 削除後に present_upload_frame
+        // が走ると last_scene が動画で再設定され、直前の transparent clear を
+        // 上書きしてしまう。clear と present_upload の stderr 上の順序で
+        // 「clear の後に動画 present が届いているか」を実機で切り分けるための恒久
+        // 診断（既定は無効）。
+        if overlay_trace_enabled() {
+            eprintln!(
+                "[uxfd-overlay-trace] present_upload_frame window_id={} media={} upload={}x{}",
+                self.window_id, upload.media_id, upload.width, upload.height,
+            );
+        }
         let (snapshot, sources) = upload_frame_to_scene_sources(
             upload,
             scene,
@@ -1290,6 +1301,13 @@ pub fn build_empty_scene_snapshot_for_transparent_clear() -> (SceneSnapshot, Has
 /// `window_id` を渡した場合は明示的な Err を返し、上位で fallback 判断できる
 /// ようにする。
 pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
+    // 残像バグ診断（`UXFD_OVERLAY_TRACE=1`）— present 側（present_upload_frame /
+    // present_shared_frame）にはトレースがあったが clear 側には無く、
+    // 「削除後に clear が実際に走ったか」を実機で確認できなかった。この1行で
+    // 測定ギャップを埋める（既定は無効・挙動変更なし）。
+    if overlay_trace_enabled() {
+        eprintln!("[uxfd-overlay-trace] clear_live_surface window_id={window_id}");
+    }
     // 選択デコレーションは透明クリア後も見えるべき（noVideoDecodeRequest で
     // 動画が居ない時間帯でも選択枠は残る）。ロック順序: decoration → renderers
     // の順に取得し、同時保持はしない。
