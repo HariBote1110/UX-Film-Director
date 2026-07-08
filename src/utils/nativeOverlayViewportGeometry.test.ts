@@ -41,6 +41,11 @@ describe('nativeOverlayViewportGeometry', () => {
   });
 
   it('clamps invalid dimensions and scale factor before IPC', () => {
+    // width/height/scaleFactor はゼロ・NaN 入力に対しフォールバックへ
+    // クランプされる（native側の drawable/window 生成が最低1px・正のスケール
+    // を要求するため）。y はここでは height フォールバック(1)適用後の
+    // 通常算出式どおりの値になり、x/y 自体は非負にクランプされない
+    // （負座標を許容する仕様は下のテストを参照）。
     expect(buildNativeOverlayAttachRect({
       viewportRect: {
         left: 0,
@@ -52,7 +57,7 @@ describe('nativeOverlayViewportGeometry', () => {
       devicePixelRatio: 0,
     })).toEqual({
       x: 0,
-      y: 0,
+      y: -1,
       width: 1,
       height: 1,
       scaleFactor: 1,

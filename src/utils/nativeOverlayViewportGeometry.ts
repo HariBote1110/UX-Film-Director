@@ -30,11 +30,6 @@ const positiveOrOne = (value: number): number => {
   return finite > 0 ? finite : 1
 }
 
-const nonNegativeOrZero = (value: number): number => {
-  const finite = finiteOrFallback(value, 0)
-  return finite >= 0 ? finite : 0
-}
-
 export const buildNativeOverlayAttachRect = ({
   viewportRect,
   contentHeight,
@@ -48,9 +43,14 @@ export const buildNativeOverlayAttachRect = ({
   const finiteContentHeight = finiteOrFallback(contentHeight, height)
   const viewportLeft = finiteOrFallback(viewportOffsetLeft, 0)
   const viewportTop = finiteOrFallback(viewportOffsetTop, 0)
+  // x/y は native-overlay 側（macos_overlay.rs）で通常の convertRect: 変換に
+  // 渡されるだけで非負であることは前提にしていない。preview ペインがウィンドウ
+  // 原点よりはみ出す（top/left が負、または preview がウィンドウ下端を超えて
+  // 伸びる）ケースでは、負の x/y が本来の attach 位置であり、0へクランプすると
+  // overlay がウィンドウ端に張り付いてずれる。
   return {
-    x: nonNegativeOrZero(viewportRect.left + viewportLeft),
-    y: nonNegativeOrZero(finiteContentHeight - viewportRect.top - viewportTop - height),
+    x: finiteOrFallback(viewportRect.left + viewportLeft, 0),
+    y: finiteOrFallback(finiteContentHeight - viewportRect.top - viewportTop - height, 0),
     width,
     height,
     scaleFactor: positiveOrOne(backingScaleFactor ?? devicePixelRatio ?? 1),
