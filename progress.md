@@ -1,3 +1,51 @@
+## 2026-07-09 — 調査: 削除残像の実測切り分け（抽出モジュールを白と確定・グルー/nativeへ絞り込み・修正は保留）（版据え置き433c）
+
+### 背景
+
+- 実機報告「動画をタイムライン上から消してもキャンバス上に動画フレームが残る（削除した瞬間のフレームが永久に残る）」が、前回の残像修正（9048ff4c）後も未解決。コーディネータ指示により、仮説ベースの静的修正を禁止し、実測で経路を確定してから直す方針に変更。
+
+### 再現手段の可否（この環境の制約）
+
+- (a) 実機/dev 実行（`npm run dev`＋トレース）: この非対話サンドボックスでは Electron GUI を起動して動画配置・再生・削除を対話操作できず、実施不可。
+- (b) GPU readback オラクル（`live_readback_non_transparent_pixels==0`）: readback は attach 済みの実 NSWindow live surface renderer（`wgpu::create_surface_unsafe` で CAMetalLayer 化）が registry に登録されていることが前提で、ヘッドレスでは構築不可。実施不可。
+- (c) React グルー統合テスト: テスト環境は `environment: 'node'`・`include: ['src/**/*.test.ts']` で jsdom / testing-library が無く、Viewport は WebGPU・native overlay・three.js を含む巨大コンポーネントのため mount は非現実的（忠実な async レース再現も困難）。
+- → 代替として、**実コードを実行する統合オラクル**（`src/integration/deletedClipResidualFrame.integration.test.ts`）を構築し、抽出モジュール層で白黒つけた。
+
+### 実測で分かった事実（実行結果）
+
+- **Q1a（動画→空）**: 実 `prepareSharedRendererViewportNativeOverlayPresent` が `noVideoDecodeRequest` を返し、実 `resolveNativeOverlayTransparentClearTransition` が `shouldClear=true` を返す。→ クリア判定は発火する。
+- **Q1b（動画→図形のみ）**: 同上。図形のみセッションでも `noVideoDecodeRequest` → `shouldClear=true`。→ コーディネータが疑った「図形が残るケースで overlay をクリアしない」説は、少なくとも overlay present の戻り値レベルでは否定（クリア判定は出る）。
+- **Q1c（グルーが実際に呼ぶ `startSharedRendererViewportPresenter` まで実行）**: 戻り値 `nativeOverlayPresentResult.reason === 'noVideoDecodeRequest'` で、`.then` の Bug F クリア判定が `shouldClear=true` になる。→ グルーが `.then` に到達しさえすればクリアは発火する判定になる。
+- **Q2（レース）**: in-flight video present の decode を止めた状態で requestId を前進（再起動を模す）させると、実 `isRequestCurrent` ガードが present を抑止し（`reason: 'supersededRequest'`）、decode 済みスロットを `rendererUploadAborted` で解放する。→ 9048ff4c のガードは経路単体では正しく機能する。
+
+### 絞り込んだ真因の所在（未確定）
+
+- 抽出モジュール（クリア判定ロジック・レースガード）は**シロ**と実測で確定。残像の主体は次のいずれかで、双方ともこの環境では実行観測できない:
+  1. **Viewport の React グルー**が削除時に `.then` のクリアへ到達しない（defer 経路 1130 で pending 退避のまま `.finally` replay が別分岐へ、cancelled 早期 return、presenterStarting スタック等）、または到達してもクリア後に何かが再 present する。
+  2. **native 側**で clear は呼ばれるが、その後 in-flight の `present_upload_frame` が `last_scene` を動画で再設定して透明クリアを上書きする（hypothesis A の native 側顕在化。JS ガードが実機の実 async 順序では present 直前チェックをすり抜ける可能性）。
+
+### 測定ギャップの解消（診断トレース追加・native リビルド）
+
+- **重要な発見**: `clear_native_overlay_live_surface`（native-overlay/src/lib.rs:1292）には `UXFD_OVERLAY_TRACE` の eprintln が**無かった**。present 側（`present_shared_frame`/`present_scene`）にはあるため、コーディネータが想定した「削除後に clear がトレースに出るか」の確認は**現状の実機トレースでは不可能**だった（これ自体が、静的には正しく見えるのに実機で確認できていなかった一因）。
+- clear 側と `present_upload_frame` 側に `overlay_trace_enabled()` ゲート付きの1行トレースを追加（既定無効・挙動変更なし）。`native-overlay:node:build` で addon 再ビルド済み、`cargo test --lib` 49件 green。これで実機の stderr 上で **clear と present_upload の発生順序**が観測可能になり、上記1と2を白黒つけられる。
+
+### 却下した仮説とその実測根拠
+
+- **仮説B（空/図形セッションで clear 判定が発火しない）**: Q1a/Q1b/Q1c で `noVideoDecodeRequest`→`shouldClear=true` を実行確認し却下。
+- **仮説（レースガードが単体で無効）**: Q2 で present 抑止・スロット解放を実行確認し却下（＝ガードのロジック自体は正しい。すり抜けるなら実機の async 順序の問題であり、それは native トレースで観測すべき）。
+- 静的解析で潰れていた点（native clear の正しさ、windowId 補完、surfaceGate.ok、restart 経路への到達）はコーディネータ確認済みのため再検証せず。
+
+### 修正を保留した理由
+
+- コーディネータ指示「真因を実測で確定できない限り修正コミットを作らない／憶測でのコード変更はしない」に従い、真因の所在（グルー vs native の再 present）を実機観測で確定するまで修正コミットは作らない。今回の成果物は (1) 抽出モジュールをシロと確定する実測オラクル、(2) 実機で 1 と 2 を白黒つけるための診断トレース、の2点に限定した。バグ修正を出していないため版は 433c 据え置き。
+
+### 実機で試すべき最有力の1点（次の一手）
+
+- `UXFD_OVERLAY_TRACE=1 UXFD_DECODE_TRACE=1 npm run dev` で動画1本を再生→一時停止→削除し、**削除直後の stderr** を確認する:
+  - `[uxfd-overlay-trace] clear_live_surface window_id=...` が出るか（出なければ真因1＝グルーがクリアへ到達していない → defer/cancel/starting 経路を実機ログで特定）。
+  - clear の**後**に `[uxfd-overlay-trace] present_upload_frame ... media=<削除した動画>` が出るか（出れば真因2＝clear 後の再 present。JS ガードのすり抜け or native last_scene 再設定 → 該当 present の requestId と削除時点の requestId を突き合わせる）。
+- 併せて「一時停止中削除／再生中削除／動画のみ→空／動画＋図形→図形のみ」の4通りで clear/present_upload の順序を採取し、どの組合せで残るかを切り分ける。
+
 ## 2026-07-09 — 修正: 削除済み動画クリップのフレームがoverlayに残留するレース（版433c）
 
 ### 実施内容
