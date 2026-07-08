@@ -184,7 +184,7 @@ describe('Viewport Rust video-only boundary', () => {
     const start = code.indexOf('const nextPresenterKey = buildSharedRendererPresenterSessionKey(session');
     const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
     const presenterKeyBlock = code.slice(start, end);
-    const effectKeyStart = code.indexOf('const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession');
+    const effectKeyStart = code.indexOf('const presenterSessionKey = buildSharedRendererPresenterSessionKey(presenterRestartSession');
     const effectKeyEnd = code.indexOf('let externalVideoSourcesByClipId =', effectKeyStart);
     const effectKeyBlock = code.slice(effectKeyStart, effectKeyEnd);
     const pendingStart = code.indexOf('if (shouldDeferSharedRendererPreviewSessionPublish(sharedRendererPresenterStartingRef.current))');
@@ -550,8 +550,11 @@ describe('Viewport Rust video-only boundary', () => {
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)');
-    expect(block).toContain('isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)');
+    // presenter 再起動は state ではなく最新 publish セッション
+    // （presenterRestartSession）から key/reuse 述語を導出する
+    // （sharedRendererPresenterRestartSession.test.ts の契約を参照）。
+    expect(block).toContain('isSharedRendererExternalVideoOnlySession(presenterRestartSession)');
+    expect(block).toContain('isSharedRendererNativeRenderOnlySession(presenterRestartSession)');
   });
 
   it('routes the non-video native-render reuse tick through prepareSharedRendererViewportNativeRenderUpload even when the native overlay is enabled', () => {

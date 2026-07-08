@@ -68,6 +68,7 @@ import {
   resolveSharedRendererExternalVideoMasterClockSnapTime,
   type SharedRendererExternalVideoMasterClockCandidate,
 } from '../utils/sharedRendererExternalVideoMasterClock';
+import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRendererPresenterRestartSession';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import {
   NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS,
@@ -517,6 +518,11 @@ const Viewport: React.FC = () => {
   const sharedRendererPresenterStartingRef = useRef(false);
   const sharedRendererPresenterStartCountRef = useRef(0);
   const sharedRendererPendingPreviewSessionRef = useRef<SharedRendererPreviewSession | null>(null);
+  // 毎 publish で更新される最新セッション。presenter のフル再起動（play⇄pause
+  // 等）が、presenterKey 変化時にしか更新されない state の stale セッション
+  // （＝最後に再起動した時点のフレーム）を present しないための正本
+  // （resolveSharedRendererPresenterRestartSession のコメント参照）。
+  const sharedRendererLatestPublishedPreviewSessionRef = useRef<SharedRendererPreviewSession | null>(null);
   const sharedRendererPendingPresenterSessionKeyRef = useRef<string | null>(null);
   const sharedRendererVideoDecodeJobsRef = useRef<SharedRendererViewportVideoDecodeJob[]>([]);
   const sharedRendererVideoDecodeRequestIdRef = useRef(0);
@@ -1049,6 +1055,9 @@ const Viewport: React.FC = () => {
       webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
       fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
     });
+    // presenter フル再起動時の present 対象の正本。reuse 経路（state 非更新）
+    // 中でも毎 tick 最新化し、再起動が stale なフレームを出さないようにする。
+    sharedRendererLatestPublishedPreviewSessionRef.current = session;
     updateSharedRendererGeneratedEffectObjectIds(collectSharedRendererGeneratedEffectObjectIdsFromSession(session));
     const diagnosticsWindow = window as unknown as {
       __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
@@ -1319,6 +1328,15 @@ const Viewport: React.FC = () => {
       return;
     }
 
+    // 実機回帰「ポーズすると先頭フレームが表示される」対策 — 再起動時は
+    // state（presenterKey 変化時にしか更新されず、reuse 経路の再生中 present では
+    // 古びる）ではなく、毎 publish で更新される最新セッションを present する。
+    // state は再起動トリガー（依存配列）としてのみ機能する。
+    const presenterRestartSession = resolveSharedRendererPresenterRestartSession(
+      sharedRendererLatestPublishedPreviewSessionRef.current,
+      sharedRendererPreviewSession,
+    );
+
     const rustPreviewDecodeEnabled = sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled;
     if (!rustPreviewDecodeEnabled) {
       sharedRendererVideoDecodeJobsRef.current = [];
@@ -1340,7 +1358,7 @@ const Viewport: React.FC = () => {
       : liveDatasets;
     const previousPresenterControl = sharedRendererPresenterControlRef.current;
     const canReuseCurrentPresenterSession = shouldReuseExternalVideoPresenterSession({
-      session: sharedRendererPreviewSession,
+      session: presenterRestartSession,
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
@@ -1349,9 +1367,9 @@ const Viewport: React.FC = () => {
     // publish path stored for both reuse-eligible session shapes.
     const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled
       && !isExporting
-      && (isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)
-        || isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession));
-    const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession, {
+      && (isSharedRendererExternalVideoOnlySession(presenterRestartSession)
+        || isSharedRendererNativeRenderOnlySession(presenterRestartSession));
+    const presenterSessionKey = buildSharedRendererPresenterSessionKey(presenterRestartSession, {
       // Mirror publishSharedRendererPreviewSession so the pending-replay key
       // comparison in .finally matches the key the publish path stored.
       includePlaybackFrame: !(canReuseCurrentPresenterSession || canReuseCurrentNativeRenderPresenter),
@@ -1365,7 +1383,7 @@ const Viewport: React.FC = () => {
       disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
     } else {
       externalVideoSourcesByClipId = syncSharedRendererExternalVideoSources({
-        session: sharedRendererPreviewSession,
+        session: presenterRestartSession,
         // objects を依存配列経由で受けると、ドラッグ中の毎 pointermove（store の
         // objects 参照が変わる）でこの effect 自体が cleanup（cancelled=true）→
         // 再実行され、起動→キャンセルの連鎖が復活してしまう。起動時点の最新
@@ -1384,7 +1402,7 @@ const Viewport: React.FC = () => {
 
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
-      session: sharedRendererPreviewSession,
+      session: presenterRestartSession,
       datasets: stagedDatasets,
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
