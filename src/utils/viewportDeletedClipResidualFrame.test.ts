@@ -32,6 +32,10 @@ describe('viewport deleted clip residual frame boundary', () => {
     expect(reuseOverlayBlock).toContain('const nativeOverlayReuseRequestId = (sharedRendererVideoDecodeRequestIdRef.current += 1);');
     expect(reuseOverlayBlock).toContain('requestId: nativeOverlayReuseRequestId');
     expect(reuseOverlayBlock).toContain('isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === nativeOverlayReuseRequestId');
+    // 追い越された tick が「失敗」扱いで fallback 再起動
+    // （setSharedRendererPreviewSession(session)）へ落ちると、この tick が
+    // 捕捉した古い session（削除済みクリップ入り）を復活させてしまう。
+    expect(reuseOverlayBlock).toContain("result.reason === 'supersededRequest'");
   });
 
   it('guards the presenter restart overlay present with a current-request check', () => {

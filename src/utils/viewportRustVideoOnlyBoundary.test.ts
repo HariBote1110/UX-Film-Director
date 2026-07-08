@@ -172,7 +172,9 @@ describe('Viewport Rust video-only boundary', () => {
     expect(nativeReuseBlock).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
     expect(nativeReuseBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(nativeReuseBlock).toContain('activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null');
-    expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = result.ok ? [result.activeJob] : []');
+    // superseded（追い越し）時は jobs ref を触らないため、成功時のみの更新へ
+    // 分岐が分かれた（viewportDeletedClipResidualFrame.test.ts の契約を参照）。
+    expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = [result.activeJob]');
     expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
     expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {')).toBeLessThan(
       nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, { session })')

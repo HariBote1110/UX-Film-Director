@@ -70,6 +70,14 @@ export interface PrepareSharedRendererViewportNativeOverlayPresentInput {
   nativeOverlayBridge?: NativeOverlayDecodedFrameBridge;
   copyBridge?: SharedVideoFrameCopyBridge;
   decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
+  /**
+   * 追い越し検知 — decode 完了後・present 直前に呼ばれ、false を返すと
+   * decode 済みスロットを解放して present を抑止する（reason:
+   * 'supersededRequest'）。クリップ削除等で presenter が再起動（空セッション
+   * → Bug F transparent clear）した後に、in-flight の古い tick の present が
+   * 完了して削除済みフレームを overlay に上書きするレースを防ぐ。
+   */
+  isRequestCurrent?: () => boolean;
 }
 
 export interface PrepareSharedRendererViewportVideoUploadsInput {
@@ -126,6 +134,8 @@ export type PrepareSharedRendererViewportNativeOverlayPresentResult =
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
         | 'staleDecodeReleaseFailed'
+        | 'supersededRequest'
+        | 'supersededDecodeReleaseFailed'
         | 'nativeOverlayPresentFailed';
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
@@ -428,6 +438,7 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
   rustBackendBridge = window.rustBackend,
   nativeOverlayBridge = window.nativeOverlay,
   decodeRequestBuilder = buildSharedRendererVideoFrameDecodeRequests,
+  isRequestCurrent,
 }: PrepareSharedRendererViewportNativeOverlayPresentInput): Promise<PrepareSharedRendererViewportNativeOverlayPresentResult> => {
   if (!session.surfaceGate.ok) {
     return {
@@ -548,6 +559,37 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
         resolvedRequestId,
         resolvedJob.jobId
       ),
+      uploadFailureClipId: request.clipId,
+      uploadFailureMediaId: request.mediaId,
+      activeJob: resolvedJob,
+    };
+  }
+
+  // 追い越し検知 — decode の await 中に新しい presenter 要求（クリップ削除に
+  // よる再起動等）が始まっていたら、この present は overlay を古いフレームで
+  // 上書きしてしまう（Bug F clear の後に届くと残像が恒久化する）。decode 済み
+  // スロットを解放して present せずに終了する。
+  if (isRequestCurrent && !isRequestCurrent()) {
+    if (isRustBackendDecodedVideoFrameAvailable(decodeResponse)) {
+      const releaseResponse = await releaseRustBackendVideoDecodeFrame({
+        jobId: decodeResponse.result.jobId,
+        slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
+        generation: decodeResponse.result.frame.descriptor.generation,
+        copyOutState: 'rendererUploadAborted',
+      }, rustBackendBridge);
+      if (!releaseResponse.success) {
+        return {
+          ok: false,
+          reason: 'supersededDecodeReleaseFailed',
+          detail: releaseResponse.error ?? 'Rust backend superseded decoded frame release failed.',
+          activeJob: resolvedJob,
+        };
+      }
+    }
+    return {
+      ok: false,
+      reason: 'supersededRequest',
+      detail: 'A newer presenter request superseded this native overlay present; the decoded frame was released without presenting.',
       uploadFailureClipId: request.clipId,
       uploadFailureMediaId: request.mediaId,
       activeJob: resolvedJob,

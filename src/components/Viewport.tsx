@@ -531,7 +531,10 @@ const Viewport: React.FC = () => {
   // out-of-order frame request (the backwardSeek collisions that restart the
   // streaming decoder). `pending` holds the latest dropped tick to replay once.
   const sharedRendererNativeReusePreparingRef = useRef(false);
-  const sharedRendererNativeReusePendingRef = useRef<{ time: number; objects: TimelineObject[] } | null>(null);
+  // 再生 tick の replay 予約。objects は保持しない（replay は常に
+  // latestObjectsRef.current を使う — スナップショットだと in-flight 中の
+  // クリップ削除を巻き戻してしまう）。
+  const sharedRendererNativeReusePendingRef = useRef<{ time: number } | null>(null);
   const sharedRendererNativeReuseLastPreviewTimeRef = useRef<number | null>(null);
   // Native overlay attach rect の drawable ピクセルサイズ（CSS pt × dpr）。
   // preview decode edge を drawable 長辺に追従させるための正本値。attach 毎に更新し、
@@ -1198,7 +1201,7 @@ const Viewport: React.FC = () => {
         const presentPreparedNativeRenderFrame = control.presentPreparedNativeRenderFrame;
         if (sharedRendererNativeReusePreparingRef.current) {
           // A decode+present is already in flight; replay only the latest tick.
-          sharedRendererNativeReusePendingRef.current = { time, objects: currentObjects };
+          sharedRendererNativeReusePendingRef.current = { time };
           return;
         }
         sharedRendererNativeReusePreparingRef.current = true;
@@ -1208,17 +1211,29 @@ const Viewport: React.FC = () => {
               if (session.surfaceGate.ok) {
                 sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
               }
+              const nativeOverlayReuseRequestId = (sharedRendererVideoDecodeRequestIdRef.current += 1);
               const result = await prepareSharedRendererViewportNativeOverlayPresent({
                 session,
-                requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+                requestId: nativeOverlayReuseRequestId,
                 activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null,
                 slotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
                 maxDecodeEdge: resolveSharedRendererPlaybackDecodeMaxEdge(nativeOverlayDrawableSizeRef.current),
                 nativeOverlayBridge: window.nativeOverlay,
                 rustBackendBridge: window.rustBackend,
+                // クリップ削除等で presenter が再起動（requestId が進む）した後に
+                // この in-flight present が完了して削除済みフレームで overlay を
+                // 上書きするレースを防ぐ（Bug F clear の後だと残像が恒久化する）。
+                isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === nativeOverlayReuseRequestId,
               });
-              sharedRendererVideoDecodeJobsRef.current = result.ok ? [result.activeJob] : [];
-              if (!result.ok) {
+              if (result.ok) {
+                sharedRendererVideoDecodeJobsRef.current = [result.activeJob];
+              } else if (result.reason === 'supersededRequest' || result.reason === 'supersededDecodeReleaseFailed') {
+                // 追い越された tick は何もしない — presentation の所有権は
+                // 新しい要求（再起動側）にある。ここで fallback 再起動すると
+                // この tick が捕捉した古い session（削除済みクリップ入り）を
+                // 復活させてしまう。decode jobs ref も新しい要求側が管理する。
+              } else {
+                sharedRendererVideoDecodeJobsRef.current = [];
                 sharedRendererPresenterSessionKeyRef.current = null;
                 setSharedRendererPreviewSession(session);
               }
@@ -1260,7 +1275,12 @@ const Viewport: React.FC = () => {
                   pendingTime: pending.time,
                   previewFps: SHARED_RENDERER_PLAYBACK_PREVIEW_FPS,
                 }),
-                pending.objects
+                // pending tick 時点の objects スナップショットではなく replay
+                // 時点の最新 objects を使う。スナップショットだと、in-flight 中に
+                // 削除されたクリップ入りのセッションを再構築して presenter を
+                // 再起動させ、削除済みフレームを復活させてしまう（.finally の
+                // pending replay と同根の既存対策コメントも参照）。
+                latestObjectsRef.current
               );
             }
           }
@@ -1419,6 +1439,10 @@ const Viewport: React.FC = () => {
           ...input,
           nativeOverlayBridge: window.nativeOverlay,
           rustBackendBridge: window.rustBackend,
+          // この再起動より新しい要求（さらに新しい再起動 / reuse tick）が
+          // 始まっていたら、decode 完了後の present を抑止して古いフレームの
+          // 上書きを防ぐ。
+          isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === input.requestId,
         })
         : undefined,
       activeVideoDecodeJob: rustPreviewDecodeEnabled
