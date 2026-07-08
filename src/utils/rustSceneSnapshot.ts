@@ -2161,8 +2161,19 @@ const sourceFrameForObject = (
   if (object.type === 'region_frame') return 0;
   if (object.type === 'simple_tube') return 0;
   const localTime = Math.max(0, time - object.startTime);
-  const mediaTime = localTime + (object.offset ?? 0);
-  return secondsToFrameIndex(mediaTime, fps);
+  const offset = object.offset ?? 0;
+  const mediaTime = localTime + offset;
+  const frameIndex = secondsToFrameIndex(mediaTime, fps);
+  // クリップ在圏判定（collectVisibleObjects）は非量子化の半開区間
+  // `time < startTime + duration` だが、frame_index は Math.round で
+  // 四捨五入されるため、projectFps が 60 の約数でない場合などクリップ
+  // 終端付近で round がクリップ自身のローカル再生範囲（offset..offset+
+  // duration）を超えることがある。クリップ自身の最終有効フレームへ
+  // クランプし、範囲外フレームの要求を防ぐ。
+  const offsetFrame = secondsToFrameIndex(offset, fps);
+  const durationFrameCount = Math.max(1, secondsToFrameIndex(object.duration, fps));
+  const maxFrame = offsetFrame + durationFrameCount - 1;
+  return Math.min(frameIndex, maxFrame);
 };
 
 const secondsToFrameIndex = (seconds: number, fps: number): number => {
