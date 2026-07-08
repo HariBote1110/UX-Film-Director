@@ -9,6 +9,6 @@ export const mediaTimeInClipForPlayhead = (
   timelineTime: number
 ): number | null => {
   const local = timelineTime - video.startTime;
-  if (local < 0 || local > video.duration) return null;
+  if (local < 0 || local >= video.duration) return null;
   return (video.offset ?? 0) + local;
 };
