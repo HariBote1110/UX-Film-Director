@@ -3467,6 +3467,28 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('clamps a video source_frame that rounds past the clip tail instead of requesting an out-of-range frame', () => {
+    // projectFps が 60 の約数でない場合（例: 24fps）、クリップ終端付近では
+    // secondsToFrameIndex の Math.round が実際のローカル再生範囲を超える
+    // frame_index を生成しうる（在圏判定 time < startTime+duration は満たすが
+    // round 後は境界を超える）。source_frame はクリップ自身の
+    // offset..offset+duration の範囲にクランプされるべき。
+    const layers = createDefaultLayers();
+    const fps24Settings: ProjectSettings = { ...settings, fps: 24 };
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: fps24Settings,
+      layers,
+      objects: [baseVideo({ startTime: 0, duration: 5, offset: 0 })],
+      time: 4.99,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    // 5秒 * 24fps = 120フレームなので、クリップ内の最終有効フレームは119。
+    expect(result.snapshot.clips[0].source_frame).toBe(119);
+  });
+
   it('passes scaled canvas media transforms through to the Rust scene snapshot', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
