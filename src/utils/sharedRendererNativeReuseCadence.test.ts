@@ -4,14 +4,17 @@ import {
 } from './sharedRendererNativeReuseCadence';
 
 describe('sharedRendererNativeReuseCadence', () => {
-  it('advances a pending native reuse replay by at most one preview frame after a slow decode', () => {
+  it('catches up to a pending native reuse replay far behind the catch-up threshold after a slow decode', () => {
+    // 元は「常に1フレームずつ」だったが、この規模の遅延（2.25秒 = 135フレーム）を
+    // 1フレームずつのクランプで追う設計だと Canvas が永遠にヘッドへ追いつけない
+    // ため、閾値超過時は pendingTime へ直接ジャンプする契約へ変更した。
     const replayTime = resolveSharedRendererNativeReuseReplayTime({
       requestedTime: 1,
       pendingTime: 3.25,
       previewFps: 60,
     });
 
-    expect(replayTime).toBeCloseTo(1 + (1 / 60), 6);
+    expect(replayTime).toBe(3.25);
   });
 
   it('keeps a pending native reuse replay time when it is already near the decoded frame', () => {
