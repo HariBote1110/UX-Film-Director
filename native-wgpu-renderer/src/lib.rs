@@ -100,6 +100,25 @@ pub struct NativeWgpuPresentReport {
     pub timings: NativeWgpuFrameStageTimings,
 }
 
+/// 残像診断（`UXFD_OVERLAY_CLEAR_READBACK=1`）専用のレポート。
+/// clear（空シーン present）時に、`get_current_texture` で取得した実 drawable の
+/// **描画前（pre_clear）** と **透明クリア描画後（post_clear）** の非透明ピクセル数を
+/// 実サーフェステクスチャから readback して返す。
+/// - `pre_clear_non_transparent_pixels > 0`: swapchain が「前フレームの動画が残った
+///   drawable」を再利用して返している（Immediate present での drawable 保持＝仮説1）。
+/// - `post_clear_non_transparent_pixels > 0`: 透明クリア描画自体が効いていない
+///   （native の clear render のバグ）。
+/// - 両方 0: 我々が present する drawable は実際に透明＝残像の主体は overlay
+///   サーフェス外（背後の DOM canvas／compositor＝仮説2）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeWgpuClearReadbackReport {
+    pub width: u32,
+    pub height: u32,
+    pub prepared_clip_count: usize,
+    pub pre_clear_non_transparent_pixels: u64,
+    pub post_clear_non_transparent_pixels: u64,
+}
+
 #[derive(Debug)]
 pub struct NativeWgpuSharedFrameReport {
     pub ring: PosixSharedRing,
@@ -437,6 +456,112 @@ impl NativeWgpuLiveSurfaceRenderer {
                 steady_state: source_upload + acquire + render + readback_encode,
                 total: total_start.elapsed(),
             },
+        })
+    }
+
+    /// 残像診断専用（`UXFD_OVERLAY_CLEAR_READBACK=1`）— clear（空シーン
+    /// present）と同じ描画を行いつつ、実 drawable の pre_clear / post_clear の
+    /// 非透明ピクセル数を readback する。通常経路
+    /// （`present_scene_with_decoration_to_surface_texture`）と描画内容は同一だが、
+    /// 取得した drawable への copy_texture_to_buffer（描画前・描画後）が追加される
+    /// ぶん重いので、既定では呼ばれない。per-frame upload fence を跨がない軽量な
+    /// video present 経路（`present_scene_to_surface_texture`）とは別物で、この
+    /// readback 経路のみ `wait_for_submitted_work` を用いる。
+    pub async fn present_scene_with_decoration_to_surface_texture_with_clear_readback(
+        &self,
+        base_generation: u64,
+        base_snapshot: &SceneSnapshot,
+        base_sources: &HashMap<String, RgbaFrame>,
+        decoration_clips: &[uxfd_rust_core::EvaluatedClip],
+        decoration_sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuClearReadbackReport, NativeWgpuRenderError> {
+        let (base_prepared_clips, _base_source_upload) = self
+            .core
+            .prepare_base_scene_clips_cached(base_generation, base_snapshot, base_sources)?;
+        let (decoration_prepared_clips, _decoration_source_upload) = self
+            .core
+            .prepare_scene_clips_without_upload_fence(
+                &SceneSnapshot {
+                    frame_index: base_snapshot.frame_index,
+                    colour: base_snapshot.colour.clone(),
+                    clips: decoration_clips.to_vec(),
+                },
+                decoration_sources,
+            )?;
+        let mut merged: Vec<(u32, Arc<PreparedClip>)> = base_prepared_clips;
+        merged.extend(
+            decoration_clips
+                .iter()
+                .map(|clip| clip.z_index)
+                .zip(decoration_prepared_clips.into_iter()),
+        );
+        merged.sort_by_key(|(z_index, _)| *z_index);
+        let prepared_clip_count = merged.len();
+        let prepared_clips: Vec<Arc<PreparedClip>> =
+            merged.into_iter().map(|(_, prepared)| prepared).collect();
+
+        let width = self.surface_config.width;
+        let height = self.surface_config.height;
+        let pre_clear_buffer = create_readback_buffer(&self.core.device, width, height);
+        let post_clear_buffer = create_readback_buffer(&self.core.device, width, height);
+
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(NativeWgpuRenderError::Surface)?;
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu live surface clear-readback encoder"),
+                });
+        // 描画前の drawable 残留（swapchain が再利用して返した内容）を捕捉。
+        copy_live_surface_texture_to_readback(
+            &mut encoder,
+            &surface_texture.texture,
+            &pre_clear_buffer,
+            width,
+            height,
+        );
+        // 通常の clear と同一の描画（空シーン + デコレーション）。
+        self.core
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+        // 透明クリア描画後の drawable 内容を捕捉。
+        copy_live_surface_texture_to_readback(
+            &mut encoder,
+            &surface_texture.texture,
+            &post_clear_buffer,
+            width,
+            height,
+        );
+        self.core.queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        wait_for_submitted_work(&self.core.device, &self.core.queue)?;
+
+        let pre_frame = readback_to_rgba8(
+            &self.core.device,
+            &pre_clear_buffer,
+            self.surface_config.format,
+            width,
+            height,
+        )?;
+        let post_frame = readback_to_rgba8(
+            &self.core.device,
+            &post_clear_buffer,
+            self.surface_config.format,
+            width,
+            height,
+        )?;
+
+        Ok(NativeWgpuClearReadbackReport {
+            width,
+            height,
+            prepared_clip_count,
+            pre_clear_non_transparent_pixels: count_non_transparent_pixels(&pre_frame),
+            post_clear_non_transparent_pixels: count_non_transparent_pixels(&post_frame),
         })
     }
 }
@@ -1891,6 +2016,16 @@ fn prepare_clip(
     PreparedClip { bind_group }
 }
 
+/// 残像診断用 — RGBA8 フレームの alpha != 0（非透明）ピクセル数を数える。
+/// `readback_to_rgba8` は BGRA サーフェスも RGBA 順へ正規化済みで alpha は index 3。
+fn count_non_transparent_pixels(frame: &RgbaFrame) -> u64 {
+    frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|pixel| pixel[3] != 0)
+        .count() as u64
+}
+
 fn create_readback_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Buffer {
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("UXFD native wgpu readback buffer"),
@@ -3055,5 +3190,42 @@ mod tests {
         // 複製されていないこと）。
         assert_eq!(Arc::strong_count(&prepared_clips[0].1), 3);
         assert!(Arc::ptr_eq(&prepared_clips[0].1, &cloned[0].1));
+    }
+
+    #[test]
+    fn empty_scene_present_produces_a_fully_transparent_offscreen_frame() {
+        // 残像調査の post_clear 不変条件（headless で固定できる部分）:
+        // clip 0 件の空シーン（透明クリア相当）を present すると、描画結果は
+        // 全ピクセル alpha=0 になること。clear（present_cached_scene_with_decoration
+        // 経由の空シーン present）で drawable が透明化される契約の native 側担保。
+        // これが崩れると post_clear_non_transparent が非0になり残像の native 原因
+        // （clear render のバグ）になる。offscreen（output_texture）経路のため
+        // swapchain 保持は再現しないが、clear render 自体の正しさは固定できる。
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(8, 8)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping empty scene transparency test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let empty_snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        };
+        let empty_sources: HashMap<String, RgbaFrame> = HashMap::new();
+
+        let frame = pollster::block_on(
+            renderer.render_overlay_surface_frame_for_test(&empty_snapshot, &empty_sources),
+        )
+        .expect("empty scene present must succeed");
+
+        assert_eq!(
+            count_non_transparent_pixels(&frame),
+            0,
+            "an empty scene present must clear the drawable to fully transparent \
+             (post_clear invariant for the residual-frame fix)"
+        );
     }
 }

@@ -463,6 +463,37 @@ impl NativeOverlayLiveSurfaceRenderer {
             })
             .unwrap_or_default();
 
+        // 残像診断（`UXFD_OVERLAY_CLEAR_READBACK=1`）— clear（空シーン present）時に
+        // 実 drawable の pre/post 非透明ピクセル数を readback し stderr へ出す。
+        // last_scene=None（動画が居ない透明クリア）のときのみ意味があるので、
+        // その条件下だけで採取する（動画 present 中は通常の軽量経路を維持）。
+        if clear_readback_trace_enabled() && self.last_scene.is_none() {
+            let report = pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_to_surface_texture_with_clear_readback(
+                        self.scene_generation,
+                        base_snapshot,
+                        base_sources,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+            .map_err(|error| {
+                format!("Native overlay clear-readback present failed: {error:?}")
+            })?;
+            eprintln!(
+                "[uxfd-overlay-trace] clear_readback window_id={} drawable={}x{} \
+                 prepared_clips={} pre_clear_non_transparent={} post_clear_non_transparent={}",
+                self.window_id,
+                report.width,
+                report.height,
+                report.prepared_clip_count,
+                report.pre_clear_non_transparent_pixels,
+                report.post_clear_non_transparent_pixels,
+            );
+            return Ok(());
+        }
+
         let report = pollster::block_on(
             self.renderer.present_scene_with_decoration_to_surface_texture(
                 self.scene_generation,
@@ -1320,11 +1351,21 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
     renderer.last_scene = None;
-    renderer
-        .present_cached_scene_with_decoration(decoration.as_ref())
-        .map_err(|error| {
-            format!("Native overlay live surface transparent clear failed: {error}")
-        })?;
+    // 候補修正（`UXFD_OVERLAY_CLEAR_FLUSH=1`、既定オフ）— 仮説1（Immediate
+    // present での swapchain drawable 保持）向け。CAMetalLayer は複数 drawable を
+    // 持ち、Immediate モードでは present 回数が数回で止まると「クリアされていない
+    // 別 drawable」に前の動画フレームが残って表示され続けうる。透明クリアを
+    // desired_maximum_frame_latency(2)+1=3 回連続 present し、全 drawable を確実に
+    // 透明で上書きする。実機で残像が消えれば真因が仮説1と確定する。既定では
+    // 従来どおり1回のみ present（挙動変更なし）。
+    let clear_present_count = if clear_flush_enabled() { 3 } else { 1 };
+    for _ in 0..clear_present_count {
+        renderer
+            .present_cached_scene_with_decoration(decoration.as_ref())
+            .map_err(|error| {
+                format!("Native overlay live surface transparent clear failed: {error}")
+            })?;
+    }
     Ok(())
 }
 
@@ -1469,6 +1510,22 @@ fn live_surface_readback_trace_enabled() -> bool {
         .ok()
         .as_deref()
         == Some("1")
+}
+
+/// 残像診断（`UXFD_OVERLAY_CLEAR_READBACK=1`）— clear（透明クリア）present 時に
+/// 実 drawable を readback して pre/post の非透明ピクセル数を stderr へ出す。
+/// 実 GPU present 経路を通るため offscreen readback では再現できない swapchain
+/// 保持（Immediate present での drawable 再利用）を実機で切り分けるための恒久
+/// 診断（既定は無効）。
+fn clear_readback_trace_enabled() -> bool {
+    std::env::var("UXFD_OVERLAY_CLEAR_READBACK").ok().as_deref() == Some("1")
+}
+
+/// 候補修正フラグ（`UXFD_OVERLAY_CLEAR_FLUSH=1`、既定オフ）— clear 時に透明
+/// フレームを複数回 present し、Immediate present での swapchain drawable 保持
+/// （仮説1）による残像を消す。実機で残像が消えるかで真因を確定するための toggle。
+fn clear_flush_enabled() -> bool {
+    std::env::var("UXFD_OVERLAY_CLEAR_FLUSH").ok().as_deref() == Some("1")
 }
 
 fn live_surface_diagnostics_from_frame_report(
