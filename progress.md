@@ -1,3 +1,54 @@
+## 2026-07-09 — 調査: 削除残像の native 切り分け（実 drawable readback 診断＋swapchain フラッシュ候補・native リビルド）（版据え置き433c）
+
+### 実機トレースで確定した事実（コーディネータ提供・ケースA: 一時停止・動画1本のみ削除）
+
+- 残像は「動画のみ→空」（一時停止・再生の両方）で発生、視覚的に残ることをユーザー確認済み。
+- 動画は overlay に描画（`present_upload_frame window_id=1 media=... upload=1563x879` ＋レターボックス fit トレース）。DOM canvas ではなく overlay が出力先。
+- 削除直後、`clear_live_surface window_id=1` が**実際に走り**、`present_cached_scene_with_decoration`（空シーン）が実 GPU タイミング付きで**複数回**実行される。削除後に動画の `present_upload_frame` は**出ない**。
+- それでも動画フレームは画面に残る。→ JS グルー・`clear_native_overlay_live_surface`・空シーン present のロジック層は全て正しく、**実機 GPU/コンポジット層固有の問題**に絞られた。
+
+### 2仮説
+
+1. **swapchain のステール drawable / Immediate present によるバッファ保持**: CAMetalLayer の drawable 複数枚のうち、クリアされていない drawable に前の動画が残り表示され続ける。
+2. **透明化した overlay の背後の DOM canvas が動画を保持**して透けて見える。
+
+### この環境での切り分けの限界と対処
+
+- headless の offscreen readback（`present_scene_to_surface_texture_with_readback` / `render_overlay_surface_frame_for_test`）は**毎回新規の output_texture** に描くため、swapchain drawable 保持（仮説1）を再現できない（テスト漏れの温床）。実 swapchain drawable を観測するには attach 済み実 NSWindow が要り、この非対話環境では実行不可。
+- → **実 drawable を readback する診断**を native に追加し、実機で1回採取すれば白黒つく形にした（コーディネータ提案の診断を実装）。
+
+### 追加した診断・回帰・候補修正（native リビルド実施）
+
+- **native-wgpu-renderer**: `present_scene_with_decoration_to_surface_texture_with_clear_readback` を追加。clear と同一描画をしつつ、`get_current_texture` で取得した**実サーフェス drawable**の pre_clear（描画前の残留＝swapchain が返した内容）と post_clear（透明クリア描画後）の非透明ピクセル数を実サーフェスから readback。
+- **native-overlay**: `present_cached_scene_with_decoration` に `UXFD_OVERLAY_CLEAR_READBACK=1` ゲート（かつ `last_scene.is_none()` の透明クリア時のみ）で上記を呼び、`[uxfd-overlay-trace] clear_readback ... pre_clear_non_transparent=.. post_clear_non_transparent=..` を stderr 出力。判定: **pre>0=仮説1（swapchain 保持）／post>0=native clear バグ／両0=仮説2（overlay 外＝背後 DOM canvas・compositor）**。
+- **候補修正（env toggle・既定オフ）**: `UXFD_OVERLAY_CLEAR_FLUSH=1` で clear 時に透明フレームを3回（desired_maximum_frame_latency 2+1）連続 present し全 drawable をフラッシュ。仮説1なら残像が消えるはず。既定は従来どおり1回 present で挙動変更なし。
+- **headless 回帰（固定できる部分）**: `empty_scene_present_produces_a_fully_transparent_offscreen_frame`（native-wgpu-renderer）— 空シーン present の offscreen 描画が全 pixel alpha=0 になる post_clear 不変条件を固定。native clear render のバグ（post>0）を CI で検出できる。
+- addon 再ビルド（`npm run native-overlay:node:build`）実施。`cargo test --lib`: native-wgpu-renderer 18件 / native-overlay 49件 green。
+
+### 却下・保留
+
+- 仮説2側（DOM canvas）の候補修正は、実 drawable readback で pre/post が両0（＝overlay は透明）と確定してから着手する（現時点で JS 側を触るのは憶測になるため保留）。
+- バグ修正は未確定（実機観測待ち）のため未実施。版は 433c 据え置き。native/electron のうち native-overlay・native-wgpu-renderer をリビルドした（diag+候補のみ、既定挙動は不変）。
+
+### 実機で採ってほしいトレース（コピペ用・コーディネータ経由でユーザーへ）
+
+1. 切り分け（最優先・1回）:
+   ```
+   UXFD_OVERLAY_TRACE=1 UXFD_OVERLAY_CLEAR_READBACK=1 npm run dev
+   ```
+   動画1本を配置→一時停止→削除。削除直後の stderr で:
+   `[uxfd-overlay-trace] clear_readback window_id=1 drawable=WxH prepared_clips=N pre_clear_non_transparent=P post_clear_non_transparent=Q`
+   を確認。**P>0 → 仮説1確定（swapchain 保持）／Q>0 → native clear バグ／P=Q=0 → 仮説2（overlay 外・背後 DOM canvas）**。
+2. 仮説1が濃厚（P>0）なら候補修正の実効を確認:
+   ```
+   UXFD_OVERLAY_TRACE=1 UXFD_OVERLAY_CLEAR_FLUSH=1 npm run dev
+   ```
+   同操作で残像が消えるか目視。消えれば真因＝仮説1で確定 → 次セッションで clear_flush を既定化（または drawable 数に応じた最小回数へ最適化）して Red→Green 化。
+
+### 報告済みの前段（同日 別エントリ）
+
+- 抽出モジュール（クリア判定・レースガード）を実行オラクルでシロと確定済み（`src/integration/deletedClipResidualFrame.integration.test.ts`）。今回はそれを踏まえ native 層へ踏み込んだ。
+
 ## 2026-07-09 — 調査: 削除残像の実測切り分け（抽出モジュールを白と確定・グルー/nativeへ絞り込み・修正は保留）（版据え置き433c）
 
 ### 背景
