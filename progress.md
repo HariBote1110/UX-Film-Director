@@ -53,9 +53,20 @@
   落とし穴があり、`concat!` で断片に分割して自己参照を避けた（実際に一度、素直な文字列リテラルで
   書いた際に自己マッチして偽陽性 green になったことを確認し、修正して true Red を得た）。
 
-### 残課題・次のステップ
+### 実機検証（修正後・同日追記）
 
-- 実機での最終確認（削除操作後にキャンバス残像が消えること）はユーザー側で別途実施予定。
+- `UXFD_OVERLAY_TRACE=1 UXFD_OVERLAY_CLEAR_READBACK=1 npm run dev` で修正後 addon を起動し、
+  真因確定時と同一手順（新規プロジェクト → 動画1本配置（一時停止のまま）→ クリップ選択 → Delete）を
+  画面操作の自動化で再実行。**キャンバスは削除直後に空（黒）になり、残像は再現しなかった**。
+- 削除直後の readback も修正を裏付けた:
+  ```
+  clear_readback ... prepared_clips=12 pre_clear_non_transparent=0 post_clear_non_transparent=10969
+  clear_readback ... prepared_clips=0  pre_clear_non_transparent=0 post_clear_non_transparent=0
+  ```
+  1行目の post=10969 は選択デコレーション（選択枠 quad 12 個）で仕様どおり。選択解除後の最終状態は
+  prepared_clips=0・post=0（全ピクセル透明）。修正前の post=1372998（全面非透明）から解消を実測確認。
+
+### 残課題・次のステップ
 - `UXFD_OVERLAY_TRACE` / `UXFD_OVERLAY_CLEAR_READBACK` / `UXFD_OVERLAY_CLEAR_FLUSH` の診断・候補修正用
   env トグルは今回のバグ確定・修正には直接使わず、そのまま残置した（恒久診断として有用なため撤去しない）。
 
