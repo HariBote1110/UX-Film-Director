@@ -2218,6 +2218,51 @@ mod tests {
     }
 
     #[test]
+    fn clear_native_overlay_live_surface_advances_scene_generation_to_invalidate_prepared_clip_cache(
+    ) {
+        // 削除残像バグ・真因（実機トレース `UXFD_OVERLAY_CLEAR_READBACK=1` で確定済み）:
+        // 動画シーンを present すると `present_upload_frame` が `last_scene` を
+        // キャッシュしつつ `scene_generation` を進める。その後クリップを削除して
+        // `clear_native_overlay_live_surface` が呼ばれても、これまでは
+        // `last_scene = None` にするだけで `scene_generation` を据え置いていた。
+        // native-wgpu-renderer 側 `prepare_base_scene_clips_cached` は
+        // generation の一致のみでキャッシュヒットを判定し、渡された snapshot の
+        // 中身（空かどうか）を一切見ない契約（既存テストで固定済み・変更しない）。
+        // そのため空 snapshot を渡しても直前の動画の `Arc<PreparedClip>` が
+        // キャッシュから返り、透明クリアのはずが削除済み動画をフルスクリーン
+        // 再描画していた（実測: drawable=1563x879 prepared_clips=1
+        // pre_clear_non_transparent=0 post_clear_non_transparent=1372998 ≒ 全pixel）。
+        //
+        // 修正は clear 時に `scene_generation` を前進させ、renderer 側キャッシュを
+        // 意図的にミスさせて空 snapshot を実際に prepare させること。
+        //
+        // 実際の present は NSWindow 経由の live surface 前提のため headless な
+        // `cargo test --lib` では再現できない（本ファイル内の他の macOS/NSWindow
+        // 依存契約と同じ理由で `include_str!` によるソース契約で固定する）。
+        // `include_str!` は本テスト自身のソースも含むため、探索対象の文字列を
+        // そのまま埋め込むと自分自身にマッチしてしまう。`concat!` で断片から
+        // 組み立て、ソース上に検索対象そのものが現れないようにする。
+        let source = include_str!("lib.rs");
+
+        let last_scene_reset = concat!("renderer.last_scene", " = None;");
+        let last_scene_reset_position = source
+            .find(last_scene_reset)
+            .expect("clear_native_overlay_live_surface must reset last_scene to None on clear");
+
+        let generation_advance = concat!("renderer.scene_generation", " += 1;");
+        let generation_advance_position = source.find(generation_advance).expect(
+            "clear_native_overlay_live_surface must advance scene_generation on clear so that \
+             native-wgpu-renderer's prepare_base_scene_clips_cached (generation 一致のみで \
+             判定する契約) cannot hit the stale video scene's cache and redraw a deleted clip",
+        );
+
+        assert!(
+            generation_advance_position > last_scene_reset_position,
+            "scene_generation must be advanced immediately after last_scene is reset to None",
+        );
+    }
+
+    #[test]
     fn macos_overlay_view_is_click_through() {
         let source = include_str!("macos_overlay.rs");
 
