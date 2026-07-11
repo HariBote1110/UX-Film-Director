@@ -65,26 +65,7 @@ describe('proxyUtils', () => {
     expect(invoke).toHaveBeenNthCalledWith(1, 'check-proxy', { filePath: '/clips/source.MP4' });
   });
 
-  it('generates a proxy for 4K sources when source resolution is provided', async () => {
-    const invoke = vi.fn()
-      .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' })
-      .mockResolvedValueOnce({ success: true, proxyPath: '/clips/source.proxy.mp4' });
-    vi.stubGlobal('window', { ipcRenderer: { invoke } });
-
-    const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
-    const proxyPath = await resolveOrGeneratePreviewProxy('/clips/source.MP4', undefined, {
-      width: 3840,
-      height: 2160,
-    });
-
-    expect(proxyPath).toBe('/clips/source.proxy.mp4');
-    expect(invoke).toHaveBeenNthCalledWith(2, 'generate-proxy', {
-      filePath: '/clips/source.MP4',
-      width: 640,
-    });
-  });
-
-  it('invokes generation lifecycle hooks only while actually generating', async () => {
+  it('invokes generation lifecycle hooks only while actually generating (autoGenerate opt-in)', async () => {
     const invoke = vi.fn()
       .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' })
       .mockResolvedValueOnce({ success: true, proxyPath: '/clips/source.proxy.mp4' });
@@ -94,10 +75,13 @@ describe('proxyUtils', () => {
     const onGenerateEnd = vi.fn();
 
     const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
-    await resolveOrGeneratePreviewProxy('/clips/source.MP4', undefined, { width: 3840, height: 2160 }, {
-      onGenerateStart,
-      onGenerateEnd,
-    });
+    await resolveOrGeneratePreviewProxy(
+      '/clips/source.MP4',
+      undefined,
+      { width: 3840, height: 2160 },
+      { onGenerateStart, onGenerateEnd },
+      { autoGenerate: true },
+    );
 
     expect(onGenerateStart).toHaveBeenCalledTimes(1);
     expect(onGenerateEnd).toHaveBeenCalledTimes(1);
@@ -134,5 +118,44 @@ describe('proxyUtils', () => {
 
     expect(proxyPath).toBe('/clips/source.proxy.mp4');
     expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not auto-generate a proxy for 4K sources by default (hardware decode makes it unnecessary)', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' });
+    vi.stubGlobal('window', { ipcRenderer: { invoke } });
+
+    const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
+    const proxyPath = await resolveOrGeneratePreviewProxy('/clips/source.MP4', undefined, {
+      width: 3840,
+      height: 2160,
+    });
+
+    expect(proxyPath).toBeUndefined();
+    // check-proxy のみ呼ばれ、generate-proxy は呼ばれない（強制プロキシ生成は廃止）
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenNthCalledWith(1, 'check-proxy', { filePath: '/clips/source.MP4' });
+  });
+
+  it('still generates a proxy for 4K sources when autoGenerate is explicitly requested', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' })
+      .mockResolvedValueOnce({ success: true, proxyPath: '/clips/source.proxy.mp4' });
+    vi.stubGlobal('window', { ipcRenderer: { invoke } });
+
+    const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
+    const proxyPath = await resolveOrGeneratePreviewProxy(
+      '/clips/source.MP4',
+      undefined,
+      { width: 3840, height: 2160 },
+      undefined,
+      { autoGenerate: true },
+    );
+
+    expect(proxyPath).toBe('/clips/source.proxy.mp4');
+    expect(invoke).toHaveBeenNthCalledWith(2, 'generate-proxy', {
+      filePath: '/clips/source.MP4',
+      width: 640,
+    });
   });
 });
