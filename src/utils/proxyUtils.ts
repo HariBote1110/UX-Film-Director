@@ -74,25 +74,48 @@ export const generateProxy = async (opts: GenerateProxyOptions): Promise<Generat
   }
 };
 
+export interface ResolveOrGeneratePreviewProxyOptions {
+  /**
+   * true の場合のみ、FHD を超える素材に対して自動でプロキシを生成する。
+   * デフォルトは false（強制プロキシ生成は廃止）: macOS の VideoToolbox
+   * ハードウェアデコードにより 4K 素材もプロキシなしで直接プレビュー
+   * 再生できるため、ドロップ/インポート時に自動生成する必要がなくなった。
+   * プロキシ生成機能自体は明示的な経路（PropertyPanel の手動生成ボタン
+   * や autoGenerate: true を渡す呼び出し）向けに残す。
+   */
+  autoGenerate?: boolean;
+}
+
 export const resolveOrGeneratePreviewProxy = async (
   filePath: string | undefined,
   width: number = DEFAULT_PREVIEW_PROXY_WIDTH,
   /**
    * 元素材の解像度。指定された場合、FHD 以下の素材はプロキシを生成しない。
-   * 未指定（従来呼び出し）の場合は解像度ゲートを適用せず常に生成する。
+   * 未指定（従来呼び出し）の場合は解像度ゲートを適用せず常に生成する
+   * （ただし autoGenerate が false の間は、いずれにせよ生成しない）。
    */
   source?: { width: number; height: number },
   /**
    * 実際に生成（ffmpeg 実行）する場合のみ前後で呼ばれるフック。
-   * 既存プロキシの再利用や FHD スキップでは呼ばれない。進捗表示の制御に使う。
+   * 既存プロキシの再利用や FHD スキップ・自動生成オフでは呼ばれない。
+   * 進捗表示の制御に使う。
    */
-  hooks?: { onGenerateStart?: () => void; onGenerateEnd?: () => void }
+  hooks?: { onGenerateStart?: () => void; onGenerateEnd?: () => void },
+  options?: ResolveOrGeneratePreviewProxyOptions,
 ): Promise<string | undefined> => {
   if (!filePath) return undefined;
 
   // 既存のプロキシは解像度に関わらず再利用する。
   const existingProxy = await detectExistingProxy(filePath);
   if (existingProxy) return existingProxy;
+
+  // 強制プロキシ生成は廃止済み: 明示的に autoGenerate: true が指定された
+  // ときのみ自動生成する。それ以外（ドロップ/インポート時の既定挙動）は
+  // 4K 等の高解像度でもプロキシを生成せず、ハードウェアデコードで直接
+  // 再生する。
+  if (!options?.autoGenerate) {
+    return undefined;
+  }
 
   // 解像度が判明していて FHD 以下なら生成しない（リソース浪費を防ぐ）。
   if (source && !shouldGenerateProxyForResolution(source.width, source.height)) {

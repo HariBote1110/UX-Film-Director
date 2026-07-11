@@ -1,3 +1,74 @@
+## 2026-07-12 — 4K 強制プロキシ生成を廃止（版0.1.1-Beta-435a）
+
+### 実施内容
+
+- 調査対象: `src/utils/proxyUtils.ts`（プロキシ要否判定・生成）、`src/hooks/useTimelineDrop.ts`（ドロップ時のプロキシ呼び出し）、
+  `src/components/Timeline.tsx`（ファイル選択インポート時の同等コード）、`electron/main.ts` の
+  `check-proxy`/`generate-proxy` IPC、`rust-backend/src/proxy.rs`、`rust-backend/src/transcode.rs`、
+  プレビュー再生のデコード経路（`rust-backend/src/decode.rs`, `sessions.rs`, `source_frames.rs`,
+  `cpu_simple_video.rs`）を通読した。
+- **強制プロキシ生成の廃止**: `resolveOrGeneratePreviewProxy`（`src/utils/proxyUtils.ts`）に
+  `options: { autoGenerate?: boolean }` を追加し、デフォルト `false` に変更した。既存の
+  `.proxy.mp4` 検出（`detectExistingProxy`）は従来どおり維持しつつ、`autoGenerate` を明示しない限り
+  4K 等の高解像度素材でも新規プロキシを **生成しない** ようにした。ドロップ時（`useTimelineDrop.ts`）
+  とファイル選択インポート時（`Timeline.tsx`）の呼び出しはいずれも `autoGenerate` を渡していないため、
+  自動的に「検出のみ・生成なし」の挙動になる。`PropertyPanel.tsx` の手動プロキシ生成ボタンは
+  `generateProxy()` を直接呼ぶ別経路のため無変更（明示的な経路として温存）。
+- TDD: `src/utils/proxyUtils.test.ts` に「4K でも既定では generate-proxy が呼ばれない」「
+  autoGenerate: true を明示すれば従来どおり生成される」テストを Red → Green で追加・既存テストを
+  新仕様に合わせて更新（コミット予定: test → feat）。
+- **ハードウェアデコードの調査結果**: `rust-backend/src/decode.rs` のプレビュー用ストリーミング
+  デコード（`start_streaming_decode_process`）は、macOS では既に `-hwaccel videotoolbox` を
+  既定で有効化しており（`streaming_decode_videotoolbox_enabled()`、`UXFD_DISABLE_VIDEOTOOLBOX_DECODE=1`
+  で無効化可能）、さらに `scale_vt`（GPU 上でのリサイズ）+ `hwdownload` を使い、CPU 側 swscale は
+  ダウンスケール後の小さいフレームに対してのみレンジ変換で使う実装が既に入っていた
+  （`build_streaming_decode_filter` の `hardware_scale=true` 分岐）。`scale_vt` が使えないビルド／
+  環境ではフォールバックとして CPU `scale` フィルタに自動的に切り替わる（`spawn_streaming_decode_process`
+  の初回 read 失敗検出）。したがって「4K をハードウェアデコードで直接プレビュー」に必要な Rust 側の
+  実装は本タスク開始前から存在しており、今回追加の Rust 変更は不要と判断した。
+- デコードフレームキャッシュ（`DECODED_FRAME_CACHE_CAPACITY = 12`）や、シーケンシャル再生時に
+  ffmpeg プロセスを再起動せず読み進める最適化（`decode_rgba_frame_for_session` の `sequential` 分岐）
+  も既存実装済みで、明確な低リスク・高効果のボトルネックとして追加修正すべき箇所は見つからなかった。
+- `rust-backend`: `cargo test --quiet` で全 149 件（decode_control_plane 等含む 2 クレート合算）green
+  を確認（Rust コードは無変更）。
+- フロント: `npx vitest run --exclude '**/psdParser.perf.test.ts'` で 1280 件中 1277 件 pass、
+  失敗した 3 件（`rustBackendNativeRenderBoundary.test.ts`）は本変更前の `git stash` 状態でも
+  同一内容で失敗することを確認済みの既存の未関連failureであり、本タスクの変更とは無関係。
+- `package.json` の version を `0.1.1-Beta-434a` → `0.1.1-Beta-435a` に更新（機能追加のため
+  PhaseVer +1・SubVer を a にリセット）。
+
+### 選定理由・判断の根拠
+
+- **なぜフロント側のみの変更で足りたか**: 4K を「ちょっと重い程度」で直接再生するために必要な
+  ハードウェアデコード経路（VideoToolbox decode + `scale_vt` GPU リサイズ）はすでに実装済みだった。
+  残っていたボトルネックは Rust 側の decode パイプラインではなく、フロント側でドロップ直後に
+  `resolveOrGeneratePreviewProxy` を無条件に呼び、FHD 超素材に対して同期的に ffmpeg フルトランスコード
+  を強制していたことだった。これが「4K を投入すると毎回プロキシ生成待ちが発生する」という体験上の
+  ボトルネックの正体であり、ハードウェアデコードの恩恵を受ける前にプロキシ生成という重い処理が
+  挟まっていたため、これを既定でスキップする変更が最も効果が大きいと判断した。
+- **なぜ `autoGenerate` オプトインという設計にしたか**: プロキシ生成機能自体（`generateProxy` /
+  `check-proxy` / `generate-proxy` IPC / `rust-backend/src/proxy.rs`）は今後も手動生成やエクスポート
+  前の重い素材対策として有用なため削除せず、呼び出し側が明示的に要求したときだけ動く形にした。
+  代替案として `resolveOrGeneratePreviewProxy` 自体を呼ばずに `detectExistingProxy` 直呼びへ置き換える
+  案も検討したが、将来 `autoGenerate: true` で使う経路（例: 明示的な「プロキシを作成」操作）を同じ
+  関数で表現できる方が呼び出し側のコードが単純になるため、オプション引数化を選んだ。
+- **却下した代替案**: Rust 側の decode パイプラインの大規模書き換え（例: ハードウェアデコーダの
+  常時ウォームアップ、フレームキャッシュの拡大）は、既存実装で VideoToolbox 経路がすでに機能して
+  おり、かつ「大規模なアーキテクチャ変更はしない」という制約に反するため見送った。
+
+### 残課題・次のステップ
+
+- 実機（Apple Silicon / Intel Mac 双方）での 4K プロキシなし再生の体感負荷検証は本セッションでは
+  未実施（このセッションはコード変更とユニット/統合テストの green 確認まで）。ユーザー側での
+  実機検証を推奨する。
+- `DECODED_FRAME_CACHE_CAPACITY = 12` やシーク時の `MAX_STREAMING_DECODE_SKIP_FRAMES = 90` は
+  4K 素材でのメモリ使用量・シーク時レイテンシに影響し得るが、既存の値を変更すると挙動全体への
+  影響範囲が大きいため、今回は現状維持とした。4K 実運用でメモリ/レイテンシ問題が出た場合はここを
+  見直す。
+- `cpu_simple_video.rs`（CPU 専用の簡易動画パスと思われる）は今回のプレビュー再生ボトルネック調査の
+  範囲外だったため中身を読んでいない。サムネイル生成等で使われている場合、そちらも VideoToolbox
+  経路化の余地がないか別途確認する価値がある。
+
 ## 2026-07-11 — 修正: 削除残像バグを TDD で修正（clear時にscene_generationを前進、版0.1.1-Beta-434a）
 
 ### 実施内容

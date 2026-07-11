@@ -6,14 +6,20 @@ describe('proxyUtils', () => {
     vi.unstubAllGlobals();
   });
 
-  it('generates a preview proxy when no neighbouring proxy exists', async () => {
+  it('generates a preview proxy when explicitly requested via autoGenerate and no neighbouring proxy exists', async () => {
     const invoke = vi.fn()
       .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' })
       .mockResolvedValueOnce({ success: true, proxyPath: '/clips/source.proxy.mp4' });
     vi.stubGlobal('window', { ipcRenderer: { invoke } });
 
     const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
-    const proxyPath = await resolveOrGeneratePreviewProxy('/clips/source.MP4');
+    const proxyPath = await resolveOrGeneratePreviewProxy(
+      '/clips/source.MP4',
+      undefined,
+      undefined,
+      undefined,
+      { autoGenerate: true },
+    );
 
     expect(proxyPath).toBe('/clips/source.proxy.mp4');
     expect(invoke).toHaveBeenNthCalledWith(1, 'check-proxy', { filePath: '/clips/source.MP4' });
@@ -21,6 +27,18 @@ describe('proxyUtils', () => {
       filePath: '/clips/source.MP4',
       width: 640,
     });
+  });
+
+  it('does not generate a preview proxy by default even when no neighbouring proxy exists (forced proxy generation is disabled)', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' });
+    vi.stubGlobal('window', { ipcRenderer: { invoke } });
+
+    const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
+    const proxyPath = await resolveOrGeneratePreviewProxy('/clips/source.MP4');
+
+    expect(proxyPath).toBeUndefined();
+    expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it('uses an existing preview proxy without regenerating it', async () => {

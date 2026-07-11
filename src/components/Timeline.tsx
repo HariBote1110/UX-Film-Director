@@ -374,7 +374,10 @@ const Timeline: React.FC = () => {
       const { resolveOrGeneratePreviewProxy } = await import('../utils/proxyUtils');
       const sourceImport = await resolveVideoImportSource(file, url);
       const sourceMetadata = sourceImport.metadata;
-      // FHD 以下はプロキシ不要。4K 等の高解像度のみ生成し、生成中は進捗表示を出す。
+      // 強制プロキシ生成は廃止: 4K 等の高解像度素材も VideoToolbox
+      // ハードウェアデコードで直接プレビュー再生できるため、ここでは
+      // 既存の .proxy.mp4 を検出できた場合のみ利用し、autoGenerate は
+      // 渡さない（新規生成しない）。
       const proxyFilePath = await resolveOrGeneratePreviewProxy(
         filePath ?? undefined,
         undefined,
