@@ -1,3 +1,64 @@
+## 2026-07-11 — 修正: 削除残像バグを TDD で修正（clear時にscene_generationを前進、版0.1.1-Beta-434a）
+
+### 実施内容
+
+- 前回セッションで確定済みの真因（`clear_native_overlay_live_surface` が `last_scene = None`
+  にする際 `scene_generation` を据え置くため、native-wgpu-renderer 側
+  `prepare_base_scene_clips_cached` の「generation 一致のみでキャッシュヒット判定」契約により
+  直前の動画の `Arc<PreparedClip>` を誤って返し続ける）に対し、TDD サイクルで修正した。
+- **Red**: `native-overlay/src/lib.rs` の `tests` モジュールに
+  `clear_native_overlay_live_surface_advances_scene_generation_to_invalidate_prepared_clip_cache`
+  を追加（コミット `6408d4e6`）。実際の live surface present は macOS の実 NSWindow・実 CAMetalLayer
+  経由が前提で headless `cargo test --lib` では再現できないため、既存の同種テスト
+  （`attach_native_overlay_inner_reapplies_opaque_immediately_after_contents_scale` 等）と同じ
+  `include_str!("lib.rs")` によるソース契約パターンで「`last_scene = None` の直後に
+  `scene_generation` を前進させる」契約を固定した。修正前に実行し、
+  `panicked at src/lib.rs:2253: clear_native_overlay_live_surface must advance scene_generation on clear ...`
+  で失敗することを確認した（Red 確定）。
+- **Green**: `clear_native_overlay_live_surface`（native-overlay/src/lib.rs:1353 付近）で
+  `renderer.last_scene = None;` の直後に `renderer.scene_generation += 1;` を追加（コミット
+  `36f027ec`）。native-overlay 50件・native-wgpu-renderer 18件、両クレート `cargo test --lib` 全件
+  green を確認。
+- `npm run native-overlay:node:build` で addon（`native-overlay/native-overlay.node`）を再ビルド
+  （実機検証は別途ユーザー側で実施）。
+- `package.json` の version を `0.1.1-Beta-433c` → `0.1.1-Beta-434a` に更新（重大なバグ修正のため
+  PhaseVer +1・SubVer を a にリセット）。
+
+### 選定理由・判断の根拠
+
+- **なぜ `scene_generation` 前進で直るのか**: `prepare_base_scene_clips_cached` は generation の
+  数値一致だけを見て GPU 側再 prepare を丸ごとスキップする設計（テクスチャ再アップロード削減の
+  最適化）。clear 時にこの世代番号を意図的に進めることで「シーンが変わった」と同じ扱いにでき、
+  空 snapshot（clip 0 件）が実際に prepare・render pass に載り、`LoadOp::Clear(TRANSPARENT)` が
+  正しく効く。逆に generation を据え置いたままだと、renderer は snapshot の中身を一切見ないため
+  空 snapshot を渡していることに気づけず、キャッシュ済みの動画 clip をそのまま返してしまう。
+- **なぜ renderer 側の「generation 一致のみで判定」契約を変更しなかったのか**: この契約は
+  `prepare_base_scene_clips_cached_skips_texture_upload_on_same_generation` /
+  `_reprepares_on_generation_change` という既存テストで明示的に固定されている仕様であり、
+  デコレーションのみの再 present（`last_scene = Some` のまま selection 変更のみで
+  `present_cached_scene_with_decoration` を呼ぶ経路）が高速に動作するための前提でもある。
+  contents 比較（snapshot の deep equality）に変えると、この最適化の意味がなくなり
+  毎フレームの選択枠更新が重くなる。バグの本質は「呼び出し側（native-overlay）が
+  “シーンが変わったら generation を進める”契約を clear 経路だけ破っていたこと」であり、
+  責務は呼び出し側にあるため、修正も呼び出し側（`clear_native_overlay_live_surface`）に閉じた。
+- **Red テストをソース契約パターンにした理由**: `NativeOverlayLiveSurfaceRenderer` は
+  `#[cfg(target_os = "macos")] fn from_appkit_view` でしか構築できず、実 NSWindow の
+  `view_handle`（CAMetalLayer 実体）が必須で、wgpu の surface 生成も実ウィンドウなしには行えない。
+  そのため `LIVE_OVERLAY_RENDERERS` に登録した状態を headless に作れず、`clear_native_overlay_live_surface`
+  を実際に呼んで prepared clip キャッシュの hit/miss を直接観測する回帰テストは書けない
+  （タスク指示でも実ウィンドウ形式のテストは明示的に禁止）。本ファイルには同じ制約を持つ
+  既存契約（opaque 再適用順序・addChildWindow 等）を `include_str!` の文字列位置比較で固定する
+  テストが多数存在し、これがこのコードベースで確立された対処パターンであるため踏襲した。
+  `include_str!` は自テストのソースも含むため、探索文字列をそのまま埋め込むと自己マッチする
+  落とし穴があり、`concat!` で断片に分割して自己参照を避けた（実際に一度、素直な文字列リテラルで
+  書いた際に自己マッチして偽陽性 green になったことを確認し、修正して true Red を得た）。
+
+### 残課題・次のステップ
+
+- 実機での最終確認（削除操作後にキャンバス残像が消えること）はユーザー側で別途実施予定。
+- `UXFD_OVERLAY_TRACE` / `UXFD_OVERLAY_CLEAR_READBACK` / `UXFD_OVERLAY_CLEAR_FLUSH` の診断・候補修正用
+  env トグルは今回のバグ確定・修正には直接使わず、そのまま残置した（恒久診断として有用なため撤去しない）。
+
 ## 2026-07-11 — 調査完了: 削除残像の真因を実機トレースで確定（generation 据え置きによる prepared scene キャッシュ誤ヒット）（版据え置き433c）
 
 ### 実施内容
