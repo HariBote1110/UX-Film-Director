@@ -1351,6 +1351,16 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
     renderer.last_scene = None;
+    // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
+    // None に戻すだけでは native-wgpu-renderer 側 `prepare_base_scene_clips_cached`
+    // が「generation 一致のみでキャッシュヒット判定」する契約（変更しない）に
+    // より、直前の動画シーンの `Arc<PreparedClip>` を誤って返し続けてしまう。
+    // ここで `scene_generation` を前進させ、以降の present を意図的にキャッシュ
+    // ミスさせることで、空 snapshot が実際に prepare・描画されるようにする。
+    // `last_scene` が Some のまま selection 変更だけで再 present するケース
+    // （`present_cached_scene_with_decoration` のキャッシュヒット）はこの分岐を
+    // 通らないため影響しない。
+    renderer.scene_generation += 1;
     // 候補修正（`UXFD_OVERLAY_CLEAR_FLUSH=1`、既定オフ）— 仮説1（Immediate
     // present での swapchain drawable 保持）向け。CAMetalLayer は複数 drawable を
     // 持ち、Immediate モードでは present 回数が数回で止まると「クリアされていない
