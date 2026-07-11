@@ -1,3 +1,57 @@
+## 2026-07-11 — 調査完了: 削除残像の真因を実機トレースで確定（generation 据え置きによる prepared scene キャッシュ誤ヒット）（版据え置き433c）
+
+### 実施内容
+
+- 本セッションは実機（macOS デスクトップ）で実行できたため、前回準備した診断をそのまま実行した:
+  `UXFD_OVERLAY_TRACE=1 UXFD_OVERLAY_CLEAR_READBACK=1 npm run dev` で診断付きインスタンスを起動し、
+  画面操作の自動化で「新規プロジェクト → 動画1本配置（一時停止のまま）→ クリップ選択 → Delete」のケースAを再現。
+- 残像を再現（タイムライン空・キャンバスに動画フレーム残存）。削除直後の stderr:
+  ```
+  [uxfd-overlay-trace] clear_live_surface window_id=1
+  [uxfd-overlay-trace] clear_readback window_id=1 drawable=1563x879 prepared_clips=13 pre_clear_non_transparent=0 post_clear_non_transparent=1373877
+  [uxfd-overlay-trace] clear_readback window_id=1 drawable=1563x879 prepared_clips=1  pre_clear_non_transparent=0 post_clear_non_transparent=1372998
+  ```
+  1372998 ≒ 1563×879（全ピクセル）。前回定義した判定表で **post>0 = native clear バグ** に確定。
+
+### 確定した真因
+
+- `clear_native_overlay_live_surface`（native-overlay/src/lib.rs:1353 付近）は `last_scene = None` にして
+  `present_cached_scene_with_decoration` で空シーンを present するが、**`scene_generation` を進めない**
+  （generation は `present_upload_frame`（同 :368）でしか増えない）。
+- renderer 側 `prepare_base_scene_clips_cached`（native-wgpu-renderer/src/lib.rs:1061）は
+  **generation の一致のみ**でキャッシュヒットを判定し、渡された snapshot の中身を見ない。
+  そのため空 snapshot を渡しても直前の動画の `Arc<PreparedClip>` がそのまま返り、
+  **「透明クリア」が削除済み動画をフルスクリーン再描画**していた。
+- readback の `prepared_clips=1`（削除後もキャッシュに動画 clip が1つ残存）と全ピクセル非透明が
+  この機構と完全に一致。
+
+### 却下された仮説（実測根拠）
+
+- **仮説1（swapchain のステール drawable 保持）**: `pre_clear_non_transparent=0`。swapchain が返した
+  drawable は描画前は透明だった。→ 否定。`UXFD_OVERLAY_CLEAR_FLUSH=1`（3回 present）も同じ generation で
+  cache hit するため効かないはず（未検証だが機構上自明）。
+- **仮説2（背後 DOM canvas の透け）**: post>0 で overlay 自身が非透明を描いていることが確定。→ 否定。
+- **グルー（JS）側の到達漏れ**: `clear_live_surface` トレースが削除直後に出ており到達している。→ 否定
+  （前回の抽出モジュールのシロ判定とも整合）。
+
+### 修正方針（次のステップ・TDD）
+
+1. **Red**: renderer レベルで「動画シーンを generation N で prepare 済みの状態から、同じ N のまま
+   空 snapshot を present すると非透明が残る」ことを固定する失敗テスト（present…with_clear_readback を
+   headless で流用可能）。または native-overlay レベルで clear 経路の generation 前進を検証する単体テスト。
+2. **Green**: `clear_native_overlay_live_surface` で `last_scene = None` にする際に
+   `scene_generation += 1`（または renderer の prepared_scene_cache 明示無効化）。
+   デコレーションのみの再 present（last_scene=Some のケース）のキャッシュヒットは維持する。
+3. 既存 headless 回帰 `empty_scene_present_produces_a_fully_transparent_offscreen_frame` が
+   すり抜けた理由＝「事前に別 generation の動画シーンをキャッシュさせていない」ため。
+   Red テストは必ず「動画 prepare → 同 generation で空 present」の順で書くこと。
+
+### 残課題
+
+- 修正は未実施（本セッションはユーザー依頼が調査のため）。上記 Red→Green を次セッションで実施。
+- 診断用に起動した dev インスタンスの `npm run dev` が dist-electron を再ビルドしたため、
+  併走していた既存 dev インスタンスがリロードされた点に注意（プロジェクト未保存分は失われた可能性）。
+
 ## 2026-07-09 — 調査: 削除残像の native 切り分け（実 drawable readback 診断＋swapchain フラッシュ候補・native リビルド）（版据え置き433c）
 
 ### 実機トレースで確定した事実（コーディネータ提供・ケースA: 一時停止・動画1本のみ削除）
