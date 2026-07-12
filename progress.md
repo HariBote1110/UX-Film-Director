@@ -1,3 +1,57 @@
+## 2026-07-13 — Remote Control Deck Phase 1: CommandBus を TDD で実装（版0.1.1-Beta-436a）
+
+### 実施内容
+
+- `src/commands/commandBus.ts` を新規作成。`commandId → handler` のレジストリ
+  （`register` / `unregister` / `has` / `execute`）を実装。未登録 ID の `execute` は
+  例外を投げず `false` を返すだけの安全な no-op とした。
+- `src/commands/registerAppCommands.ts` を新規作成。CommandBus に初期コマンド
+  `playback.toggle` / `playback.seekRelative`（payload: フレーム数）/ `edit.undo` /
+  `edit.redo` / `edit.delete`（payload: `{ ripple?: boolean }`）/ `selection.escape` を
+  登録し、`src/store/useStore.ts`（`playbackSlice` / `historySlice` / `selectionSlice` /
+  `layerSlice`）の既存 action に結線した。ハンドラは呼び出し時に毎回
+  `store.getState()` を参照するため、クロージャの陳腐化（stale closure）が起きない。
+- `src/hooks/keyCommandResolver.ts` を新規作成。`KeyboardEvent` 相当のプレーンな
+  オブジェクトをコマンドID・payload・`preventDefault` の要否に変換する純粋関数
+  `resolveKeyCommand` を実装。DOM に依存しないため vitest の `environment: 'node'`
+  設定のままユニットテストできる。
+- `src/hooks/useAppLogic.ts` の keydown ハンドラのうち、Space / Delete / Backspace /
+  Escape / Cmd(Ctrl)+Z / Cmd(Ctrl)+Y を `resolveKeyCommand` → `commandBus.execute`
+  経由の呼び出しにリファクタ。CommandBus への登録はマウント時に一度だけ実行。
+  コピー/カット/ペースト/複製/グループ化は Phase 1 の対象コマンド一覧に含まれない
+  ため、従来どおり直接ストア action を呼ぶ実装のまま維持した。
+- テストは `src/commands/commandBus.test.ts`、`src/commands/registerAppCommands.test.ts`、
+  `src/hooks/keyCommandResolver.test.ts` を先に Red の状態で作成し、コミットしてから
+  実装して Green にした（TDD: test → feat → refactor の3コミット構成）。
+
+### 選定理由・判断の根拠
+
+- vitest 設定が `environment: 'node'`（jsdom 未導入）のため、`useAppLogic` の
+  keydown リスナーを直接 `window.dispatchEvent` で駆動するテストは書けない。
+  そのため「キーイベント → コマンドID解決」のロジックを DOM 非依存の純粋関数
+  `resolveKeyCommand` に切り出し、そこをユニットテストで固定することで
+  「挙動不変」を検証可能にした。jsdom を新規依存として追加する案もあったが、
+  依存追加のコストと比べてテスト容易性への寄与が小さいため見送った。
+- `playback.seekRelative` は既存の `setTime`（絶対時刻セット）を使い、
+  `currentTime + frames / projectSettings.fps` を計算して呼び出す方式にした。
+  ストアに新規の相対シークaction を追加せず、既存 action の組み合わせで
+  実現できるため、CLAUDE.md の「既存 action を呼ぶ」方針に合致する。
+- `edit.delete` の ripple 有無は payload（`{ ripple?: boolean }`）で表現し、
+  Shift併用時のリップル削除という既存挙動をコマンド粒度でも維持できるようにした。
+- CommandBus はシングルトン（`commandBus`）をモジュールとしてエクスポートしつつ、
+  テスト用に `createCommandBus()` でインスタンスを都度生成できる形にした。
+  シングルトンをそのままテストで使うとテスト間で登録状態が漏れるため。
+
+### 残課題・次のステップ
+
+- Phase 2（`electron/remoteDeckServer.ts` の実装、`ws` + トークン認証）に着手予定。
+- `registerAppCommands` に登録されるコマンド一覧は Phase 2 以降、Remote Control Deck
+  サーバからの WebSocket メッセージでも `commandBus.execute(id, payload)` を呼ぶだけで
+  再利用できる設計にしてある（renderer 側の結線は変更不要）。
+- jsdom 未導入のため、`useAppLogic` の keydown リスナー登録・解除自体（addEventListener
+  の呼び出し）は依然として直接テストできていない。将来 jsdom を導入する際に
+  補完を検討する。
+
 ## 2026-07-13 — スマホ版リモートデッキ（DaVinci コントローラー風）の計画策定
 
 ### 実施内容
