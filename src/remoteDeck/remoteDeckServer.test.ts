@@ -171,6 +171,118 @@ describe('startRemoteDeckServer static serving', () => {
   });
 });
 
+describe('connection management (Phase 6)', () => {
+  const openSocket = async (server: RemoteDeckServer, token?: string) => {
+    const socket = connect(server, token ?? server.token);
+    await once(socket, 'open');
+    return socket;
+  };
+
+  it('lists connected clients with remote address and connection time', async () => {
+    const server = await startServer();
+    const before = Date.now();
+    const first = await openSocket(server);
+    const second = await openSocket(server);
+
+    const connections = server.listConnections();
+    expect(connections).toHaveLength(2);
+    for (const connection of connections) {
+      expect(typeof connection.id).toBe('string');
+      expect(connection.remoteAddress).toContain('127.0.0.1');
+      expect(connection.connectedAt).toBeGreaterThanOrEqual(before);
+    }
+    expect(new Set(connections.map((c) => c.id)).size).toBe(2);
+    first.close();
+    second.close();
+  });
+
+  it('removes closed clients from the list', async () => {
+    const server = await startServer();
+    const socket = await openSocket(server);
+    expect(server.listConnections()).toHaveLength(1);
+
+    socket.close();
+    await vi.waitFor(() => {
+      expect(server.listConnections()).toHaveLength(0);
+    });
+  });
+
+  it('disconnects a single client by id', async () => {
+    const server = await startServer();
+    const first = await openSocket(server);
+    const second = await openSocket(server);
+    const target = server.listConnections()[0];
+
+    const result = server.disconnectClient(target.id);
+    expect(result).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(server.listConnections()).toHaveLength(1);
+      expect(server.listConnections()[0].id).not.toBe(target.id);
+    });
+    expect(server.disconnectClient('nonexistent')).toBe(false);
+    first.close();
+    second.close();
+  });
+
+  it('regenerates the token, disconnects everyone and rejects the old token', async () => {
+    const server = await startServer();
+    const oldToken = server.token;
+    const socket = await openSocket(server);
+
+    const newToken = server.regenerateToken();
+    expect(newToken).not.toBe(oldToken);
+    expect(server.token).toBe(newToken);
+
+    await vi.waitFor(() => {
+      expect(server.listConnections()).toHaveLength(0);
+      expect(socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING).toBe(true);
+    });
+
+    // 旧トークンは拒否、新トークンは受理
+    const rejected = connect(server, oldToken);
+    await new Promise<void>((resolve) => {
+      rejected.once('close', () => resolve());
+      rejected.once('error', () => resolve());
+    });
+    expect(rejected.readyState === WebSocket.CLOSED || rejected.readyState === WebSocket.CLOSING).toBe(true);
+
+    const accepted = await openSocket(server, newToken);
+    expect(accepted.readyState).toBe(WebSocket.OPEN);
+    accepted.close();
+  });
+});
+
+describe('layout customisation endpoint (Phase 6)', () => {
+  it('serves the layout file at /layout.json when it exists', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'remote-deck-layout-'));
+    const layoutPath = join(dir, 'remote-deck-layout.json');
+    writeFileSync(layoutPath, JSON.stringify({ columns: 2, buttons: [] }));
+    const server = await startServer({ layoutFilePath: layoutPath });
+
+    const response = await fetch(`http://127.0.0.1:${server.port}/layout.json`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ columns: 2, buttons: [] });
+  });
+
+  it('returns 404 for /layout.json when the file is missing', async () => {
+    const server = await startServer({ layoutFilePath: '/nonexistent/remote-deck-layout.json' });
+    const response = await fetch(`http://127.0.0.1:${server.port}/layout.json`);
+    expect(response.status).toBe(404);
+  });
+
+  it('reflects file edits without a server restart', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'remote-deck-layout-'));
+    const layoutPath = join(dir, 'remote-deck-layout.json');
+    writeFileSync(layoutPath, JSON.stringify({ columns: 2, buttons: [] }));
+    const server = await startServer({ layoutFilePath: layoutPath });
+
+    writeFileSync(layoutPath, JSON.stringify({ columns: 4, buttons: [] }));
+    const response = await fetch(`http://127.0.0.1:${server.port}/layout.json`);
+    expect(await response.json()).toEqual({ columns: 4, buttons: [] });
+  });
+});
+
 describe('forwardRemoteDeckCommands', () => {
   it('forwards received command messages through the given send function', async () => {
     const server = await startServer();
