@@ -242,6 +242,8 @@ describe('deriveRemoteDeckContext', () => {
   it('omits psd expression groups when layer data is missing', () => {
     const psd = { ...buildPsdFixture(), rootLayer: undefined, activeLayerIds: undefined };
     const context = deriveRemoteDeckContext({ selectedId: 'psd-1', objects: [psd] } as any);
-    expect(context.properties.map((p) => p.key)).toEqual(['scale']);
+    expect(context.properties.some((p) => p.key.startsWith('psdRadio:'))).toBe(false);
+    expect(context.psdLayerTree).toBeUndefined();
+    expect(context.properties.map((p) => p.key)).toContain('scale');
   });
 });

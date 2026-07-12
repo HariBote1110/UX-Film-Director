@@ -63,15 +63,27 @@ export const registerAppCommands = (bus: CommandBus, store: AppCommandStore): vo
     const target = state.objects.find((object) => object.id === objectId);
     if (!target) return;
 
-    if (propertyKey === 'scale' && typeof value === 'number') {
-      // Same clamp range as PropertyPanel's scale control.
-      state.updateObject(objectId, { scale: clamp(value, 0.1, 10) } as Partial<TimelineObject>);
+    const numericRange = NUMERIC_PROPERTY_RANGES[propertyKey];
+    if (numericRange && typeof value === 'number' && Number.isFinite(value)) {
+      state.updateObject(objectId, {
+        [propertyKey]: clamp(value, numericRange.min, numericRange.max),
+      } as Partial<TimelineObject>);
       return;
     }
 
-    if (propertyKey === 'volume' && typeof value === 'number') {
-      // Same clamp range as PropertyPanel's volume control.
-      state.updateObject(objectId, { volume: clamp(value, 0, 1) } as Partial<TimelineObject>);
+    if (propertyKey === 'psdLayer' && typeof value === 'string') {
+      // Plain layer visibility toggle from the deck's PSD layer tree. Uses
+      // the same togglePsdLayer path as PropertyPanel (radio exclusivity is
+      // resolved inside togglePsdLayer when the leaf sits under a radio group).
+      if (target.type !== 'psd') return;
+      const psdObject = target as PsdObject;
+      if (!psdObject.rootLayer || !psdObject.activeLayerIds) return;
+      const nextActiveLayerIds = togglePsdLayer(psdObject.rootLayer, psdObject.activeLayerIds, value);
+      const nextLayerTree = buildPsdLayerTree(psdObject.rootLayer, nextActiveLayerIds);
+      state.updateObject(objectId, {
+        activeLayerIds: nextActiveLayerIds,
+        layerTree: nextLayerTree,
+      } as Partial<TimelineObject>);
       return;
     }
 
@@ -99,3 +111,18 @@ export interface PropertySetPayload {
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
+
+/**
+ * Numeric property whitelist with the same clamp ranges as PropertyPanel
+ * (scale 0.1–10, volume/opacity 0–1). x/y/rotation get generous bounds.
+ */
+const NUMERIC_PROPERTY_RANGES: Record<string, { min: number; max: number }> = {
+  scale: { min: 0.1, max: 10 },
+  scaleX: { min: 0.1, max: 10 },
+  scaleY: { min: 0.1, max: 10 },
+  volume: { min: 0, max: 1 },
+  opacity: { min: 0, max: 1 },
+  x: { min: -100_000, max: 100_000 },
+  y: { min: -100_000, max: 100_000 },
+  rotation: { min: -3600, max: 3600 },
+};

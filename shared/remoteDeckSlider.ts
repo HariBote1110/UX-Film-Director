@@ -65,3 +65,31 @@ export const createSendThrottle = (options: {
     },
   };
 };
+
+export interface ComputeRelativeDragValueInput {
+  startValue: number;
+  /** Horizontal drag distance in px since the pointer went down. */
+  deltaX: number;
+  /** How many value units one pixel of horizontal drag represents. */
+  unitPerPx: number;
+  /** Vertical distance in px; larger offsets give finer adjustment. */
+  verticalOffset?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+/**
+ * Relative (infinite) drag for unbounded values such as x/y position:
+ * the value moves by drag distance × unitPerPx, with the same
+ * vertical-offset fine-adjust behaviour as the slider.
+ */
+export const computeRelativeDragValue = (input: ComputeRelativeDragValueInput): number => {
+  const verticalOffset = Math.abs(input.verticalOffset ?? 0);
+  const gain = 1 / (1 + verticalOffset / FINE_ADJUST_FALLOFF_PX);
+  let value = input.startValue + input.deltaX * input.unitPerPx * gain;
+  if (input.step && input.step > 0) value = Math.round(value / input.step) * input.step;
+  if (typeof input.min === 'number') value = Math.max(input.min, value);
+  if (typeof input.max === 'number') value = Math.min(input.max, value);
+  return value;
+};
