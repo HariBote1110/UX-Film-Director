@@ -18,6 +18,15 @@ const electronPlugins =
         electron({
           main: {
             entry: 'electron/main.ts',
+            vite: {
+              build: {
+                rollupOptions: {
+                  // ws の optional native peer 依存。バンドル時に解決させず、
+                  // 実行時の try/catch 付き require（未導入なら JS fallback）に任せる。
+                  external: ['bufferutil', 'utf-8-validate'],
+                },
+              },
+            },
           },
           preload: {
             input: 'electron/preload.ts',
