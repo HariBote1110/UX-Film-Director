@@ -23,6 +23,7 @@
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
+    "remote-deck:build": "vite build --config remote-deck-ui/vite.config.ts",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
     "bridge:node:build": "node scripts/build-shared-video-frame-node-addon.mjs",

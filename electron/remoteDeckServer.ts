@@ -1,6 +1,8 @@
-import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
+import { extname, join, resolve, sep } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
   parseRemoteDeckMessage,
@@ -16,6 +18,11 @@ export interface StartRemoteDeckServerOptions {
   host?: string;
   /** Injectable token for tests; a random one is generated when omitted. */
   token?: string;
+  /**
+   * Directory holding the built mobile deck UI (Phase 3). When absent or the
+   * directory does not exist, the placeholder page is served instead.
+   */
+  staticDir?: string;
 }
 
 export interface RemoteDeckServer {
@@ -41,6 +48,44 @@ const PLACEHOLDER_PAGE = [
 
 const generateToken = (): string => randomBytes(16).toString('hex');
 
+const CONTENT_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+
+/**
+ * Serves a file from staticDir. Unknown paths fall back to index.html (SPA
+ * routing); paths escaping staticDir are rejected. Returns false when the
+ * placeholder should be served instead (staticDir missing or unusable).
+ */
+const serveStaticFile = (
+  staticDir: string,
+  requestUrl: string,
+  response: ServerResponse,
+): boolean => {
+  const root = resolve(staticDir);
+  const indexPath = join(root, 'index.html');
+  if (!existsSync(indexPath)) return false;
+
+  const pathname = decodeURIComponent(new URL(requestUrl, 'http://localhost').pathname);
+  const requested = resolve(root, `.${pathname}`);
+  const isInsideRoot = requested === root || requested.startsWith(root + sep);
+
+  const target =
+    isInsideRoot && existsSync(requested) && statSync(requested).isFile() ? requested : indexPath;
+  const contentType = CONTENT_TYPES[extname(target)] ?? 'application/octet-stream';
+  response.writeHead(200, { 'Content-Type': contentType });
+  response.end(readFileSync(target));
+  return true;
+};
+
 const extractToken = (request: IncomingMessage): string | null => {
   const url = new URL(request.url ?? '/', 'http://localhost');
   return url.searchParams.get('token');
@@ -59,7 +104,10 @@ export const startRemoteDeckServer = (
   const host = options.host ?? '0.0.0.0';
   const commandListeners = new Set<(message: RemoteDeckCommandMessage) => void>();
 
-  const httpServer: Server = createServer((_request, response) => {
+  const httpServer: Server = createServer((request, response) => {
+    if (options.staticDir && serveStaticFile(options.staticDir, request.url ?? '/', response)) {
+      return;
+    }
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     response.end(PLACEHOLDER_PAGE);
   });

@@ -530,7 +530,11 @@ app.whenReady().then(() => {
   // LAN 内スマホからの WebSocket command を renderer の CommandBus へ転送する。
   // 起動失敗（ポート枯渇等）はリモートデッキ機能のみ無効化し、本体は継続。
   let remoteDeckServer: RemoteDeckServer | null = null;
-  startRemoteDeckServer()
+  startRemoteDeckServer({
+    // npm run remote-deck:build の成果物（Phase 3 モバイルデッキUI）。
+    // 未ビルド時はサーバ側でプレースホルダページへ自動フォールバック。
+    staticDir: path.join(__dirname, '../remote-deck-ui/dist'),
+  })
     .then((server) => {
       remoteDeckServer = server;
       forwardRemoteDeckCommands(server, (channel, message) => {

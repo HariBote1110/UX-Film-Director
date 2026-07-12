@@ -1,0 +1,10 @@
+{
+  "name": "UX Film Director Remote Deck",
+  "short_name": "UXFD Deck",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": []
+}

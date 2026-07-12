@@ -21,3 +21,4 @@ perf/source-decode-probe.log
 perf/hevc-diagnosis.log
 perf/playback-probe.log
 perf/memory-probe.log
+remote-deck-ui/dist
