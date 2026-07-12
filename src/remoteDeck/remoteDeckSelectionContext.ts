@@ -40,6 +40,8 @@ export interface RemoteDeckPsdLayerNode {
 export interface RemoteDeckSelectionContext {
   objectId: string | null;
   objectType: string | null;
+  /** Display name for glanceable UI (falls back to the type when unnamed). */
+  objectName: string | null;
   properties: RemoteDeckProperty[];
   /** Present only for PSD objects with layer data. */
   psdLayerTree?: RemoteDeckPsdLayerNode[];
@@ -48,6 +50,7 @@ export interface RemoteDeckSelectionContext {
 export const EMPTY_REMOTE_DECK_CONTEXT: RemoteDeckSelectionContext = {
   objectId: null,
   objectType: null,
+  objectName: null,
   properties: [],
 };
 
@@ -210,6 +213,11 @@ export const deriveRemoteDeckContext = (
   return {
     objectId: selected.id,
     objectType: selected.type,
+    objectName:
+      typeof (selected as { name?: unknown }).name === 'string' &&
+      ((selected as { name?: string }).name ?? '').length > 0
+        ? ((selected as { name?: string }).name as string)
+        : selected.type,
     properties,
     ...(psdLayerTree ? { psdLayerTree } : {}),
   };

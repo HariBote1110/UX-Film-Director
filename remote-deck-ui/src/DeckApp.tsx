@@ -4,8 +4,12 @@ import {
   type RemoteDeckClientStatus,
 } from '../../shared/remoteDeckClient';
 import { DEFAULT_REMOTE_DECK_LAYOUT, type RemoteDeckButton } from '../../shared/remoteDeckLayout';
-import { PropertySurface, type SelectionContext } from './PropertySurface';
+import {
+  gridColumnsForMode,
+  resolveRemoteDeckLayoutMode,
+} from '../../shared/remoteDeckLayoutMode';
 import { formatRemoteDeckTimecode } from '../../shared/remoteDeckTimecode';
+import { PropertySurface, type SelectionContext } from './PropertySurface';
 
 interface PlaybackState {
   kind: 'playback';
@@ -27,7 +31,7 @@ const STATUS_LABELS: Record<RemoteDeckClientStatus, string> = {
 const STATUS_COLOURS: Record<RemoteDeckClientStatus, string> = {
   connecting: '#e0a030',
   connected: '#39b54a',
-  disconnected: '#c0392b',
+  disconnected: '#e0403a',
 };
 
 const buildWsUrl = (): string => {
@@ -45,6 +49,10 @@ export const DeckApp: React.FC = () => {
   const [status, setStatus] = useState<RemoteDeckClientStatus>('disconnected');
   const [context, setContext] = useState<SelectionContext | null>(null);
   const [playback, setPlayback] = useState<PlaybackState | null>(null);
+  const [viewport, setViewport] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
   const layout = DEFAULT_REMOTE_DECK_LAYOUT;
 
   const client = useMemo(
@@ -59,6 +67,13 @@ export const DeckApp: React.FC = () => {
       }),
     [],
   );
+
+  useEffect(() => {
+    const onResize = () =>
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     const unsubscribeStatus = client.onStatusChange(setStatus);
@@ -91,8 +106,68 @@ export const DeckApp: React.FC = () => {
     return sent;
   };
 
-  // TouchBar 風: 選択中はコンテキスト操作面、非選択時は従来のボタングリッド
-  const showSurface = status === 'connected' && context !== null && context.objectId !== null;
+  const mode = resolveRemoteDeckLayoutMode(viewport);
+  // 横向き・タブレットではトランスポートと操作面を同時表示する
+  const splitView = mode !== 'phone-portrait';
+  const hasSelection = context !== null && context.objectId !== null;
+  const showSurfaceOnly = !splitView && status === 'connected' && hasSelection;
+  const columns = gridColumnsForMode(mode, layout.columns);
+  const isPlaying = playback?.isPlaying === true;
+
+  const transportGrid = (
+    <main
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${columns}, 1fr)`,
+        gap: 10,
+        padding: 12,
+        alignContent: 'start',
+        ...(splitView
+          ? { width: mode === 'tablet' ? 400 : '42%', flex: '0 0 auto', overflowY: 'auto' }
+          : { flex: 1 }),
+      }}
+    >
+      {layout.buttons.map((button) => {
+        const isPlayToggle = button.commandId === 'playback.toggle';
+        const isActive = isPlayToggle && isPlaying;
+        return (
+          <button
+            key={button.id}
+            onClick={() => handlePress(button)}
+            disabled={status !== 'connected'}
+            style={{
+              minHeight: mode === 'tablet' ? 84 : 72,
+              borderRadius: 12,
+              border: isActive ? '1px solid #5ad06a' : '1px solid #333',
+              background: isActive ? '#1f4d27' : status === 'connected' ? '#1e1e1e' : '#161616',
+              color: isActive ? '#c8f7cf' : status === 'connected' ? '#eee' : '#555',
+              fontSize: mode === 'tablet' ? 17 : 15,
+              fontWeight: 600,
+            }}
+          >
+            {isPlayToggle ? (isActive ? '⏸ 停止' : '▶ 再生') : button.label}
+          </button>
+        );
+      })}
+    </main>
+  );
+
+  const surfacePane = hasSelection && context ? (
+    <PropertySurface context={context} sendCommand={handleSurfaceCommand} />
+  ) : (
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#555',
+        fontSize: 15,
+      }}
+    >
+      オブジェクト未選択
+    </div>
+  );
 
   return (
     <div
@@ -109,32 +184,59 @@ export const DeckApp: React.FC = () => {
         touchAction: 'manipulation',
       }}
     >
+      {/* Glanceable header: 横目でも読めるサイズ・コントラスト。切断時は赤背景で即時に分かる */}
       <header
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 16px',
-          fontSize: 13,
+          gap: 12,
+          padding: splitView ? '10px 18px' : '12px 16px',
+          borderBottom: '1px solid #222',
+          background: status === 'disconnected' ? '#3a1412' : 'transparent',
         }}
       >
-        <span style={{ opacity: 0.7 }}>UXFD Remote Deck</span>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span style={{ fontSize: 11, opacity: 0.55 }}>UXFD Remote Deck</span>
+          <span
+            style={{
+              fontSize: mode === 'tablet' ? 24 : 18,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: mode === 'tablet' ? 420 : 180,
+              color: hasSelection ? '#eee' : '#555',
+            }}
+          >
+            {hasSelection ? context!.objectName ?? context!.objectType : '未選択'}
+          </span>
+        </div>
         <span
           style={{
             fontVariantNumeric: 'tabular-nums',
-            fontSize: 22,
-            fontWeight: 700,
+            fontSize: mode === 'tablet' ? 40 : splitView ? 30 : 26,
+            fontWeight: 800,
             letterSpacing: 1,
-            color: playback?.isPlaying ? '#5ad06a' : '#eee',
+            color: isPlaying ? '#5ad06a' : '#eee',
           }}
         >
           {formatRemoteDeckTimecode(playback?.timeSeconds ?? 0, playback?.fps ?? 60)}
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            color: STATUS_COLOURS[status],
+          }}
+        >
           <span
             style={{
-              width: 10,
-              height: 10,
+              width: 12,
+              height: 12,
               borderRadius: '50%',
               background: STATUS_COLOURS[status],
               display: 'inline-block',
@@ -143,42 +245,26 @@ export const DeckApp: React.FC = () => {
           {STATUS_LABELS[status]}
         </span>
       </header>
-      {showSurface && context ? (
-        <PropertySurface context={context} sendCommand={handleSurfaceCommand} />
+      {splitView ? (
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          {transportGrid}
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              borderLeft: '1px solid #222',
+              overflowY: 'auto',
+            }}
+          >
+            {surfacePane}
+          </div>
+        </div>
+      ) : showSurfaceOnly ? (
+        <PropertySurface context={context!} sendCommand={handleSurfaceCommand} />
       ) : (
-      <main
-        style={{
-          flex: 1,
-          display: 'grid',
-          gridTemplateColumns: `repeat(${layout.columns}, 1fr)`,
-          gap: 10,
-          padding: 12,
-          alignContent: 'stretch',
-        }}
-      >
-        {layout.buttons.map((button) => {
-          const isPlayToggle = button.commandId === 'playback.toggle';
-          const isActive = isPlayToggle && playback?.isPlaying === true;
-          return (
-            <button
-              key={button.id}
-              onClick={() => handlePress(button)}
-              disabled={status !== 'connected'}
-              style={{
-                minHeight: 72,
-                borderRadius: 12,
-                border: isActive ? '1px solid #5ad06a' : '1px solid #333',
-                background: isActive ? '#1f4d27' : status === 'connected' ? '#1e1e1e' : '#161616',
-                color: isActive ? '#c8f7cf' : status === 'connected' ? '#eee' : '#555',
-                fontSize: 15,
-                fontWeight: 600,
-              }}
-            >
-              {isPlayToggle ? (isActive ? '⏸ 停止' : '▶ 再生') : button.label}
-            </button>
-          );
-        })}
-      </main>
+        transportGrid
       )}
     </div>
   );

@@ -37,6 +37,7 @@ export interface PsdTreeNode {
 export interface SelectionContext {
   objectId: string | null;
   objectType: string | null;
+  objectName?: string | null;
   properties: SurfaceProperty[];
   psdLayerTree?: PsdTreeNode[];
 }

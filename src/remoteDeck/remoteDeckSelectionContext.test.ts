@@ -119,7 +119,7 @@ describe('deriveRemoteDeckContext', () => {
 
   it('returns an empty context when nothing is selected', () => {
     const context = deriveRemoteDeckContext({ selectedId: null, objects: [] } as any);
-    expect(context).toEqual({ objectId: null, objectType: null, properties: [] });
+    expect(context).toEqual({ objectId: null, objectType: null, objectName: null, properties: [] });
   });
 
   it('returns an empty context when the selected id no longer exists', () => {
