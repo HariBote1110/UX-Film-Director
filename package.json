@@ -82,14 +82,18 @@
     "ag-psd": "^29.0.0",
     "lucide-react": "^1.8.0",
     "mp4-muxer": "^5.2.2",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "three": "^0.172.0",
+    "ws": "^8.21.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.2.1",
     "@webgpu/types": "^0.1.71",
     "electron": "^30.0.0",

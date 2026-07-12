@@ -4,6 +4,7 @@ import { shallow } from 'zustand/shallow';
 import { commandBus } from '../commands/commandBus';
 import { registerAppCommands } from '../commands/registerAppCommands';
 import { resolveKeyCommand } from './keyCommandResolver';
+import { connectRemoteDeckToCommandBus } from '../remoteDeck/connectRemoteDeckToCommandBus';
 
 export const useAppLogic = () => {
   const {
@@ -31,6 +32,11 @@ export const useAppLogic = () => {
   // --- 0. CommandBus wiring (registered once; handlers read live store state) ---
   useEffect(() => {
     registerAppCommands(commandBus, useStore);
+    // Remote Control Deck (Phase 2): main が転送する remote-deck:command を
+    // 同じ CommandBus で実行する。ipcRenderer が無い環境（テスト等）では省略。
+    const ipc = window.ipcRenderer;
+    if (typeof ipc?.on !== 'function' || typeof ipc?.off !== 'function') return undefined;
+    return connectRemoteDeckToCommandBus(ipc, commandBus);
   }, []);
 
   // --- 1. Animation Loop (Playback Engine) ---

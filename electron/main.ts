@@ -20,6 +20,13 @@ import { createNativeOverlayMainBridge } from './nativeOverlayMainBridge';
 import { registerNativeOverlayIpcHandlers } from './nativeOverlayIpc';
 import { formatNativeOverlayDiagnosticLog } from './nativeOverlayDiagnosticLog';
 import { writeToRustBackendStdin } from './rustBackendStdinWrite';
+import {
+  buildRemoteDeckConnectionInfo,
+  forwardRemoteDeckCommands,
+  startRemoteDeckServer,
+  type RemoteDeckServer,
+} from './remoteDeckServer';
+import { remoteDeckIpcChannels } from '../shared/remoteDeckProtocol';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -518,6 +525,27 @@ app.on('before-quit', () => {
 
 app.whenReady().then(() => {
   createWindow()
+
+  // --- Remote Control Deck server (Remote_Control_Deck_Plan.md Phase 2) ---
+  // LAN 内スマホからの WebSocket command を renderer の CommandBus へ転送する。
+  // 起動失敗（ポート枯渇等）はリモートデッキ機能のみ無効化し、本体は継続。
+  let remoteDeckServer: RemoteDeckServer | null = null;
+  startRemoteDeckServer()
+    .then((server) => {
+      remoteDeckServer = server;
+      forwardRemoteDeckCommands(server, (channel, message) => {
+        win?.webContents.send(channel, message);
+      });
+    })
+    .catch((error) => {
+      console.warn('Remote deck server failed to start:', error);
+    });
+  ipcMain.handle(remoteDeckIpcChannels.getConnectionInfo, () =>
+    remoteDeckServer ? buildRemoteDeckConnectionInfo(remoteDeckServer) : null)
+  app.on('before-quit', () => {
+    void remoteDeckServer?.close();
+    remoteDeckServer = null;
+  })
 
   // --- IPC Handlers ---
   registerNativeOverlayIpcHandlers(ipcMain, createNativeOverlayMainBridge({

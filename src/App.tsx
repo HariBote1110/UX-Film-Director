@@ -5,6 +5,7 @@ import PropertyPanel from './components/PropertyPanel';
 import ProjectSetup from './components/ProjectSetup';
 import ExportProgressModal from './components/ExportProgressModal';
 import ProxyGenerationIndicator from './components/ProxyGenerationIndicator';
+import { RemoteDeckPanel } from './components/RemoteDeckPanel';
 import { useAppLogic } from './hooks/useAppLogic';
 import { useStore } from './store/useStore';
 import { shallow } from 'zustand/shallow';
@@ -178,6 +179,7 @@ const App: React.FC = () => {
           <button onClick={requestSnapshot} disabled={isUiBusy} title={t('snapshot')}>
             <Camera size={14} />
           </button>
+          <RemoteDeckPanel />
           
           <div className="divider"></div>
           
