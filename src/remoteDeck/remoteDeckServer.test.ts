@@ -1,3 +1,6 @@
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import {
@@ -119,6 +122,52 @@ describe('startRemoteDeckServer', () => {
     const raw = await messagePromise;
     expect(JSON.parse(raw.toString())).toEqual({ type: 'state', payload: { isPlaying: true } });
     socket.close();
+  });
+});
+
+describe('startRemoteDeckServer static serving', () => {
+  const createStaticDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'remote-deck-ui-'));
+    writeFileSync(join(dir, 'index.html'), '<html>deck ui</html>');
+    mkdirSync(join(dir, 'assets'));
+    writeFileSync(join(dir, 'assets', 'app.js'), 'console.log("deck")');
+    return dir;
+  };
+
+  it('serves index.html from staticDir at the root path', async () => {
+    const server = await startServer({ staticDir: createStaticDir() });
+    const response = await fetch(`http://127.0.0.1:${server.port}/`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('deck ui');
+  });
+
+  it('serves nested asset files with a script content type', async () => {
+    const server = await startServer({ staticDir: createStaticDir() });
+    const response = await fetch(`http://127.0.0.1:${server.port}/assets/app.js`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('javascript');
+    expect(await response.text()).toContain('deck');
+  });
+
+  it('falls back to index.html for unknown paths (SPA routing)', async () => {
+    const server = await startServer({ staticDir: createStaticDir() });
+    const response = await fetch(`http://127.0.0.1:${server.port}/missing/page`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('deck ui');
+  });
+
+  it('rejects path traversal outside staticDir', async () => {
+    const server = await startServer({ staticDir: createStaticDir() });
+    const response = await fetch(`http://127.0.0.1:${server.port}/..%2f..%2fetc%2fpasswd`);
+    const body = await response.text();
+    expect(body).not.toContain('root:');
+  });
+
+  it('falls back to the placeholder page when staticDir does not exist', async () => {
+    const server = await startServer({ staticDir: '/nonexistent/remote-deck-ui-dist' });
+    const response = await fetch(`http://127.0.0.1:${server.port}/`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('Phase 3');
   });
 });
 
