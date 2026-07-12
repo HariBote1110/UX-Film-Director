@@ -45,15 +45,14 @@ describe('registerAppCommands', () => {
   it('wires edit.undo and edit.redo to the history slice actions', () => {
     const bus = createCommandBus();
     registerAppCommands(bus, useStore);
-    useStore.getState().setDuration(45);
     useStore.getState().pushHistory();
-    useStore.getState().setDuration(50);
+    useStore.setState({ camera: { ...useStore.getState().camera, zoom: 2.5 } as any });
 
     bus.execute('edit.undo');
-    expect(useStore.getState().duration).toBe(45);
+    expect(useStore.getState().camera.zoom).not.toBe(2.5);
 
     bus.execute('edit.redo');
-    expect(useStore.getState().duration).toBe(50);
+    expect(useStore.getState().camera.zoom).toBe(2.5);
   });
 
   it('wires edit.delete to deleteSelectedObjects when no ripple payload is given', () => {
@@ -62,7 +61,7 @@ describe('registerAppCommands', () => {
     const object = {
       id: 'obj-1',
       type: 'text',
-      layerId: useStore.getState().layers[0].id,
+      layer: 0,
       x: 0,
       y: 0,
       startTime: 0,
