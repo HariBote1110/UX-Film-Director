@@ -31,24 +31,24 @@ Android / iPhone のブラウザから利用できる「Stream Deck 式リモー
 
 ## フェーズ計画（各フェーズとも TDD: Red → Green → Refactor）
 
-### Phase 1 — CommandBus（レンダラー内の土台）
+### Phase 1 — CommandBus（レンダラー内の土台） ✅
 - `src/commands/commandBus.ts`：`commandId → handler` のレジストリ。`execute(id, payload?)`。
 - 初期コマンド：`playback.toggle` / `playback.seekRelative(frames)` / `edit.undo` / `edit.redo` / `edit.delete` / `selection.escape`。
 - `useAppLogic.ts` のキーハンドラを CommandBus 呼び出しに置き換え（挙動不変をテストで担保）。
 
-### Phase 2 — RemoteDeckServer（Electron main）
+### Phase 2 — RemoteDeckServer（Electron main） ✅
 - `electron/remoteDeckServer.ts`：`http` で静的配信 + `ws` で双方向通信。LAN の全インターフェースに bind、ポートは自動採番。
 - 認証：起動時に生成するワンタイムトークン。URL クエリに埋め込み、**アプリ内に QR コードで表示**（`qrcode` パッケージ）。トークン不一致は即切断。
 - メッセージ形式：`{ type: 'command', id, payload }` / `{ type: 'state', ... }`。スキーマは `shared/remoteDeckProtocol.ts` に定義し main / renderer / モバイル UI で共用。
 - main → renderer は既存 IPC パターン（`nativeOverlayIpc.ts` 等）に倣う。
 
-### Phase 3 — モバイルデッキ UI（PWA）
+### Phase 3 — モバイルデッキ UI（PWA） ✅
 - `remote-deck-ui/` に Vite サブアプリとして構築、ビルド成果物を RemoteDeckServer が配信。
 - レイアウト：JSON 定義のボタングリッド（4×3 目安）。再生/停止・Undo/Redo・削除・イン/アウト・カット等。
 - 触覚フィードバック（`navigator.vibrate`、iOS では無視される点は許容）とラベル/アイコン表示。
 - PWA manifest でホーム画面追加・全画面表示に対応。
 
-### Phase 4 — コンテキスト連動プロパティサーフェス（方針転換 2026-07-13）
+### Phase 4 — コンテキスト連動プロパティサーフェス（方針転換 2026-07-13） ✅
 
 **方針転換**: 円形ジョグホイールではなく、**MacBook Pro の TouchBar のように「選択中オブジェクトに応じて操作面が切り替わる」**方式を主軸にする。メインターゲットが Mac であり、スマホの高精度タッチ・スワイプを活かすには文脈依存のプロパティ操作が最も効果的なため。
 
@@ -60,13 +60,13 @@ Android / iPhone のブラウザから利用できる「Stream Deck 式リモー
 - スマホ → 本体は `property.set`（objectId, propertyKey, value）コマンド。スライダーは操作中の連続送信を間引き（30〜60Hz 上限）、指を離した時点で確定値を送る。
 - 高精度操作: スライダーは水平スワイプで粗調整、二本指または縦オフセットで微調整（TouchBar 風）。
 
-### Phase 5 — 状態フィードバック拡充
+### Phase 5 — 状態フィードバック拡充 ✅
 - 再生状態・タイムコードの push、ボタンのアクティブ表示（再生中は Play ボタンが点灯等）。
 - プロパティ値の双方向同期（本体側で変更したらスマホの操作面も追従）。
 - 変更のあったフィールドだけ送る差分方式でトラフィックを抑える。
 - （オプション）ジョグ/シャトルは補助モードとして将来検討。
 
-### Phase 6 — 仕上げ
+### Phase 6 — 仕上げ ✅（2026-07-13 完了 — 全フェーズ完了）
 - 接続管理 UI（アプリ側：接続中デバイス一覧・切断・トークン再生成）。
 - ボタンレイアウトのカスタマイズ（JSON 編集 → 将来的に GUI）。
 - `User_Guide.md` に接続手順を追記。
