@@ -261,8 +261,8 @@ export const buildRustSceneSnapshotForTimeline = ({
       transform: {
         translation_x: position.x + vibration.x,
         translation_y: position.y + vibration.y,
-        scale_x: object.scaleX * transformScale.x,
-        scale_y: object.scaleY * transformScale.y,
+        scale_x: object.scaleX * transformScale.x * psdUniformScaleForObject(object),
+        scale_y: object.scaleY * transformScale.y * psdUniformScaleForObject(object),
         rotation_degrees: normaliseRotationDegrees(object.rotation),
         sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
       },
@@ -2079,6 +2079,17 @@ const mediaDimensionsForObject = (
     width: object.width,
     height: object.height,
   };
+};
+
+/**
+ * PSD 固有の一様スケール（PropertyPanel の PSD Transform）。Pixi 時代は
+ * psdContent.scale.set(obj.scale) で反映していたが、Pixi 廃止後に脱落して
+ * いたため clip transform へ乗算合成する。非有限・非正値は 1 として無視。
+ */
+const psdUniformScaleForObject = (object: SupportedSceneObject): number => {
+  if (object.type !== 'psd') return 1;
+  const scale = object.scale;
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
 };
 
 const mediaSourceScaleForObject = (
