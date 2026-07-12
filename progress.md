@@ -1,3 +1,53 @@
+## 2026-07-13 — Remote Control Deck Phase 3: モバイルデッキUI（PWA）を TDD で実装（版0.1.1-Beta-438a）
+
+### 実施内容
+
+- `shared/remoteDeckLayout.ts`: ボタングリッドの JSON レイアウト定義と
+  `parseRemoteDeckLayout`。不正 JSON・構造不正はデフォルトレイアウト
+  （4×3 = 12ボタン: 再生/停止・Undo/Redo・±1/±10/±60フレーム・削除/
+  リップル削除・選択解除、すべて Phase 1 登録済みコマンド）へフォールバック、
+  破損したボタン項目は個別に除外。
+- `shared/remoteDeckClient.ts`: WebSocket 生成（`createSocket`）とタイマー
+  （`schedule`）を注入する DOM 非依存の再接続クライアント。切断時は指数
+  バックオフ（1s→2s→4s…上限30s）で自動再接続し、接続成功でリセット。
+  接続状態（connecting/connected/disconnected）を購読可能。
+- `electron/remoteDeckServer.ts` に `staticDir` オプションを追加。ビルド成果物
+  の静的配信（拡張子ベースの MIME 判定・SPA フォールバック・`resolve` +
+  プレフィックス検査によるパストラバーサル拒否）を実装し、`index.html` が
+  無い場合は従来のプレースホルダへフォールバック。`electron/main.ts` から
+  `remote-deck-ui/dist` を指定。
+- `remote-deck-ui/` に Vite + React サブアプリを新設（`npm run remote-deck:build`
+  でビルド、`dist` は gitignore）。URL クエリの token で WS 接続、レイアウト
+  定義からボタングリッドを描画、送信成功時に `navigator.vibrate(20)`
+  （iOS Safari 等未対応環境では無視）、ヘッダに接続状態インジケータ、
+  PWA manifest（fullscreen・portrait・ホーム画面追加対応）。`base: './'` で
+  任意の LAN ホスト/ポートから配信可能にした。
+- 実機確認: `startRemoteDeckServer` を staticDir 付きで起動しブラウザで表示。
+  WS 認証接続（接続済み表示）、`再生/停止` → `{"type":"command","id":
+  "playback.toggle"}`、`+1f` → `{"id":"playback.seekRelative","payload":1}` の
+  受信をサーバログで確認した。
+- テストは Red 先行で 16 件追加（レイアウト 8・クライアント 8）+ サーバ静的
+  配信 5 件。`npm test` は 1347 中 1344 passed（既知失敗3件のみ）。
+
+### 選定理由・判断の根拠
+
+- 再接続・レイアウトパースは vitest（node 環境）でテストするため、WebSocket と
+  `setTimeout` を注入可能にした純ロジックとして `shared/` に置き、UI（React）は
+  それを薄く呼ぶだけにした。ブラウザ WebSocket と構造的に互換にするため
+  `RemoteDeckSocketLike` のハンドラ型は緩く定義。
+- SPA フォールバック（未知パス→index.html）を採用したのは、PWA のスタート URL
+  やリロードでパスが付いてもデッキが表示されるようにするため。パス
+  トラバーサルは `resolve` 後に root プレフィックスを検査して拒否。
+- レイアウトは Phase 6 のカスタマイズを見据えて JSON 定義+パーサにしたが、
+  現時点の UI はデフォルトレイアウトを直接使用（読み込み元の追加は Phase 6）。
+
+### 残課題・次のステップ
+
+- Phase 4: ジョグ/シャトル（円形ジョグホイール、送信間引き）。
+- electron-builder のパッケージングに `remote-deck-ui/dist` を含める設定は
+  Phase 6 で対応（現状は開発実行時のみ配信可能）。
+- アプリ本体（Electron）でのフル起動確認は次回セッションで実施推奨。
+
 ## 2026-07-13 — ws の bufferutil 解決エラーで起動失敗するバグを修正（版0.1.1-Beta-437b）
 
 ### 実施内容
