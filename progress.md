@@ -1,3 +1,24 @@
+## 2026-07-13 — ws の bufferutil 解決エラーで起動失敗するバグを修正（版0.1.1-Beta-437b）
+
+### 実施内容
+
+- アプリ起動時の「Could not resolve "bufferutil" imported by "ws"」
+  （App threw an error during load）を修正。`vite.config.ts` の
+  vite-plugin-electron main ビルドに `rollupOptions.external:
+  ['bufferutil', 'utf-8-validate']` を追加した。
+- 回帰防止として `src/remoteDeck/remoteDeckBuildBoundary.test.ts` を追加
+  （external 指定の存在を固定、TDD で Red → Green）。
+- `npx vite build` で `dist-electron/main.js` が正常生成され、bufferutil の
+  参照が ws 内の try/catch 付き実行時 `require` 1箇所のみになることを確認。
+
+### 選定理由・判断の根拠
+
+- bufferutil / utf-8-validate は ws のネイティブ高速化用オプショナル peer 依存で、
+  ws 自身が try/catch で欠落時に JS fallback へ切り替える設計になっている。
+  バンドラに解決させず external 化して実行時 require に委ねるのが正攻法。
+- パッケージを追加インストールする案（bufferutil 導入）は、ネイティブ依存を
+  増やしビルド環境依存を悪化させるため却下。
+
 ## 2026-07-13 — Remote Control Deck Phase 2: RemoteDeckServer を TDD で実装（版0.1.1-Beta-437a）
 
 ### 実施内容
