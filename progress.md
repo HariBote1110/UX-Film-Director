@@ -1,3 +1,22 @@
+## 2026-07-13 — スマホ版リモートデッキ（DaVinci コントローラー風）の計画策定
+
+### 実施内容
+
+- `markdown/Remote_Control_Deck_Plan.md` を新規作成。Android/iPhone のブラウザから使う
+  Stream Deck 式リモートコントローラーの全体計画（Phase 1〜6）を定義した。
+
+### 選定理由・判断の根拠
+
+- ネイティブアプリや既製 Stream Deck + MIDI/OSC 連携は却下し、**Electron main 内の
+  ローカル Web サーバ + PWA + WebSocket** 方式を採用。本体と同一の TypeScript/React スタックで
+  完結し、QR コード接続・双方向の状態同期・ジョグホイールの自由な実装が可能なため。
+- キー入力エミュレーションではなく、ストア action を直接叩く **CommandBus** を新設して
+  キーボードショートカット（`src/hooks/useAppLogic.ts`）と入力経路を一本化する方針とした。
+
+### 残課題・次のステップ
+
+- Phase 1（CommandBus 化）から TDD で着手。
+
 ## 2026-07-12 — 4K 強制プロキシ生成を廃止（版0.1.1-Beta-435a）
 
 ### 実施内容
