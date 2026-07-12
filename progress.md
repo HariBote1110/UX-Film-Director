@@ -1,3 +1,54 @@
+## 2026-07-13 — Remote Control Deck Phase 4: コンテキスト連動プロパティサーフェスを TDD で実装（版0.1.1-Beta-439a）
+
+### 実施内容
+
+- **方針転換**: 当初計画の円形ジョグホイールを中止し、MacBook Pro の TouchBar の
+  ように「選択中オブジェクトに応じて操作面が切り替わる」コンテキスト連動
+  プロパティサーフェスへ変更（計画書 7f89d61b で Phase 4 を更新済み。
+  メインターゲットが Mac であり、スマホの高精度タッチを活かすには文脈依存の
+  プロパティ操作が最も効果的なため）。
+- `src/remoteDeck/remoteDeckSelectionContext.ts`: 選択状態（selectedId + objects）
+  から「種別 + 編集可能プロパティ（key・kind・現在値・min/max/step）」を導出する
+  純粋関数。PSD はスケール（number, 0.1–10）と radio グループ（`isRadio`）ごとの
+  表情 enum（`psdRadio:<groupId>`、options は非グループ子、'*' 接頭辞は除去）、
+  audio/video は音量（number, 0–1）、その他は種別名のみのフォールバック。
+- `src/remoteDeck/remoteDeckStatePush.ts`: store.subscribe でコンテキストを導出し、
+  JSON シリアライズ比較で変化時のみ `remote-deck:state` IPC へ push。main は
+  受信 payload をそのまま `broadcastState` で接続中デッキへ配信。
+- `property.set` コマンドを `registerAppCommands` に追加。結線先:
+  - `scale` → `updateObject(id, { scale: clamp(v, 0.1, 10) })`（PropertyPanel と同 clamp）
+  - `volume` → `updateObject(id, { volume: clamp(v, 0, 1) })`（同上）
+  - `psdRadio:<groupId>` → `togglePsdLayer` + `buildPsdLayerTree` で
+    `activeLayerIds` / `layerTree` を更新（PropertyPanel の handlePsdLayerToggle と同経路）
+  - 不正 payload・存在しない objectId は安全に無視。
+- `shared/remoteDeckSlider.ts`: 水平スワイプ=粗調整、縦オフセットが大きいほど
+  感度が下がる微調整（gain = 1/(1+|dy|/100)）、step 量子化、min/max clamp。
+  送信間引きは `createSendThrottle`（約30Hz、指を離したら flush で確定値送信）。
+- `remote-deck-ui`: `onStateMessage`（`shared/remoteDeckClient.ts` に追加）で
+  コンテキストを受信し、選択中は `PropertySurface`（スライダー + 横スクロールの
+  表情ボタン列）、非選択時は従来のボタングリッドへ自動切替。
+- E2E 確認: 実サーバ + ブラウザ（モバイルビューポート）で、state push →
+  操作面表示 → 表情タップで `psdRadio:g-face=l-angry`、スライダードラッグで
+  `scale=4.47`（操作中の間引き送信 + pointerup の確定値）の受信をログで確認。
+
+### 選定理由・判断の根拠
+
+- コンテキスト導出は想像で API を作らず、実際のデータ構造を調査して合わせた:
+  PSD の表情差分は `PsdLayerNode.isRadio` の radio グループ + `activeLayerIds`、
+  切替は既存の `togglePsdLayer`（排他制御込み）をそのまま流用。スケール/音量の
+  clamp 範囲も PropertyPanel.tsx の実装（0.1–10 / 0–1）に一致させた。
+- 状態 push は差分計算より単純で確実な「シリアライズ比較」を採用。コンテキストは
+  高々数プロパティで JSON.stringify のコストが無視できるため。
+- スライダーの微調整は TouchBar の慣習に倣い「縦に指をずらすほど細かくなる」
+  連続ゲイン方式にした（モード切替ボタンより発見しやすく操作が途切れない）。
+
+### 残課題・次のステップ
+
+- Phase 5: 再生状態・タイムコードの push とボタンのアクティブ表示（state 配信の
+  仕組みは今回のコンテキスト push で整備済み）。
+- 表情以外の PSD radio グループ（口・目など複数グループ）も同じ enum として
+  自動的に操作面へ並ぶが、グループ数が多い PSD でのスクロール UX は未調整。
+
 ## 2026-07-13 — Remote Control Deck Phase 3: モバイルデッキUI（PWA）を TDD で実装（版0.1.1-Beta-438a）
 
 ### 実施内容
