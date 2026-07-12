@@ -26,6 +26,8 @@ export type RemoteDeckMessage = RemoteDeckCommandMessage | RemoteDeckStateMessag
 export const remoteDeckIpcChannels = {
   command: 'remote-deck:command',
   getConnectionInfo: 'remote-deck:get-connection-info',
+  /** renderer → main: selection context to broadcast to deck clients. */
+  state: 'remote-deck:state',
 } as const;
 
 export interface RemoteDeckConnectionInfo {

@@ -4,6 +4,7 @@ import {
   type RemoteDeckClientStatus,
 } from '../../shared/remoteDeckClient';
 import { DEFAULT_REMOTE_DECK_LAYOUT, type RemoteDeckButton } from '../../shared/remoteDeckLayout';
+import { PropertySurface, type SelectionContext } from './PropertySurface';
 
 const STATUS_LABELS: Record<RemoteDeckClientStatus, string> = {
   connecting: '接続中…',
@@ -30,6 +31,7 @@ const vibrate = () => {
 
 export const DeckApp: React.FC = () => {
   const [status, setStatus] = useState<RemoteDeckClientStatus>('disconnected');
+  const [context, setContext] = useState<SelectionContext | null>(null);
   const layout = DEFAULT_REMOTE_DECK_LAYOUT;
 
   const client = useMemo(
@@ -46,10 +48,17 @@ export const DeckApp: React.FC = () => {
   );
 
   useEffect(() => {
-    const unsubscribe = client.onStatusChange(setStatus);
+    const unsubscribeStatus = client.onStatusChange(setStatus);
+    const unsubscribeState = client.onStateMessage((payload) => {
+      const candidate = payload as SelectionContext | null;
+      if (candidate && typeof candidate === 'object' && Array.isArray(candidate.properties)) {
+        setContext(candidate);
+      }
+    });
     client.connect();
     return () => {
-      unsubscribe();
+      unsubscribeStatus();
+      unsubscribeState();
       client.close();
     };
   }, [client]);
@@ -58,6 +67,15 @@ export const DeckApp: React.FC = () => {
     const sent = client.sendCommand(button.commandId, button.payload);
     if (sent) vibrate();
   };
+
+  const handleSurfaceCommand = (id: string, payload?: unknown) => {
+    const sent = client.sendCommand(id, payload);
+    if (sent) vibrate();
+    return sent;
+  };
+
+  // TouchBar 風: 選択中はコンテキスト操作面、非選択時は従来のボタングリッド
+  const showSurface = status === 'connected' && context !== null && context.objectId !== null;
 
   return (
     <div
@@ -97,6 +115,9 @@ export const DeckApp: React.FC = () => {
           {STATUS_LABELS[status]}
         </span>
       </header>
+      {showSurface && context ? (
+        <PropertySurface context={context} sendCommand={handleSurfaceCommand} />
+      ) : (
       <main
         style={{
           flex: 1,
@@ -126,6 +147,7 @@ export const DeckApp: React.FC = () => {
           </button>
         ))}
       </main>
+      )}
     </div>
   );
 };

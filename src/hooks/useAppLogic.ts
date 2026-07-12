@@ -5,6 +5,7 @@ import { commandBus } from '../commands/commandBus';
 import { registerAppCommands } from '../commands/registerAppCommands';
 import { resolveKeyCommand } from './keyCommandResolver';
 import { connectRemoteDeckToCommandBus } from '../remoteDeck/connectRemoteDeckToCommandBus';
+import { subscribeStoreToRemoteDeckState } from '../remoteDeck/remoteDeckStatePush';
 
 export const useAppLogic = () => {
   const {
@@ -36,7 +37,17 @@ export const useAppLogic = () => {
     // 同じ CommandBus で実行する。ipcRenderer が無い環境（テスト等）では省略。
     const ipc = window.ipcRenderer;
     if (typeof ipc?.on !== 'function' || typeof ipc?.off !== 'function') return undefined;
-    return connectRemoteDeckToCommandBus(ipc, commandBus);
+    const disconnectCommands = connectRemoteDeckToCommandBus(ipc, commandBus);
+    // Phase 4: 選択コンテキスト（TouchBar 風操作面の内容）を main 経由で
+    // デッキへ push。変化があったときだけ送信する。
+    const unsubscribeState =
+      typeof ipc.send === 'function'
+        ? subscribeStoreToRemoteDeckState(useStore, (channel, context) => ipc.send(channel, context))
+        : () => undefined;
+    return () => {
+      disconnectCommands();
+      unsubscribeState();
+    };
   }, []);
 
   // --- 1. Animation Loop (Playback Engine) ---

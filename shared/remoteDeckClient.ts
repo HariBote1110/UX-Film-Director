@@ -9,6 +9,8 @@ export interface RemoteDeckSocketLike {
   // handlers receive an Event argument) is structurally assignable.
   onopen: ((...args: never[]) => unknown) | null;
   onclose: ((...args: never[]) => unknown) | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bivariance with browser WebSocket
+  onmessage: ((...args: any[]) => unknown) | null;
   send: (data: string) => void;
   close: () => void;
 }
@@ -30,6 +32,8 @@ export interface RemoteDeckClient {
   sendCommand: (commandId: string, payload?: unknown) => boolean;
   close: () => void;
   onStatusChange: (listener: (status: RemoteDeckClientStatus) => void) => () => void;
+  /** Subscribes to state message payloads pushed by the app. */
+  onStateMessage: (listener: (payload: unknown) => void) => () => void;
   getStatus: () => RemoteDeckClientStatus;
 }
 
@@ -39,6 +43,7 @@ export const createRemoteDeckClient = (
   const baseDelayMs = options.baseDelayMs ?? 1000;
   const maxDelayMs = options.maxDelayMs ?? 30_000;
   const listeners = new Set<(status: RemoteDeckClientStatus) => void>();
+  const stateListeners = new Set<(payload: unknown) => void>();
 
   let status: RemoteDeckClientStatus = 'disconnected';
   let socket: RemoteDeckSocketLike | null = null;
@@ -71,6 +76,19 @@ export const createRemoteDeckClient = (
       isOpen = true;
       failedAttempts = 0;
       setStatus('connected');
+    };
+    socket.onmessage = (event: { data: unknown }) => {
+      if (typeof event.data !== 'string') return;
+      let value: unknown;
+      try {
+        value = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      if (typeof value !== 'object' || value === null) return;
+      const candidate = value as { type?: unknown; payload?: unknown };
+      if (candidate.type !== 'state') return;
+      stateListeners.forEach((listener) => listener(candidate.payload));
     };
     socket.onclose = () => {
       isOpen = false;
@@ -109,6 +127,10 @@ export const createRemoteDeckClient = (
     onStatusChange: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+    onStateMessage: (listener) => {
+      stateListeners.add(listener);
+      return () => stateListeners.delete(listener);
     },
     getStatus: () => status,
   };

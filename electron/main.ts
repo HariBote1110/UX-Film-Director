@@ -546,6 +546,10 @@ app.whenReady().then(() => {
     });
   ipcMain.handle(remoteDeckIpcChannels.getConnectionInfo, () =>
     remoteDeckServer ? buildRemoteDeckConnectionInfo(remoteDeckServer) : null)
+  // renderer が push する選択コンテキストを接続中のデッキへブロードキャスト
+  ipcMain.on(remoteDeckIpcChannels.state, (_event, payload) => {
+    remoteDeckServer?.broadcastState(payload);
+  })
   app.on('before-quit', () => {
     void remoteDeckServer?.close();
     remoteDeckServer = null;
