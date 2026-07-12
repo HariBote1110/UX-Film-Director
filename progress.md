@@ -1,3 +1,63 @@
+## 2026-07-13 — Remote Control Deck Phase 2: RemoteDeckServer を TDD で実装（版0.1.1-Beta-437a）
+
+### 実施内容
+
+- `shared/remoteDeckProtocol.ts` を新規作成。`{ type: 'command', id, payload? }` /
+  `{ type: 'state', payload }` のメッセージ型、`parseRemoteDeckMessage`（不正JSON・
+  非オブジェクト・未知 type・id 欠落は例外を投げず null）、IPC channel 定数
+  （`remote-deck:command` / `remote-deck:get-connection-info`）、接続URL生成関数を定義。
+  main / renderer / 将来のモバイルUI（Phase 3）で共用する。
+- `electron/remoteDeckServer.ts` を新規作成。`node:http` サーバ（Phase 3 までの
+  プレースホルダHTML配信）と `ws`（`WebSocketServer` の `noServer` モード）を
+  同一ポートで提供。`0.0.0.0` に bind、port 0 指定で OS 採番し `address()` から
+  実ポートを取得。`crypto.randomBytes(16)` のワンタイムトークンを HTTP upgrade
+  時に URL クエリで照合し、不一致・欠落は 401 を書いて socket.destroy()（WS
+  ハンドシェイク前に即切断、message ループに一切到達させない）。
+  `onCommand` 購読・`broadcastState`・`forwardRemoteDeckCommands`（
+  `webContents.send` 形式への転送ヘルパ）・`buildRemoteDeckConnectionInfo`
+  （非internal IPv4 の LAN URL 列挙）を実装。
+- `electron/main.ts`: `app.whenReady` でサーバを起動し、受信 command を
+  `remote-deck:command` IPC で renderer に転送。`remote-deck:get-connection-info`
+  の `ipcMain.handle` を登録し、`before-quit` でサーバ停止。起動失敗時は
+  リモートデッキ機能のみ無効化して本体は継続。
+- `src/remoteDeck/connectRemoteDeckToCommandBus.ts`: preload が既に公開している
+  汎用 `window.ipcRenderer`（on/off/invoke）を使い、IPC 受信メッセージを型ガード
+  （`isRemoteDeckCommandMessage`）で検証して Phase 1 の `commandBus.execute` に
+  結線。`useAppLogic` のマウント時 effect で購読・破棄。preload の変更は不要だった。
+- `src/components/RemoteDeckPanel.tsx` + `src/remoteDeck/remoteDeckQr.ts`:
+  タイトルバーにスマホアイコンのボタンを追加し、接続URL（token 込み）を
+  `qrcode` の `toDataURL` で QR 表示する最小ポップオーバー。
+- 依存追加: `ws` / `qrcode`（dependencies）、`@types/ws` / `@types/qrcode`（dev）。
+- テスト（先に Red でコミット）: `src/remoteDeck/` 配下に protocol 解析・
+  サーバ実接続（ws クライアントで正/誤トークン・command 受信・不正メッセージ
+  無視・state ブロードキャスト）・IPC 転送・CommandBus 結線・QR DataURL 生成の
+  計 24 テストを追加。
+
+### 選定理由・判断の根拠
+
+- トークン照合は `wss.on('connection')` 後ではなく **HTTP upgrade の段階**で行う
+  方式にした。計画書の「トークン不一致は即切断」を最も強く満たし、未認証
+  クライアントが WS メッセージループに一切入れないため。
+- `forwardRemoteDeckCommands` と `buildRemoteDeckConnectionInfo` は Electron API を
+  直接参照しない純関数/ヘルパとして切り出し、`webContents.send` はコールバック
+  注入にした。これにより vitest（node 環境）で Electron 本体なしに実サーバ +
+  実 ws クライアントの結合テストが可能になり、main.ts 側の非テスト領域を
+  「起動タイミングと handle 登録」だけに最小化できた。
+- renderer への接続情報の受け渡しは push ではなく `invoke`（pull）方式。QR パネルを
+  開いた時にだけ必要な情報であり、サーバ起動完了と renderer ロードの順序競合を
+  考えずに済むため。
+- 認証済み接続の管理は `wss.clients` をそのまま利用し、独自の接続リストは
+  持たない（Phase 6 の接続管理 UI で必要になった時点で導入する）。
+
+### 残課題・次のステップ
+
+- Phase 3: `remote-deck-ui/` の Vite サブアプリを構築し、プレースホルダHTMLを
+  ビルド成果物の静的配信に差し替える。
+- 既知の pre-existing テスト失敗（`rustBackendNativeRenderBoundary.test.ts` 2件・
+  `productionVideoDependencyBoundary.test.ts` 1件）は本変更と無関係で残存。
+- `RemoteDeckPanel` は jsdom 未導入のためコンポーネント自体のテストはなし
+  （QR生成・接続情報チャネルはユニットテスト済み）。
+
 ## 2026-07-13 — Remote Control Deck Phase 1: CommandBus を TDD で実装（版0.1.1-Beta-436a）
 
 ### 実施内容
