@@ -1,41 +1,37 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
+import { commandBus } from '../commands/commandBus';
+import { registerAppCommands } from '../commands/registerAppCommands';
+import { resolveKeyCommand } from './keyCommandResolver';
 
 export const useAppLogic = () => {
-  const { 
-    isPlaying, 
-    togglePlay, 
-    advanceTime, 
+  const {
+    isPlaying,
+    advanceTime,
     selectedIds,
-    deleteSelectedObjects,
-    rippleDeleteSelectedObjects,
-    clearSelection,
     copySelectedObjects,
     cutSelectedObjects,
     pasteClipboardObjects,
     duplicateSelectedObjects,
     groupSelectedObjects,
     ungroupSelectedObjects,
-    undo,
-    redo
   } = useStore((state) => ({
     isPlaying: state.isPlaying,
-    togglePlay: state.togglePlay,
     advanceTime: state.advanceTime,
     selectedIds: state.selectedIds,
-    deleteSelectedObjects: state.deleteSelectedObjects,
-    rippleDeleteSelectedObjects: state.rippleDeleteSelectedObjects,
-    clearSelection: state.clearSelection,
     copySelectedObjects: state.copySelectedObjects,
     cutSelectedObjects: state.cutSelectedObjects,
     pasteClipboardObjects: state.pasteClipboardObjects,
     duplicateSelectedObjects: state.duplicateSelectedObjects,
     groupSelectedObjects: state.groupSelectedObjects,
     ungroupSelectedObjects: state.ungroupSelectedObjects,
-    undo: state.undo,
-    redo: state.redo,
   }), shallow);
+
+  // --- 0. CommandBus wiring (registered once; handlers read live store state) ---
+  useEffect(() => {
+    registerAppCommands(commandBus, useStore);
+  }, []);
 
   // --- 1. Animation Loop (Playback Engine) ---
   const lastTimeRef = useRef<number>(0);
@@ -74,21 +70,16 @@ export const useAppLogic = () => {
         return;
       }
 
-      // Undo/Redo
-      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
+      // Commands routed through the CommandBus (Remote_Control_Deck_Plan.md Phase 1)
+      const resolution = resolveKeyCommand(e, { hasSelection: selectedIds.length > 0 });
+      if (resolution) {
+        if (resolution.preventDefault) {
           e.preventDefault();
-          if (e.shiftKey) {
-              redo();
-          } else {
-              undo();
-          }
-          return;
+        }
+        commandBus.execute(resolution.id, resolution.payload);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyY') {
-          e.preventDefault();
-          redo();
-          return;
-      }
+
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyC') {
           e.preventDefault();
           copySelectedObjects();
@@ -119,43 +110,17 @@ export const useAppLogic = () => {
           return;
       }
 
-      switch (e.code) {
-        case 'Space':
-          e.preventDefault(); // Prevent scrolling
-          togglePlay();
-          break;
-        case 'Delete':
-        case 'Backspace':
-          if (selectedIds.length > 0) {
-            // Shift 併用で「削除して左寄せ」（リップル削除）。後続クリップを詰める。
-            if (e.shiftKey) {
-              rippleDeleteSelectedObjects();
-            } else {
-              deleteSelectedObjects();
-            }
-          }
-          break;
-        case 'Escape':
-          clearSelection();
-          break;
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     selectedIds,
-    togglePlay,
-    deleteSelectedObjects,
-    rippleDeleteSelectedObjects,
-    clearSelection,
     copySelectedObjects,
     cutSelectedObjects,
     pasteClipboardObjects,
     duplicateSelectedObjects,
     groupSelectedObjects,
     ungroupSelectedObjects,
-    undo,
-    redo
   ]);
 };
