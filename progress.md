@@ -1,3 +1,52 @@
+## 2026-07-13 — Remote Control Deck Phase 6: 仕上げ（版0.1.1-Beta-443a・全フェーズ完了）
+
+### 実施内容
+
+**Remote_Control_Deck_Plan.md の Phase 1〜6 がすべて完了**（計画書に完了マーク付与）。
+
+- **接続管理**: `electron/remoteDeckServer.ts` に接続追跡（ID・接続元
+  アドレス・接続時刻）、`listConnections` / `disconnectClient` /
+  `regenerateToken` を追加。トークンは getter 化し再生成後も
+  `buildRemoteDeckConnectionInfo` が常に最新を返す。再生成時は接続中の
+  全クライアントを即時 terminate し、旧トークンでの upgrade は 401 拒否。
+  `RemoteDeckPanel` に接続中デバイス一覧（IP・接続時刻・件数、パネル表示中
+  のみ2秒ポーリング）・個別切断・トークン再生成（QR 自動更新）を実装。
+- **レイアウトカスタマイズ**: `app.getPath('userData')/remote-deck-layout.json`
+  を `/layout.json` エンドポイントで配信（リクエスト毎に読むためデッキの
+  リロードだけで反映）。デッキ UI は起動時に fetch し、既存の
+  `parseRemoteDeckLayout` で検証（不正・欠落は既定へフォールバック）。
+  本体パネルの「レイアウトファイルを開く」で初回はデフォルト内容を書き出して
+  Finder に表示。
+- **パッケージ同梱**: electron-builder の extraResources に
+  `remote-deck-ui/dist` → `remote-deck-ui` を追加、build script に
+  `remote-deck:build` を組み込み。`electron/remoteDeckStaticDir.ts` の
+  `resolveRemoteDeckStaticDir` で `app.isPackaged` に応じて
+  `process.resourcesPath` / リポジトリ相対を切替（単体テスト + package.json
+  の静的検証テストで担保。フルパッケージビルドは未実施＝指示どおり）。
+- **User_Guide.md 9章**: 接続手順（パッケージ版は事前ビルド不要）・QR 接続・
+  macOS ファイアウォールの注意・対応操作一覧・接続管理・レイアウト JSON・
+  トラブルシュート（同一 Wi-Fi 確認・トークン再生成）を追記。
+- E2E: 実サーバに疑似デバイス2台を接続 → 一覧に2件（IP・時刻）→ 個別切断で
+  1件 → トークン再生成で全切断・旧トークン拒否・新トークン受理、カスタム
+  レイアウト JSON（カスタムUndo 等2ボタン）のブラウザ表示反映を確認。
+
+### 選定理由・判断の根拠
+
+- レイアウト配信を IPC でなく HTTP エンドポイントにしたのは、レイアウトの
+  消費者がスマホ側 UI であり、静的配信と同じ経路に乗せると main→renderer→
+  deck の多段転送が不要になるため。リクエスト毎読み込みで「編集→スマホで
+  リロード」だけで反映される。
+- 接続一覧の更新はイベント push でなくパネル表示中のみの2秒ポーリング。
+  接続イベントは低頻度で、開いていない間のトラフィックをゼロにできる。
+- トークンを getter 化したのは、再生成後に QR・接続情報が古いトークンを
+  参照する事故を型レベルで防ぐため（`readonly token` + closure 変数）。
+
+### 残課題・次のステップ
+
+- リモートデッキ計画は全フェーズ完了。electron-builder のフルパッケージ
+  ビルドでの実機確認（Resources/remote-deck-ui の配置）は次回リリース作業時に。
+- レイアウトエディタ GUI は将来課題（現状は JSON 手編集）。
+
 ## 2026-07-13 — リモートデッキのレスポンシブ対応とグランサブル UI（版0.1.1-Beta-442a）
 
 ### 実施内容
