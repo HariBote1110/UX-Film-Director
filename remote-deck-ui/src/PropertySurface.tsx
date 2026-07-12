@@ -240,25 +240,31 @@ const PsdLayerTree: React.FC<{
                 {collapsed[node.id] ? '▸' : '▾'}
               </button>
             )}
-            <button
-              onClick={() => {
-                if (!node.isGroup) onToggle(node.id);
-              }}
-              disabled={node.isGroup}
-              style={{
-                flex: 1,
-                minHeight: 38,
-                textAlign: 'left',
-                padding: '0 10px',
-                borderRadius: 8,
-                border: '1px solid #333',
-                background: node.isGroup ? 'transparent' : node.visible ? '#2f5f8f' : '#1c1c1c',
-                color: node.isGroup ? '#9aa' : node.visible ? '#fff' : '#777',
-                fontSize: 13,
-              }}
-            >
-              {node.isGroup ? `${node.label}${node.isRadio ? '（排他）' : ''}` : node.label}
-            </button>
+            {(() => {
+              // タップ可能 = 通常レイヤー（トグル）+ ラジオ項目（レイヤー/フォルダ、選択）
+              const tappable = !node.isGroup || node.isRadio;
+              return (
+                <button
+                  onClick={() => {
+                    if (tappable) onToggle(node.id);
+                  }}
+                  disabled={!tappable}
+                  style={{
+                    flex: 1,
+                    minHeight: 38,
+                    textAlign: 'left',
+                    padding: '0 10px',
+                    borderRadius: 8,
+                    border: '1px solid #333',
+                    background: !tappable ? 'transparent' : node.visible ? '#2f5f8f' : '#1c1c1c',
+                    color: !tappable ? '#9aa' : node.visible ? '#fff' : '#777',
+                    fontSize: 13,
+                  }}
+                >
+                  {node.isRadio ? `${node.visible ? '◉' : '○'} ${node.label}` : node.label}
+                </button>
+              );
+            })()}
           </div>
           {node.isGroup && !collapsed[node.id] && node.children.length > 0 && (
             <PsdLayerTree nodes={node.children} depth={depth + 1} onToggle={onToggle} />

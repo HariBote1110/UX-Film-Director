@@ -142,21 +142,20 @@ describe('remote deck PSD layer operations (葵ちゃん.psd)', () => {
     expect(missing).toEqual([]);
   });
 
-  it('every tappable (non-group) deck node responds to property.set psdLayer', () => {
+  it('every tappable deck node responds to property.set psdLayer as per PSDTool semantics', () => {
     const bus = seedStore();
     const failures: string[] = [];
 
     const context = deriveRemoteDeckContext(useStore.getState());
-    const tappable = flattenDeckNodes(context.psdLayerTree!).filter((node) => !node.isGroup);
+    // タップ可能 = 非グループ（通常/ラジオのレイヤー）+ ラジオ項目グループ
+    const tappable = flattenDeckNodes(context.psdLayerTree!).filter(
+      (node) => !node.isGroup || node.isRadio,
+    );
     expect(tappable.length).toBeGreaterThan(100);
 
     for (const node of tappable) {
       const current = useStore.getState().objects[0] as PsdObject;
       const before = current.activeLayerIds![node.id] === true;
-      const path = findPath(current.rootLayer!, node.id)!;
-      const underRadioGroup = path
-        .slice(0, -1)
-        .some((ancestor) => ancestor.isGroup && ancestor.isRadio);
 
       bus.execute('property.set', {
         objectId: psdObject.id,
@@ -167,10 +166,11 @@ describe('remote deck PSD layer operations (葵ちゃん.psd)', () => {
       const after =
         (useStore.getState().objects[0] as PsdObject).activeLayerIds![node.id] === true;
 
-      if (underRadioGroup) {
-        // radio 配下: タップで必ず ON（既に ON のときは ON のまま = PSDTool の排他仕様）
+      if (node.isRadio) {
+        // ラジオ項目は選択専用: タップで必ず ON（ON のままも正）
         if (!after) failures.push(`radio-not-activated ${node.id}:${node.label}`);
       } else if (after === before) {
+        // 通常レイヤーは必ず反転する
         failures.push(`toggle-noop ${node.id}:${node.label} (before=${before})`);
       }
     }

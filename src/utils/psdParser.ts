@@ -309,16 +309,6 @@ const findNodePath = (node: PsdLayerNode, targetId: string, path: PsdLayerNode[]
   return null;
 };
 
-const setSubtreeActiveState = (
-  node: PsdLayerNode,
-  activeLayerIds: Record<string, boolean>,
-  enabled: boolean
-) => {
-  activeLayerIds[node.id] = enabled;
-  node.children.forEach((child) => {
-    setSubtreeActiveState(child, activeLayerIds, enabled);
-  });
-};
 
 const toLayerStruct = (node: PsdLayerNode, activeLayerIds: Record<string, boolean>): PsdLayerStruct => {
   return {
@@ -364,6 +354,19 @@ export const stripPsdLayerNodeForPersistence = (node: PsdLayerNode): PsdLayerNod
   src: node.src,
 });
 
+/**
+ * PSDTool 互換のレイヤートグル。
+ *
+ * PSDTool の '*' 接頭辞は「そのノード自身がラジオ項目」であることを意味し、
+ * 同じ親を持つ '*' 兄弟（レイヤー/フォルダ）同士で排他になる。かつての
+ * 「isRadio なグループの子ども同士が排他」という解釈は誤りで、実 PSD
+ * （**髪ショート 配下の !髪色/!髪線画 など）で必要なレイヤーが消えたり、
+ * 髪型（'*' フォルダ同士）の切替が一切できない原因になっていた。
+ *
+ * 排他時は兄弟ノード自身のみ OFF にし、サブツリーは掃かない。描画側
+ * （rust-backend psd_fast の合成）は祖先グループの可視性を尊重するため
+ * フォルダ OFF で配下は隠れ、再選択時に内部状態が復元される。
+ */
 export const togglePsdLayer = (
   rootNode: PsdLayerNode,
   currentActiveLayerIds: Record<string, boolean>,
@@ -373,7 +376,8 @@ export const togglePsdLayer = (
   if (!path) return currentActiveLayerIds;
 
   const targetNode = path[path.length - 1];
-  if (targetNode.isGroup) return currentActiveLayerIds;
+  // 通常フォルダは PropertyPanel 同様トグル対象外（ラジオ項目フォルダは選択可）
+  if (targetNode.isGroup && !targetNode.isRadio) return currentActiveLayerIds;
 
   const nextActiveLayerIds = { ...currentActiveLayerIds };
 
@@ -384,29 +388,25 @@ export const togglePsdLayer = (
     }
   });
 
-  const radioAncestors = path.filter((node, index) => node.isRadio && index < path.length - 1);
-
-  if (radioAncestors.length > 0) {
-    path.forEach((node, index) => {
-      if (!node.isRadio || index >= path.length - 1) return;
-
-      const selectedBranchNode = path[index + 1];
-      node.children.forEach((child) => {
-        if (child.id === selectedBranchNode.id) {
-          nextActiveLayerIds[child.id] = true;
-          return;
-        }
-
-        // ラジオグループ外の枝は、サブグループ配下を含めて全停止する。
-        setSubtreeActiveState(child, nextActiveLayerIds, false);
-      });
-
-      nextActiveLayerIds[node.id] = true;
+  // 経路上のラジオ項目（ターゲット含む）ごとに '*' 兄弟排他を適用する。
+  for (let index = 1; index < path.length; index += 1) {
+    const node = path[index];
+    if (!node.isRadio) continue;
+    const parent = path[index - 1];
+    parent.children.forEach((sibling) => {
+      if (sibling.id === node.id) return;
+      if (sibling.isRadio) {
+        nextActiveLayerIds[sibling.id] = false;
+      }
     });
+    nextActiveLayerIds[node.id] = true;
+  }
 
+  if (targetNode.isRadio) {
+    // ラジオ項目は選択専用（タップで OFF にはならない = PSDTool 仕様）
     nextActiveLayerIds[targetLayerId] = true;
   } else {
-    nextActiveLayerIds[targetLayerId] = !Boolean(nextActiveLayerIds[targetLayerId]);
+    nextActiveLayerIds[targetLayerId] = !Boolean(currentActiveLayerIds[targetLayerId]);
   }
 
   nextActiveLayerIds[rootNode.id] = true;

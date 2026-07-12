@@ -59,24 +59,30 @@ interface SelectionStateLike {
   objects: TimelineObject[];
 }
 
-/** PSD layer group names may carry a leading '*' marker (PSDTool convention). */
-const stripNameMarker = (name: string): string => (name.startsWith('*') ? name.slice(1) : name);
+/**
+ * PSD layer names may carry leading PSDTool markers: '*' (radio item) and
+ * '!' (forced visible). Strip them all for display labels.
+ */
+const stripNameMarker = (name: string): string => name.replace(/^[*!]+/, '');
 
 /**
- * Collects one enum property per radio group in the PSD layer tree
- * (expression / 差分 switching). Options are the group's non-group children;
- * the current value is the first active option.
+ * Collects one enum property per「'*' ラジオ項目の兄弟集合」(PSDTool
+ * semantics: nodes whose name starts with '*' are mutually exclusive among
+ * siblings). The parent node — which need not be flagged radio itself —
+ * provides the row's key and label; options may be layers or folders.
  */
 const collectPsdRadioProperties = (
   node: PsdLayerNode,
   activeLayerIds: Record<string, boolean>,
   out: RemoteDeckEnumProperty[],
 ): void => {
-  if (node.isGroup && node.isRadio) {
-    const options = node.children
-      .filter((child) => !child.isGroup)
-      .map((child) => ({ value: child.id, label: stripNameMarker(child.name) }));
-    if (options.length > 0) {
+  if (node.isGroup || node.children.length > 0) {
+    const radioSiblings = node.children.filter((child) => child.isRadio);
+    if (radioSiblings.length >= 2) {
+      const options = radioSiblings.map((child) => ({
+        value: child.id,
+        label: stripNameMarker(child.name),
+      }));
       const active = options.find((option) => activeLayerIds[option.value] === true);
       out.push({
         key: `psdRadio:${node.id}`,
