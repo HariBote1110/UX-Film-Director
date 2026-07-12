@@ -74,6 +74,116 @@ describe('registerAppCommands', () => {
     expect(useStore.getState().objects.find((o) => o.id === 'obj-1')).toBeUndefined();
   });
 
+  it('wires property.set to updateObject with clamped scale for a psd object', () => {
+    const bus = createCommandBus();
+    registerAppCommands(bus, useStore);
+    const psd = {
+      id: 'psd-1',
+      type: 'psd',
+      layer: 0,
+      x: 0,
+      y: 0,
+      startTime: 0,
+      duration: 5,
+      scale: 1,
+    } as any;
+    useStore.setState({ objects: [psd] });
+
+    bus.execute('property.set', { objectId: 'psd-1', propertyKey: 'scale', value: 2.5 });
+    expect((useStore.getState().objects[0] as any).scale).toBe(2.5);
+
+    bus.execute('property.set', { objectId: 'psd-1', propertyKey: 'scale', value: 99 });
+    expect((useStore.getState().objects[0] as any).scale).toBe(10);
+  });
+
+  it('wires property.set to updateObject with clamped volume for an audio object', () => {
+    const bus = createCommandBus();
+    registerAppCommands(bus, useStore);
+    const audio = {
+      id: 'audio-1',
+      type: 'audio',
+      layer: 0,
+      startTime: 0,
+      duration: 5,
+      volume: 0.5,
+      muted: false,
+    } as any;
+    useStore.setState({ objects: [audio] });
+
+    bus.execute('property.set', { objectId: 'audio-1', propertyKey: 'volume', value: 0.9 });
+    expect((useStore.getState().objects[0] as any).volume).toBe(0.9);
+
+    bus.execute('property.set', { objectId: 'audio-1', propertyKey: 'volume', value: 7 });
+    expect((useStore.getState().objects[0] as any).volume).toBe(1);
+  });
+
+  it('wires property.set psdRadio keys to switch expression layers exclusively', () => {
+    const bus = createCommandBus();
+    registerAppCommands(bus, useStore);
+    const rootLayer = {
+      id: 'root',
+      name: 'root',
+      isGroup: true,
+      isRadio: false,
+      width: 0,
+      height: 0,
+      left: 0,
+      top: 0,
+      defaultVisible: true,
+      children: [
+        {
+          id: 'g-face',
+          name: '表情',
+          isGroup: true,
+          isRadio: true,
+          width: 0,
+          height: 0,
+          left: 0,
+          top: 0,
+          defaultVisible: true,
+          children: [
+            { id: 'l-smile', name: '笑顔', isGroup: false, isRadio: false, children: [], width: 1, height: 1, left: 0, top: 0, defaultVisible: true },
+            { id: 'l-angry', name: '怒り', isGroup: false, isRadio: false, children: [], width: 1, height: 1, left: 0, top: 0, defaultVisible: false },
+          ],
+        },
+      ],
+    };
+    const psd = {
+      id: 'psd-1',
+      type: 'psd',
+      layer: 0,
+      x: 0,
+      y: 0,
+      startTime: 0,
+      duration: 5,
+      scale: 1,
+      rootLayer,
+      activeLayerIds: { root: true, 'g-face': true, 'l-smile': true },
+    } as any;
+    useStore.setState({ objects: [psd] });
+
+    bus.execute('property.set', {
+      objectId: 'psd-1',
+      propertyKey: 'psdRadio:g-face',
+      value: 'l-angry',
+    });
+
+    const updated = useStore.getState().objects[0] as any;
+    expect(updated.activeLayerIds['l-angry']).toBe(true);
+    expect(updated.activeLayerIds['l-smile']).toBe(false);
+    expect(Array.isArray(updated.layerTree)).toBe(true);
+  });
+
+  it('safely ignores property.set with a malformed payload', () => {
+    const bus = createCommandBus();
+    registerAppCommands(bus, useStore);
+    expect(() => {
+      bus.execute('property.set');
+      bus.execute('property.set', { objectId: 'missing', propertyKey: 'scale', value: 1 });
+      bus.execute('property.set', { objectId: 42, propertyKey: null });
+    }).not.toThrow();
+  });
+
   it('wires selection.escape to clearSelection', () => {
     const bus = createCommandBus();
     registerAppCommands(bus, useStore);

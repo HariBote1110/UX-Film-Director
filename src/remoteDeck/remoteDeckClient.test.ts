@@ -4,6 +4,7 @@ import { createRemoteDeckClient, type RemoteDeckSocketLike } from '../../shared/
 class FakeSocket implements RemoteDeckSocketLike {
   onopen: (() => void) | null = null;
   onclose: (() => void) | null = null;
+  onmessage: ((event: { data: unknown }) => void) | null = null;
   sent: string[] = [];
   closed = false;
 
@@ -125,6 +126,34 @@ describe('createRemoteDeckClient', () => {
     sockets[2].onopen?.();
     sockets[2].onclose?.();
     expect(timers[0].delay).toBe(1000);
+  });
+
+  it('notifies state listeners when a state message arrives', () => {
+    const { client, sockets } = createHarness();
+    const states: unknown[] = [];
+    client.onStateMessage((payload) => states.push(payload));
+    client.connect();
+    sockets[0].onopen?.();
+
+    sockets[0].onmessage?.({
+      data: JSON.stringify({ type: 'state', payload: { objectId: 'a', properties: [] } }),
+    });
+
+    expect(states).toEqual([{ objectId: 'a', properties: [] }]);
+  });
+
+  it('ignores malformed or non-state frames without throwing', () => {
+    const { client, sockets } = createHarness();
+    const states: unknown[] = [];
+    client.onStateMessage((payload) => states.push(payload));
+    client.connect();
+    sockets[0].onopen?.();
+
+    expect(() => {
+      sockets[0].onmessage?.({ data: '{broken' });
+      sockets[0].onmessage?.({ data: JSON.stringify({ type: 'command', id: 'x' }) });
+    }).not.toThrow();
+    expect(states).toEqual([]);
   });
 
   it('stops reconnecting after close() and reports disconnected', () => {

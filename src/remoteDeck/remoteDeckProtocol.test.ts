@@ -57,5 +57,6 @@ describe('remoteDeckIpcChannels', () => {
   it('defines the command forwarding and connection info channels', () => {
     expect(remoteDeckIpcChannels.command).toBe('remote-deck:command');
     expect(remoteDeckIpcChannels.getConnectionInfo).toBe('remote-deck:get-connection-info');
+    expect(remoteDeckIpcChannels.state).toBe('remote-deck:state');
   });
 });
