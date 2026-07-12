@@ -1211,6 +1211,46 @@ const baseSphericalField = (patch: Partial<SphericalFieldObject> = {}): Spherica
 });
 
 describe('buildRustSceneSnapshotForTimeline', () => {
+  it('folds the PSD-specific uniform scale into the clip transform', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePsd({ scale: 2.5, scaleX: 1, scaleY: 1 })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.snapshot.clips[0].transform.scale_x).toBe(2.5);
+    expect(result.snapshot.clips[0].transform.scale_y).toBe(2.5);
+  });
+
+  it('combines PSD uniform scale with scaleX/scaleY and ignores invalid values', () => {
+    const layers = createDefaultLayers();
+    const combined = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePsd({ scale: 2, scaleX: 1.5, scaleY: 0.5 })],
+      time: 2,
+    });
+    expect(combined.ok).toBe(true);
+    if (!combined.ok) throw new Error('expected snapshot build to pass');
+    expect(combined.snapshot.clips[0].transform.scale_x).toBe(3);
+    expect(combined.snapshot.clips[0].transform.scale_y).toBe(1);
+
+    const invalid = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePsd({ scale: Number.NaN })],
+      time: 2,
+    });
+    expect(invalid.ok).toBe(true);
+    if (!invalid.ok) throw new Error('expected snapshot build to pass');
+    expect(invalid.snapshot.clips[0].transform.scale_x).toBe(1);
+  });
+
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
