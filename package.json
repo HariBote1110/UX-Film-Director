@@ -21,7 +21,7 @@
     "test:video-export:quality": "node scripts/compare-video-export-quality.mjs",
     "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
-    "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "build": "tsc && vite build && npm run remote-deck:build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "remote-deck:build": "vite build --config remote-deck-ui/vite.config.ts",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
@@ -46,6 +46,10 @@
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "remote-deck-ui/dist",
+        "to": "remote-deck-ui"
+      },
       {
         "from": "rust-backend/target/release/",
         "to": "rust-backend",

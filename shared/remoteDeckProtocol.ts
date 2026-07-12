@@ -28,6 +28,11 @@ export const remoteDeckIpcChannels = {
   getConnectionInfo: 'remote-deck:get-connection-info',
   /** renderer → main: selection context to broadcast to deck clients. */
   state: 'remote-deck:state',
+  /** Connection management (Phase 6). */
+  listConnections: 'remote-deck:list-connections',
+  disconnectClient: 'remote-deck:disconnect-client',
+  regenerateToken: 'remote-deck:regenerate-token',
+  openLayoutFile: 'remote-deck:open-layout-file',
 } as const;
 
 export interface RemoteDeckConnectionInfo {

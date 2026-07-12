@@ -3,7 +3,12 @@ import {
   createRemoteDeckClient,
   type RemoteDeckClientStatus,
 } from '../../shared/remoteDeckClient';
-import { DEFAULT_REMOTE_DECK_LAYOUT, type RemoteDeckButton } from '../../shared/remoteDeckLayout';
+import {
+  DEFAULT_REMOTE_DECK_LAYOUT,
+  parseRemoteDeckLayout,
+  type RemoteDeckButton,
+  type RemoteDeckLayout,
+} from '../../shared/remoteDeckLayout';
 import {
   gridColumnsForMode,
   resolveRemoteDeckLayoutMode,
@@ -53,7 +58,23 @@ export const DeckApp: React.FC = () => {
     width: window.innerWidth,
     height: window.innerHeight,
   });
-  const layout = DEFAULT_REMOTE_DECK_LAYOUT;
+  const [layout, setLayout] = useState<RemoteDeckLayout>(DEFAULT_REMOTE_DECK_LAYOUT);
+
+  // ユーザー定義レイアウト（userData/remote-deck-layout.json）。無い・不正なら既定のまま
+  useEffect(() => {
+    let cancelled = false;
+    fetch('./layout.json')
+      .then((response) => (response.ok ? response.text() : null))
+      .then((text) => {
+        if (cancelled || text === null) return;
+        const parsed = parseRemoteDeckLayout(text);
+        if (parsed.buttons.length > 0) setLayout(parsed);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const client = useMemo(
     () =>

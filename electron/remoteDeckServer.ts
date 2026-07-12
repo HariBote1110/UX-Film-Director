@@ -23,11 +23,28 @@ export interface StartRemoteDeckServerOptions {
    * directory does not exist, the placeholder page is served instead.
    */
   staticDir?: string;
+  /**
+   * Optional path to a user-editable layout JSON (Phase 6). Served at
+   * /layout.json, read per request so edits apply on page reload.
+   */
+  layoutFilePath?: string;
+}
+
+export interface RemoteDeckConnection {
+  id: string;
+  remoteAddress: string;
+  connectedAt: number;
 }
 
 export interface RemoteDeckServer {
   port: number;
-  token: string;
+  readonly token: string;
+  /** Lists currently connected (authenticated) clients. */
+  listConnections: () => RemoteDeckConnection[];
+  /** Terminates a single client connection. Returns false for unknown ids. */
+  disconnectClient: (connectionId: string) => boolean;
+  /** Replaces the token and terminates every existing connection. */
+  regenerateToken: () => string;
   /** Subscribes to command messages from authenticated clients. Returns an unsubscribe fn. */
   onCommand: (listener: (message: RemoteDeckCommandMessage) => void) => () => void;
   /** Sends a state message to every connected (authenticated) client. */
@@ -100,11 +117,26 @@ const extractToken = (request: IncomingMessage): string | null => {
 export const startRemoteDeckServer = (
   options: StartRemoteDeckServerOptions = {},
 ): Promise<RemoteDeckServer> => {
-  const token = options.token ?? generateToken();
+  let token = options.token ?? generateToken();
   const host = options.host ?? '0.0.0.0';
   const commandListeners = new Set<(message: RemoteDeckCommandMessage) => void>();
+  const connections = new Map<string, { socket: WebSocket; info: RemoteDeckConnection }>();
+  let connectionCounter = 0;
 
   const httpServer: Server = createServer((request, response) => {
+    const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+    if (pathname === '/layout.json') {
+      // ユーザー編集可能なレイアウト定義。リクエスト毎に読むため
+      // ファイル編集はデッキ側のリロードだけで反映される。
+      if (options.layoutFilePath && existsSync(options.layoutFilePath)) {
+        response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        response.end(readFileSync(options.layoutFilePath));
+      } else {
+        response.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        response.end('{}');
+      }
+      return;
+    }
     if (options.staticDir && serveStaticFile(options.staticDir, request.url ?? '/', response)) {
       return;
     }
@@ -127,7 +159,20 @@ export const startRemoteDeckServer = (
     });
   });
 
-  wss.on('connection', (webSocket: WebSocket) => {
+  wss.on('connection', (webSocket: WebSocket, request: IncomingMessage) => {
+    connectionCounter += 1;
+    const connectionId = `conn-${connectionCounter}`;
+    connections.set(connectionId, {
+      socket: webSocket,
+      info: {
+        id: connectionId,
+        remoteAddress: request.socket.remoteAddress ?? 'unknown',
+        connectedAt: Date.now(),
+      },
+    });
+    webSocket.on('close', () => {
+      connections.delete(connectionId);
+    });
     webSocket.on('message', (data) => {
       const message = parseRemoteDeckMessage(data.toString());
       if (message?.type !== 'command') return;
@@ -146,7 +191,24 @@ export const startRemoteDeckServer = (
 
       resolve({
         port: address.port,
-        token,
+        get token() {
+          return token;
+        },
+        listConnections: () => [...connections.values()].map((entry) => ({ ...entry.info })),
+        disconnectClient: (connectionId) => {
+          const entry = connections.get(connectionId);
+          if (!entry) return false;
+          entry.socket.terminate();
+          connections.delete(connectionId);
+          return true;
+        },
+        regenerateToken: () => {
+          token = generateToken();
+          // 既存接続は旧トークンで認証済みのため全切断する
+          connections.forEach((entry) => entry.socket.terminate());
+          connections.clear();
+          return token;
+        },
         onCommand: (listener) => {
           commandListeners.add(listener);
           return () => commandListeners.delete(listener);

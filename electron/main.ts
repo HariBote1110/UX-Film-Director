@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, screen, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
@@ -27,6 +27,8 @@ import {
   type RemoteDeckServer,
 } from './remoteDeckServer';
 import { remoteDeckIpcChannels } from '../shared/remoteDeckProtocol';
+import { resolveRemoteDeckStaticDir } from './remoteDeckStaticDir';
+import { DEFAULT_REMOTE_DECK_LAYOUT } from '../shared/remoteDeckLayout';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -530,10 +532,18 @@ app.whenReady().then(() => {
   // LAN 内スマホからの WebSocket command を renderer の CommandBus へ転送する。
   // 起動失敗（ポート枯渇等）はリモートデッキ機能のみ無効化し、本体は継続。
   let remoteDeckServer: RemoteDeckServer | null = null;
+  // ユーザー編集可能なボタンレイアウト定義（Phase 6）
+  const remoteDeckLayoutFilePath = path.join(app.getPath('userData'), 'remote-deck-layout.json');
   startRemoteDeckServer({
-    // npm run remote-deck:build の成果物（Phase 3 モバイルデッキUI）。
-    // 未ビルド時はサーバ側でプレースホルダページへ自動フォールバック。
-    staticDir: path.join(__dirname, '../remote-deck-ui/dist'),
+    // パッケージ時は extraResources（Resources/remote-deck-ui）、開発時は
+    // npm run remote-deck:build の成果物。未ビルド時はプレースホルダへ
+    // 自動フォールバック。
+    staticDir: resolveRemoteDeckStaticDir({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appDirname: __dirname,
+    }),
+    layoutFilePath: remoteDeckLayoutFilePath,
   })
     .then((server) => {
       remoteDeckServer = server;
@@ -549,6 +559,28 @@ app.whenReady().then(() => {
   // renderer が push する選択コンテキストを接続中のデッキへブロードキャスト
   ipcMain.on(remoteDeckIpcChannels.state, (_event, payload) => {
     remoteDeckServer?.broadcastState(payload);
+  })
+  // 接続管理（Phase 6）
+  ipcMain.handle(remoteDeckIpcChannels.listConnections, () =>
+    remoteDeckServer?.listConnections() ?? [])
+  ipcMain.handle(remoteDeckIpcChannels.disconnectClient, (_event, payload: { id?: string }) =>
+    typeof payload?.id === 'string' ? remoteDeckServer?.disconnectClient(payload.id) ?? false : false)
+  ipcMain.handle(remoteDeckIpcChannels.regenerateToken, () => {
+    if (!remoteDeckServer) return null;
+    remoteDeckServer.regenerateToken();
+    return buildRemoteDeckConnectionInfo(remoteDeckServer);
+  })
+  ipcMain.handle(remoteDeckIpcChannels.openLayoutFile, async () => {
+    // 初回はデフォルトレイアウトを書き出してから Finder/Explorer で表示する
+    if (!fs.existsSync(remoteDeckLayoutFilePath)) {
+      fs.writeFileSync(
+        remoteDeckLayoutFilePath,
+        JSON.stringify(DEFAULT_REMOTE_DECK_LAYOUT, null, 2),
+        'utf8'
+      );
+    }
+    shell.showItemInFolder(remoteDeckLayoutFilePath);
+    return { path: remoteDeckLayoutFilePath };
   })
   app.on('before-quit', () => {
     void remoteDeckServer?.close();
