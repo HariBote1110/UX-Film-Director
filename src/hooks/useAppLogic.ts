@@ -6,6 +6,7 @@ import { registerAppCommands } from '../commands/registerAppCommands';
 import { resolveKeyCommand } from './keyCommandResolver';
 import { connectRemoteDeckToCommandBus } from '../remoteDeck/connectRemoteDeckToCommandBus';
 import { subscribeStoreToRemoteDeckState } from '../remoteDeck/remoteDeckStatePush';
+import { subscribeStoreToRemoteDeckPlayback } from '../remoteDeck/remoteDeckPlaybackPush';
 
 export const useAppLogic = () => {
   const {
@@ -40,13 +41,18 @@ export const useAppLogic = () => {
     const disconnectCommands = connectRemoteDeckToCommandBus(ipc, commandBus);
     // Phase 4: 選択コンテキスト（TouchBar 風操作面の内容）を main 経由で
     // デッキへ push。変化があったときだけ送信する。
-    const unsubscribeState =
-      typeof ipc.send === 'function'
-        ? subscribeStoreToRemoteDeckState(useStore, (channel, context) => ipc.send(channel, context))
-        : () => undefined;
+    const canSend = typeof ipc.send === 'function';
+    const unsubscribeState = canSend
+      ? subscribeStoreToRemoteDeckState(useStore, (channel, context) => ipc.send(channel, context))
+      : () => undefined;
+    // Phase 5: 再生状態 + タイムコード。時刻のみの更新は約5Hzに間引く。
+    const unsubscribePlayback = canSend
+      ? subscribeStoreToRemoteDeckPlayback(useStore, (channel, state) => ipc.send(channel, state))
+      : () => undefined;
     return () => {
       disconnectCommands();
       unsubscribeState();
+      unsubscribePlayback();
     };
   }, []);
 

@@ -5,6 +5,18 @@ import {
 } from '../../shared/remoteDeckClient';
 import { DEFAULT_REMOTE_DECK_LAYOUT, type RemoteDeckButton } from '../../shared/remoteDeckLayout';
 import { PropertySurface, type SelectionContext } from './PropertySurface';
+import { formatRemoteDeckTimecode } from '../../shared/remoteDeckTimecode';
+
+interface PlaybackState {
+  kind: 'playback';
+  isPlaying: boolean;
+  timeSeconds: number;
+  fps: number;
+}
+
+const isPlaybackState = (payload: unknown): payload is PlaybackState =>
+  typeof payload === 'object' && payload !== null &&
+  (payload as { kind?: unknown }).kind === 'playback';
 
 const STATUS_LABELS: Record<RemoteDeckClientStatus, string> = {
   connecting: '接続中…',
@@ -32,6 +44,7 @@ const vibrate = () => {
 export const DeckApp: React.FC = () => {
   const [status, setStatus] = useState<RemoteDeckClientStatus>('disconnected');
   const [context, setContext] = useState<SelectionContext | null>(null);
+  const [playback, setPlayback] = useState<PlaybackState | null>(null);
   const layout = DEFAULT_REMOTE_DECK_LAYOUT;
 
   const client = useMemo(
@@ -50,6 +63,10 @@ export const DeckApp: React.FC = () => {
   useEffect(() => {
     const unsubscribeStatus = client.onStatusChange(setStatus);
     const unsubscribeState = client.onStateMessage((payload) => {
+      if (isPlaybackState(payload)) {
+        setPlayback(payload);
+        return;
+      }
       const candidate = payload as SelectionContext | null;
       if (candidate && typeof candidate === 'object' && Array.isArray(candidate.properties)) {
         setContext(candidate);
@@ -102,6 +119,17 @@ export const DeckApp: React.FC = () => {
         }}
       >
         <span style={{ opacity: 0.7 }}>UXFD Remote Deck</span>
+        <span
+          style={{
+            fontVariantNumeric: 'tabular-nums',
+            fontSize: 22,
+            fontWeight: 700,
+            letterSpacing: 1,
+            color: playback?.isPlaying ? '#5ad06a' : '#eee',
+          }}
+        >
+          {formatRemoteDeckTimecode(playback?.timeSeconds ?? 0, playback?.fps ?? 60)}
+        </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span
             style={{
@@ -128,24 +156,28 @@ export const DeckApp: React.FC = () => {
           alignContent: 'stretch',
         }}
       >
-        {layout.buttons.map((button) => (
-          <button
-            key={button.id}
-            onClick={() => handlePress(button)}
-            disabled={status !== 'connected'}
-            style={{
-              minHeight: 72,
-              borderRadius: 12,
-              border: '1px solid #333',
-              background: status === 'connected' ? '#1e1e1e' : '#161616',
-              color: status === 'connected' ? '#eee' : '#555',
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-          >
-            {button.label}
-          </button>
-        ))}
+        {layout.buttons.map((button) => {
+          const isPlayToggle = button.commandId === 'playback.toggle';
+          const isActive = isPlayToggle && playback?.isPlaying === true;
+          return (
+            <button
+              key={button.id}
+              onClick={() => handlePress(button)}
+              disabled={status !== 'connected'}
+              style={{
+                minHeight: 72,
+                borderRadius: 12,
+                border: isActive ? '1px solid #5ad06a' : '1px solid #333',
+                background: isActive ? '#1f4d27' : status === 'connected' ? '#1e1e1e' : '#161616',
+                color: isActive ? '#c8f7cf' : status === 'connected' ? '#eee' : '#555',
+                fontSize: 15,
+                fontWeight: 600,
+              }}
+            >
+              {isPlayToggle ? (isActive ? '⏸ 停止' : '▶ 再生') : button.label}
+            </button>
+          );
+        })}
       </main>
       )}
     </div>
