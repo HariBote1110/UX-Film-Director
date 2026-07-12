@@ -1,3 +1,54 @@
+## 2026-07-13 — Phase 4 フィードバック対応: PSD scale バグ修正・レイヤーツリー操作・transform 対応（版0.1.1-Beta-440a）
+
+### 実施内容
+
+- **PSD scale が動かない既知バグの根本原因を特定・修正**:
+  旧 Pixi 描画は `psdContent.scale.set(obj.scale)` で `PsdObject.scale`
+  （PropertyPanel の PSD Transform）を反映していたが（Walk_Through.md 306-307）、
+  Pixi 廃止後の共有レンダラー経路では `src/utils/rustSceneSnapshot.ts` の
+  clip transform が BaseObject の `scaleX/scaleY` のみを参照しており、
+  PSD 固有の一様 scale が描画へ一切伝わっていなかった（リモートデッキ経由
+  だけでなく本体 PropertyPanel からの変更も無効）。
+  `psdUniformScaleForObject` を追加して `scale_x/scale_y` へ乗算合成
+  （非有限・非正値は 1 として無視）。契約テストを rustSceneSnapshot.test.ts に追加。
+- **PSD レイヤー操作範囲の拡大**: 選択コンテキストに `psdLayerTree`
+  （id/label/isGroup/isRadio/visible の階層、'*' 接頭辞除去）を追加。
+  直列化はノード数上限 200、超過時は深さを 8→1 に縮めて切り詰め
+  （トップレベルは常に残す）。`property.set` に `psdLayer` キーを追加し、
+  通常レイヤーの visible を既存 `togglePsdLayer` 経路でトグル（radio 配下は
+  同関数内の排他制御が自動適用）。UI は折りたたみ可能なインデントツリーで
+  タップトグル（グループは無効表示、radio グループは「排他」ラベル）。
+- **Transform プロパティ対応**: 選択コンテキストへ共通 transform を追加 —
+  x / y（±8000, step 1）・rotation（-180〜180, 度数表示）・opacity（0〜1）、
+  非 PSD の視覚オブジェクトは scaleX/scaleY（0.1〜10）も。PSD は一様 scale を
+  維持し scaleX/scaleY は出さない。audio は音量のみ。video は音量 + transform。
+  `property.set` の数値キーはホワイトリスト + clamp のテーブル駆動に整理。
+- **相対ドラッグ**: x/y 用に `computeRelativeDragValue`（1px=2unit、縦オフセット
+  微調整、min/max/step）を追加し、UI は「ドラッグで移動」の無限ドラッグ帯。
+  rotation/opacity/scale は既存スライダー（間引き + 確定値送信）を流用。
+- E2E: 実サーバ + モバイルビューポートで、レイヤーツリー表示 → 帽子タップで
+  `psdLayer:l-hat`、X ドラッグ +50px で `x: 400→500` の受信を確認。
+
+### 選定理由・判断の根拠
+
+- scale バグは remote deck 側でなく描画側（Pixi 廃止時の移植漏れ）と特定。
+  修正は snapshot 生成の 1 箇所に乗算を足すだけで済み、export も同じ
+  snapshot を通るため両経路が同時に直る。
+- レイヤーツリーのタップは radio/通常を区別せず `togglePsdLayer` に委ねる
+  （radio 排他は同関数が解決）。PropertyPanel がグループのチェックボックスを
+  disabled にしている挙動に合わせ、グループはタップ不可とした。
+- x/y を絶対スライダーにしなかったのは ±8000 のレンジでは1pxが数十unitに
+  なり精度が出ないため。相対ドラッグ + 縦オフセット微調整で TouchBar 的な
+  精度を確保した。
+
+### 残課題・次のステップ
+
+- rotation の -180〜180 表示は BaseObject.rotation が範囲外の値を持つ場合に
+  スライダー端で clamp される（保存値は property.set 側で ±3600 まで許容）。
+- psdLayerTree の visible は `activeLayerIds` 基準のため、defaultVisible のみで
+  activeLayerIds 未初期化の PSD ではツリーを出さない（既存の PropertyPanel と
+  同条件）。
+
 ## 2026-07-13 — Remote Control Deck Phase 4: コンテキスト連動プロパティサーフェスを TDD で実装（版0.1.1-Beta-439a）
 
 ### 実施内容
