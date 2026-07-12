@@ -24,10 +24,13 @@ const buildPsdFixture = () => {
     children: [
       {
         id: 'g-face',
-        name: '*表情',
+        name: '表情',
         isGroup: true,
-        isRadio: true,
-        children: [leaf('l-smile', '笑顔'), leaf('l-angry', '怒り')],
+        isRadio: false,
+        children: [
+          { ...leaf('l-smile', '*笑顔'), isRadio: true },
+          { ...leaf('l-angry', '*怒り'), isRadio: true },
+        ],
         width: 0,
         height: 0,
         left: 0,
@@ -57,6 +60,63 @@ const buildPsdFixture = () => {
 };
 
 describe('deriveRemoteDeckContext', () => {
+  it('builds an enum from radio GROUP siblings (PSDTool hair-style switching)', () => {
+    const short = {
+      ...leaf('g-short', '*髪ショート'),
+      isGroup: true,
+      isRadio: true,
+      children: [leaf('l-colour', '!髪色')],
+    };
+    const long = {
+      ...leaf('g-long', '*髪ロング'),
+      isGroup: true,
+      isRadio: true,
+      children: [leaf('l-colour-l', '!髪色L')],
+    };
+    const rootLayer: PsdLayerNode = {
+      id: 'root',
+      name: 'root',
+      isGroup: true,
+      isRadio: false,
+      children: [
+        { ...leaf('g-hair', '!髪'), isGroup: true, children: [short, long] },
+      ],
+      width: 0,
+      height: 0,
+      left: 0,
+      top: 0,
+      defaultVisible: true,
+    };
+    const psd = {
+      ...buildPsdFixture(),
+      rootLayer,
+      activeLayerIds: { root: true, 'g-hair': true, 'g-short': true, 'l-colour': true },
+    };
+    const context = deriveRemoteDeckContext({ selectedId: 'psd-1', objects: [psd] } as any);
+
+    const hairEnum = context.properties.find((p) => p.key === 'psdRadio:g-hair');
+    expect(hairEnum).toEqual({
+      key: 'psdRadio:g-hair',
+      label: '髪',
+      kind: 'enum',
+      value: 'g-short',
+      options: [
+        { value: 'g-short', label: '髪ショート' },
+        { value: 'g-long', label: '髪ロング' },
+      ],
+    });
+    // ラジオグループの内側（!髪色 等）は排他選択肢として扱わない
+    expect(context.properties.some((p) => p.key === 'psdRadio:g-short')).toBe(false);
+  });
+
+  it('strips PSDTool markers (* and !) from labels', () => {
+    const psd = buildPsdFixture();
+    psd.rootLayer!.children[1] = { ...leaf('l-body', '!体') };
+    const context = deriveRemoteDeckContext({ selectedId: 'psd-1', objects: [psd] } as any);
+    const body = context.psdLayerTree!.find((n) => n.id === 'l-body');
+    expect(body!.label).toBe('体');
+  });
+
   it('returns an empty context when nothing is selected', () => {
     const context = deriveRemoteDeckContext({ selectedId: null, objects: [] } as any);
     expect(context).toEqual({ objectId: null, objectType: null, properties: [] });
@@ -184,11 +244,11 @@ describe('deriveRemoteDeckContext', () => {
         id: 'g-face',
         label: '表情',
         isGroup: true,
-        isRadio: true,
+        isRadio: false,
         visible: true,
         children: [
-          { id: 'l-smile', label: '笑顔', isGroup: false, isRadio: false, visible: true, children: [] },
-          { id: 'l-angry', label: '怒り', isGroup: false, isRadio: false, visible: false, children: [] },
+          { id: 'l-smile', label: '笑顔', isGroup: false, isRadio: true, visible: true, children: [] },
+          { id: 'l-angry', label: '怒り', isGroup: false, isRadio: true, visible: false, children: [] },
         ],
       },
       { id: 'l-body', label: '体', isGroup: false, isRadio: false, visible: true, children: [] },
