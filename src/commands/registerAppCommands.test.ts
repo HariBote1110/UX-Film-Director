@@ -174,6 +174,78 @@ describe('registerAppCommands', () => {
     expect(Array.isArray(updated.layerTree)).toBe(true);
   });
 
+  it('wires property.set to generic transform keys with sensible clamps', () => {
+    const bus = createCommandBus();
+    registerAppCommands(bus, useStore);
+    const shape = {
+      id: 'shape-1',
+      type: 'shape',
+      layer: 0,
+      startTime: 0,
+      duration: 5,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+    } as any;
+    useStore.setState({ objects: [shape] });
+
+    bus.execute('property.set', { objectId: 'shape-1', propertyKey: 'x', value: 640 });
+    bus.execute('property.set', { objectId: 'shape-1', propertyKey: 'y', value: -80 });
+    bus.execute('property.set', { objectId: 'shape-1', propertyKey: 'rotation', value: 30 });
+    bus.execute('property.set', { objectId: 'shape-1', propertyKey: 'opacity', value: 2 });
+    bus.execute('property.set', { objectId: 'shape-1', propertyKey: 'scaleX', value: 0.01 });
+    bus.execute('property.set', { objectId: 'shape-1', propertyKey: 'scaleY', value: 3 });
+
+    const updated = useStore.getState().objects[0] as any;
+    expect(updated.x).toBe(640);
+    expect(updated.y).toBe(-80);
+    expect(updated.rotation).toBe(30);
+    expect(updated.opacity).toBe(1);
+    expect(updated.scaleX).toBe(0.1);
+    expect(updated.scaleY).toBe(3);
+  });
+
+  it('wires property.set psdLayer to toggle plain layer visibility', () => {
+    const bus = createCommandBus();
+    registerAppCommands(bus, useStore);
+    const rootLayer = {
+      id: 'root',
+      name: 'root',
+      isGroup: true,
+      isRadio: false,
+      width: 0,
+      height: 0,
+      left: 0,
+      top: 0,
+      defaultVisible: true,
+      children: [
+        { id: 'l-body', name: '体', isGroup: false, isRadio: false, children: [], width: 1, height: 1, left: 0, top: 0, defaultVisible: true },
+      ],
+    };
+    const psd = {
+      id: 'psd-1',
+      type: 'psd',
+      layer: 0,
+      x: 0,
+      y: 0,
+      startTime: 0,
+      duration: 5,
+      scale: 1,
+      rootLayer,
+      activeLayerIds: { root: true, 'l-body': true },
+    } as any;
+    useStore.setState({ objects: [psd] });
+
+    bus.execute('property.set', { objectId: 'psd-1', propertyKey: 'psdLayer', value: 'l-body' });
+    expect((useStore.getState().objects[0] as any).activeLayerIds['l-body']).toBe(false);
+
+    bus.execute('property.set', { objectId: 'psd-1', propertyKey: 'psdLayer', value: 'l-body' });
+    expect((useStore.getState().objects[0] as any).activeLayerIds['l-body']).toBe(true);
+  });
+
   it('safely ignores property.set with a malformed payload', () => {
     const bus = createCommandBus();
     registerAppCommands(bus, useStore);

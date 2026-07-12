@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { computeSliderValue, createSendThrottle } from '../../shared/remoteDeckSlider';
+import {
+  computeRelativeDragValue,
+  computeSliderValue,
+  createSendThrottle,
+} from '../../shared/remoteDeckSlider';
 
 describe('computeSliderValue', () => {
   const base = { startValue: 0.5, trackWidth: 300, min: 0, max: 1, verticalOffset: 0 };
@@ -28,6 +32,34 @@ describe('computeSliderValue', () => {
   it('quantises to the given step', () => {
     const value = computeSliderValue({ ...base, deltaX: 40, step: 0.1 });
     expect(Math.round(value * 10)).toBeCloseTo(value * 10, 10);
+  });
+});
+
+describe('computeRelativeDragValue', () => {
+  it('moves the value by deltaX times unitPerPx', () => {
+    expect(computeRelativeDragValue({ startValue: 100, deltaX: 50, unitPerPx: 2 })).toBe(200);
+    expect(computeRelativeDragValue({ startValue: 100, deltaX: -30, unitPerPx: 1 })).toBe(70);
+  });
+
+  it('applies vertical-offset fine adjustment like the slider', () => {
+    const coarse = computeRelativeDragValue({ startValue: 0, deltaX: 100, unitPerPx: 1 });
+    const fine = computeRelativeDragValue({
+      startValue: 0,
+      deltaX: 100,
+      unitPerPx: 1,
+      verticalOffset: 100,
+    });
+    expect(Math.abs(fine)).toBeLessThan(Math.abs(coarse));
+    expect(fine).toBeGreaterThan(0);
+  });
+
+  it('clamps to optional min/max and quantises to step', () => {
+    expect(
+      computeRelativeDragValue({ startValue: 170, deltaX: 100, unitPerPx: 1, min: -180, max: 180 }),
+    ).toBe(180);
+    expect(
+      computeRelativeDragValue({ startValue: 0, deltaX: 33, unitPerPx: 0.1, step: 1 }),
+    ).toBe(3);
   });
 });
 

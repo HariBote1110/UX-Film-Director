@@ -118,10 +118,125 @@ describe('deriveRemoteDeckContext', () => {
     ]);
   });
 
+  it('derives common transform properties for visual objects', () => {
+    const shape = {
+      id: 'shape-1',
+      type: 'shape',
+      layer: 0,
+      startTime: 0,
+      duration: 5,
+      x: 320,
+      y: 240,
+      rotation: 45,
+      scaleX: 1.5,
+      scaleY: 0.5,
+      opacity: 0.8,
+    } as any;
+    const context = deriveRemoteDeckContext({ selectedId: 'shape-1', objects: [shape] } as any);
+
+    const byKey = Object.fromEntries(context.properties.map((p) => [p.key, p]));
+    expect(byKey.x).toMatchObject({ kind: 'number', value: 320, step: 1 });
+    expect(byKey.y).toMatchObject({ kind: 'number', value: 240, step: 1 });
+    expect(byKey.rotation).toMatchObject({ kind: 'number', value: 45, min: -180, max: 180 });
+    expect(byKey.opacity).toMatchObject({ kind: 'number', value: 0.8, min: 0, max: 1 });
+    expect(byKey.scaleX).toMatchObject({ kind: 'number', value: 1.5, min: 0.1, max: 10 });
+    expect(byKey.scaleY).toMatchObject({ kind: 'number', value: 0.5, min: 0.1, max: 10 });
+  });
+
+  it('includes transform properties for psd objects alongside scale', () => {
+    const psd = { ...buildPsdFixture(), x: 10, y: 20, rotation: 0, opacity: 1 };
+    const context = deriveRemoteDeckContext({ selectedId: 'psd-1', objects: [psd] } as any);
+    const keys = context.properties.map((p) => p.key);
+    expect(keys).toContain('scale');
+    expect(keys).toContain('x');
+    expect(keys).toContain('y');
+    expect(keys).toContain('rotation');
+    expect(keys).toContain('opacity');
+    expect(keys).not.toContain('scaleX');
+  });
+
+  it('keeps the audio surface volume-only (no meaningless transforms)', () => {
+    const audio = {
+      id: 'audio-1',
+      type: 'audio',
+      layer: 0,
+      startTime: 0,
+      duration: 5,
+      volume: 0.8,
+      muted: false,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      opacity: 1,
+    } as any;
+    const context = deriveRemoteDeckContext({ selectedId: 'audio-1', objects: [audio] } as any);
+    expect(context.properties.map((p) => p.key)).toEqual(['volume']);
+  });
+
+  it('includes a psd layer tree with visibility and radio flags', () => {
+    const context = deriveRemoteDeckContext({
+      selectedId: 'psd-1',
+      objects: [buildPsdFixture()],
+    } as any);
+
+    expect(context.psdLayerTree).toEqual([
+      {
+        id: 'g-face',
+        label: '表情',
+        isGroup: true,
+        isRadio: true,
+        visible: true,
+        children: [
+          { id: 'l-smile', label: '笑顔', isGroup: false, isRadio: false, visible: true, children: [] },
+          { id: 'l-angry', label: '怒り', isGroup: false, isRadio: false, visible: false, children: [] },
+        ],
+      },
+      { id: 'l-body', label: '体', isGroup: false, isRadio: false, visible: true, children: [] },
+    ]);
+  });
+
+  it('caps the serialised psd layer tree by reducing depth for huge trees', () => {
+    const wide = (idPrefix: string, count: number) =>
+      Array.from({ length: count }, (_, i) => leaf(`${idPrefix}-${i}`, `L${i}`));
+    const rootLayer: PsdLayerNode = {
+      id: 'root',
+      name: 'root',
+      isGroup: true,
+      isRadio: false,
+      width: 0,
+      height: 0,
+      left: 0,
+      top: 0,
+      defaultVisible: true,
+      children: Array.from({ length: 30 }, (_, g) => ({
+        id: `g-${g}`,
+        name: `G${g}`,
+        isGroup: true,
+        isRadio: false,
+        width: 0,
+        height: 0,
+        left: 0,
+        top: 0,
+        defaultVisible: true,
+        children: wide(`g-${g}-leaf`, 30),
+      })),
+    };
+    const psd = { ...buildPsdFixture(), rootLayer, activeLayerIds: { root: true } };
+    const context = deriveRemoteDeckContext({ selectedId: 'psd-1', objects: [psd] } as any);
+
+    const countNodes = (nodes: any[]): number =>
+      nodes.reduce((sum, node) => sum + 1 + countNodes(node.children), 0);
+    expect(context.psdLayerTree).toBeDefined();
+    expect(countNodes(context.psdLayerTree!)).toBeLessThanOrEqual(200);
+    // 深さ制限で切られてもトップレベルのグループ自体は残る
+    expect(context.psdLayerTree!.length).toBe(30);
+  });
+
   it('falls back to type-only context for unsupported object types', () => {
     const shape = { id: 'shape-1', type: 'shape', layer: 0, startTime: 0, duration: 5 } as any;
     const context = deriveRemoteDeckContext({ selectedId: 'shape-1', objects: [shape] } as any);
-    expect(context).toEqual({ objectId: 'shape-1', objectType: 'shape', properties: [] });
+    expect(context.objectId).toBe('shape-1');
+    expect(context.objectType).toBe('shape');
   });
 
   it('omits psd expression groups when layer data is missing', () => {
