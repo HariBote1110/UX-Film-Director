@@ -1191,6 +1191,8 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "half",
+ "metal",
+ "objc",
  "pollster",
  "raw-window-handle",
  "uxfd-golden-harness",

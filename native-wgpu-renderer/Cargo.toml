@@ -18,6 +18,20 @@ uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
 uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
 wgpu = "0.20"
 
+# Phase 4b (NV12 IOSurface import): wgpu-hal 0.21.1 の metal backend が
+# 内部で使う `metal`/`objc` と同一バージョンに固定し、重複クレートを
+# 避ける（詳細: progress/phase4b-nv12-iosurface-gpu-import.md）。
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = "0.28"
+objc = "0.2.4"
+
 [dev-dependencies]
 tempfile = "3.14"
 uxfd-decode-spike = { path = "../decode-spike" }
+
+# NV12 テストフィクスチャ（synthetic IOSurface-backed CVPixelBuffer）構築用。
+# `core-graphics-types`（`metal` crate 経由）が要求する core-foundation 0.9
+# 系に揃え、production 依存では重複を避けるため dev-dependencies のみに
+# 限定する。
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+core-foundation = "0.9"
