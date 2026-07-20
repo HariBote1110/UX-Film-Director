@@ -4,8 +4,10 @@ use crate::native_shared::read_native_render_source_frame;
 use crate::params::NativeRenderSharedFrameSource;
 use crate::psd_fast;
 use crate::state::{SourceFrameCache, SourceFrameCacheKey};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
@@ -109,6 +111,96 @@ pub(crate) fn collect_native_render_sources(
     }
 
     Ok(sources)
+}
+
+/// Phase 3a（native-wgpu-renderer の per-clip GPU テクスチャキャッシュ）向け:
+/// media_id ごとの「内容が変化したかどうか」を示す論理世代（revision）を、
+/// ピクセルを一切ハッシュせずに安価な識別情報だけから算出する。
+///
+/// - `Image`/`Psd`: 既存の `SourceFrameCache` と同じ識別キー（パス＋mtime＋
+///   サイズ＋アクティブレイヤー）をハッシュする。ファイル内容が変わらない限り
+///   同じ値が返る。
+/// - シェアードメモリ経由の動画フレーム: デコーダが新しいフレームを書くたびに
+///   進む `FrameDescriptor::generation` をそのまま使う（動画フレームが進めば
+///   必ず変化し、同じフレームの再提示では変化しない）。
+/// - それ以外の生成コンテンツ（SolidColour・図形・テキスト等）: 出力を決定する
+///   `SceneMediaReference` の各フィールドをハッシュする。`GeneratedParticle`
+///   等、`clip.source_frame`（再生位置）に応じて絵柄が変わる一部の生成源は
+///   その値も併せてハッシュへ混ぜ、毎フレーム変化させる（従来どおり常に
+///   再アップロードされる）。
+/// - `GeneratedAudioWaveform`/`GeneratedAudioSphere`/`Video`（PCM 波形の
+///   ラスタライズ結果や、通常の動画パス経由の CPU デコード結果）は revision
+///   を算出しない（呼び出し側の renderer は revision 不在の media_id を常に
+///   ミス扱いにするため、既存の「毎フレーム再生成」挙動のまま）。
+#[cfg(unix)]
+pub(crate) fn collect_native_render_source_content_revisions(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+    shared_sources: &[NativeRenderSharedFrameSource],
+) -> HashMap<String, u64> {
+    let mut revisions = HashMap::with_capacity(media_items.len() + shared_sources.len());
+    for media in media_items {
+        let revision = match media.kind {
+            MediaKind::Image | MediaKind::Psd => image_or_psd_content_revision(media),
+            MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere | MediaKind::Video => {
+                None
+            }
+            MediaKind::GeneratedParticle
+            | MediaKind::GeneratedFocusLinesPlus
+            | MediaKind::GeneratedShakingPolygon
+            | MediaKind::GeneratedShatteredSphere => Some(media_content_revision(
+                media,
+                Some(source_frame_for_media(snapshot, &media.id)),
+            )),
+            _ => Some(media_content_revision(media, None)),
+        };
+        if let Some(revision) = revision {
+            revisions.insert(media.id.clone(), revision);
+        }
+    }
+    for source in shared_sources {
+        revisions.insert(source.media_id.clone(), source.frame.descriptor.generation);
+    }
+    revisions
+}
+
+/// `Image`/`Psd` media の内容世代。ソースファイルの mtime/サイズが変わらない
+/// 限り安定する（`SourceFrameCache` の識別キーそのものをハッシュするだけで、
+/// ファイル I/O は `fs::metadata` の 1 回の stat のみ）。パス解決やメタデータ
+/// 取得に失敗した場合は `None`（=常にミス扱い）を返し、安全側に倒す。
+#[cfg(unix)]
+fn image_or_psd_content_revision(media: &SceneMediaReference) -> Option<u64> {
+    let source_path = local_media_source_path(&media.source, "media").ok()?;
+    let active_layer_ids: &[String] = if media.kind == MediaKind::Psd {
+        &media.active_layer_ids
+    } else {
+        &[]
+    };
+    let cache_key =
+        build_source_frame_cache_key(&source_path, active_layer_ids, media.width, media.height)
+            .ok()?;
+    let mut hasher = DefaultHasher::new();
+    cache_key.hash(&mut hasher);
+    Some(hasher.finish())
+}
+
+/// 生成コンテンツ（Image/Psd 以外）の内容世代。`media` の各フィールド
+/// （ピクセルではなくパラメータ）と、時間依存の生成源のみ渡される
+/// `time_seed`（`clip.source_frame`）をハッシュする。
+#[cfg(unix)]
+fn media_content_revision(media: &SceneMediaReference, time_seed: Option<u64>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    media.id.hash(&mut hasher);
+    format!("{:?}", media.kind).hash(&mut hasher);
+    media.source.hash(&mut hasher);
+    media.width.hash(&mut hasher);
+    media.height.hash(&mut hasher);
+    media.active_layer_ids.hash(&mut hasher);
+    format!("{:?}", media.source_rate).hash(&mut hasher);
+    if let Some(seed) = time_seed {
+        seed.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
@@ -620,5 +712,219 @@ mod source_frame_cache_tests {
         );
 
         let _ = fs::remove_file(&path);
+    }
+}
+
+/// Phase 3a: `collect_native_render_source_content_revisions` の identity 契約
+/// （native-wgpu-renderer 側の per-clip GPU テクスチャキャッシュのキー）を固定する。
+#[cfg(all(test, unix))]
+mod content_revision_tests {
+    use super::*;
+    use std::fs::File;
+    use std::time::{Duration, SystemTime};
+    use uxfd_golden_harness::save_rgba_png;
+    use uxfd_sidecar_protocol::{ColourMetadata, FrameDescriptor, FrameFormat, SharedFrame};
+
+    fn unique_temp_path(name: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        let unique = format!(
+            "uxfd-content-revision-test-{}-{}-{name}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("system time after epoch")
+                .as_nanos()
+        );
+        path.push(unique);
+        path
+    }
+
+    fn write_solid_png(path: &std::path::Path, rgba: [u8; 4]) {
+        let pixels = rgba.repeat(4); // 2x2 image
+        let frame = RgbaFrame::from_rgba8(2, 2, pixels).expect("valid solid RgbaFrame");
+        save_rgba_png(path, &frame).expect("write test PNG fixture");
+    }
+
+    fn image_media(id: &str, path: &std::path::Path) -> SceneMediaReference {
+        SceneMediaReference {
+            id: id.to_string(),
+            kind: MediaKind::Image,
+            source: path.to_string_lossy().to_string(),
+            width: 2,
+            height: 2,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }
+    }
+
+    fn solid_colour_media(id: &str, width: u32) -> SceneMediaReference {
+        SceneMediaReference {
+            id: id.to_string(),
+            kind: MediaKind::SolidColour,
+            source: "#ff0000".to_string(),
+            width,
+            height: 4,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }
+    }
+
+    fn empty_snapshot() -> SceneSnapshot {
+        SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn image_content_revision_is_stable_until_the_file_is_modified() {
+        let path = unique_temp_path("image-revision.png");
+        write_solid_png(&path, [255, 0, 0, 255]);
+        let media = image_media("image-1", &path);
+        let snapshot = empty_snapshot();
+
+        let first = collect_native_render_source_content_revisions(&snapshot, &[media.clone()], &[]);
+        let second = collect_native_render_source_content_revisions(&snapshot, &[media.clone()], &[]);
+        assert_eq!(
+            first.get("image-1"),
+            second.get("image-1"),
+            "unchanged file must yield the same content revision across calls"
+        );
+        assert!(first.get("image-1").is_some());
+
+        // Bump the mtime forward (same as the SourceFrameCache invalidation
+        // test) so the identity key changes even on coarse-mtime filesystems.
+        let file = File::options()
+            .write(true)
+            .open(&path)
+            .expect("open test PNG for mtime bump");
+        file.set_modified(SystemTime::now() + Duration::from_secs(5))
+            .expect("set mtime for revision test");
+        drop(file);
+
+        let third = collect_native_render_source_content_revisions(&snapshot, &[media], &[]);
+        assert_ne!(
+            first.get("image-1"),
+            third.get("image-1"),
+            "a modified file must change the content revision"
+        );
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn generated_media_content_revision_is_stable_and_changes_with_parameters() {
+        let snapshot = empty_snapshot();
+        let media_a = solid_colour_media("solid-1", 4);
+        let media_b = solid_colour_media("solid-1", 4);
+        let media_wider = solid_colour_media("solid-1", 8);
+
+        let first = collect_native_render_source_content_revisions(&snapshot, &[media_a], &[]);
+        let second = collect_native_render_source_content_revisions(&snapshot, &[media_b], &[]);
+        assert_eq!(
+            first.get("solid-1"),
+            second.get("solid-1"),
+            "identical media parameters must yield the same revision without hashing pixels"
+        );
+
+        let third = collect_native_render_source_content_revisions(&snapshot, &[media_wider], &[]);
+        assert_ne!(
+            first.get("solid-1"),
+            third.get("solid-1"),
+            "changed media parameters (width) must change the content revision"
+        );
+    }
+
+    #[test]
+    fn shared_video_source_content_revision_tracks_frame_descriptor_generation() {
+        let snapshot = empty_snapshot();
+        let descriptor = FrameDescriptor {
+            memory_id: "mem-1".to_string(),
+            slot_index: 0,
+            generation: 5,
+            byte_offset: 0,
+            byte_len: 16,
+            width: 2,
+            height: 2,
+            stride_bytes: 8,
+            format: FrameFormat::Rgba8Srgb,
+            colour: ColourMetadata::rec709_srgb(),
+        };
+        let source = NativeRenderSharedFrameSource {
+            media_id: "video-1".to_string(),
+            slot_count: 2,
+            frame: SharedFrame {
+                descriptor: descriptor.clone(),
+                pts_frame: 10,
+            },
+        };
+
+        let revisions = collect_native_render_source_content_revisions(&snapshot, &[], &[source]);
+        assert_eq!(
+            revisions.get("video-1"),
+            Some(&5u64),
+            "shared video source revision must be exactly the frame descriptor generation, \
+             so a paused/re-presented frame (unchanged generation) hits the GPU texture cache"
+        );
+
+        let mut advanced_descriptor = descriptor;
+        advanced_descriptor.generation = 6;
+        let advanced_source = NativeRenderSharedFrameSource {
+            media_id: "video-1".to_string(),
+            slot_count: 2,
+            frame: SharedFrame {
+                descriptor: advanced_descriptor,
+                pts_frame: 11,
+            },
+        };
+        let advanced_revisions =
+            collect_native_render_source_content_revisions(&snapshot, &[], &[advanced_source]);
+        assert_eq!(
+            advanced_revisions.get("video-1"),
+            Some(&6u64),
+            "a new decoded frame (generation advanced) must change the revision so the \
+             GPU texture is re-uploaded"
+        );
+    }
+
+    #[test]
+    fn excluded_media_kinds_have_no_content_revision() {
+        let snapshot = empty_snapshot();
+        let waveform_media = SceneMediaReference {
+            id: "waveform-1".to_string(),
+            kind: MediaKind::GeneratedAudioWaveform,
+            source: String::new(),
+            width: 4,
+            height: 4,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+        let video_media = SceneMediaReference {
+            id: "video-media-1".to_string(),
+            kind: MediaKind::Video,
+            source: "/tmp/does-not-matter.mov".to_string(),
+            width: 4,
+            height: 4,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let revisions = collect_native_render_source_content_revisions(
+            &snapshot,
+            &[waveform_media, video_media],
+            &[],
+        );
+
+        assert!(
+            revisions.get("waveform-1").is_none(),
+            "audio waveform rasterisation has no stable content revision; renderer must \
+             always miss and re-upload it"
+        );
+        assert!(
+            revisions.get("video-media-1").is_none(),
+            "the ordinary Video media kind is not driven by revision (only the shared \
+             frame descriptor path is); renderer must always miss and re-upload it"
+        );
     }
 }

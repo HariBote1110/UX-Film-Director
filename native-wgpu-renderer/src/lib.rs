@@ -2,7 +2,7 @@ use raw_window_handle::{
     AppKitWindowHandle, DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
@@ -148,6 +148,17 @@ pub struct NativeWgpuRenderer {
     /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
     prepared_scene_cache_hits: AtomicU64,
     prepared_scene_cache_misses: AtomicU64,
+    /// media_id ＋呼び出し側供給の内容世代（revision）でキー付けした GPU
+    /// テクスチャキャッシュ。毎フレーム全クリップのテクスチャを作り直す既存の
+    /// `prepare_clip` の代わりに、内容が変わっていないクリップは
+    /// `create_texture`/`write_texture` を一切行わず前回のテクスチャを再利用する
+    /// （transform/opacity/effects のみ変わるドラッグ中の静止画・PSD・生成
+    /// テキスト等が主な対象）。呼び出し側が revision を渡さない media_id は
+    /// 常にミス扱いとし、既存の「毎フレーム再生成」挙動をそのまま維持する。
+    media_texture_cache: Mutex<MediaTextureCache>,
+    /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
+    media_texture_cache_hits: AtomicU64,
+    media_texture_cache_misses: AtomicU64,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -159,6 +170,66 @@ pub struct NativeWgpuRenderer {
 struct PreparedSceneCache {
     generation: u64,
     prepared_clips: Vec<(u32, Arc<PreparedClip>)>,
+}
+
+/// media_id 単位の GPU テクスチャキャッシュ 1 エントリ。
+struct MediaTextureCacheEntry {
+    /// 呼び出し側が供給する内容世代。同じ値が続く限り `texture` を再利用する。
+    revision: u64,
+    texture: wgpu::Texture,
+    /// アップロード済みテクスチャの実サイズ（downscale後の値。RenderParams
+    /// の source_width/source_height をキャッシュ hit 時にも正しく埋める
+    /// ために保持する）。
+    width: u32,
+    height: u32,
+    /// アップロード済みピクセルバイト数（バイト予算によるLRU退避の判定に使う）。
+    byte_len: usize,
+    /// この media_id を参照するクリップが何フレーム連続で不在だったか。
+    /// 毎フレーム `evict_stale_media_textures` で更新し、閾値超過で退避する。
+    idle_frames: u64,
+}
+
+/// `SourceFrameCache`（rust-backend/src/state.rs）と同じ設計（エントリ数上限＋
+/// バイト予算＋挿入順キューによる単純 LRU）を GPU テクスチャ向けに踏襲する。
+#[derive(Default)]
+struct MediaTextureCache {
+    entries: HashMap<String, MediaTextureCacheEntry>,
+    /// 直近アクセス順（最も長く触れられていないものが先頭）。
+    order: VecDeque<String>,
+    total_bytes: usize,
+}
+
+/// 512MB — `SourceFrameCache`（CPU側デコード結果）のバイト予算と揃える。
+const MEDIA_TEXTURE_CACHE_MAX_BYTES: usize = 512 * 1024 * 1024;
+/// この回数だけ連続して参照されなかった media のテクスチャは、バイト予算内でも
+/// 即座に退避する（クリップ削除・シーンクリア後にすぐ GPU メモリを解放するため）。
+const MEDIA_TEXTURE_CACHE_IDLE_FRAME_LIMIT: u64 = 30;
+
+impl MediaTextureCache {
+    fn touch(&mut self, media_id: &str) {
+        if let Some(position) = self.order.iter().position(|existing| existing == media_id) {
+            if let Some(moved) = self.order.remove(position) {
+                self.order.push_back(moved);
+            }
+        }
+    }
+
+    fn remove(&mut self, media_id: &str) {
+        if let Some(removed) = self.entries.remove(media_id) {
+            self.total_bytes = self.total_bytes.saturating_sub(removed.byte_len);
+        }
+        self.order.retain(|existing| existing != media_id);
+    }
+
+    fn insert(&mut self, media_id: String, entry: MediaTextureCacheEntry) {
+        let byte_len = entry.byte_len;
+        if let Some(previous) = self.entries.insert(media_id.clone(), entry) {
+            self.total_bytes = self.total_bytes.saturating_sub(previous.byte_len);
+            self.order.retain(|existing| existing != &media_id);
+        }
+        self.order.push_back(media_id);
+        self.total_bytes += byte_len;
+    }
 }
 
 pub struct NativeWgpuLiveSurfaceRenderer {
@@ -249,6 +320,9 @@ impl NativeWgpuLiveSurfaceRenderer {
             prepared_scene_cache: Mutex::new(None),
             prepared_scene_cache_hits: AtomicU64::new(0),
             prepared_scene_cache_misses: AtomicU64::new(0),
+            media_texture_cache: Mutex::new(MediaTextureCache::default()),
+            media_texture_cache_hits: AtomicU64::new(0),
+            media_texture_cache_misses: AtomicU64::new(0),
         };
 
         Ok(Self {
@@ -267,7 +341,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let total_start = Instant::now();
         let (prepared_clips, source_upload) = self
             .core
-            .prepare_scene_clips_without_upload_fence(snapshot, sources)?;
+            .prepare_scene_clips_without_upload_fence(snapshot, sources, &HashMap::new())?;
         let acquire_start = Instant::now();
         let surface_texture = self
             .surface
@@ -338,6 +412,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     clips: decoration_clips.to_vec(),
                 },
                 decoration_sources,
+                &HashMap::new(),
             )?;
         let source_upload = base_source_upload + decoration_source_upload;
 
@@ -400,7 +475,9 @@ impl NativeWgpuLiveSurfaceRenderer {
         sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        let (prepared_clips, source_upload) = self.core.prepare_scene_clips(snapshot, sources)?;
+        let (prepared_clips, source_upload) =
+            self.core
+                .prepare_scene_clips(snapshot, sources, &HashMap::new())?;
         let acquire_start = Instant::now();
         let surface_texture = self
             .surface
@@ -487,6 +564,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     clips: decoration_clips.to_vec(),
                 },
                 decoration_sources,
+                &HashMap::new(),
             )?;
         let mut merged: Vec<(u32, Arc<PreparedClip>)> = base_prepared_clips;
         merged.extend(
@@ -637,6 +715,9 @@ impl NativeWgpuRenderer {
             prepared_scene_cache: Mutex::new(None),
             prepared_scene_cache_hits: AtomicU64::new(0),
             prepared_scene_cache_misses: AtomicU64::new(0),
+            media_texture_cache: Mutex::new(MediaTextureCache::default()),
+            media_texture_cache_hits: AtomicU64::new(0),
+            media_texture_cache_misses: AtomicU64::new(0),
         })
     }
 
@@ -648,14 +729,47 @@ impl NativeWgpuRenderer {
         self.height
     }
 
+    /// 出力サイズ依存リソース（`output_texture`／`readback_buffer`）だけを
+    /// 作り直し、`device`／`pipeline`／`bind_group_layout`／per-media GPU
+    /// テクスチャキャッシュ（`media_texture_cache`）は保持する。呼び出し側
+    /// （`get_or_create_native_wgpu_renderer`）が単なるペインリサイズのたびに
+    /// レンダラごと（＝全クリップの GPU リソース）を破棄・再構築していたのを
+    /// やめ、リサイズと無関係なキャッシュ内容を生き残らせるための入口。
+    /// device 生成時点で要求した `max_texture_dimension_2d` はアダプタの実上限
+    /// なので、新しい width/height がそれを超えない限り device 自体は再生成
+    /// 不要（`required_limits_for_frame` 参照）。
+    pub fn resize_output(&mut self, width: u32, height: u32) -> Result<(), NativeWgpuRenderError> {
+        let max_texture_dimension_2d = self.device.limits().max_texture_dimension_2d;
+        let required_dimension = width.max(height);
+        if required_dimension > max_texture_dimension_2d {
+            return Err(NativeWgpuRenderError::FrameSizeExceedsAdapterLimit {
+                width,
+                height,
+                max_texture_dimension_2d,
+            });
+        }
+
+        self.output_texture = create_output_texture(&self.device, width, height);
+        self.readback_buffer = create_readback_buffer(&self.device, width, height);
+        self.width = width;
+        self.height = height;
+        Ok(())
+    }
+
     pub async fn render_frame_stages(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        self.render_frame_stages_with_setup(snapshot, sources, Duration::ZERO, total_start)
-            .await
+        self.render_frame_stages_with_setup(
+            snapshot,
+            sources,
+            Duration::ZERO,
+            total_start,
+            &HashMap::new(),
+        )
+        .await
     }
 
     pub async fn present_frame_stages(
@@ -664,8 +778,14 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        self.present_frame_stages_with_setup(snapshot, sources, Duration::ZERO, total_start)
-            .await
+        self.present_frame_stages_with_setup(
+            snapshot,
+            sources,
+            Duration::ZERO,
+            total_start,
+            &HashMap::new(),
+        )
+        .await
     }
 
     pub async fn render_overlay_surface_frame_for_test(
@@ -689,29 +809,50 @@ impl NativeWgpuRenderer {
         frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
     }
 
+    /// `content_revisions` は media_id ごとの呼び出し側供給の内容世代。
+    /// 値が変わらない media_id の GPU テクスチャは再アップロードされない
+    /// （`prepare_clip_cached` 参照）。呼び出し側が revision を持たない
+    /// media_id は常にミス扱いになり、既存の毎フレーム再生成のまま。
     pub async fn render_frame_to_shared_ring_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
+        content_revisions: &HashMap<String, u64>,
         memory_id: &str,
         slot_count: u32,
         pts_frame: u64,
     ) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
         let report = self
-            .render_frame_stages_with_audio_waveforms(snapshot, sources, waveforms)
+            .render_frame_stages_with_audio_waveforms(
+                snapshot,
+                sources,
+                waveforms,
+                content_revisions,
+            )
             .await?;
         frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
     }
 
+    /// `content_revisions` の契約は `render_frame_to_shared_ring_with_audio_waveforms`
+    /// と同じ。
     pub async fn render_frame_stages_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
-        self.render_frame_stages(snapshot, &generated_sources).await
+        let total_start = Instant::now();
+        self.render_frame_stages_with_setup(
+            snapshot,
+            &generated_sources,
+            Duration::ZERO,
+            total_start,
+            content_revisions,
+        )
+        .await
     }
 
     async fn render_frame_stages_with_setup(
@@ -720,8 +861,10 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, RgbaFrame>,
         setup: Duration,
         total_start: Instant,
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
-        let (prepared_clips, source_upload) = self.prepare_scene_clips(snapshot, sources)?;
+        let (prepared_clips, source_upload) =
+            self.prepare_scene_clips(snapshot, sources, content_revisions)?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -801,8 +944,10 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, RgbaFrame>,
         setup: Duration,
         total_start: Instant,
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
-        let (prepared_clips, source_upload) = self.prepare_scene_clips(snapshot, sources)?;
+        let (prepared_clips, source_upload) =
+            self.prepare_scene_clips(snapshot, sources, content_revisions)?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -838,28 +983,37 @@ impl NativeWgpuRenderer {
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
-        self.prepare_scene_clips_with_upload_fence(snapshot, sources, true)
+        self.prepare_scene_clips_with_upload_fence(snapshot, sources, true, content_revisions)
     }
 
     fn prepare_scene_clips_without_upload_fence(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
-        self.prepare_scene_clips_with_upload_fence(snapshot, sources, false)
+        self.prepare_scene_clips_with_upload_fence(snapshot, sources, false, content_revisions)
     }
 
+    /// `content_revisions` は media_id ごとの呼び出し側供給の内容世代
+    /// （`get_or_upload_media_texture` 参照）。media_id が同じキーで見つからない
+    /// 場合は常にミス扱いになり、`prepare_clip` 時代と同じ「毎フレーム
+    /// create_texture/write_texture/create_bind_group」を行う。
     fn prepare_scene_clips_with_upload_fence(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         wait_for_upload: bool,
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         let mut clips = snapshot.clips.clone();
         clips.sort_by_key(|clip| clip.z_index);
 
         let mut prepared_clips = Vec::with_capacity(clips.len());
+        let mut touched_media_ids: HashSet<String> = HashSet::with_capacity(clips.len());
+        let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
             if !clip.transform.rotation_degrees.is_finite()
@@ -877,22 +1031,18 @@ impl NativeWgpuRenderer {
                     media_id: clip.media_id.clone(),
                 }
             })?;
-            // device の max_texture_dimension_2d を超えるソース（巨大PSD等）を
-            // そのまま create_texture へ渡すと wgpu Validation Error で panic する。
-            // その場合のみアスペクト比維持でCPU側縮小してから使用し、描画継続する。
-            let max_source_dimension = self.device.limits().max_texture_dimension_2d;
-            let downscaled_source;
-            let source = if source.width.max(source.height) > max_source_dimension {
-                downscaled_source = downscale_rgba_frame_to_fit(source, max_source_dimension);
-                &downscaled_source
-            } else {
-                source
-            };
-            prepared_clips.push(Arc::new(prepare_clip(
+            touched_media_ids.insert(clip.media_id.clone());
+            let revision = content_revisions.get(&clip.media_id).copied();
+            // media_id ＋ revision が前回と一致すれば create_texture/write_texture
+            // を一切行わずキャッシュ済みテクスチャの view を返す。downscale
+            // （device の max_texture_dimension_2d を超えるソース対策）もキャッシュ
+            // hit 時は不要なため、ここでは行わずメソッド内部に委譲する。
+            let (texture_view, prepared_width, prepared_height) = self
+                .get_or_upload_media_texture(&clip.media_id, revision, source, max_source_dimension);
+            prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
                 &self.device,
-                &self.queue,
                 &self.bind_group_layout,
-                source,
+                &texture_view,
                 RenderParams {
                     opacity: clip.opacity,
                     gain: clip
@@ -1013,8 +1163,8 @@ impl NativeWgpuRenderer {
                     gradient_overlay_bounds_y: gradient_overlay_bounds_y(clip),
                     gradient_overlay_bounds_width: gradient_overlay_bounds_width(clip),
                     gradient_overlay_bounds_height: gradient_overlay_bounds_height(clip),
-                    source_width: source.width as f32,
-                    source_height: source.height as f32,
+                    source_width: prepared_width as f32,
+                    source_height: prepared_height as f32,
                     translation_x: clip.transform.translation_x,
                     translation_y: clip.transform.translation_y,
                     scale_x: clip.transform.scale_x,
@@ -1030,6 +1180,9 @@ impl NativeWgpuRenderer {
                 },
             )));
         }
+        // このフレームで参照されなかった media のテクスチャは連続不参照フレーム数
+        // を積み上げ、閾値超過またはバイト予算超過で GPU メモリを解放する。
+        self.evict_stale_media_textures(&touched_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -1037,6 +1190,137 @@ impl NativeWgpuRenderer {
         let source_upload = upload_start.elapsed();
 
         Ok((prepared_clips, source_upload))
+    }
+
+    /// media_id ＋ revision で GPU テクスチャをキャッシュしつつ、この呼び出しの
+    /// フレームで使うテクスチャビューと（downscale後の実際の）幅・高さを返す。
+    /// `revision` が `Some` かつキャッシュ済みの値と一致する場合は
+    /// create_texture/write_texture を一切行わない（キャッシュ hit）。`None`
+    /// （呼び出し側が内容の同一性を判定できない）の場合は常にミス扱いとし、
+    /// 旧 `prepare_clip` と同じ「毎フレーム再アップロード」挙動を維持する。
+    fn get_or_upload_media_texture(
+        &self,
+        media_id: &str,
+        revision: Option<u64>,
+        source: &RgbaFrame,
+        max_source_dimension: u32,
+    ) -> (wgpu::TextureView, u32, u32) {
+        if let Some(revision) = revision {
+            let mut cache = self
+                .media_texture_cache
+                .lock()
+                .expect("media texture cache mutex must not be poisoned");
+            let hit = cache
+                .entries
+                .get(media_id)
+                .map(|entry| entry.revision)
+                == Some(revision);
+            if hit {
+                self.media_texture_cache_hits.fetch_add(1, Ordering::Relaxed);
+                cache.touch(media_id);
+                let entry = cache
+                    .entries
+                    .get_mut(media_id)
+                    .expect("hit checked above must have an entry");
+                entry.idle_frames = 0;
+                let view = entry
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+                let (width, height) = (entry.width, entry.height);
+                drop(cache);
+                return (view, width, height);
+            }
+        }
+
+        self.media_texture_cache_misses.fetch_add(1, Ordering::Relaxed);
+        // device の max_texture_dimension_2d を超えるソース（巨大PSD等）を
+        // そのまま create_texture へ渡すと wgpu Validation Error で panic する。
+        // その場合のみアスペクト比維持でCPU側縮小してから使用し、描画継続する。
+        let downscaled_source;
+        let upload_source = if source.width.max(source.height) > max_source_dimension {
+            downscaled_source = downscale_rgba_frame_to_fit(source, max_source_dimension);
+            &downscaled_source
+        } else {
+            source
+        };
+        let texture = create_and_upload_source_texture(&self.device, &self.queue, upload_source);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let width = upload_source.width;
+        let height = upload_source.height;
+
+        if let Some(revision) = revision {
+            let byte_len = upload_source.pixels.len();
+            let mut cache = self
+                .media_texture_cache
+                .lock()
+                .expect("media texture cache mutex must not be poisoned");
+            cache.insert(
+                media_id.to_string(),
+                MediaTextureCacheEntry {
+                    revision,
+                    texture,
+                    width,
+                    height,
+                    byte_len,
+                    idle_frames: 0,
+                },
+            );
+        }
+
+        (view, width, height)
+    }
+
+    /// 今フレームで参照された media_id 以外の `idle_frames` を進め、
+    /// `MEDIA_TEXTURE_CACHE_IDLE_FRAME_LIMIT` を超えたエントリを即座に解放する
+    /// （クリップ削除・シーンクリア後に GPU メモリを取り戻すため）。続けて
+    /// `MEDIA_TEXTURE_CACHE_MAX_BYTES` を超える分を最も長く未参照のものから
+    /// 追加で退避する（`SourceFrameCache` と同じ挿入順 LRU）。
+    fn evict_stale_media_textures(&self, touched_media_ids: &HashSet<String>) {
+        let mut cache = self
+            .media_texture_cache
+            .lock()
+            .expect("media texture cache mutex must not be poisoned");
+
+        let mut idle_evictions: Vec<String> = Vec::new();
+        for (media_id, entry) in cache.entries.iter_mut() {
+            if touched_media_ids.contains(media_id) {
+                entry.idle_frames = 0;
+            } else {
+                entry.idle_frames += 1;
+                if entry.idle_frames > MEDIA_TEXTURE_CACHE_IDLE_FRAME_LIMIT {
+                    idle_evictions.push(media_id.clone());
+                }
+            }
+        }
+        for media_id in idle_evictions {
+            cache.remove(&media_id);
+        }
+
+        while cache.total_bytes > MEDIA_TEXTURE_CACHE_MAX_BYTES {
+            let Some(oldest) = cache.order.front().cloned() else {
+                break;
+            };
+            cache.remove(&oldest);
+        }
+    }
+
+    /// テスト計測用: (hits, misses) を返す。本番コードパスからは参照されない。
+    #[cfg(test)]
+    fn media_texture_cache_stats(&self) -> (u64, u64) {
+        (
+            self.media_texture_cache_hits.load(Ordering::Relaxed),
+            self.media_texture_cache_misses.load(Ordering::Relaxed),
+        )
+    }
+
+    /// テスト計測用: 現在キャッシュされている media 数。
+    #[cfg(test)]
+    fn media_texture_cache_len(&self) -> usize {
+        self.media_texture_cache
+            .lock()
+            .expect("media texture cache mutex must not be poisoned")
+            .entries
+            .len()
     }
 
     /// live surface 専用: `generation` が前回 present 時と同じであれば
@@ -1072,8 +1356,12 @@ impl NativeWgpuRenderer {
         let mut sorted_z_indices: Vec<u32> =
             snapshot.clips.iter().map(|clip| clip.z_index).collect();
         sorted_z_indices.sort_unstable();
+        // live surface（native-overlay）は media 内容世代を渡さないため、per-clip
+        // テクスチャキャッシュは常にミス扱い（既存の毎フレーム再生成のまま）。
+        // ここでの「再生成回避」は generation ベースの `prepared_scene_cache`
+        // （このメソッド自体）が担う。
         let (prepared_clips, source_upload) =
-            self.prepare_scene_clips_without_upload_fence(snapshot, sources)?;
+            self.prepare_scene_clips_without_upload_fence(snapshot, sources, &HashMap::new())?;
         let prepared_clips: Vec<(u32, Arc<PreparedClip>)> = sorted_z_indices
             .into_iter()
             .zip(prepared_clips.into_iter())
@@ -1484,7 +1772,7 @@ pub async fn measure_native_wgpu_frame_stages(
     let renderer = NativeWgpuRenderer::new(width, height).await?;
     let setup = total_start.elapsed();
     renderer
-        .render_frame_stages_with_setup(snapshot, sources, setup, total_start)
+        .render_frame_stages_with_setup(snapshot, sources, setup, total_start, &HashMap::new())
         .await
 }
 
@@ -1498,7 +1786,7 @@ pub async fn measure_native_wgpu_present_stages(
     let renderer = NativeWgpuRenderer::new(width, height).await?;
     let setup = total_start.elapsed();
     renderer
-        .present_frame_stages_with_setup(snapshot, sources, setup, total_start)
+        .present_frame_stages_with_setup(snapshot, sources, setup, total_start, &HashMap::new())
         .await
 }
 
@@ -1949,13 +2237,14 @@ fn copy_live_surface_texture_to_readback(
     );
 }
 
-fn prepare_clip(
+/// クリップの GPU ソーステクスチャを新規作成して即アップロードする
+/// （`get_or_upload_media_texture` のキャッシュミス経路専用）。旧 `prepare_clip`
+/// のテクスチャ生成部分をそのまま切り出したもので、挙動に変更はない。
+fn create_and_upload_source_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    bind_group_layout: &wgpu::BindGroupLayout,
     source: &RgbaFrame,
-    params: RenderParams,
-) -> PreparedClip {
+) -> wgpu::Texture {
     let source_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("UXFD native wgpu source texture"),
         size: wgpu::Extent3d {
@@ -1989,7 +2278,18 @@ fn prepare_clip(
             depth_or_array_layers: 1,
         },
     );
+    source_texture
+}
 
+/// クリップ 1 枚分の uniform buffer と bind group を毎フレーム軽量に組み立てる
+/// （テクスチャ自体は使い回すので `create_texture`/`write_texture` を含まない）。
+/// 旧 `prepare_clip` のうち uniform/bind group 生成部分をそのまま切り出したもの。
+fn build_prepared_clip_bind_group(
+    device: &wgpu::Device,
+    bind_group_layout: &wgpu::BindGroupLayout,
+    texture_view: &wgpu::TextureView,
+    params: RenderParams,
+) -> PreparedClip {
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("UXFD native wgpu params buffer"),
         contents: bytemuck::bytes_of(&params),
@@ -2002,9 +2302,7 @@ fn prepare_clip(
         entries: &[
             wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::TextureView(
-                    &source_texture.create_view(&wgpu::TextureViewDescriptor::default()),
-                ),
+                resource: wgpu::BindingResource::TextureView(texture_view),
             },
             wgpu::BindGroupEntry {
                 binding: 1,
@@ -3190,6 +3488,217 @@ mod tests {
         // 複製されていないこと）。
         assert_eq!(Arc::strong_count(&prepared_clips[0].1), 3);
         assert!(Arc::ptr_eq(&prepared_clips[0].1, &cloned[0].1));
+    }
+
+    /// `media_id` を 2 件持つシーンを作る。`entries` は `(clip_id, media_id)`。
+    /// 各 media は 2x2 の単色ソースフレーム（テストごとに内容差は不要）。
+    fn multi_clip_scene(
+        entries: &[(&str, &str)],
+    ) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+        let clips = entries
+            .iter()
+            .enumerate()
+            .map(|(index, (clip_id, media_id))| uxfd_rust_core::EvaluatedClip {
+                clip_id: clip_id.to_string(),
+                track_id: "track-1".to_string(),
+                media_id: media_id.to_string(),
+                source_frame: 0,
+                z_index: index as u32,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            })
+            .collect();
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips,
+        };
+        let mut sources = HashMap::new();
+        for (_, media_id) in entries {
+            sources.entry(media_id.to_string()).or_insert_with(|| {
+                RgbaFrame::from_rgba8(2, 2, vec![20; 2 * 2 * 4]).expect("valid source frame")
+            });
+        }
+        (snapshot, sources)
+    }
+
+    fn create_test_renderer(label: &str) -> Option<NativeWgpuRenderer> {
+        match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => Some(renderer),
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping {label}: no GPU adapter available");
+                None
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        }
+    }
+
+    #[test]
+    fn media_texture_cache_hits_when_revision_is_unchanged_across_transform_only_edits() {
+        // タスク Phase 3a: ドラッグ中（transform だけが変わる）でも、内容が
+        // 同じ media は create_texture/write_texture を再実行しないこと。
+        // 「同じ revision で 2 回目は必ずキャッシュ hit」という契約をカウンタで固定する。
+        let Some(renderer) = create_test_renderer("media texture cache hit test") else {
+            return;
+        };
+        let (mut snapshot, sources) = solid_scene("clip-1", "image-1");
+        let content_revisions = HashMap::from([("image-1".to_string(), 7u64)]);
+
+        let (first_clips, _) = renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("first prepare (miss) must succeed");
+        assert_eq!(renderer.media_texture_cache_stats(), (0, 1));
+
+        // transform だけを変える（ドラッグ相当）。revision は据え置き。
+        snapshot.clips[0].transform.translation_x = 42.0;
+        let (second_clips, second_upload) = renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("second prepare (hit) must succeed");
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (1, 1),
+            "unchanged revision must hit the media texture cache exactly once"
+        );
+        assert!(
+            second_upload < Duration::from_millis(1)
+                || renderer.media_texture_cache_stats().0 == 1,
+            "cache hit path must not repeat the texture upload"
+        );
+        // bind group 自体は毎フレーム transform 用に作り直すため Arc は別物だが、
+        // それはキャッシュ hit / miss の判定とは無関係（ここでは hit/miss
+        // カウンタで texture 再アップロード有無を担保している）。
+        assert_eq!(first_clips.len(), 1);
+        assert_eq!(second_clips.len(), 1);
+    }
+
+    #[test]
+    fn media_texture_cache_reuploads_only_the_media_whose_revision_changed() {
+        // 動画フレームが進む（shared memory frame descriptor の generation が
+        // 変わる）ケースを revision 変化で模擬する。動画側だけがミスになり、
+        // 静止画側はヒットし続けること（＝その media だけ再アップロード）。
+        let Some(renderer) = create_test_renderer("media texture cache selective reupload test")
+        else {
+            return;
+        };
+        let (snapshot, sources) = multi_clip_scene(&[("clip-video", "video-1"), ("clip-image", "image-1")]);
+
+        let mut content_revisions = HashMap::from([
+            ("video-1".to_string(), 1u64),
+            ("image-1".to_string(), 100u64),
+        ]);
+        renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("first prepare must succeed");
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 2),
+            "first frame: both media are misses"
+        );
+
+        // video-1 のフレームが進む（generation 相当の revision が変わる）。
+        // image-1 は静止画のまま（revision 不変）。
+        content_revisions.insert("video-1".to_string(), 2u64);
+        renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("second prepare must succeed");
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (1, 3),
+            "second frame: only the media whose revision changed (video-1) is re-uploaded; \
+             image-1 must hit"
+        );
+    }
+
+    #[test]
+    fn media_texture_cache_evicts_entries_unreferenced_for_the_idle_frame_limit() {
+        // クリップ削除・シーンクリア後、GPU テクスチャがいつまでも保持され続けない
+        // こと（不参照が続いた media は退避される）を固定する。
+        let Some(renderer) = create_test_renderer("media texture cache eviction test") else {
+            return;
+        };
+        let (snapshot, sources) = solid_scene("clip-1", "image-1");
+        let content_revisions = HashMap::from([("image-1".to_string(), 1u64)]);
+
+        renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("initial prepare must succeed");
+        assert_eq!(renderer.media_texture_cache_len(), 1);
+
+        // クリップが消えた（シーンから image-1 が参照されなくなった）状態を
+        // idle 上限を超えるフレーム数ぶん繰り返す。
+        let empty_snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        };
+        for _ in 0..=MEDIA_TEXTURE_CACHE_IDLE_FRAME_LIMIT {
+            renderer
+                .prepare_scene_clips(&empty_snapshot, &HashMap::new(), &HashMap::new())
+                .expect("prepare of empty scene must succeed");
+        }
+
+        assert_eq!(
+            renderer.media_texture_cache_len(),
+            0,
+            "media unreferenced for longer than the idle frame limit must be evicted"
+        );
+
+        // 退避後に再度参照すると必ずミスになること（本当に GPU リソースが
+        // 解放され、単なる会計上のズレではないことの確認）。
+        let (_, misses_before) = renderer.media_texture_cache_stats();
+        renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("re-referencing evicted media must succeed");
+        let (_, misses_after) = renderer.media_texture_cache_stats();
+        assert_eq!(
+            misses_after,
+            misses_before + 1,
+            "re-referencing an evicted media_id must miss and re-upload"
+        );
+    }
+
+    #[test]
+    fn resize_output_keeps_media_texture_cache_alive_and_renders_are_correct() {
+        // リサイズ（ペインサイズ変更）のたびにレンダラごと（＝全クリップの GPU
+        // リソース）を破棄していた旧実装と異なり、`resize_output` は
+        // 出力サイズ依存リソースだけを作り直し、per-media テクスチャキャッシュは
+        // 生き残ること、かつリサイズ後の描画結果が正しいサイズで得られることを
+        // 固定する。
+        let Some(mut renderer) = create_test_renderer("resize_output cache survival test") else {
+            return;
+        };
+        let (snapshot, sources) = solid_scene("clip-1", "image-1");
+        let content_revisions = HashMap::from([("image-1".to_string(), 1u64)]);
+
+        renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("prepare before resize must succeed");
+        assert_eq!(renderer.media_texture_cache_stats(), (0, 1));
+
+        renderer
+            .resize_output(8, 6)
+            .expect("resize_output must succeed within adapter limits");
+        assert_eq!(renderer.width(), 8);
+        assert_eq!(renderer.height(), 6);
+
+        // リサイズ後も同じ revision の media は引き続きキャッシュ hit すること。
+        renderer
+            .prepare_scene_clips(&snapshot, &sources, &content_revisions)
+            .expect("prepare after resize must succeed");
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (1, 1),
+            "resize must not invalidate the per-media GPU texture cache"
+        );
+
+        // リサイズ後の実際のレンダリングも新しいサイズで正しく完走すること。
+        let report = pollster::block_on(renderer.render_frame_stages(&snapshot, &sources))
+            .expect("render after resize must succeed");
+        assert_eq!(report.width, 8);
+        assert_eq!(report.height, 6);
+        assert_eq!(report.frame.width, 8);
+        assert_eq!(report.frame.height, 6);
     }
 
     #[test]

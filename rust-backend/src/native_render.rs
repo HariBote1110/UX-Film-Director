@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use crate::collect_native_render_sources;
+use crate::{collect_native_render_source_content_revisions, collect_native_render_sources};
 use crate::cpu_simple_video::{
     try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
 };
@@ -139,10 +139,19 @@ pub(crate) fn handle_encode_write_native_frame(
         }
     };
 
+    // Phase 3a: media_id ごとの内容世代（revision）。unchanged な media は
+    // native-wgpu-renderer 側の per-clip GPU テクスチャキャッシュにより
+    // create_texture/write_texture が省略される。
+    let content_revisions = collect_native_render_source_content_revisions(
+        &parsed.snapshot,
+        &parsed.media,
+        &parsed.sources,
+    );
     let render = match pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
         &parsed.snapshot,
         &sources,
         &audio_waveforms,
+        &content_revisions,
     )) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -314,11 +323,21 @@ pub(crate) fn handle_native_render_shared_frame(
         }
     };
 
+    // Phase 3a: `render.nativeSharedFrame` はプレビュー中に毎フレーム呼ばれる
+    // ホットパスそのもの。media_id ごとの内容世代（revision）を渡すことで、
+    // ドラッグ中の transform-only な更新でも静止画・PSD・生成テキスト等の
+    // GPU テクスチャ再アップロードを避ける。
+    let content_revisions = collect_native_render_source_content_revisions(
+        &parsed.snapshot,
+        &parsed.media,
+        &parsed.sources,
+    );
     let render =
         match pollster::block_on(renderer.render_frame_to_shared_ring_with_audio_waveforms(
             &parsed.snapshot,
             &sources,
             &audio_waveforms,
+            &content_revisions,
             &parsed.memory_id,
             parsed.slot_count,
             parsed.pts_frame,
@@ -408,19 +427,74 @@ pub(crate) fn get_or_create_native_wgpu_renderer(
     width: u32,
     height: u32,
 ) -> Result<&NativeWgpuRenderer, NativeWgpuRenderError> {
-    let needs_new_renderer = state
-        .native_wgpu_renderer
-        .as_ref()
-        .map(|renderer| renderer.width() != width || renderer.height() != height)
-        .unwrap_or(true);
-
-    if needs_new_renderer {
-        state.native_wgpu_renderer =
-            Some(pollster::block_on(NativeWgpuRenderer::new(width, height))?);
+    match state.native_wgpu_renderer.as_mut() {
+        Some(renderer) if renderer.width() == width && renderer.height() == height => {}
+        Some(renderer) => {
+            // Phase 3a: 単なる出力サイズ変更（ペインリサイズ）ではレンダラごと
+            // （device・pipeline・per-media GPU テクスチャキャッシュを含む全体）
+            // を破棄・再構築せず、出力サイズ依存リソース（output_texture／
+            // readback_buffer）だけを作り直す。旧実装は毎回フルリビルドしており、
+            // リサイズのたびに全クリップの GPU リソースを失っていた。
+            renderer.resize_output(width, height)?;
+        }
+        None => {
+            state.native_wgpu_renderer =
+                Some(pollster::block_on(NativeWgpuRenderer::new(width, height))?);
+        }
     }
 
     Ok(state
         .native_wgpu_renderer
         .as_ref()
         .expect("native WGPU renderer should be present after creation"))
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_or_create_native_wgpu_renderer_resizes_in_place_and_reports_new_dimensions() {
+        // タスク4: 出力サイズが変わっただけならレンダラごと破棄・再構築せず、
+        // `resize_output` 経由で出力サイズ依存リソースだけを作り直すこと。
+        // ここでは（内部の GPU リソース識別を外から直接観測できないため）
+        // resize が panic/error せずに完走し、その後の呼び出しで正しい新しい
+        // サイズが一貫して返ることを固定する。per-media テクスチャキャッシュが
+        // 実際にリサイズをまたいで生き残ることは native-wgpu-renderer クレート
+        // 側の `resize_output_keeps_media_texture_cache_alive_and_renders_are_correct`
+        // で hit/miss カウンタにより直接検証している。
+        let mut state = BackendState::default();
+
+        let first = match get_or_create_native_wgpu_renderer(&mut state, 4, 4) {
+            Ok(renderer) => {
+                assert_eq!((renderer.width(), renderer.height()), (4, 4));
+                true
+            }
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!(
+                    "skipping get_or_create_native_wgpu_renderer resize test: \
+                     no GPU adapter available"
+                );
+                false
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        if !first {
+            return;
+        }
+
+        let resized = get_or_create_native_wgpu_renderer(&mut state, 8, 6)
+            .expect("resizing to a larger output within adapter limits must succeed");
+        assert_eq!((resized.width(), resized.height()), (8, 6));
+
+        // 同じサイズを重ねて渡した場合は resize すら発生しない（no-op）。
+        let unchanged = get_or_create_native_wgpu_renderer(&mut state, 8, 6)
+            .expect("repeating the same size must be a no-op success");
+        assert_eq!((unchanged.width(), unchanged.height()), (8, 6));
+
+        // シュリンクも同じ経路で扱えること。
+        let shrunk = get_or_create_native_wgpu_renderer(&mut state, 2, 2)
+            .expect("shrinking must also succeed via resize_output");
+        assert_eq!((shrunk.width(), shrunk.height()), (2, 2));
+    }
 }
