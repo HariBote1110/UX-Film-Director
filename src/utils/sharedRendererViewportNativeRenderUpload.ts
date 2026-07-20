@@ -28,6 +28,8 @@ import {
   type SharedRendererViewportNativeRenderSource,
 } from './sharedRendererViewportNativeRenderSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
+import type { NativeOverlayDecodedFrameBridge } from './sharedRendererRustVideoUploadPipeline';
+import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
 
 type PreparedNativeRenderUpload = Extract<
   PrepareSharedRendererDecodedVideoFrameUploadResult,
@@ -358,6 +360,176 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     activeJobs: activeRenderJobs,
     upload,
   };
+};
+
+// Phase 3b Step 2 — native-render-only（図形/画像のみ、Video を含まない）
+// セッション向け。render.nativeSharedFrame の合成結果（POSIX shared-memory の
+// frame descriptor。video decode 経由の RustBackendSharedVideoFrame と全く
+// 同じ型）を、DOM canvas への GPU テクスチャコピーを経由せずそのまま
+// window.nativeOverlay.presentSharedFrame（napi: presentNativeOverlaySharedFrame）
+// へ渡す。snapshot/media を省略して呼ぶと、Rust 側 upload_frame_to_scene_sources
+// は「アップロード済みの1枚を drawable いっぱいの単一 quad として表示する」
+// モードで扱う（native-overlay/src/lib.rs、変更不要）。これは
+// render.nativeSharedFrame の出力（＝キャンバス全体を合成済みの1枚）と
+// ちょうど合致する。選択デコレーションは同一 present に同梱できる
+// （Phase 2 の co-delivery 契約をそのまま利用）。
+export interface PrepareSharedRendererViewportNativeRenderOverlayPresentInput {
+  windowId?: number;
+  session: SharedRendererPreviewSession;
+  requestId?: number;
+  outputSlotCount?: number;
+  nativeOverlayBridge?: NativeOverlayDecodedFrameBridge;
+  renderNativeSharedFrame?: SharedRendererViewportNativeSharedFrameRenderer;
+  releaseNativeSharedFrame?: SharedRendererViewportNativeSharedFrameReleaser;
+  requestAudioWaveformSamples?: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
+  selectionDecoration?: SelectionDecorationPayload;
+}
+
+export type PrepareSharedRendererViewportNativeRenderOverlayPresentResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | 'surfaceGateUnavailable'
+        | 'nativeRenderUnsupportedMediaOnly'
+        | 'nativeRenderFailed'
+        | 'nativeOverlayPresentFailed'
+        | 'nativeOverlayReleaseMismatch'
+        | 'nativeRenderOutputReleaseFailed';
+      detail: string;
+    };
+
+export const prepareSharedRendererViewportNativeRenderOverlayPresent = async ({
+  windowId,
+  session,
+  requestId,
+  outputSlotCount = 1,
+  nativeOverlayBridge = window.nativeOverlay,
+  renderNativeSharedFrame = renderRustBackendNativeSharedFrame,
+  releaseNativeSharedFrame = releaseRustBackendNativeSharedFrame,
+  requestAudioWaveformSamples = requestRustBackendAudioWaveformSamples,
+  selectionDecoration,
+}: PrepareSharedRendererViewportNativeRenderOverlayPresentInput): Promise<PrepareSharedRendererViewportNativeRenderOverlayPresentResult> => {
+  if (!session.surfaceGate.ok) {
+    return {
+      ok: false,
+      reason: 'surfaceGateUnavailable',
+      detail: session.surfaceGate.detail,
+    };
+  }
+  const surfaceGate = session.surfaceGate;
+
+  // native overlay 合成は video-decode 注入を持たないため、この経路は
+  // render.nativeSharedFrame が単独で描ける（＝Video を含まない）シーンに
+  // 限定する。動画を含むセッションは呼び出し側（Viewport.tsx）が video-only
+  // 判定で別経路（prepareSharedRendererViewportNativeOverlayPresent）へ振り、
+  // 混在セッションは DOM canvas フォールバック
+  // （prepareSharedRendererViewportNativeRenderUpload）を使い続ける。
+  if (!canRenderSharedRendererNativeMediaOnlyFrame({
+    snapshot: surfaceGate.snapshot,
+    media: surfaceGate.media,
+  })) {
+    return {
+      ok: false,
+      reason: 'nativeRenderUnsupportedMediaOnly',
+      detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
+    };
+  }
+
+  const resolvedRequestId = requestId ?? surfaceGate.snapshot.frame_index;
+  const renderId = buildPreviewNativeRenderId(resolvedRequestId);
+  const renderMemoryId = buildPreviewNativeRenderMemoryId(resolvedRequestId);
+  const audioWaveforms = await prepareNativeRenderAudioWaveforms({
+    snapshot: surfaceGate.snapshot,
+    media: surfaceGate.media,
+    requestAudioWaveformSamples,
+  });
+
+  let renderResponse: RustBackendResult<RustBackendNativeRenderSharedFrameResult>;
+  try {
+    renderResponse = await renderNativeSharedFrame({
+      renderId,
+      memoryId: renderMemoryId,
+      slotCount: outputSlotCount,
+      ptsFrame: surfaceGate.snapshot.frame_index,
+      width: surfaceGate.canvas.width,
+      height: surfaceGate.canvas.height,
+      snapshot: surfaceGate.snapshot,
+      media: surfaceGate.media,
+      sources: [],
+      ...(audioWaveforms.length > 0 ? { audioWaveforms } : {}),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: formatNativeRenderError(error),
+    };
+  }
+  if (!renderResponse.success || !renderResponse.result) {
+    return {
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: renderResponse.error ?? 'Rust backend native render failed.',
+    };
+  }
+
+  const frame = renderResponse.result.frame;
+  const presentResponse = await nativeOverlayBridge.presentSharedFrame({
+    windowId,
+    mediaId: renderMemoryId,
+    slotCount: renderResponse.result.slotCount,
+    frame,
+    ...(selectionDecoration ? { selectionDecoration } : {}),
+  });
+  if (!presentResponse.success || !presentResponse.releaseFrame) {
+    // overlay がこの present を受け取らなかった（未 attach 等）ため、レンダリング
+    // 済み shared-memory 出力の所有権は呼び出し側に残ったまま。ここで解放しないと
+    // POSIX shm リークになる。呼び出し側は overlay 経路の失敗を検知して presenter
+    // を再起動し、restart 経路の DOM canvas フォールバックへ自然に落ちる。
+    const releaseFailure = await releaseNativeRenderOutputAfterAbort(async () => {
+      const response = await releaseNativeSharedFrame({ memoryId: renderMemoryId });
+      if (!response.success) {
+        throw new Error(response.error ?? 'Rust backend native render output release failed.');
+      }
+    });
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderOutputReleaseFailed',
+        detail: releaseFailure,
+      };
+    }
+    return {
+      ok: false,
+      reason: 'nativeOverlayPresentFailed',
+      detail: presentResponse.reason ?? 'Native overlay did not return a native render frame release payload.',
+    };
+  }
+  const releaseFrame = presentResponse.releaseFrame;
+  if (
+    releaseFrame.memoryId !== frame.descriptor.memoryId
+    || releaseFrame.slotIndex !== frame.descriptor.slotIndex
+    || releaseFrame.generation !== frame.descriptor.generation
+    || releaseFrame.ptsFrame !== frame.ptsFrame
+  ) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayReleaseMismatch',
+      detail: 'Native overlay native render frame release payload did not match the rendered frame descriptor.',
+    };
+  }
+
+  const releaseResponse = await releaseNativeSharedFrame({ memoryId: renderMemoryId });
+  if (!releaseResponse.success) {
+    return {
+      ok: false,
+      reason: 'nativeRenderOutputReleaseFailed',
+      detail: releaseResponse.error ?? 'Rust backend native render output release failed.',
+    };
+  }
+
+  return { ok: true };
 };
 
 export const DEFAULT_AUDIO_WAVEFORM_SAMPLE_RATE = 8000;
