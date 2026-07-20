@@ -244,6 +244,32 @@ Option<Nv12IoSurfaceRef>` を追加。`request_frame`（`decode.requestFrame`
   `encode.writeNativeFrame`（export 経路）は本ステージのスコープ外の
   まま、常に空 map を渡して既存挙動を維持する。
 
+### バグ発見と修正: CPU 高速パスが NV12 zero-copy を実質デッドコード化していた
+
+統合直後にテスト（`render_nv12_zero_copy.rs`）で発覚: `render.
+nativeSharedFrame` には Phase 3 以前から既存の CPU 高速パス
+（`cpu_simple_video::try_render_simple_video_frame_to_shared_ring`、
+単一 video クリップ・`effects` 空・恒等に近い transform のシーンを GPU
+ラウンドトリップ無しで CPU 直接合成する最適化）があり、これが
+`nv12_sources` の解決より**先に**判定されていた。実運用で最も典型的な
+「エフェクトなしの単一動画クリップ全画面プレビュー」シーンはまさに
+この高速パスの対象条件そのものであるため、GPU コンポジタに一切到達
+せず、本フェーズの主目的である NV12 zero-copy が実質的に永久に
+デッドコードになる状態だった（`nv12ZeroCopyMediaIds` すら応答に
+含まれない）。
+
+修正: `handle_native_render_shared_frame` で `nv12_sources` を CPU 高速
+パスの判定より前に計算し、`nv12_sources` が非空なら CPU 高速パスを
+試みず常に GPU コンポジタへ委譲するようにした（`audio_waveforms.
+is_empty() && nv12_sources.is_empty()` を高速パス試行の条件に変更）。
+CPU 高速パスの本来の目的（RGBA 専用の軽量ケースでの GPU ラウンド
+トリップ回避）は `nv12_sources` が空のとき（ffmpeg フォールバック
+セッション等）は従来どおり温存される。レスポンス形状を揃えるため、
+CPU 高速パスのレスポンスにも `nv12ZeroCopyMediaIds`（常に空配列）を
+追加した。既存 `decode_control_plane.rs` の63テストは in-process
+セッションを一切使わない（`nv12_sources` は常に空）ため無変更で
+全green。
+
 ### golden parity テスト（実測）
 
 `rust-backend/tests/render_nv12_zero_copy.rs`: 同一の決定論的フレーム
