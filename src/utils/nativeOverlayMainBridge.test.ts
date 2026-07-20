@@ -253,6 +253,68 @@ describe('createNativeOverlayMainBridge', () => {
     });
   });
 
+  it('passes an embedded selectionDecoration through to the native addon present call (Bug B対策: body co-delivery)', async () => {
+    const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const nativeAddon = {
+      presentNativeOverlaySharedFrame: vi.fn(() => ({
+        success: true,
+        attached: true,
+        releaseFrame: {
+          memoryId: '/uxfd-decode-ring',
+          slotIndex: 0,
+          generation: 5,
+          ptsFrame: 12,
+          copyOutState: 'gpuUploadFenceSignalled' as const,
+        },
+      })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn((windowId) => windowId === 7 ? nativeWindowHandle : null),
+    });
+
+    const selectionDecoration = {
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      quads: [{
+        topLeftX: 1, topLeftY: 2,
+        topRightX: 3, topRightY: 2,
+        bottomRightX: 3, bottomRightY: 4,
+        bottomLeftX: 1, bottomLeftY: 4,
+      }],
+    };
+    const payload = {
+      windowId: 7,
+      mediaId: 'clip-video',
+      slotCount: 2,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-decode-ring',
+          slotIndex: 0,
+          generation: 5,
+          byteOffset: 0,
+          byteLen: 8,
+          width: 2,
+          height: 1,
+          strideBytes: 8,
+          format: 'rgba8Srgb',
+        },
+        ptsFrame: 12,
+      },
+      selectionDecoration,
+    };
+
+    await bridge.presentSharedFrame(payload);
+
+    expect(nativeAddon.presentNativeOverlaySharedFrame).toHaveBeenCalledWith({
+      ...payload,
+      nativeWindowHandle,
+    });
+  });
+
   it('emits an opt-in present timing trace with release generation details', async () => {
     const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
     const diagnostics: Array<[string, unknown]> = [];
