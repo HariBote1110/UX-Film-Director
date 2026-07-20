@@ -26,11 +26,12 @@
 //! `rust-backend/src/decode.rs`) -- the CRC32 pass is a diagnostic aid, not
 //! part of the real pipeline's cost.
 //!
-//! Note on scope: this measures decode only, not decode+GPU-composite --
-//! Stage 2 (the NV12 zero-copy path through `SceneSnapshot`/
-//! native-wgpu-renderer) had not landed in this session (see
-//! `progress/phase4c-inprocess-decode-integration.md`), so there is no
-//! composite step to measure yet.
+//! Stage 2 addendum: `measure_sequential_render` (below) extends this to
+//! decode+GPU-composite, driving `render.nativeSharedFrame` per frame (the
+//! actual `render.nativeSharedFrame` hot path a real preview session uses)
+//! instead of reading the decode ring directly, so the Stage 2 zero-copy
+//! NV12 path and the pre-Stage-2 CPU RGBA bridge (forced via
+//! `UXFD_DISABLE_NV12_ZERO_COPY_RENDER=1`) can be compared end to end.
 
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -47,12 +48,19 @@ struct BackendProcess {
 
 impl BackendProcess {
     fn start() -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_uxfd-rust-backend"))
+        Self::start_with_env(&[])
+    }
+
+    fn start_with_env(extra_envs: &[(&str, &str)]) -> Self {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_uxfd-rust-backend"));
+        command
             .env("UXFD_DISABLE_DECODE_CHECKSUM", "1")
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("start rust backend");
+            .stdout(Stdio::piped());
+        for (key, value) in extra_envs {
+            command.env(key, value);
+        }
+        let mut child = command.spawn().expect("start rust backend");
         let stdin = child.stdin.take().expect("backend stdin");
         let stdout = BufReader::new(child.stdout.take().expect("backend stdout"));
         Self { child, stdin, stdout }
@@ -211,6 +219,189 @@ fn measure_sequential_decode(
     }
 }
 
+/// Phase 4c Stage 2: like `measure_sequential_decode`, but measures
+/// decode+GPU-composite per frame by driving `render.nativeSharedFrame`
+/// (the real hot path a preview session calls every tick) instead of
+/// reading the decode ring directly. `nv12_zero_copy` selects whether the
+/// backend process is spawned with the Stage 2 zero-copy path enabled
+/// (default) or forced off (`UXFD_DISABLE_NV12_ZERO_COPY_RENDER=1`, the
+/// pre-Stage-2 CPU RGBA bridge for comparison).
+///
+/// The composed scene includes a no-op `LinearGain(gain=1.0)` effect: an
+/// empty effects list would make `cpu_simple_video::
+/// is_simple_video_composite_clip` intercept the render before it ever
+/// reaches the GPU compositor (and therefore before either composite path
+/// -- NV12 or RGBA -- is exercised at all), which would measure the wrong
+/// thing entirely.
+fn measure_sequential_render(
+    label: &str,
+    source: &Path,
+    width: u32,
+    height: u32,
+    source_rate_numerator: u32,
+    source_rate_denominator: u32,
+    frame_count: u64,
+    nv12_zero_copy: bool,
+) -> FrameLatencies {
+    let extra_envs: &[(&str, &str)] = if nv12_zero_copy {
+        &[]
+    } else {
+        &[("UXFD_DISABLE_NV12_ZERO_COPY_RENDER", "1")]
+    };
+    let mut backend = BackendProcess::start_with_env(extra_envs);
+    let job_id = "inprocess-render-perf";
+    let output_memory_id = format!("/urp{:x}", std::process::id());
+
+    let start = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": job_id,
+            "source": source.to_string_lossy(),
+            "slotCount": 2,
+            "width": width,
+            "height": height,
+            "sourceRate": {
+                "numerator": source_rate_numerator,
+                "denominator": source_rate_denominator
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "decode.start failed: {start}");
+    let decode_slot_count = start["result"]["slotCount"].as_u64().expect("slotCount") as u32;
+
+    let mut samples_ms = Vec::with_capacity(frame_count as usize);
+    let mut decode_path = String::new();
+    let mut nv12_engaged_frame_count: u64 = 0;
+    for frame_index in 0..frame_count {
+        let request_started_at = Instant::now();
+        let decoded = backend.request(json!({
+            "id": 10 + frame_index,
+            "method": "decode.requestFrame",
+            "params": {
+                "jobId": job_id,
+                "requestId": frame_index,
+                "frameIndex": frame_index,
+                "mode": "latestWins"
+            }
+        }));
+        assert_eq!(
+            decoded["ok"], true,
+            "decode.requestFrame failed at frame {frame_index}: {decoded}"
+        );
+
+        let render = backend.request(json!({
+            "id": 1_000 + frame_index,
+            "method": "render.nativeSharedFrame",
+            "params": {
+                "renderId": "inprocess-render-perf",
+                "memoryId": output_memory_id,
+                "slotCount": 2,
+                "ptsFrame": frame_index,
+                "width": width,
+                "height": height,
+                "snapshot": {
+                    "frame_index": frame_index,
+                    "colour": {
+                        "profile": "rec709-sdr",
+                        "working_space": "linear-light",
+                        "alpha": "premultiplied"
+                    },
+                    "clips": [{
+                        "clip_id": "clip-video",
+                        "track_id": "track-1",
+                        "media_id": job_id,
+                        "source_frame": frame_index,
+                        "z_index": 0,
+                        "transform": {
+                            "translation_x": 0.0,
+                            "translation_y": 0.0,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "rotation_degrees": 0.0,
+                            "sampling": "nearest"
+                        },
+                        "opacity": 1.0,
+                        "effects": [{ "LinearGain": { "gain": 1.0 } }]
+                    }]
+                },
+                "media": [{
+                    "id": job_id,
+                    "kind": "Video",
+                    "source": source.to_string_lossy(),
+                    "width": width,
+                    "height": height,
+                    "source_rate": {
+                        "numerator": source_rate_numerator,
+                        "denominator": source_rate_denominator
+                    }
+                }],
+                "sources": [{
+                    "mediaId": job_id,
+                    "slotCount": decode_slot_count,
+                    "frame": decoded["result"]["frame"]
+                }]
+            }
+        }));
+        assert_eq!(
+            render["ok"], true,
+            "render.nativeSharedFrame failed at frame {frame_index}: {render}"
+        );
+        let elapsed_ms = request_started_at.elapsed().as_secs_f64() * 1_000.0;
+        if frame_index == 0 {
+            decode_path = decoded["result"]["decodePath"]
+                .as_str()
+                .unwrap_or("unknown")
+                .to_string();
+        }
+        if !render["result"]["nv12ZeroCopyMediaIds"]
+            .as_array()
+            .map(|ids| ids.is_empty())
+            .unwrap_or(true)
+        {
+            nv12_engaged_frame_count += 1;
+        }
+        samples_ms.push(elapsed_ms);
+
+        let release = backend.request(json!({
+            "id": 2_000_000 + frame_index,
+            "method": "decode.releaseFrame",
+            "params": {
+                "jobId": job_id,
+                "slotIndex": decoded["result"]["frame"]["descriptor"]["slotIndex"],
+                "generation": decoded["result"]["frame"]["descriptor"]["generation"],
+                "copyOutState": "gpuUploadFenceSignalled"
+            }
+        }));
+        assert_eq!(release["ok"], true, "decode.releaseFrame failed: {release}");
+    }
+
+    if nv12_zero_copy {
+        assert_eq!(
+            nv12_engaged_frame_count, frame_count,
+            "expected every frame to engage the Stage 2 zero-copy NV12 path when it is enabled"
+        );
+    } else {
+        assert_eq!(
+            nv12_engaged_frame_count, 0,
+            "UXFD_DISABLE_NV12_ZERO_COPY_RENDER=1 must keep every frame on the RGBA bridge"
+        );
+    }
+
+    FrameLatencies {
+        label: label.to_string(),
+        decode_path,
+        samples_ms,
+    }
+}
+
 /// Committed, reproducible fixture: HEVC 1920x1080 60fps ~20Mbps, i.e. the
 /// same codec/resolution as the user's problem profile (HEVC 1080p30
 /// ~35Mbps `.mov` screen recordings) at a higher frame rate. Always
@@ -249,6 +440,79 @@ fn inprocess_decode_latency_on_committed_hevc_1080p_fixture() {
     assert!(
         mean < 30.0,
         "in-process decode mean latency regressed well past the ffmpeg baseline: {mean:.2}ms"
+    );
+}
+
+/// Phase 4c Stage 2: decode+GPU-composite comparison on the same committed
+/// fixture as `inprocess_decode_latency_on_committed_hevc_1080p_fixture`
+/// above (decode-only). Reports the zero-copy NV12 path's per-frame
+/// decode+composite latency against the pre-Stage-2 CPU RGBA bridge
+/// (forced via the kill switch) for the identical scene/frame sequence, so
+/// the NV12 zero-copy win (skipping the CPU NV12->RGBA conversion this
+/// bridge performs, see `inprocess_decode.rs::nv12_to_rgba`) is visible
+/// end to end rather than only in the decode-only numbers above.
+#[test]
+#[ignore]
+fn inprocess_render_latency_nv12_zero_copy_vs_rgba_bridge_on_committed_hevc_1080p_fixture() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root");
+    let source = repo_root.join("perf/heavy-media/20000kbps_60fps.mp4");
+    if !source.exists() {
+        eprintln!("skipping: fixture not present at {source:?}");
+        return;
+    }
+
+    let nv12_latencies = measure_sequential_render(
+        "committed-hevc-1080p60-20mbps-nv12-zero-copy",
+        &source,
+        1920,
+        1080,
+        60,
+        1,
+        120,
+        true,
+    );
+    nv12_latencies.report();
+    let rgba_latencies = measure_sequential_render(
+        "committed-hevc-1080p60-20mbps-rgba-bridge",
+        &source,
+        1920,
+        1080,
+        60,
+        1,
+        120,
+        false,
+    );
+    rgba_latencies.report();
+
+    assert_eq!(nv12_latencies.decode_path, "inprocess");
+    assert_eq!(rgba_latencies.decode_path, "inprocess");
+
+    let nv12_mean =
+        nv12_latencies.samples_ms.iter().sum::<f64>() / nv12_latencies.samples_ms.len() as f64;
+    let rgba_mean =
+        rgba_latencies.samples_ms.iter().sum::<f64>() / rgba_latencies.samples_ms.len() as f64;
+    eprintln!(
+        "[inprocess-render-perf] nv12ZeroCopyMeanMs={nv12_mean:.2} rgbaBridgeMeanMs={rgba_mean:.2} \
+         deltaMs={:.2}",
+        rgba_mean - nv12_mean
+    );
+
+    // Generous regression guards (decode+composite adds GPU setup/readback on
+    // top of the ~3ms decode-only numbers already measured above; this is not
+    // a tight perf budget). The interesting number is the reported delta
+    // above, not a strict "nv12 must be faster" assertion -- GPU timing on a
+    // shared/loaded dev machine is noisy enough that a strict comparative
+    // assertion here would be a flaky test, not a meaningful regression
+    // guard.
+    assert!(
+        nv12_mean < 50.0,
+        "nv12 zero-copy decode+composite mean latency regressed past budget: {nv12_mean:.2}ms"
+    );
+    assert!(
+        rgba_mean < 50.0,
+        "rgba bridge decode+composite mean latency regressed past budget: {rgba_mean:.2}ms"
     );
 }
 
