@@ -559,31 +559,31 @@ describe('Viewport Rust video-only boundary', () => {
     expect(block).toContain('isSharedRendererNativeRenderOnlySession(presenterRestartSession)');
   });
 
-  it('routes the non-video native-render reuse tick through prepareSharedRendererViewportNativeRenderUpload even when the native overlay is enabled', () => {
-    // 動画セッションの reuse tick は nativeOverlayPreviewEnabled 時
-    // prepareSharedRendererViewportNativeOverlayPresent（video decode +
-    // native overlay present）を通るが、図形は DOM 側 canvas に描画される
-    // ため、非 video セッションは overlay の有無に関わらず
+  it('falls back to prepareSharedRendererViewportNativeRenderUpload for native-render-only sessions when the native overlay is disabled (Phase 3b Step 2)', () => {
+    // native overlay が無効（VITE_UXFD_NATIVE_OVERLAY=0 等）の間は、図形/画像
+    // のみのセッションも従来どおり DOM 側 canvas の
     // prepareSharedRendererViewportNativeRenderUpload →
-    // presentPreparedNativeRenderFrame のサブパスを通す必要がある。
+    // presentPreparedNativeRenderFrame サブパスを通す。
     const code = viewportSource();
     const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
     const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    // overlay 分岐に入るのは動画セッションのときだけに限定する。
+    // 両方の overlay 分岐は nativeOverlayPreviewEnabled をガードするため、
+    // 無効時はどちらもスキップされ DOM canvas 経路まで落ちる。
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
     expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
   });
 
-  it('does not reuse the native render presenter for mixed video + non-video sessions', () => {
-    // 混在セッション（video と図形が同時に存在）は今回の対象外。
-    // isSharedRendererExternalVideoOnlySession と
-    // isSharedRendererNativeRenderOnlySession はどちらも「全 clip が同一種別」
-    // を要求するため、混在セッションはどちらの判定にも該当せず reuse に乗らない
-    // （挙動は predicate 自体の実装で保証される。ここでは両判定が
-    //  互いに排他的な条件—video か非video かで分岐する—であることを固定する）。
+  it('defines a mixed-session predicate as the residual of video-only/native-render-only (Phase 3b)', () => {
+    // 混在セッション（video と図形が同時に存在）は
+    // isSharedRendererExternalVideoOnlySession/isSharedRendererNativeRenderOnlySession
+    // のどちらにも該当しない残余集合。Phase 3b でこれも reuse 対象へ広げる
+    // ため、専用の predicate を新設して残余であることを明示する
+    // （両判定が「全 clip が同一種別」を要求し、互いに排他的であることは
+    //  引き続き固定する）。
     const code = viewportSource();
     const videoOnlyStart = code.indexOf('const isSharedRendererExternalVideoOnlySession = (');
     const videoOnlyEnd = code.indexOf('\n};', videoOnlyStart);
@@ -591,8 +591,77 @@ describe('Viewport Rust video-only boundary', () => {
     const nativeRenderOnlyStart = code.indexOf('const isSharedRendererNativeRenderOnlySession = (');
     const nativeRenderOnlyEnd = code.indexOf('\n};', nativeRenderOnlyStart);
     const nativeRenderOnlyBlock = code.slice(nativeRenderOnlyStart, nativeRenderOnlyEnd);
+    const mixedStart = code.indexOf('const isSharedRendererMixedNativeRenderSession = (');
+    const mixedEnd = code.indexOf('\n};', mixedStart);
+    const mixedBlock = code.slice(mixedStart, mixedEnd);
 
     expect(videoOnlyBlock).toContain("mediaKindById.get(clip.media_id) === 'Video'");
     expect(nativeRenderOnlyBlock).toContain("mediaKindById.get(clip.media_id) !== 'Video'");
+    expect(mixedStart).toBeGreaterThan(-1);
+    expect(mixedBlock).toContain('if (!session.surfaceGate.ok || session.surfaceGate.snapshot.clips.length === 0) return false;');
+    expect(mixedBlock).toContain('!isSharedRendererExternalVideoOnlySession(session)');
+    expect(mixedBlock).toContain('!isSharedRendererNativeRenderOnlySession(session)');
+  });
+
+  it('extends native render presenter reuse to mixed video + non-video sessions (Phase 3b: kills the restart-per-pointermove for mixed scenes)', () => {
+    // Phase 3b Step 1 — mixed セッションの毎 pointermove フル再起動
+    // （約28ms/回）を解消するため、reuse 対象を mixed セッションにも広げる。
+    const code = viewportSource();
+    const start = code.indexOf('const canReuseNativeRenderPresenter = rustVideoOnlyEnabled');
+    const end = code.indexOf(';', start);
+    const block = code.slice(start, end);
+    const restartStart = code.indexOf('const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled');
+    const restartEnd = code.indexOf(';', restartStart);
+    const restartBlock = code.slice(restartStart, restartEnd);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(block).toContain('isSharedRendererExternalVideoOnlySession(session)');
+    expect(block).toContain('isSharedRendererNativeRenderOnlySession(session)');
+    expect(block).toContain('isSharedRendererMixedNativeRenderSession(session)');
+    expect(restartStart).toBeGreaterThan(-1);
+    expect(restartBlock).toContain('isSharedRendererExternalVideoOnlySession(presenterRestartSession)');
+    expect(restartBlock).toContain('isSharedRendererNativeRenderOnlySession(presenterRestartSession)');
+    expect(restartBlock).toContain('isSharedRendererMixedNativeRenderSession(presenterRestartSession)');
+  });
+
+  it('routes the mixed-session reuse tick through prepareSharedRendererViewportNativeRenderUpload (DOM canvas fallback, no overlay co-delivery yet)', () => {
+    // Phase 3b Step 3 — mixed セッションは reuse には乗るが、overlay
+    // co-delivery（Step 2）の対象は video-only / native-render-only のみ。
+    // mixed は引き続き DOM canvas 経路（presentPreparedNativeRenderFrame）を
+    // 通す（Rust 側の video 自前デコード統合は Phase 4 の対象）。
+    const code = viewportSource();
+    const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
+    const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
+    const block = code.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    // mixed セッションはどちらの overlay 分岐（video-only / native-render-only）
+    // にも該当しないため、両方の if を通り過ぎて DOM canvas 経路まで落ちる。
+    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
+    expect(block).toContain('if (!presentPreparedNativeRenderFrame) return;');
+    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
+  });
+
+  it('routes the native-render-only reuse tick through the native overlay with co-delivery when the overlay is enabled (Phase 3b Step 2)', () => {
+    // 図形/画像のみのセッションは DOM canvas ではなく native overlay の
+    // presentSharedFrame（選択デコレーション同梱つき）へ present するように
+    // なった。overlay 未 attach 等で失敗した場合は既存の video-only 失敗時と
+    // 同じ self-healing restart パターン（session key を null にして
+    // republish）で DOM canvas フォールバックへ自然に収束させる。
+    const code = viewportSource();
+    const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
+    const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
+    const block = code.slice(start, end);
+    const nativeRenderOnlyOverlayStart = block.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
+    const domCanvasFallbackStart = block.indexOf('if (!presentPreparedNativeRenderFrame) return;');
+
+    expect(start).toBeGreaterThan(-1);
+    expect(nativeRenderOnlyOverlayStart).toBeGreaterThan(-1);
+    expect(block).toContain('prepareSharedRendererViewportNativeRenderOverlayPresent({');
+    expect(block).toContain('selectionDecoration: sessionSelectionDecoration');
+    // overlay 分岐は DOM canvas フォールバックより手前に書かれている
+    // （video-only → native-render-only → DOM canvas の優先順）。
+    expect(nativeRenderOnlyOverlayStart).toBeLessThan(domCanvasFallbackStart);
   });
 });
