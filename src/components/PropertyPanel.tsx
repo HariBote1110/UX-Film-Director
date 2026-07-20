@@ -23,6 +23,7 @@ import { applyAviUtlEffectPresetToObject, getAviUtlPackEffectPresets, type AviUt
 import { buildAviUtlCameraTargetPatch, getAviUtlPackCameraPresets } from '../utils/aviutl/aviutlCameraPresets';
 import { buildAviUtlBackgroundColourPalettePatch, extractAviUtlBackgroundColourPalette, buildAviUtlHksyPalettePatch } from '../utils/aviutl/aviutlBackgroundColourEyedropper';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
+import { DEFAULT_FONT_FAMILIES, loadFontFamilyOptions } from '../utils/fontFamilyOptions';
 
 const Slider = ({
   className,
@@ -483,6 +484,10 @@ const PropertyPanel: React.FC = () => {
   const [lastVisionTrackSamples, setLastVisionTrackSamples] = useState<CoreMlTrackSample[]>([]);
   const [proxyGenerating, setProxyGenerating] = useState(false);
   const [proxyMessage, setProxyMessage] = useState('');
+  const [fontFamilyOptions, setFontFamilyOptions] = useState<string[]>([...DEFAULT_FONT_FAMILIES]);
+  const [fontFamilyOptionsStatus, setFontFamilyOptionsStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
+  const [fontFamilyDropdownOpen, setFontFamilyDropdownOpen] = useState(false);
+  const [fontFamilyFilterText, setFontFamilyFilterText] = useState('');
 
   const filters = selectedObject?.filters ?? [];
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
@@ -604,6 +609,18 @@ const PropertyPanel: React.FC = () => {
 
   const handleChange = (key: string, value: unknown) => {
     updateObject(selectedObject.id, { [key]: value } as Partial<TimelineObject>);
+  };
+
+  // フォントファミリー選択欄を初めて開いたタイミングで一度だけ fonts.list RPC を叩き、
+  // 取得できなかった場合は loadFontFamilyOptions 側の静的フォールバックへ委ねる。
+  const handleFontFamilyDropdownOpen = () => {
+    setFontFamilyFilterText(selectedObject.type === 'text' ? selectedObject.fontFamily : '');
+    setFontFamilyDropdownOpen(true);
+    if (fontFamilyOptionsStatus !== 'idle') return;
+    setFontFamilyOptionsStatus('loading');
+    loadFontFamilyOptions()
+      .then((families) => setFontFamilyOptions(families))
+      .finally(() => setFontFamilyOptionsStatus('loaded'));
   };
 
   const applyShatteredSpherePatch = (patch: Partial<ShatteredSphereObject>) => {
@@ -2936,6 +2953,51 @@ const PropertyPanel: React.FC = () => {
                 <SectionHeader label="Text Settings" />
                 <Row label="Content">
                     <textarea value={selectedObject.text} onChange={(e) => handleChange('text', e.target.value)} style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                </Row>
+                <Row label="Font">
+                    <div style={{ position: 'relative', width: '100%' }}>
+                        <input
+                            type="text"
+                            value={fontFamilyDropdownOpen ? fontFamilyFilterText : selectedObject.fontFamily}
+                            onFocus={handleFontFamilyDropdownOpen}
+                            onChange={(e) => setFontFamilyFilterText(e.target.value)}
+                            onBlur={() => setFontFamilyDropdownOpen(false)}
+                            placeholder={fontFamilyOptionsStatus === 'loading' ? 'Loading fonts…' : 'Search fonts…'}
+                            style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        {fontFamilyDropdownOpen && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    maxHeight: '160px',
+                                    overflowY: 'auto',
+                                    background: '#1e1e1e',
+                                    border: '1px solid #444',
+                                    zIndex: 10,
+                                }}
+                            >
+                                {fontFamilyOptions
+                                    .filter((name) => name.toLowerCase().includes(fontFamilyFilterText.toLowerCase()))
+                                    .map((name) => (
+                                        <div
+                                            key={name}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={() => {
+                                                handleChange('fontFamily', name);
+                                                setFontFamilyFilterText(name);
+                                                setFontFamilyDropdownOpen(false);
+                                            }}
+                                            style={{ padding: '4px 6px', cursor: 'pointer', fontFamily: name, color: '#eee' }}
+                                        >
+                                            {name}
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
                 </Row>
                 <Row label="Size">
                     <input type="number" value={selectedObject.fontSize} onChange={(e) => handleNumericChange('fontSize', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
