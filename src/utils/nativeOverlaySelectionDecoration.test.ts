@@ -71,6 +71,14 @@ describe('buildSelectionDecorationQuads', () => {
     expect(buildSelectionDecorationQuads({ selectedIds: ['group-1'], objects, time: 1 })).toEqual([]);
   });
 
+  it('returns an empty list for a selected object that is off-time (playhead outside [startTime, startTime+duration)) — 症状A: ゴースト選択枠対策', () => {
+    const objects = [imageObject({ startTime: 5, duration: 10 })];
+
+    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 0 })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 20 })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 5 })).toHaveLength(1);
+  });
+
   it('applies object rotation to the quad corners', () => {
     const objects = [imageObject({ x: 0, y: 0, rotation: 90 })];
 
@@ -123,6 +131,23 @@ describe('createNativeOverlaySelectionDecorationSender', () => {
 
     expect(send).toHaveBeenCalledTimes(2);
     expect(send).toHaveBeenLastCalledWith(moved);
+  });
+
+  it('sends an empty quads payload when the previous payload had quads (clears a ghost decoration for an off-time object)', async () => {
+    // buildSelectionDecorationQuads は在圏外オブジェクトに対して [] を返す
+    // （症状A対策）。空配列 payload も他の値と同様に dedupe key が変わるため
+    // 送信され、native 側のデコレーションが確実にクリアされることを固定する。
+    const send = vi.fn(async () => ({ success: true, attached: true }));
+    const sender = createNativeOverlaySelectionDecorationSender(send);
+
+    await sender.update(payload, 0);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    const cleared = { ...payload, quads: [] };
+    await sender.update(cleared, 0);
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith(cleared);
   });
 
   it('re-sends an identical payload when the resend key changes (native overlay re-attach)', async () => {
