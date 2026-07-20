@@ -70,6 +70,56 @@ export const buildSelectionDecorationQuads = ({
   return quads;
 };
 
+/**
+ * 症状B（本体フレーム present と選択枠 present が独立した2チャネルのため
+ * ドラッグ中にズレる不具合）対策 — 送信チャネルの分岐に使う状態。
+ *
+ * `objects`/`selectedIds` は参照比較（`!==`）で「この tick で変化したか」を
+ * 判定する。Zustand store のセレクタは変更があった場合のみ新しい配列参照を
+ * 返すため、React の effect 依存配列と同じ比較則で一貫する。
+ */
+export interface SelectionDecorationSendState {
+  selectedIds: readonly string[];
+  objects: readonly TimelineObject[];
+  time: number;
+  /**
+   * この tick の本体 present が native overlay の body co-delivery 経路
+   * （`presentNativeOverlaySharedFrame` に selectionDecoration を同梱する
+   * video-only reuse 経路）を通るか。false の間（図形のみ/混在セッションが
+   * 使う DOM WebGPU canvas 経路など、本体が native overlay の
+   * presentSharedFrame に一切乗らない場合）は standalone 送信が
+   * デコレーションの唯一の配信経路であり続けるため、常に送信する。
+   */
+  nativeOverlayBodyCoDeliveryEligible: boolean;
+}
+
+/**
+ * standalone の `setNativeOverlaySelectionDecoration` 送信を行うべきかを
+ * 判定する。
+ *
+ * - co-delivery 非対象（`nativeOverlayBodyCoDeliveryEligible: false`）:
+ *   常に送信する（standalone だけがデコレーションの配信経路のため）。
+ * - co-delivery 対象で `prev` が無い（初回 tick）: 送信する（body 側の
+ *   co-delivery が同じ tick で間に合っているとは限らないため）。
+ * - co-delivery 対象で objects/time が変化: 送信しない。同じ
+ *   (objects, time) から計算した decoration が body present に同梱される
+ *   （invariant: 同じ present が运ぶ body と decoration は同じ状態由来）。
+ *   ここで standalone も送ると、2チャネルが同じ live surface へ独立に
+ *   present する症状Bの根本原因を再導入してしまう。
+ * - co-delivery 対象で selectedIds のみが変化: 送信する（本体は変わらない
+ *   ため body present は発生せず、standalone が唯一の配信経路）。
+ */
+export const shouldSendStandaloneDecoration = (
+  prev: SelectionDecorationSendState | null,
+  next: SelectionDecorationSendState,
+): boolean => {
+  if (!next.nativeOverlayBodyCoDeliveryEligible) return true;
+  if (!prev) return true;
+  const bodyChanged = prev.objects !== next.objects || prev.time !== next.time;
+  if (bodyChanged) return false;
+  return prev.selectedIds !== next.selectedIds;
+};
+
 export interface NativeOverlaySelectionDecorationSender<T> {
   /**
    * payload が前回送信時から不変（かつ resendKey も同一）なら null を返して

@@ -410,8 +410,13 @@ describe('shouldSendStandaloneDecoration: 症状B（本体フレームと選択�
   });
 
   it('co-delivery対象で何も変化していない tick は送信しない', () => {
-    const prev = state();
-    const next = state();
+    // 実運用では selectedIds/objects は Zustand store のセレクタが返す配列
+    // 参照であり、store 側に変化が無ければ同一参照が返る。ここでも同一参照を
+    // 使って「変化なし」を表現する（`state()` を素朴に2回呼ぶと毎回新しい
+    // 配列リテラルになり「変化あり」と誤検出してしまうため）。
+    const sharedSelectedIds = ['obj-1'];
+    const prev = state({ selectedIds: sharedSelectedIds });
+    const next = state({ selectedIds: sharedSelectedIds });
     expect(shouldSendStandaloneDecoration(prev, next)).toBe(false);
   });
 });
