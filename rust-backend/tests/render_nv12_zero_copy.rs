@@ -179,10 +179,14 @@ impl Drop for BackendProcess {
 /// Runs `decode.start` + one `decode.requestFrame(frameIndex=0)` +
 /// `render.nativeSharedFrame` against a fresh backend process (spawned with
 /// `envs`) and returns `(render response, composited output pixels)`.
+/// `effects` is the clip's `effects` JSON array as-is (usually `json!([])`,
+/// the truly simple/common case -- see callers for when a disqualifying
+/// no-op effect is deliberately used instead).
 fn decode_and_render_frame_zero(
     envs: &[(&str, &str)],
     job_id: &str,
     source: &Path,
+    effects: Value,
 ) -> (Value, Vec<u8>) {
     let mut backend = BackendProcess::start_with_env(envs);
 
@@ -257,14 +261,7 @@ fn decode_and_render_frame_zero(
                         "sampling": "nearest"
                     },
                     "opacity": 1.0,
-                    // A no-op LinearGain(gain=1.0) effect disqualifies
-                    // `cpu_simple_video::is_simple_video_composite_clip`
-                    // (which requires an empty effects list), so this scene
-                    // actually reaches the GPU compositor
-                    // (`native_render.rs`'s `render.nativeSharedFrame`
-                    // handler) instead of being intercepted by the CPU fast
-                    // path before Stage 2's NV12 resolution ever runs.
-                    "effects": [{ "LinearGain": { "gain": 1.0 } }]
+                    "effects": effects
                 }]
             },
             "media": [{
@@ -312,7 +309,16 @@ fn render_native_shared_frame_reports_nv12_zero_copy_for_inprocess_video_session
     let dir = TempDir::new("engages");
     let source = build_playable_h264_fixture(dir.path());
 
-    let (render, pixels) = decode_and_render_frame_zero(&[], "nv12-zero-copy-1", &source);
+    // Deliberately the *simplest* possible scene (identity transform, no
+    // effects) -- this is exactly the shape `cpu_simple_video::
+    // try_render_simple_video_frame_to_shared_ring` would otherwise
+    // intercept before the GPU compositor ever runs.
+    // `handle_native_render_shared_frame` must skip that CPU fast path
+    // whenever an nv12 zero-copy source is available (see its comment),
+    // precisely so this by-far-most-common real scene still reaches Stage
+    // 2's NV12 resolution instead of silently never engaging it.
+    let (render, pixels) =
+        decode_and_render_frame_zero(&[], "nv12-zero-copy-1", &source, json!([]));
 
     let nv12_media_ids = render["result"]["nv12ZeroCopyMediaIds"]
         .as_array()
@@ -321,6 +327,12 @@ fn render_native_shared_frame_reports_nv12_zero_copy_for_inprocess_video_session
         nv12_media_ids,
         &vec![json!("nv12-zero-copy-1")],
         "the in-process session's media_id must be resolved via the zero-copy NV12 path: {render}"
+    );
+    assert_ne!(
+        render["result"]["renderPath"],
+        json!("cpuSimpleVideoComposite"),
+        "this simple single-clip scene must not be intercepted by the unrelated CPU fast path \
+         before Stage 2's NV12 resolution runs: {render}"
     );
 
     // Sanity: the composited output is not all-zero/transparent.
@@ -343,6 +355,7 @@ fn render_native_shared_frame_nv12_zero_copy_kill_switch_falls_back_to_rgba_brid
         &[("UXFD_DISABLE_NV12_ZERO_COPY_RENDER", "1")],
         "nv12-zero-copy-2",
         &source,
+        json!([]),
     );
 
     let nv12_media_ids = render["result"]["nv12ZeroCopyMediaIds"]
@@ -371,12 +384,22 @@ fn render_native_shared_frame_nv12_zero_copy_matches_rgba_bridge_within_toleranc
     let dir = TempDir::new("parity");
     let source = build_playable_h264_fixture(dir.path());
 
+    // A no-op LinearGain(gain=1.0) effect: identical on both runs, so the
+    // *only* difference between them is which composite path resolves the
+    // clip's video source (NV12 zero-copy GPU import vs the CPU RGBA
+    // bridge). Without it, the RGBA-bridge run (nv12_sources empty because
+    // of the kill switch) would fall through to the unrelated CPU
+    // `cpu_simple_video` fast path instead of the GPU compositor, which
+    // would not be the RGBA-bridge-through-the-GPU-compositor comparison
+    // this test is meant to make.
+    let effects = json!([{ "LinearGain": { "gain": 1.0 } }]);
     let (nv12_render, nv12_pixels) =
-        decode_and_render_frame_zero(&[], "nv12-zero-copy-parity", &source);
+        decode_and_render_frame_zero(&[], "nv12-zero-copy-parity", &source, effects.clone());
     let (rgba_render, rgba_pixels) = decode_and_render_frame_zero(
         &[("UXFD_DISABLE_NV12_ZERO_COPY_RENDER", "1")],
         "nv12-zero-copy-parity",
         &source,
+        effects,
     );
 
     assert!(

@@ -272,7 +272,20 @@ pub(crate) fn handle_native_render_shared_frame(
         );
     }
 
-    if audio_waveforms.is_empty() {
+    // Phase 4c Stage 2: computed up front (before the CPU fast path below)
+    // because that fast path must be skipped whenever a zero-copy NV12
+    // source is available -- it operates purely on the CPU RGBA bridge
+    // (`sources`), so letting it intercept the single-clip case that Stage 1
+    // populates would mean the by-far-most-common real scene (one video
+    // clip, no effects) never reaches the GPU compositor at all and Stage 2
+    // would never engage for it. The GPU path now handles this case at
+    // least as cheaply (see the perf comparison in
+    // `progress/phase4c-inprocess-decode-integration.md`), so routing it
+    // there instead is a strict improvement, not a regression for the CPU
+    // fast path's original purpose.
+    let nv12_sources = collect_native_render_nv12_sources(&parsed.sources, &state.decode_sessions);
+
+    if audio_waveforms.is_empty() && nv12_sources.is_empty() {
         match try_render_simple_video_frame_to_shared_ring(
             &parsed.snapshot,
             &parsed.media,
@@ -302,6 +315,11 @@ pub(crate) fn handle_native_render_shared_frame(
                         "slotCount": slot_count,
                         "slotByteLen": slot_byte_len,
                         "frame": frame,
+                        // Always empty on this path: the CPU fast path only
+                        // ever runs when `nv12_sources` was empty to begin
+                        // with (see the guard above). Present for response
+                        // shape consistency with the GPU composite path.
+                        "nv12ZeroCopyMediaIds": Vec::<String>::new(),
                     })),
                     error: None,
                 };
@@ -316,14 +334,6 @@ pub(crate) fn handle_native_render_shared_frame(
             }
         }
     }
-
-    // Phase 4c Stage 2: for each shared video source whose media_id
-    // correlates to an active in-process decode session, resolve the
-    // zero-copy NV12 IOSurface reference for that session's most recently
-    // served frame instead of the CPU RGBA bridge. Computed before the
-    // renderer's mutable borrow below (matching how `sources`/
-    // `audio_waveforms` are already resolved up front).
-    let nv12_sources = collect_native_render_nv12_sources(&parsed.sources, &state.decode_sessions);
 
     let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
         Ok(value) => value,

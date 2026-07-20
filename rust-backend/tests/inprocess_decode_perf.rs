@@ -227,12 +227,17 @@ fn measure_sequential_decode(
 /// (default) or forced off (`UXFD_DISABLE_NV12_ZERO_COPY_RENDER=1`, the
 /// pre-Stage-2 CPU RGBA bridge for comparison).
 ///
-/// The composed scene includes a no-op `LinearGain(gain=1.0)` effect: an
-/// empty effects list would make `cpu_simple_video::
-/// is_simple_video_composite_clip` intercept the render before it ever
-/// reaches the GPU compositor (and therefore before either composite path
-/// -- NV12 or RGBA -- is exercised at all), which would measure the wrong
-/// thing entirely.
+/// The composed scene includes a no-op `LinearGain(gain=1.0)` effect. This
+/// is no longer strictly required for the `nv12_zero_copy=true` run --
+/// `handle_native_render_shared_frame` now skips the unrelated
+/// `cpu_simple_video` CPU fast path whenever an nv12 zero-copy source is
+/// available, specifically so the common empty-effects single-clip case
+/// still reaches the GPU compositor -- but it is still required for the
+/// `nv12_zero_copy=false` (kill-switched) run: with `nv12_sources` empty,
+/// an effects-less scene would fall through to that CPU fast path instead
+/// of the GPU RGBA-bridge path this measurement means to compare against.
+/// Applying it uniformly to both runs keeps the two scenes identical except
+/// for which composite path resolves the video source.
 fn measure_sequential_render(
     label: &str,
     source: &Path,
