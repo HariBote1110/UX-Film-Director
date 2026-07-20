@@ -3080,12 +3080,92 @@ mod tests {
     }
 
     #[test]
+    fn present_with_embedded_decoration_uses_the_embedded_value_and_updates_the_stored_map() {
+        // Bug B（症状B: 選択枠・本体フレームの2チャネル独立配信によるズレ）対策。
+        // presentNativeOverlaySharedFrame に選択デコレーションが同梱された場合、
+        // その present はグローバル map を再読みせず「同梱された値そのもの」を
+        // 使う。かつ map 側も同梱値で置き換える（以後の standalone
+        // 再present/再attach 復旧経路がこの値を拾えるようにするため）。
+        let window_id = 990_003;
+        let stale = axis_aligned_selection_state(1920, 1080);
+        let _ = store_native_overlay_selection_decoration(window_id, stale);
+
+        let embedded = SelectionDecorationState {
+            canvas_width: 1280,
+            canvas_height: 720,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (10.0, 10.0),
+                top_right: (20.0, 10.0),
+                bottom_right: (20.0, 20.0),
+                bottom_left: (10.0, 20.0),
+            }],
+        };
+
+        let resolved = resolve_present_selection_decoration(window_id, Some(embedded.clone()));
+
+        assert_eq!(resolved, Some(embedded.clone()));
+        assert_eq!(
+            stored_native_overlay_selection_decoration(window_id),
+            Some(embedded)
+        );
+    }
+
+    #[test]
+    fn present_with_embedded_empty_quads_clears_the_stored_map_and_uses_no_decoration() {
+        // 症状A対策（ゴースト選択枠）との組み合わせ: 時間帯外になった選択
+        // オブジェクトは buildSelectionDecorationQuads が [] を返す。同梱
+        // payload の quads が空でも、通常の setSelectionDecoration と同じく
+        // map からエントリを除去し、この present はデコレーション無しで扱う。
+        let window_id = 990_004;
+        let stale = axis_aligned_selection_state(1920, 1080);
+        let _ = store_native_overlay_selection_decoration(window_id, stale);
+
+        let embedded_empty = SelectionDecorationState {
+            canvas_width: 1280,
+            canvas_height: 720,
+            quads: Vec::new(),
+        };
+
+        let resolved = resolve_present_selection_decoration(window_id, Some(embedded_empty));
+
+        assert_eq!(resolved, None);
+        assert_eq!(stored_native_overlay_selection_decoration(window_id), None);
+    }
+
+    #[test]
+    fn present_without_embedded_decoration_falls_back_to_the_stored_map() {
+        // 後方互換: 同梱 payload を持たない旧経路（addon 側が未対応のビルド
+        // 済み .node を JS が読み込んだ場合の graceful degrade を含む）は、
+        // 従来どおり standalone setSelectionDecoration が書き込んだ map を
+        // フォールバックとして使う。
+        let window_id = 990_005;
+        let stored = axis_aligned_selection_state(1920, 1080);
+        let _ = store_native_overlay_selection_decoration(window_id, stored.clone());
+
+        let resolved = resolve_present_selection_decoration(window_id, None);
+
+        assert_eq!(resolved, Some(stored));
+    }
+
+    #[test]
     fn native_overlay_exports_set_selection_decoration_through_napi() {
         // preload / main bridge（electron/nativeOverlayMainBridge.ts）の
         // setSelectionDecoration から呼べる napi export。
         let source = include_str!("lib.rs");
         assert!(source.contains("#[napi(js_name = \"setNativeOverlaySelectionDecoration\")]"));
         assert!(source.contains("pub fn set_native_overlay_selection_decoration"));
+    }
+
+    #[test]
+    fn native_overlay_shared_frame_present_payload_carries_optional_selection_decoration() {
+        // Bug B対策: presentNativeOverlaySharedFrame の napi payload に
+        // 選択デコレーションを同梱できるようにする（Optional なので addon が
+        // 未対応でも既存呼び出しは壊れない）。
+        let source = include_str!("lib.rs");
+        assert!(source.contains(
+            "pub selection_decoration: Option<NativeOverlaySharedFrameSelectionDecorationPayload>"
+        ));
+        assert!(source.contains("pub struct NativeOverlaySharedFrameSelectionDecorationPayload"));
     }
 
     #[test]
