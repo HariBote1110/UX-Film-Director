@@ -1,5 +1,8 @@
 #[cfg(unix)]
-use crate::{collect_native_render_source_content_revisions, collect_native_render_sources};
+use crate::{
+    collect_native_render_nv12_sources, collect_native_render_source_content_revisions,
+    collect_native_render_sources,
+};
 use crate::cpu_simple_video::{
     try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
 };
@@ -147,11 +150,16 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.media,
         &parsed.sources,
     );
+    // Phase 4c Stage 2 zero-copy NV12 is scoped to the `render.nativeSharedFrame`
+    // hot path (see `handle_native_render_shared_frame` below); this export/
+    // `encode.writeNativeFrame` path keeps resolving every media_id via the
+    // existing RGBA bridge.
     let render = match pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
         &parsed.snapshot,
         &sources,
         &audio_waveforms,
         &content_revisions,
+        &std::collections::HashMap::new(),
     )) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -309,6 +317,14 @@ pub(crate) fn handle_native_render_shared_frame(
         }
     }
 
+    // Phase 4c Stage 2: for each shared video source whose media_id
+    // correlates to an active in-process decode session, resolve the
+    // zero-copy NV12 IOSurface reference for that session's most recently
+    // served frame instead of the CPU RGBA bridge. Computed before the
+    // renderer's mutable borrow below (matching how `sources`/
+    // `audio_waveforms` are already resolved up front).
+    let nv12_sources = collect_native_render_nv12_sources(&parsed.sources, &state.decode_sessions);
+
     let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -338,6 +354,7 @@ pub(crate) fn handle_native_render_shared_frame(
             &sources,
             &audio_waveforms,
             &content_revisions,
+            &nv12_sources,
             &parsed.memory_id,
             parsed.slot_count,
             parsed.pts_frame,
@@ -362,6 +379,13 @@ pub(crate) fn handle_native_render_shared_frame(
         .native_render_outputs
         .insert(parsed.memory_id.clone(), render.ring);
 
+    // Diagnostic (mirrors the existing `decodePath` field on
+    // decode.requestFrame): which media_ids this render actually resolved
+    // through the Phase 4c Stage 2 zero-copy NV12 path, so integration tests
+    // and production traces can confirm the CPU bridge was skipped.
+    let nv12_zero_copy_media_ids: Vec<&str> =
+        nv12_sources.keys().map(String::as_str).collect();
+
     RpcResponse {
         id,
         ok: true,
@@ -372,6 +396,7 @@ pub(crate) fn handle_native_render_shared_frame(
             "slotCount": slot_count,
             "slotByteLen": slot_byte_len,
             "frame": frame,
+            "nv12ZeroCopyMediaIds": nv12_zero_copy_media_ids,
         })),
         error: None,
     }

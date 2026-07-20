@@ -22,6 +22,8 @@ mod transcode;
 use generated::*;
 use rpc::{RpcError, RpcRequest, RpcResponse};
 use rpc_dispatch::handle_request;
+#[cfg(unix)]
+pub(crate) use source_frames::collect_native_render_nv12_sources;
 pub(crate) use source_frames::{
     collect_native_render_source_content_revisions, collect_native_render_sources,
     is_jpeg_source, is_psd_source, local_media_source_path,

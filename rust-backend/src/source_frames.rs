@@ -3,6 +3,8 @@ use crate::generated::*;
 use crate::native_shared::read_native_render_source_frame;
 use crate::params::NativeRenderSharedFrameSource;
 use crate::psd_fast;
+#[cfg(unix)]
+use crate::sessions::DecodeSession;
 use crate::state::{SourceFrameCache, SourceFrameCacheKey};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -10,6 +12,8 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
+#[cfg(unix)]
+use uxfd_rust_core::Nv12IoSurfaceRef;
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 
 #[cfg(unix)]
@@ -111,6 +115,52 @@ pub(crate) fn collect_native_render_sources(
     }
 
     Ok(sources)
+}
+
+/// Phase 4c Stage 2: for each `shared_sources` entry whose `media_id`
+/// correlates (by the same `mediaId ?? jobId` convention the JS side already
+/// uses) to an active in-process decode session (`state.decode_sessions`,
+/// keyed by job_id), resolves the zero-copy NV12 IOSurface reference for
+/// that session's most recently served frame instead of the CPU RGBA
+/// bridge. A media_id absent from the returned map (ffmpeg-fallback
+/// sessions, sessions with no served frame yet, or media_ids that are not
+/// video at all) simply falls back to the existing `sources`/RGBA resolution
+/// -- this is purely additive.
+///
+/// Kill switch: `UXFD_DISABLE_NV12_ZERO_COPY_RENDER=1` forces every media_id
+/// through the RGBA path regardless of session state (mirrors
+/// `inprocess_decode::inprocess_decode_enabled`'s pattern), primarily so a
+/// parity test can compare the two composite paths for the exact same
+/// decoded frame.
+#[cfg(unix)]
+pub(crate) fn collect_native_render_nv12_sources(
+    shared_sources: &[NativeRenderSharedFrameSource],
+    decode_sessions: &HashMap<String, DecodeSession>,
+) -> HashMap<String, Nv12IoSurfaceRef> {
+    if !nv12_zero_copy_render_enabled() {
+        return HashMap::new();
+    }
+    let mut nv12_sources = HashMap::with_capacity(shared_sources.len());
+    for source in shared_sources {
+        let Some(session) = decode_sessions.get(&source.media_id) else {
+            continue;
+        };
+        let Some(inprocess) = session.inprocess.as_ref() else {
+            continue;
+        };
+        let Some(nv12_source) = inprocess.last_served_nv12_source() else {
+            continue;
+        };
+        nv12_sources.insert(source.media_id.clone(), nv12_source);
+    }
+    nv12_sources
+}
+
+#[cfg(unix)]
+fn nv12_zero_copy_render_enabled() -> bool {
+    std::env::var("UXFD_DISABLE_NV12_ZERO_COPY_RENDER")
+        .map(|value| value != "1")
+        .unwrap_or(true)
 }
 
 /// Phase 3a（native-wgpu-renderer の per-clip GPU テクスチャキャッシュ）向け:

@@ -49,6 +49,10 @@ mod stub {
         pub(crate) fn request_frame(&self, _target_pts_seconds: f64) -> Result<InProcessFrame, String> {
             unreachable!("open() always returns Err on this platform, so no instance can exist")
         }
+
+        pub(crate) fn last_served_nv12_source(&self) -> Option<uxfd_rust_core::Nv12IoSurfaceRef> {
+            unreachable!("open() always returns Err on this platform, so no instance can exist")
+        }
     }
 }
 
@@ -92,9 +96,44 @@ mod platform {
         pub(crate) rgba: Vec<u8>,
     }
 
+    /// Phase 4c Stage 2: keeps the decoded frame's IOSurface-backed
+    /// `CVPixelBuffer` retained (via `retain`) for as long as this
+    /// `RingFrame` itself lives, alongside the cheap-to-copy metadata a
+    /// zero-copy GPU consumer needs. Dropped (releasing the underlying
+    /// surface) exactly when the owning `RingFrame` is trimmed/evicted from
+    /// the ring -- the same lifetime `rgba` already has, just for the raw
+    /// surface instead of a CPU copy.
+    ///
+    /// All metadata (`surface_id`/`width`/`height`/`colour`) is captured as
+    /// plain `Copy` data at decode time rather than read back through
+    /// `retain` later: `DecodedVideoFrame` is deliberately `Send` but not
+    /// `Sync` (see its doc comment), so `Arc<DecodedVideoFrame>` alone would
+    /// not be `Send` (Arc<T> requires `T: Send + Sync`) and could not live
+    /// inside the `Mutex`-guarded ring shared between the worker thread and
+    /// RPC-handling threads. Wrapping it in a `Mutex` restores `Send`+`Sync`
+    /// at the type level even though nothing ever locks it again after
+    /// construction -- it exists purely to keep the surface retained.
+    struct Nv12RingEntry {
+        surface_id: u32,
+        width: u32,
+        height: u32,
+        colour: ColourMetadata,
+        /// Monotonically increasing per decoded frame (see
+        /// `RingState::next_nv12_revision`), independent of `pts_seconds`:
+        /// a GPU texture cache keyed on `(surface_id, revision)` must treat
+        /// every newly decoded frame as distinct even if two frames somehow
+        /// shared a pts.
+        revision: u64,
+        retain: Arc<Mutex<DecodedVideoFrame>>,
+    }
+
     struct RingFrame {
         pts_seconds: f64,
         rgba: Vec<u8>,
+        /// `None` when the decoded frame was unexpectedly not IOSurface-backed
+        /// (see `DecodedVideoFrame::io_surface_id`'s doc -- "should not
+        /// happen" but handled defensively rather than assumed).
+        nv12: Option<Nv12RingEntry>,
     }
 
     struct RingState {
@@ -116,6 +155,11 @@ mod platform {
         eof: bool,
         fatal_error: Option<String>,
         shutdown: bool,
+        /// Phase 4c Stage 2: next `Nv12RingEntry::revision` to hand out.
+        /// Incremented once per decoded frame (not per `request_frame`
+        /// call), so it is a stable identity for "this exact decoded
+        /// frame" independent of how many times it gets served.
+        next_nv12_revision: u64,
     }
 
     struct Shared {
@@ -128,6 +172,14 @@ mod platform {
     pub(crate) struct InProcessDecodeSession {
         shared: Arc<Shared>,
         worker: Option<JoinHandle<()>>,
+        /// Phase 4c Stage 2: the NV12 IOSurface reference for the most
+        /// recently served (`request_frame`) frame, plus the retained
+        /// `DecodedVideoFrame` that keeps its surface alive independent of
+        /// the prefetch ring's own trimming -- a `render.nativeSharedFrame`
+        /// GPU import can run after the ring has already moved on. `None`
+        /// before the first served frame, or if that frame was unexpectedly
+        /// not IOSurface-backed.
+        last_served_nv12: Mutex<Option<(uxfd_rust_core::Nv12IoSurfaceRef, Arc<Mutex<DecodedVideoFrame>>)>>,
     }
 
     impl Drop for InProcessDecodeSession {
@@ -170,6 +222,7 @@ mod platform {
                     eof: false,
                     fatal_error: None,
                     shutdown: false,
+                    next_nv12_revision: 1,
                 }),
                 condvar: Condvar::new(),
             });
@@ -183,6 +236,7 @@ mod platform {
             let instance = Self {
                 shared,
                 worker: Some(worker),
+                last_served_nv12: Mutex::new(None),
             };
             instance.wait_for_first_progress(FIRST_FRAME_TIMEOUT)?;
             Ok(instance)
@@ -243,6 +297,7 @@ mod platform {
                     return Err(error.clone());
                 }
                 if let Some(frame) = nearest_frame(&ring.frames, target_pts_seconds) {
+                    self.remember_served_nv12(frame.nv12.as_ref());
                     return Ok(InProcessFrame {
                         pts_seconds: frame.pts_seconds,
                         rgba: frame.rgba.clone(),
@@ -265,6 +320,60 @@ mod platform {
                     .expect("ring mutex poisoned");
                 ring = guard;
             }
+        }
+
+        /// Records `entry` (if any) as the most recently served frame's NV12
+        /// reference. Called from inside `request_frame`'s ring lock, right
+        /// after `nearest_frame` picks the served `RingFrame` -- this is the
+        /// single point of truth for "what did `decode.requestFrame` (or the
+        /// hold-last-frame fallback) most recently serve for this session",
+        /// which `render.nativeSharedFrame` reads back later via
+        /// `last_served_nv12_source`, independent of ring trimming.
+        fn remember_served_nv12(&self, entry: Option<&Nv12RingEntry>) {
+            let mut last = self
+                .last_served_nv12
+                .lock()
+                .expect("last served nv12 mutex poisoned");
+            *last = entry.map(|entry| {
+                let source_ref = uxfd_rust_core::Nv12IoSurfaceRef {
+                    surface_id: entry.surface_id,
+                    width: entry.width,
+                    height: entry.height,
+                    colour_range: convert_colour_range(entry.colour.range),
+                    colour_matrix: convert_colour_matrix(entry.colour.matrix),
+                    revision: entry.revision,
+                };
+                (source_ref, Arc::clone(&entry.retain))
+            });
+        }
+
+        /// Phase 4c Stage 2: the NV12 IOSurface reference for the most
+        /// recently served (`request_frame`) frame, or `None` if no frame
+        /// has been served yet or the served frame was unexpectedly not
+        /// IOSurface-backed. The returned value's `surface_id` stays valid
+        /// (the underlying `CVPixelBuffer` remains retained) at least until
+        /// the next `request_frame` call serves a different frame.
+        pub(crate) fn last_served_nv12_source(&self) -> Option<uxfd_rust_core::Nv12IoSurfaceRef> {
+            self.last_served_nv12
+                .lock()
+                .expect("last served nv12 mutex poisoned")
+                .as_ref()
+                .map(|(source_ref, _retain)| *source_ref)
+        }
+    }
+
+    fn convert_colour_range(range: ColourRange) -> uxfd_rust_core::Nv12ColourRange {
+        match range {
+            ColourRange::Video => uxfd_rust_core::Nv12ColourRange::Video,
+            ColourRange::Full => uxfd_rust_core::Nv12ColourRange::Full,
+        }
+    }
+
+    fn convert_colour_matrix(matrix: ColourMatrix) -> uxfd_rust_core::Nv12ColourMatrix {
+        match matrix {
+            ColourMatrix::Bt601 => uxfd_rust_core::Nv12ColourMatrix::Bt601,
+            ColourMatrix::Bt709 => uxfd_rust_core::Nv12ColourMatrix::Bt709,
+            ColourMatrix::Bt2020 => uxfd_rust_core::Nv12ColourMatrix::Bt2020,
         }
     }
 
@@ -353,9 +462,37 @@ mod platform {
                 Ok(Some(frame)) => {
                     let pts_seconds = frame.pts_seconds;
                     let rgba = convert_and_resize(&frame, output_width, output_height);
+                    // Phase 4c Stage 2: also keep the decoded frame's NV12
+                    // IOSurface reference, alongside (not instead of) the CPU
+                    // bridge's RGBA conversion above -- both are derived from
+                    // this same decoded frame. Plain metadata is captured
+                    // here, before `frame` is moved into the `Mutex` wrapper
+                    // (see `Nv12RingEntry`'s doc comment for why the wrapper
+                    // is needed at all).
+                    let width = frame.width;
+                    let height = frame.height;
+                    let colour = frame.colour;
+                    let io_surface_id = frame.io_surface_id();
+                    let retain = Arc::new(Mutex::new(frame));
                     let mut ring = shared.ring.lock().expect("ring mutex poisoned");
                     ring.last_decoded_pts = Some(pts_seconds);
-                    ring.frames.push_back(RingFrame { pts_seconds, rgba });
+                    let nv12 = io_surface_id.map(|surface_id| {
+                        let revision = ring.next_nv12_revision;
+                        ring.next_nv12_revision += 1;
+                        Nv12RingEntry {
+                            surface_id,
+                            width,
+                            height,
+                            colour,
+                            revision,
+                            retain,
+                        }
+                    });
+                    ring.frames.push_back(RingFrame {
+                        pts_seconds,
+                        rgba,
+                        nv12,
+                    });
                     while ring.frames.len() > PREFETCH_RING_DEPTH {
                         ring.frames.pop_front();
                     }
@@ -605,8 +742,8 @@ mod platform {
         #[test]
         fn nearest_frame_holds_the_last_decoded_frame_when_target_is_ahead() {
             let mut frames = VecDeque::new();
-            frames.push_back(RingFrame { pts_seconds: 0.0, rgba: vec![0] });
-            frames.push_back(RingFrame { pts_seconds: 0.1, rgba: vec![1] });
+            frames.push_back(RingFrame { pts_seconds: 0.0, rgba: vec![0], nv12: None });
+            frames.push_back(RingFrame { pts_seconds: 0.1, rgba: vec![1], nv12: None });
             let held = nearest_frame(&frames, 5.0).expect("should hold last frame");
             assert_eq!(held.pts_seconds, 0.1);
         }
@@ -614,8 +751,8 @@ mod platform {
         #[test]
         fn nearest_frame_falls_back_to_earliest_when_target_precedes_ring() {
             let mut frames = VecDeque::new();
-            frames.push_back(RingFrame { pts_seconds: 1.0, rgba: vec![0] });
-            frames.push_back(RingFrame { pts_seconds: 1.1, rgba: vec![1] });
+            frames.push_back(RingFrame { pts_seconds: 1.0, rgba: vec![0], nv12: None });
+            frames.push_back(RingFrame { pts_seconds: 1.1, rgba: vec![1], nv12: None });
             let held = nearest_frame(&frames, 0.0).expect("should fall back to earliest");
             assert_eq!(held.pts_seconds, 1.0);
         }
@@ -629,6 +766,7 @@ mod platform {
                 eof: false,
                 fatal_error: None,
                 shutdown: false,
+                next_nv12_revision: 1,
             }
         }
 
@@ -645,8 +783,8 @@ mod platform {
             assert!(should_seek(&ring, 1.0 + FORWARD_SEEK_GAP_SECONDS + 0.5));
             assert!(should_seek(&ring, 0.0));
             ring.last_decoded_pts = None;
-            ring.frames.push_back(RingFrame { pts_seconds: 2.0, rgba: vec![] });
-            ring.frames.push_back(RingFrame { pts_seconds: 2.1, rgba: vec![] });
+            ring.frames.push_back(RingFrame { pts_seconds: 2.0, rgba: vec![], nv12: None });
+            ring.frames.push_back(RingFrame { pts_seconds: 2.1, rgba: vec![], nv12: None });
             assert!(!should_seek(&ring, 2.05), "target inside ring range must not seek");
             assert!(should_seek(&ring, 0.5), "target before ring range must seek");
         }
@@ -655,7 +793,7 @@ mod platform {
         fn trim_consumed_frames_keeps_only_the_frame_nearest_frame_would_serve() {
             let mut ring = empty_ring_state();
             for pts in [0.0, 0.1, 0.2, 0.3, 0.4] {
-                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![] });
+                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![], nv12: None });
             }
             trim_consumed_frames(&mut ring, 0.25);
             let pts_values: Vec<f64> = ring.frames.iter().map(|frame| frame.pts_seconds).collect();
@@ -666,7 +804,7 @@ mod platform {
         fn trim_consumed_frames_never_empties_the_ring_when_target_is_ahead_of_everything() {
             let mut ring = empty_ring_state();
             for pts in [0.0, 0.1, 0.2] {
-                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![] });
+                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![], nv12: None });
             }
             trim_consumed_frames(&mut ring, 99.0);
             assert_eq!(ring.frames.len(), 1, "must hold the last frame, never empty out");
@@ -686,6 +824,7 @@ mod platform {
                 ring.frames.push_back(RingFrame {
                     pts_seconds: index as f64 * 0.1,
                     rgba: vec![],
+                    nv12: None,
                 });
             }
             assert_eq!(ring.frames.len(), PREFETCH_RING_DEPTH);
