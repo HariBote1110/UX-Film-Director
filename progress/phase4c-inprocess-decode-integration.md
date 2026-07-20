@@ -1,13 +1,20 @@
-# Phase 4c: in-process デコードコア統合（Stage 1 完了、Stage 2/3 の状況）
+# Phase 4c: in-process デコードコア統合（Stage 1・Stage 2 完了）
 
-## スコープと本セッションでの到達点
+## スコープと到達点
 
-このセッションで完了したのは **Stage 1**（`macos-video-decode` を
-`decode.*` RPC 面の裏側にインプロセスで統合し、既存 ffmpeg パイプラインへ
-自動フォールバックする）と、**Stage 3 の一部**（decode-only の計測ハーネス
-と実測）。**Stage 2**（NV12 ゼロコピーを `SceneSnapshot`/native-wgpu-
-renderer/native-overlay の本番合成経路へ通す）は着手していない。理由と
-残タスクは末尾「Stage 2 が未着手の理由と計画」を参照。
+**Stage 1**（`macos-video-decode` を `decode.*` RPC 面の裏側にインプロセスで
+統合し、既存 ffmpeg パイプラインへ自動フォールバックする）と **Stage 3 の
+一部**（decode-only の計測ハーネスと実測）は前セッションで完了。
+
+本セッションでは **Stage 2**（NV12 ゼロコピーを `render.nativeSharedFrame`
+の本番合成経路へ通し、CPU の NV12→RGBA 変換ブリッジを rust 側 GPU
+コンポジタで省略する）と、Stage 3 の残り（decode+GPU合成の計測、NV12 vs
+RGBA ブリッジの実測比較）を完了した。詳細は末尾「Stage 2: 実装内容と決定
+（本セッション）」を参照。**scope 決定**: cross-process `IOSurfaceLookup`
+の実機検証の結果、NV12 ゼロコピーは **rust-backend 自身の GPU コンポジタ
+（`render.nativeSharedFrame`、rust-backend プロセス内で完結）に限定**し、
+native-overlay（Electron プロセス側）の `presentSharedFrame` 経由の
+オーバーレイ注入パスは既存の RGBA 共有メモリのままとした（詳細は後述）。
 
 ## 決定（Stage 1）
 
@@ -127,48 +134,140 @@ Stage 3 の計測ハーネス（`rust-backend/tests/inprocess_decode_perf.rs`）
 制約が再現する環境でも安全にffmpeg経路へ落ちる。
 
 旧ffmpeg経路の基準（12〜96ms/frame）に対し、平均で3〜4桁改善している
-（3ms前後 vs 12〜96ms）。ただしこれは decode のみの比較であり、Stage 2
-（GPU合成込み）の計測はまだ行っていない。
+（3ms前後 vs 12〜96ms）。decode+GPU合成込みの計測は下記「Stage 2」参照。
 
-## Stage 2 が未着手の理由と計画
+## Stage 2: 実装内容と決定（本セッション）
 
-Stage 2 は `uxfd-rust-core` の共有シーン型（`SceneLayer`/`EvaluatedClip`
-等、`rust-backend` と `native-overlay` の双方が依存）を変更し、
-`render.nativeSharedFrame` のソース解決から `native-wgpu-renderer` の
-`render_layers_to_rgba`（Phase 4b）まで NV12 IOSurface を通す統合作業。
-本セッションでは以下の理由で見送った:
+### cross-process IOSurfaceLookup の実機検証結果（scope決定の根拠）
 
-1. **影響範囲が3クレートにまたがる**: `uxfd-rust-core` の型変更は
-   `native-overlay`（54テスト+ソース内省テスト）と `rust-backend`
-   （170テスト）の両方に波及する。Stage 1（1クレート内で完結、
-   既存ffmpeg経路を一切変更しない設計）と異なり、後方互換性を壊さず
-   安全に統合する検証には、この2クレートの既存シーン合成テストを
-   すべて読み解いた上での慎重な設計・段階的な変更が要る。
-2. **Stage 1 で本番デコード遅延の支配項はすでに解消**: 上記の実測どおり、
-   デコード自体は 3ms 前後まで縮小した。Phase 4bの決定ログが指摘する
-   「CPU→shm→フロントGPU往復」自体のコスト（`markdown/
-   Rust_Preview_Jank_Handoff.md` の残問題1）は Native Overlay 既定化で
-   別途解消済みとされており、Stage 2（NV12ゼロコピー本統合）が解消する
-   のは主に「NV12→RGBA CPU変換のコスト」（本ブリッジで実測 <1ms/frame
-   @1080p、`ycbcr_to_rgb` はテスト済みの単純なピクセルループ）であり、
-   Stage 1 到達後の残余コストとしての優先度は当初想定より下がった。
+Phase 4b の決定ログでは「`Nv12IoSurfaceSource.surface_id` は
+`IOSurfaceLookup` で解決可能なグローバル ID」と書かれており、理論上は
+native-overlay（Electron プロセス側）からも同じ ID でルックアップできる
+はずだった。本セッションでは実装に入る前に、この前提を実機で検証した:
 
-### 次に着手すべきこと（Stage 2 着手時のメモ）
+同一 macOS ホスト上で、`macos-video-decode/src/session.rs` の
+`build_output_settings` と全く同じ形（`kCVPixelBufferIOSurfacePropertiesKey`
+に空辞書、`kIOSurfaceIsGlobal` 等の明示的グローバルフラグなし）で
+`CVPixelBufferCreate` した IOSurface の ID を、**別プロセス**として起動した
+子プロセスから `IOSurfaceLookup` で解決できるかを検証する最小 Rust
+プログラム（producer/consumer 2バイナリ）を書いて実行した（macOS
+26.5.2、arm64、agent サンドボックス無効化済みでも同結果）。
 
-- `uxfd-rust-core` の `EvaluatedClip`（またはクリップのソース参照型）に
-  ソース種別（Rgba vs Nv12IoSurface）を持たせる案が phase4bの決定ログ
-  （制約節）にすでに書かれている。Stage 1 の `InProcessDecodeSession` が
-  保持する `DecodedVideoFrame::io_surface_id()` を露出する経路
-  （`inprocess_decode.rs` に追加）が必要 -- 現状は CPU readback
-  （`read_nv12`）だけを使っており、IOSurface ID そのものは取得していない。
-- `render.nativeSharedFrame` のソース解決（`rust-backend/src/
-  native_render.rs`/`source_frames.rs`）で、対象クリップが Stage 1の
-  in-process デコードセッションから来ている場合に CPU RGBA 変換を
-  スキップし IOSurface ID + `Nv12ColourRange`/`Nv12ColourMatrix` を
-  そのまま `native-wgpu-renderer` の `SceneLayerContent::Nv12` へ渡す
-  経路を新設する。
-- golden parity テスト（NV12合成 vs RGBA合成ブリッジ、Phase 4bのパターン
-  再利用）は Stage 2 の一部として追加すること。
+結果:
+- 同一プロセス内での自己ルックアップ: **成功**（Phase 4b の既存テストが
+  検証している経路そのもの）。
+- 別プロセスからのルックアップ: **失敗**（`IOSurfaceLookup` が null を
+  返す）。sandbox-exec の有無に関わらず再現し、単純な親子プロセス関係
+  ですら通らなかった。
+
+これは「IOSurface は 10.11 以降 ID だけでプロセス横断的に解決できる」
+という一般的な理解（過去の macOS では成立していたとされる）が、少なくとも
+この検証環境の macOS バージョンでは成り立たないことを示す一次情報である。
+`kIOSurfaceIsGlobal` に相当するキーは `objc2-io-surface` の現行バインディング
+にも存在せず、cross-process 共有には mach port 経由の明示的な受け渡し
+（`IOSurfaceCreateMachPort`/`IOSurfaceLookupFromMachPort` 等）が必要と
+推測される。
+
+**決定**: NV12 ゼロコピーは **rust-backend 自身の GPU コンポジタ
+（`render.nativeSharedFrame`、decode セッションと同一プロセス内）に限定**
+する。native-overlay（別プロセスである Electron 側）の
+`presentSharedFrame`／`presentNativeOverlaySharedFrame` は本ステージでは
+変更せず、既存の RGBA 共有メモリ経路のままとした。これは要件書が明示的に
+許容している帰結（「if global lookup is unavailable... document it and
+scope the NV12 path to rust-backend's own compositor... that is an
+acceptable outcome」）であり、native-overlay 側のコードは無改修（54テスト
+そのままグリーン）。実際に mach port 経由の cross-process import を実装
+する場合は、rust-backend と native-overlay 間に IOSurface 用の mach port
+受け渡しチャネル（現状の JSON-RPC + 共有メモリ記述子だけでは運べない）を
+新設する必要があり、別フェーズの独立したタスクとするのが妥当。
+
+### `uxfd-rust-core::Nv12IoSurfaceRef`（共有型）
+
+`SceneSnapshot`/`EvaluatedClip`（JSON ワイヤーコントラクト、
+`tests/timeline_snapshot_contract.rs` で固定）には一切手を入れず、
+`rust-core/src/nv12_source.rs` に独立した新型 `Nv12IoSurfaceRef {
+surface_id, width, height, colour_range, colour_matrix, revision }` +
+`Nv12ColourRange`/`Nv12ColourMatrix`（3値: Bt601/Bt709/Bt2020）を追加した。
+理由: IOSurface ID は JS/Electron 側が一切関知しない rust-backend
+プロセス内部のデコードセッション詳細であり、`SceneSnapshot` 側のクリップ
+表現に埋め込む動機がそもそも無い（埋め込もうとすると「JS がどうやって
+IOSurface ID を知るのか」という解けない問題が生じる）。呼び出し側は
+`HashMap<String, RgbaFrame>`（既存の RGBA sources map）と並行する
+サイドカー `HashMap<String, Nv12IoSurfaceRef>` として渡す設計にした。
+media_id がこの map に無ければ従来どおり RGBA 解決のままなので、既存
+snapshot JSON の解釈・挙動には一切影響しない（100% 追加的）。
+
+### `rust-backend/src/inprocess_decode.rs`: 直近提供フレームの NV12 参照公開
+
+`InProcessDecodeSession` に `last_served_nv12_source() ->
+Option<Nv12IoSurfaceRef>` を追加。`request_frame`（`decode.requestFrame`
+が呼ぶ）が実際に返したフレームと**同一のフレーム**の NV12 参照を返す
+（別途 pts で再検索するのではなく、`nearest_frame` が選んだ
+`RingFrame` からそのまま導出することで、CPU RGBA ブリッジと NV12
+ゼロコピーが常に同じ内容のフレームを指すことを保証している）。
+
+実装上のハマりどころ: `DecodedVideoFrame` は意図的に `Send` のみで
+`Sync` ではない（phase4a）。素朴に `Arc<DecodedVideoFrame>` を
+`RingFrame`/`RingState` に持たせると、`Arc<T>: Send` が `T: Send + Sync`
+を要求するため `Arc<DecodedVideoFrame>` 自体が `Send` にならず、
+`Mutex<RingState>` を介してワーカースレッドとまたぐ既存の設計全体が
+コンパイルできなくなる。`Arc<Mutex<DecodedVideoFrame>>` に包むことで
+型レベルの `Send`/`Sync` を回復した（`Mutex` は一度も再ロックしない ——
+`surface_id`/`width`/`height`/`colour` はデコード時点で plain Copy
+データとして先に取り出しておき、`Mutex` はサーフェスを生かしておく
+ためだけのリテインハンドルとして扱う）。
+
+### 本番合成パスへの統合（native-wgpu-renderer / rust-backend）
+
+- `native-wgpu-renderer`: `prepare_scene_clips_with_upload_fence` に
+  `nv12_sources: &HashMap<String, Nv12IoSurfaceRef>` を追加。media_id が
+  ここに見つかれば `sources`（RGBA）を一切参照せず、Phase 4b の
+  `get_or_import_nv12_media_textures`/`Nv12MediaTextureCache` を再利用する
+  新設ヘルパー `prepare_nv12_clip` で GPU テクスチャを import する。
+  `PreparedClip` に `pipeline_kind`（Rgba/Nv12）タグを追加し、
+  `encode_prepared_clips` がクリップごとに正しいパイプラインへ切り替える
+  ことで、RGBA クリップと NV12 クリップが同一シーン・同一レンダーパスに
+  混在合成できる。`Nv12ColourRange`/`Nv12ColourMatrix` は
+  `uxfd-rust-core` の正準定義を re-export する形に変更（重複型を排除）。
+  既存の RGBA 専用呼び出し（`nv12_sources` を渡さない、あるいは
+  live-surface パス）は空 map を内部で補うため、シグネチャ・挙動とも
+  完全後方互換。
+- `rust-backend`: `render.nativeSharedFrame`
+  （`handle_native_render_shared_frame`）が `shared_sources` の各
+  media_id を `state.decode_sessions` と突き合わせ（JS 側の
+  `mediaId ?? jobId` 規約と同一の相関）、in-process セッションかつ
+  `last_served_nv12_source()` が `Some` を返す media_id だけ
+  `nv12_sources` map へ入れて native-wgpu-renderer へ渡す。
+  `UXFD_DISABLE_NV12_ZERO_COPY_RENDER=1` で無効化でき、レスポンスに
+  `nv12ZeroCopyMediaIds`（実際にゼロコピー経路を通った media_id 一覧）を
+  追加して診断・テストから直接観測できるようにした。
+  `encode.writeNativeFrame`（export 経路）は本ステージのスコープ外の
+  まま、常に空 map を渡して既存挙動を維持する。
+
+### golden parity テスト（実測）
+
+`rust-backend/tests/render_nv12_zero_copy.rs`: 同一の決定論的フレーム
+（`keyint=1` フィクスチャの frame 0）を独立起動した2バックエンドプロセス
+でそれぞれ NV12 ゼロコピー経路・RGBA ブリッジ経路（kill switch で強制）
+で合成し比較。**実測 maxByteDelta=0（完全一致）**、許容誤差は 2/255 に
+設定。
+
+### 実測（decode+GPU合成、Stage 3残り）
+
+`rust-backend/tests/inprocess_decode_perf.rs::
+inprocess_render_latency_nv12_zero_copy_vs_rgba_bridge_on_committed_hevc_1080p_fixture`
+（コミット済み HEVC 1920x1080/60fps/~20Mbps フィクスチャ、release build、
+120フレーム、`render.nativeSharedFrame` 経由 decode+GPU合成）:
+
+| 経路 | 平均ms | p95ms | 最大ms |
+| --- | --- | --- | --- |
+| NV12 zero-copy | 11.91 | 13.81 | 31.51 |
+| RGBA ブリッジ | 13.38 | 15.59 | 60.30 |
+
+平均で約1.5ms/frame、最大レイテンシで約2倍の改善（CPU NV12→RGBA変換＋
+それに伴うテクスチャアップロード経路の省略が効いている）。decode-only の
+数値（平均約3ms/frame、上表）に対し decode+合成の絶対値が数倍になるのは
+GPUセットアップ・readback・JSON往復を含むため。
 
 ## 制約・注意点
 
@@ -183,3 +282,21 @@ Stage 2 は `uxfd-rust-core` の共有シーン型（`SceneLayer`/`EvaluatedClip
   実機チューニング未実施の初期値。実機（Electron本番プロセス）での
   体感確認は本セッションでは未実施（RPCレベルの統合テスト・計測
   ハーネスのみ）。
+- （Stage 2）native-overlay の `presentSharedFrame`／
+  `presentNativeOverlaySharedFrame` は無改修。cross-process
+  IOSurfaceLookup が使えない以上、これらのオーバーレイ注入パスに動画を
+  流す場合は引き続き RGBA 共有メモリ経由（CPU ブリッジ）になる。
+  Native Overlay 自体は既定でオーバーレイではなく `render.
+  nativeSharedFrame` の直接合成を使う構成（phase3b参照）のため、
+  実運用上の主要経路は今回のゼロコピー化の恩恵を受ける。
+- （Stage 2）`encode.writeNativeFrame`（export/トランスコード経路）は
+  スコープ外のまま、常に空 `nv12_sources` を渡して既存の RGBA ブリッジ
+  挙動を維持している。export 経路の高速化は別タスク。
+- （Stage 2）NV12 ソースの `max_texture_dimension_2d` 超過時のダウン
+  スケールは未実装（Phase 4b から引き継いだ既知の制約。RGBA 側は
+  `downscale_rgba_frame_to_fit` で対応済み）。通常の動画解像度は
+  device 上限内に収まるため優先度低。
+- （Stage 2）`Nv12ColourMatrix::Bt2020` は rust-core の型としては
+  Bt601/Bt709 と区別して保持されるが、GPU shader（`Nv12Params::new`）・
+  CPU ブリッジ（`ycbcr_to_rgb`）双方とも数値係数としては Bt709 と同一
+  （Phase 4b から引き継いだ「専用係数なし」の近似で、変更なし）。
