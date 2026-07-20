@@ -1,6 +1,7 @@
 pub mod audio_waveform_scene;
 pub mod command;
 pub mod keyframe;
+pub mod nv12_source;
 pub mod schema;
 pub mod solid_colour_scene;
 pub mod timeline;
@@ -13,6 +14,7 @@ pub use audio_waveform_scene::{
     AudioWaveformSource,
 };
 pub use command::{apply_command, AppliedCommand, Command, CommandError};
+pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
 pub use schema::{
     Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference, Project, ProjectSize,
     SamplingMode, ScalarKeyframe, Track, Transform, WipeEdge,
