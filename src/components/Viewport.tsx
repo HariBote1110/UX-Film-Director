@@ -203,6 +203,22 @@ const isSharedRendererNativeRenderOnlySession = (session: SharedRendererPreviewS
   return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) !== 'Video');
 };
 
+// Phase 3b Step 1 — 混在セッション（video と図形が同居）の判定。上の2述語は
+// 「全 clip が同一種別」を要求し互いに排他的なので、混在セッションはどちらにも
+// 該当しない残余集合として表せる。従来この残余は reuse 対象外でフル再起動
+// （約28ms/回、毎 pointermove）していたが、render.nativeSharedFrame RPC は
+// media kind を問わず任意の mix を合成できる汎用 RPC であり（フル restart
+// 経路では現に混在セッションも正しく描けている）、reuse を妨げる技術的制約は
+// 無かった。isSharedRendererNativeRenderReuseEligibleSession 相当を3述語の
+// OR として表す（既存2述語の単体契約を壊さないため、単一の
+// `surfaceGate.ok && clips.length>0` 判定への統合はしない）。
+const isSharedRendererMixedNativeRenderSession = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok || session.surfaceGate.snapshot.clips.length === 0) return false;
+
+  return !isSharedRendererExternalVideoOnlySession(session)
+    && !isSharedRendererNativeRenderOnlySession(session);
+};
+
 export const shouldReuseExternalVideoPresenterSession = ({
   session,
   isExporting,
@@ -1156,11 +1172,14 @@ const Viewport: React.FC = () => {
     // all-non-video (shape/image/etc.) sessions so that dragging a shape does
     // not restart the presenter on every pointermove (see
     // isSharedRendererNativeRenderOnlySession comment for the ずれ this fixes).
-    // Mixed video + non-video sessions match neither predicate and keep the
-    // full-restart path.
+    // Phase 3b Step 1 — mixed video + non-video sessions also reuse now (see
+    // isSharedRendererMixedNativeRenderSession comment); restart is reserved for
+    // genuine output-target changes.
     const canReuseNativeRenderPresenter = rustVideoOnlyEnabled
       && !isExporting
-      && (isSharedRendererExternalVideoOnlySession(session) || isSharedRendererNativeRenderOnlySession(session));
+      && (isSharedRendererExternalVideoOnlySession(session)
+        || isSharedRendererNativeRenderOnlySession(session)
+        || isSharedRendererMixedNativeRenderSession(session));
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
       includePlaybackFrame: !(canReuseExternalVideoPresenter || canReuseNativeRenderPresenter),
       // The native reuse path re-presents the full Rust-composited frame each
@@ -1425,13 +1444,15 @@ const Viewport: React.FC = () => {
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
-    // Mirrors canReuseNativeRenderPresenter above (video-only OR non-video-only)
-    // so the pending-replay key comparison in .finally matches the key the
-    // publish path stored for both reuse-eligible session shapes.
+    // Mirrors canReuseNativeRenderPresenter above (video-only OR non-video-only OR
+    // mixed, Phase 3b Step 1) so the pending-replay key comparison in .finally
+    // matches the key the publish path stored for all reuse-eligible session
+    // shapes.
     const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled
       && !isExporting
       && (isSharedRendererExternalVideoOnlySession(presenterRestartSession)
-        || isSharedRendererNativeRenderOnlySession(presenterRestartSession));
+        || isSharedRendererNativeRenderOnlySession(presenterRestartSession)
+        || isSharedRendererMixedNativeRenderSession(presenterRestartSession));
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(presenterRestartSession, {
       // Mirror publishSharedRendererPreviewSession so the pending-replay key
       // comparison in .finally matches the key the publish path stored.
