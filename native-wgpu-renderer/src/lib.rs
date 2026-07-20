@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
 use uxfd_rust_core::{
     build_audio_waveform_line_strip, AudioWaveformSceneError, AudioWaveformSource, Effect,
-    EvaluatedClip, SamplingMode, SceneSnapshot, WipeEdge,
+    EvaluatedClip, Nv12IoSurfaceRef, SamplingMode, SceneSnapshot, WipeEdge,
 };
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
@@ -808,6 +808,7 @@ impl NativeWgpuRenderer {
             Duration::ZERO,
             total_start,
             &HashMap::new(),
+            &HashMap::new(),
         )
         .await
     }
@@ -853,12 +854,18 @@ impl NativeWgpuRenderer {
     /// 値が変わらない media_id の GPU テクスチャは再アップロードされない
     /// （`prepare_clip_cached` 参照）。呼び出し側が revision を持たない
     /// media_id は常にミス扱いになり、既存の毎フレーム再生成のまま。
+    /// `nv12_sources`（Phase 4c Stage 2）は media_id ごとの zero-copy NV12
+    /// IOSurface 参照。`sources` に同じ media_id のエントリが無くても
+    /// （＝ CPU RGBA を一切用意しなくても）ここにエントリがあればそのまま
+    /// GPU import 経路で合成される。空 map なら既存の RGBA 専用挙動と完全に
+    /// 同一。
     pub async fn render_frame_to_shared_ring_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
         content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         memory_id: &str,
         slot_count: u32,
         pts_frame: u64,
@@ -869,19 +876,21 @@ impl NativeWgpuRenderer {
                 sources,
                 waveforms,
                 content_revisions,
+                nv12_sources,
             )
             .await?;
         frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
     }
 
-    /// `content_revisions` の契約は `render_frame_to_shared_ring_with_audio_waveforms`
-    /// と同じ。
+    /// `content_revisions`/`nv12_sources` の契約は
+    /// `render_frame_to_shared_ring_with_audio_waveforms` と同じ。
     pub async fn render_frame_stages_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
         content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
         let total_start = Instant::now();
@@ -891,6 +900,7 @@ impl NativeWgpuRenderer {
             Duration::ZERO,
             total_start,
             content_revisions,
+            nv12_sources,
         )
         .await
     }
@@ -902,9 +912,15 @@ impl NativeWgpuRenderer {
         setup: Duration,
         total_start: Instant,
         content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
-        let (prepared_clips, source_upload) =
-            self.prepare_scene_clips(snapshot, sources, content_revisions)?;
+        let (prepared_clips, source_upload) = self.prepare_scene_clips_with_upload_fence(
+            snapshot,
+            sources,
+            nv12_sources,
+            true,
+            content_revisions,
+        )?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -1025,7 +1041,13 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, RgbaFrame>,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
-        self.prepare_scene_clips_with_upload_fence(snapshot, sources, true, content_revisions)
+        self.prepare_scene_clips_with_upload_fence(
+            snapshot,
+            sources,
+            &HashMap::new(),
+            true,
+            content_revisions,
+        )
     }
 
     fn prepare_scene_clips_without_upload_fence(
@@ -1034,17 +1056,31 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, RgbaFrame>,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
-        self.prepare_scene_clips_with_upload_fence(snapshot, sources, false, content_revisions)
+        self.prepare_scene_clips_with_upload_fence(
+            snapshot,
+            sources,
+            &HashMap::new(),
+            false,
+            content_revisions,
+        )
     }
 
     /// `content_revisions` は media_id ごとの呼び出し側供給の内容世代
     /// （`get_or_upload_media_texture` 参照）。media_id が同じキーで見つからない
     /// 場合は常にミス扱いになり、`prepare_clip` 時代と同じ「毎フレーム
     /// create_texture/write_texture/create_bind_group」を行う。
+    ///
+    /// `nv12_sources`（Phase 4c Stage 2）: media_id がここに見つかれば
+    /// `sources`（RGBA）は一切参照せず、zero-copy NV12 IOSurface import 経路
+    /// （`nv12::NativeWgpuRenderer::prepare_nv12_clip`）でそのクリップを
+    /// 準備する。RGBA クリップと NV12 クリップは同一シーン内で混在でき、
+    /// `encode_prepared_clips` が `PreparedClip::pipeline_kind` を見て
+    /// クリップごとに正しいパイプラインへ切り替える。
     fn prepare_scene_clips_with_upload_fence(
         &self,
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1053,6 +1089,7 @@ impl NativeWgpuRenderer {
 
         let mut prepared_clips = Vec::with_capacity(clips.len());
         let mut touched_media_ids: HashSet<String> = HashSet::with_capacity(clips.len());
+        let mut touched_nv12_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1065,6 +1102,13 @@ impl NativeWgpuRenderer {
                 });
             }
             let rotation_radians = clip.transform.rotation_degrees.to_radians();
+
+            if let Some(nv12_source) = nv12_sources.get(&clip.media_id) {
+                touched_nv12_media_ids.insert(clip.media_id.clone());
+                let prepared = self.prepare_nv12_clip(clip, rotation_radians, nv12_source)?;
+                prepared_clips.push(Arc::new(prepared));
+                continue;
+            }
 
             let source = sources.get(&clip.media_id).ok_or_else(|| {
                 NativeWgpuRenderError::MissingSource {
@@ -1089,6 +1133,7 @@ impl NativeWgpuRenderer {
         // このフレームで参照されなかった media のテクスチャは連続不参照フレーム数
         // を積み上げ、閾値超過またはバイト予算超過で GPU メモリを解放する。
         self.evict_stale_media_textures(&touched_media_ids);
+        self.evict_stale_nv12_textures(&touched_nv12_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -1315,8 +1360,11 @@ impl NativeWgpuRenderer {
             timestamp_writes: None,
         });
 
-        pass.set_pipeline(&self.pipeline);
         for prepared_clip in prepared_clips {
+            match prepared_clip.pipeline_kind {
+                ClipPipelineKind::Rgba => pass.set_pipeline(&self.pipeline),
+                ClipPipelineKind::Nv12 => pass.set_pipeline(&self.nv12_pipeline),
+            }
             pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
@@ -1678,7 +1726,14 @@ pub async fn measure_native_wgpu_frame_stages(
     let renderer = NativeWgpuRenderer::new(width, height).await?;
     let setup = total_start.elapsed();
     renderer
-        .render_frame_stages_with_setup(snapshot, sources, setup, total_start, &HashMap::new())
+        .render_frame_stages_with_setup(
+            snapshot,
+            sources,
+            setup,
+            total_start,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
         .await
 }
 
@@ -1735,8 +1790,21 @@ fn pad_rgba_frame_for_stride(
     Ok(padded)
 }
 
+/// Which composite pipeline a `PreparedClip`'s bind group was built against.
+/// `PreparedClip` itself is otherwise pipeline-agnostic (a bare
+/// `wgpu::BindGroup`), so `encode_prepared_clips` needs this tag to know
+/// whether to `set_pipeline(&self.pipeline)` (RGBA) or
+/// `set_pipeline(&self.nv12_pipeline)` (Phase 4c Stage 2 zero-copy NV12)
+/// before drawing each clip -- production scenes can mix both in one pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClipPipelineKind {
+    Rgba,
+    Nv12,
+}
+
 struct PreparedClip {
     bind_group: wgpu::BindGroup,
+    pipeline_kind: ClipPipelineKind,
 }
 
 #[repr(C)]
@@ -2360,7 +2428,10 @@ fn build_prepared_clip_bind_group(
         ],
     });
 
-    PreparedClip { bind_group }
+    PreparedClip {
+        bind_group,
+        pipeline_kind: ClipPipelineKind::Rgba,
+    }
 }
 
 /// 残像診断用 — RGBA8 フレームの alpha != 0（非透明）ピクセル数を数える。
@@ -3831,6 +3902,15 @@ mod tests {
                     y_n - 0.344_136 * cb_n - 0.714_136 * cr_n,
                     y_n + 1.772 * cb_n,
                 ),
+                // BT.2020 has no distinct coefficients in production either
+                // (see `nv12::pipeline::Nv12Params::new`): treated the same
+                // as BT.709 here too, so this reference oracle still agrees
+                // with the shader for BT.2020-tagged fixtures.
+                Nv12ColourMatrix::Bt2020 => (
+                    y_n + 1.5748 * cr_n,
+                    y_n - 0.187_324 * cb_n - 0.468_124 * cr_n,
+                    y_n + 1.8556 * cb_n,
+                ),
             };
 
             let to_byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
@@ -4181,6 +4261,228 @@ mod tests {
             pollster::block_on(renderer.render_layers_to_rgba(&layers_new_revision))
                 .expect("nv12 render with new revision must succeed (cache miss expected)");
             assert_eq!(renderer.nv12_texture_cache_stats(), (1, 2));
+        }
+
+        // Phase 4c Stage 2: `render_layers_to_rgba` above is the Phase 4b
+        // demo entry point that never touches the production `SceneSnapshot`
+        // path. These tests instead exercise the actual production chain
+        // (`render_frame_stages_with_audio_waveforms` ->
+        // `prepare_scene_clips_with_upload_fence`) that
+        // `rust-backend/src/native_render.rs` calls for
+        // `render.nativeSharedFrame`.
+
+        fn empty_snapshot_with_clip(clip: EvaluatedClip) -> SceneSnapshot {
+            SceneSnapshot {
+                frame_index: 0,
+                colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+                clips: vec![clip],
+            }
+        }
+
+        #[test]
+        fn production_path_renders_nv12_only_clip_with_no_rgba_sources_entry() {
+            let Some(renderer) = new_test_renderer(4, 4) else {
+                return;
+            };
+            let colour_range = Nv12ColourRange::Video;
+            let colour_matrix = Nv12ColourMatrix::Bt601;
+            let (y_value, cb_value, cr_value) = (180_u8, 90_u8, 200_u8);
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                4,
+                4,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, _col| y_value,
+                |_row, _col| (cb_value, cr_value),
+            );
+
+            let snapshot =
+                empty_snapshot_with_clip(identity_nv12_clip("clip-nv12", "media-nv12", 0));
+            let nv12_sources = HashMap::from([(
+                "media-nv12".to_string(),
+                Nv12IoSurfaceRef {
+                    surface_id: buffer.surface_id,
+                    width: buffer.width,
+                    height: buffer.height,
+                    colour_range,
+                    colour_matrix,
+                    revision: 1,
+                },
+            )]);
+
+            // `sources` (the RGBA map) is deliberately empty: a media_id
+            // resolved via `nv12_sources` must never be required to also
+            // have an RGBA entry -- that is precisely the CPU->GPU bridge
+            // Stage 2 removes.
+            let report = pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+                &snapshot,
+                &HashMap::new(),
+                &[],
+                &HashMap::new(),
+                &nv12_sources,
+            ))
+            .expect("production path must render an nv12-only clip without an RGBA sources entry");
+
+            let [r, g, b] =
+                nv12_reference_srgb_bytes(y_value, cb_value, cr_value, colour_range, colour_matrix);
+            for pixel in report.frame.pixels.chunks_exact(4) {
+                assert!(
+                    (pixel[0] as i32 - r as i32).abs() <= 2
+                        && (pixel[1] as i32 - g as i32).abs() <= 2
+                        && (pixel[2] as i32 - b as i32).abs() <= 2
+                        && pixel[3] == 255,
+                    "production nv12 path mismatch: got {pixel:?}, expected [{r}, {g}, {b}, 255]"
+                );
+            }
+        }
+
+        #[test]
+        fn production_path_mixes_nv12_and_rgba_clips_matching_all_rgba_reference() {
+            let Some(renderer) = new_test_renderer(4, 4) else {
+                return;
+            };
+            let colour_range = Nv12ColourRange::Video;
+            let colour_matrix = Nv12ColourMatrix::Bt601;
+            let (y_value, cb_value, cr_value) = (200_u8, 100_u8, 90_u8);
+            let [bottom_r, bottom_g, bottom_b] =
+                nv12_reference_srgb_bytes(y_value, cb_value, cr_value, colour_range, colour_matrix);
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                4,
+                4,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, _col| y_value,
+                |_row, _col| (cb_value, cr_value),
+            );
+
+            let mut top_clip = identity_nv12_clip("clip-rgba-top", "media-rgba-top", 1);
+            top_clip.opacity = 0.5;
+            let top_rgba = RgbaFrame::from_rgba8(
+                4,
+                4,
+                std::iter::repeat([30_u8, 200_u8, 60_u8, 255_u8])
+                    .take(16)
+                    .flatten()
+                    .collect(),
+            )
+            .expect("valid top rgba frame");
+
+            let mixed_snapshot = SceneSnapshot {
+                frame_index: 0,
+                colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+                clips: vec![
+                    identity_nv12_clip("clip-nv12-bottom", "media-nv12-bottom", 0),
+                    top_clip.clone(),
+                ],
+            };
+            let nv12_sources = HashMap::from([(
+                "media-nv12-bottom".to_string(),
+                Nv12IoSurfaceRef {
+                    surface_id: buffer.surface_id,
+                    width: buffer.width,
+                    height: buffer.height,
+                    colour_range,
+                    colour_matrix,
+                    revision: 1,
+                },
+            )]);
+            let mixed_sources = HashMap::from([("media-rgba-top".to_string(), top_rgba.clone())]);
+
+            let reference_snapshot = SceneSnapshot {
+                frame_index: 0,
+                colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+                clips: vec![
+                    identity_nv12_clip("clip-rgba-bottom", "media-rgba-bottom", 0),
+                    top_clip,
+                ],
+            };
+            let bottom_rgba_equivalent = RgbaFrame::from_rgba8(
+                4,
+                4,
+                std::iter::repeat([bottom_r, bottom_g, bottom_b, 255_u8])
+                    .take(16)
+                    .flatten()
+                    .collect(),
+            )
+            .expect("valid bottom rgba reference frame");
+            let reference_sources = HashMap::from([
+                ("media-rgba-bottom".to_string(), bottom_rgba_equivalent),
+                ("media-rgba-top".to_string(), top_rgba),
+            ]);
+
+            let mixed_report = pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+                &mixed_snapshot,
+                &mixed_sources,
+                &[],
+                &HashMap::new(),
+                &nv12_sources,
+            ))
+            .expect("production nv12+rgba mixed render must succeed");
+            let reference_report =
+                pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+                    &reference_snapshot,
+                    &reference_sources,
+                    &[],
+                    &HashMap::new(),
+                    &HashMap::new(),
+                ))
+                .expect("production all-rgba reference render must succeed");
+
+            assert_pixels_close(
+                &mixed_report.frame,
+                &reference_report.frame,
+                2,
+                "production path: nv12 clip composited with an rgba clip must match an equivalent \
+                 all-rgba composite",
+            );
+        }
+
+        #[test]
+        fn production_path_reuses_nv12_texture_cache_across_calls_with_unchanged_revision() {
+            let Some(renderer) = new_test_renderer(4, 4) else {
+                return;
+            };
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                4,
+                4,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, _col| 128,
+                |_row, _col| (128, 128),
+            );
+            let snapshot =
+                empty_snapshot_with_clip(identity_nv12_clip("clip-nv12", "media-nv12", 0));
+            let source = Nv12IoSurfaceRef {
+                surface_id: buffer.surface_id,
+                width: buffer.width,
+                height: buffer.height,
+                colour_range: Nv12ColourRange::Video,
+                colour_matrix: Nv12ColourMatrix::Bt601,
+                revision: 7,
+            };
+            let nv12_sources = HashMap::from([("media-nv12".to_string(), source)]);
+
+            pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+                &snapshot,
+                &HashMap::new(),
+                &[],
+                &HashMap::new(),
+                &nv12_sources,
+            ))
+            .expect("first production nv12 render must succeed (cache miss expected)");
+            assert_eq!(renderer.nv12_texture_cache_stats(), (0, 1));
+
+            pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+                &snapshot,
+                &HashMap::new(),
+                &[],
+                &HashMap::new(),
+                &nv12_sources,
+            ))
+            .expect("second production nv12 render with unchanged revision must succeed");
+            assert_eq!(
+                renderer.nv12_texture_cache_stats(),
+                (1, 1),
+                "unchanged (surface_id, revision) must hit the plane texture cache via the \
+                 production path too"
+            );
         }
 
         /// テスト専用: IOSurface-backed NV12 CVPixelBuffer を合成する。

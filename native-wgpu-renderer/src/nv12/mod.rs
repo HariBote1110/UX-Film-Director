@@ -52,23 +52,12 @@ use crate::{
     NativeWgpuRenderer, PreparedClip, RgbaFrame,
 };
 
-/// NV12 の colour range（量子化レンジ）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Nv12ColourRange {
-    /// limited/video range（8bit 換算で Y:[16,235], Cb/Cr:[16,240]）。
-    Video,
-    /// full range（8bit 換算で Y/Cb/Cr ともに [0,255]）。
-    Full,
-}
-
-/// NV12 の YCbCr→RGB 変換行列。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Nv12ColourMatrix {
-    /// ITU-R BT.601（SD 動画で一般的）。
-    Bt601,
-    /// ITU-R BT.709（HD 動画で一般的）。
-    Bt709,
-}
+/// NV12 の colour range（量子化レンジ）・YCbCr→RGB 変換行列。Phase 4c
+/// Stage 2 で `uxfd-rust-core` 側へ正準定義を移した（rust-backend の
+/// in-process デコードセッションと本クレートの本番合成パスが同じ型を
+/// 共有するため）。ここでは re-export するだけで、このモジュール内の
+/// 既存コードは一切変更不要（型としては同一）。
+pub use uxfd_rust_core::{Nv12ColourMatrix, Nv12ColourRange};
 
 /// NV12 (biplanar 4:2:0) IOSurface ソース。`surface_id` は
 /// `IOSurfaceLookup` で解決可能なグローバル ID
@@ -300,7 +289,50 @@ impl NativeWgpuRenderer {
         Ok((y_view, cbcr_view))
     }
 
-    fn evict_stale_nv12_textures(&self, touched_media_ids: &HashSet<String>) {
+    /// Phase 4c Stage 2: prepares one NV12 clip for the production composite
+    /// path (`prepare_scene_clips_with_upload_fence` in `lib.rs`), mirroring
+    /// `render_layers_to_rgba`'s per-clip NV12 handling above but returning a
+    /// single `PreparedClip` instead of assembling `PreparedLayer`s for a
+    /// dedicated render pass. `source` is rust-core's `Nv12IoSurfaceRef`
+    /// (Stage 1 in-process decode session resolution, see
+    /// `rust-backend/src/native_render.rs`); its `revision` field drives the
+    /// same plane texture cache as `render_layers_to_rgba`. Callers are
+    /// responsible for calling `evict_stale_nv12_textures` once per prepared
+    /// scene (not per clip).
+    pub(crate) fn prepare_nv12_clip(
+        &self,
+        clip: &EvaluatedClip,
+        rotation_radians: f32,
+        source: &uxfd_rust_core::Nv12IoSurfaceRef,
+    ) -> Result<PreparedClip, NativeWgpuRenderError> {
+        let native_source = Nv12IoSurfaceSource {
+            surface_id: source.surface_id,
+            width: source.width,
+            height: source.height,
+            colour_range: source.colour_range,
+            colour_matrix: source.colour_matrix,
+        };
+        let (y_view, cbcr_view) = self.get_or_import_nv12_media_textures(
+            &clip.media_id,
+            source.revision,
+            &native_source,
+        )?;
+        let render_params = build_render_params(clip, rotation_radians, source.width, source.height);
+        let nv12_params = Nv12Params::new(source.colour_range, source.colour_matrix);
+        Ok(build_prepared_nv12_clip_bind_group(
+            &self.device,
+            &self.nv12_bind_group_layout,
+            &y_view,
+            &cbcr_view,
+            nv12_params,
+            render_params,
+        ))
+    }
+
+    /// Phase 4c Stage 2: evicts NV12 plane textures for media not touched by
+    /// the current production scene prepare. Same eviction policy as
+    /// `evict_stale_media_textures` (idle-frame threshold + byte budget).
+    pub(crate) fn evict_stale_nv12_textures(&self, touched_media_ids: &HashSet<String>) {
         let mut cache = self
             .nv12_texture_cache
             .lock()

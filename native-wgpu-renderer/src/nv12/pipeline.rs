@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use crate::{PreparedClip, RenderParams};
+use crate::{ClipPipelineKind, PreparedClip, RenderParams};
 
 use super::{Nv12ColourMatrix, Nv12ColourRange};
 
@@ -29,7 +29,11 @@ impl Nv12Params {
             },
             colour_matrix: match colour_matrix {
                 Nv12ColourMatrix::Bt601 => 0.0,
-                Nv12ColourMatrix::Bt709 => 1.0,
+                // BT.2020 has no distinct coefficient set here (documented
+                // approximation, see progress/phase4b-nv12-iosurface-gpu-import.md
+                // and progress/phase4c-inprocess-decode-integration.md):
+                // treated identically to BT.709.
+                Nv12ColourMatrix::Bt709 | Nv12ColourMatrix::Bt2020 => 1.0,
             },
             _padding0: 0.0,
             _padding1: 0.0,
@@ -197,5 +201,8 @@ pub(crate) fn build_prepared_nv12_clip_bind_group(
         ],
     });
 
-    PreparedClip { bind_group }
+    PreparedClip {
+        bind_group,
+        pipeline_kind: ClipPipelineKind::Nv12,
+    }
 }
