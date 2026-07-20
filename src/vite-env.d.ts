@@ -352,6 +352,22 @@ interface Window {
         };
         ptsFrame: number;
       };
+      // Bug B対策 — この present と同じ (objects, time) から計算された
+      // 選択デコレーション。省略可（addon 未対応時は無視される）。
+      selectionDecoration?: {
+        canvasWidth: number;
+        canvasHeight: number;
+        quads: readonly {
+          topLeftX: number;
+          topLeftY: number;
+          topRightX: number;
+          topRightY: number;
+          bottomRightX: number;
+          bottomRightY: number;
+          bottomLeftX: number;
+          bottomLeftY: number;
+        }[];
+      };
     }) => Promise<{
       success: boolean;
       attached: boolean;

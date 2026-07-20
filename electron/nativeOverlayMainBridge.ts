@@ -79,6 +79,20 @@ export interface NativeOverlaySharedFramePayload {
     descriptor: NativeOverlaySharedFrameDescriptor
     ptsFrame: number
   }
+  /**
+   * Bug B対策（症状B: 選択枠・本体フレームが2チャネル独立配信のため
+   * ドラッグ中にズレる不具合）— この present と同じ (objects, time) から
+   * 計算された選択デコレーション。addon 側は同梱があればグローバル state
+   * の再読みなしにこの present へ使う（同梱が無ければ従来どおり
+   * setSelectionDecoration が書き込んだ state へフォールバックする）。
+   */
+  selectionDecoration?: NativeOverlaySelectionDecorationQuadsPayload
+}
+
+export interface NativeOverlaySelectionDecorationQuadsPayload {
+  canvasWidth: number
+  canvasHeight: number
+  quads: readonly NativeOverlaySelectionDecorationQuad[]
 }
 
 export interface NativeOverlayAddonSharedFramePayload extends NativeOverlaySharedFramePayload {
