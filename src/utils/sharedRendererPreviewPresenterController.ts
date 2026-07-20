@@ -22,6 +22,7 @@ import { loadSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRen
 import { loadSharedRendererRustVideoFrameDecodeRequestBuilder } from './sharedRendererRustVideoDecodeRequest';
 import { loadSharedRendererRustVideoPlaneVertexSceneBuilder } from './sharedRendererRustVideoPlaneScene';
 import {
+  recordSharedRendererPresenterTransientSkip,
   writeSharedRendererPresenterDiagnostics,
   type SharedRendererPresenterDiagnosticState,
 } from './sharedRendererPresenterDiagnostics';
@@ -64,6 +65,27 @@ export const getSharedRendererSolidSwatchCssColour = (): string => {
 };
 
 type PresenterDataset = Record<string, string | undefined>;
+
+// A mid-seek external video element may momentarily hold no presentable
+// frame, so the presenter reports videoTextureViewUnavailable. During
+// playback this is transient: keep the current presenter and skip the frame
+// instead of tearing it down, which would restart the presenter every frame
+// and lose the GPU device. Classified here (the diagnostics write site) so
+// the transient/persistent distinction is made exactly once, rather than
+// re-derived on the display side.
+export const isTransientExternalVideoPresentationFailure = (
+  presentation: SharedRendererVideoFrameScenePresentationResult | undefined | null,
+): boolean => Boolean(
+  presentation
+  && !presentation.ok
+  && presentation.reason === 'videoTextureViewUnavailable',
+);
+
+// After this many consecutive transient external-video presentation skips
+// with no successful present in between, the condition is no longer a normal
+// one-tick skip — escalate it to a persistent, visible failure so a genuinely
+// stuck video source is not hidden from diagnostics forever.
+export const EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD = 120;
 
 export type SharedRendererPreparedNativeRenderFramePresentationResult =
   | { ok: true }
@@ -206,6 +228,16 @@ export const startSharedRendererPreviewPresenter = async ({
       writeSharedRendererPresenterDiagnostics(dataset, state);
     });
   };
+  const recordTransientSkip = (reason: string) => {
+    datasets.forEach((dataset) => {
+      recordSharedRendererPresenterTransientSkip(dataset, reason);
+    });
+  };
+  // Consecutive transient external-video presentation skips since the last
+  // successful present. Lives in this closure so it resets naturally on every
+  // presenter restart, and is distinct from the monotonic debug counter above
+  // (which never resets — it is for post-hoc diagnosis, not control flow).
+  let consecutiveExternalVideoTransientSkips = 0;
 
   if (!session.surfaceGate.ok) {
     writeDiagnostics({
@@ -731,6 +763,13 @@ export const startSharedRendererPreviewPresenter = async ({
           ? 'rust-decoded-rgba'
           : undefined
     : undefined;
+  // A decoded-frame upload failure only reflects a genuine, persistent
+  // problem when the active output actually depends on that upload. When the
+  // external-video-source path already owns and presents the clip, the
+  // decode-upload attempt (and its failure) is superseded — surfacing it as
+  // part of the 'ready' diagnostics would flash a non-blocking banner over a
+  // preview that is, in fact, presenting correctly.
+  const videoUploadFailureIsPersistent = hasVideoScene && videoPresentationSource !== 'external-video-source';
   const presentExternalVideoFrameScene = shouldPresentExternalVideoFrame
     ? ({
       session: repaintSession,
@@ -750,12 +789,26 @@ export const startSharedRendererPreviewPresenter = async ({
         videoObjectIds: new Set(videoOwnership.videoObjectIds),
       });
       if (!presentation.ok) {
+        if (
+          isTransientExternalVideoPresentationFailure(presentation)
+          && consecutiveExternalVideoTransientSkips < EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD
+        ) {
+          // One-tick skip: keep whatever persistent status is already
+          // published (typically 'ready') and only bump the debug counter —
+          // writing 'fallback'/'blocked' here is exactly what made the
+          // diagnostics banner flash during normal playback/seek.
+          consecutiveExternalVideoTransientSkips += 1;
+          recordTransientSkip(presentation.reason);
+          return presentation;
+        }
+        consecutiveExternalVideoTransientSkips = 0;
         writeDiagnostics({
           status: requireSharedRendererOutput ? 'blocked' : 'fallback',
           reason: presentation.reason,
         });
         return presentation;
       }
+      consecutiveExternalVideoTransientSkips = 0;
 
       writeDiagnostics({
         status: 'ready',
@@ -813,11 +866,11 @@ export const startSharedRendererPreviewPresenter = async ({
       : undefined,
     videoPresentationSource,
     videoFrameUploadReady: hasVideoScene ? effectiveVideoFrameUploadReady : undefined,
-    videoUploadFailureReason: hasVideoScene ? resolvedVideoUploadFailure?.reason : undefined,
-    videoUploadFailureDetail: hasVideoScene ? resolvedVideoUploadFailure?.detail : undefined,
-    videoUploadFailureClipId: hasVideoScene ? resolvedVideoUploadFailure?.clipId : undefined,
-    videoUploadFailureMediaId: hasVideoScene ? resolvedVideoUploadFailure?.mediaId : undefined,
-    videoUploadMissingClipIds: hasVideoScene ? resolvedVideoUploadFailure?.missingClipIds : undefined,
+    videoUploadFailureReason: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.reason : undefined,
+    videoUploadFailureDetail: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.detail : undefined,
+    videoUploadFailureClipId: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.clipId : undefined,
+    videoUploadFailureMediaId: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.mediaId : undefined,
+    videoUploadMissingClipIds: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.missingClipIds : undefined,
     videoOwner: hasVideoScene ? forVideoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? forVideoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? forVideoOwnership.videoObjectIds.length : undefined,
@@ -886,6 +939,9 @@ export const startSharedRendererPreviewPresenter = async ({
     return presentation;
   };
 
+  if (hasVideoScene && !videoUploadFailureIsPersistent && resolvedVideoUploadFailure) {
+    recordTransientSkip(resolvedVideoUploadFailure.reason);
+  }
   writeDiagnostics(buildReadyDiagnosticsState(session, nativeRenderFrameReady, videoOwnership));
 
   return {

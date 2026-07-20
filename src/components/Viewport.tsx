@@ -31,10 +31,10 @@ import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererP
 import { buildSharedRendererVideoMediaReadiness } from '../utils/sharedRendererVideoMediaReadiness';
 import {
   getSharedRendererSolidSwatchCssColour,
+  isTransientExternalVideoPresentationFailure,
   type SharedRendererPreviewPresenterControl,
 } from '../utils/sharedRendererPreviewPresenterController';
 import { writeSharedRendererPresenterDiagnostics } from '../utils/sharedRendererPresenterDiagnostics';
-import type { SharedRendererVideoFrameScenePresentationResult } from '../utils/sharedRendererWebGpuPresenter';
 import {
   startSharedRendererViewportPresenter,
   resolveNativeOverlayTransparentClearTransition,
@@ -443,18 +443,12 @@ const copySharedRendererPresenterDiagnostics = (
   });
 };
 
-const isNonBlockingSharedRendererPreviewDiagnostic = (
-  dataset: SharedRendererPresenterDiagnosticDataset,
-  control: SharedRendererPreviewPresenterControl | null,
-): boolean => (
-  control?.ok === true
-  && dataset.uxfdSharedRendererPresenterStatus === 'ready'
-  && dataset.uxfdSharedRendererPresenterVideoPresentationSource === 'external-video-source'
-  && dataset.uxfdSharedRendererPresenterVideoFrameUploadReady === 'true'
-  && !dataset.uxfdSharedRendererPresenterFailureReason
-  && !dataset.uxfdSharedRendererPresenterNativeRenderFailureReason
-);
-
+// Both the persistent status and any transient-skip debug fields
+// (uxfdSharedRendererPresenterTransientSkips / ...LastTransientSkipReason)
+// live on this dataset, but only the persistent status/failure fields feed
+// the banner below — the write site (sharedRendererPreviewPresenterController.ts)
+// is responsible for keeping transient, one-tick events out of them so this
+// function does not need its own display-side whitelist.
 export const buildSharedRendererPreviewDiagnostic = (
   dataset: SharedRendererPresenterDiagnosticDataset,
   control: SharedRendererPreviewPresenterControl | null,
@@ -468,9 +462,6 @@ export const buildSharedRendererPreviewDiagnostic = (
   const videoFrameUploadReady = dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
 
   if (control?.ok && status === 'ready' && !nativeRenderFailureReason && !videoUploadFailureReason && videoFrameUploadReady !== 'false') {
-    return null;
-  }
-  if (videoUploadFailureReason && isNonBlockingSharedRendererPreviewDiagnostic(dataset, control)) {
     return null;
   }
 
@@ -489,17 +480,7 @@ export const buildSharedRendererPreviewDiagnostic = (
   return parts.join(' / ');
 };
 
-// A mid-seek external video element may momentarily hold no presentable frame,
-// so the presenter reports videoTextureViewUnavailable. During playback this is
-// transient: keep the current presenter and skip the frame instead of tearing it
-// down, which would restart the presenter every frame and lose the GPU device.
-export const isTransientExternalVideoPresentationFailure = (
-  presentation: SharedRendererVideoFrameScenePresentationResult | undefined | null,
-): boolean => Boolean(
-  presentation
-  && !presentation.ok
-  && presentation.reason === 'videoTextureViewUnavailable',
-);
+export { isTransientExternalVideoPresentationFailure };
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);

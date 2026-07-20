@@ -347,6 +347,24 @@ export const writeSharedRendererPresenterDiagnostics = (
   }
 };
 
+// Transient, one-tick presentation events (e.g. a mid-seek video element that
+// momentarily has no presentable frame) must not overwrite the persistent
+// status written above — doing so is what makes the diagnostics banner flash
+// during normal playback. Record them only as a monotonically increasing
+// debug counter, separate from writeSharedRendererPresenterDiagnostics'
+// delete-then-rewrite cycle, so the count survives subsequent ready/fallback
+// writes for the lifetime of the dataset.
+export const recordSharedRendererPresenterTransientSkip = (
+  dataset: SharedRendererPresenterDataset,
+  reason: string,
+): number => {
+  const previousCount = Number(dataset.uxfdSharedRendererPresenterTransientSkips ?? '0');
+  const nextCount = Number.isFinite(previousCount) ? previousCount + 1 : 1;
+  dataset.uxfdSharedRendererPresenterTransientSkips = String(nextCount);
+  dataset.uxfdSharedRendererPresenterLastTransientSkipReason = reason;
+  return nextCount;
+};
+
 const formatNativeRenderFailureLabel = (reason: string): string => {
   if (reason === 'nativeRenderFailed') {
     return 'native render failed';
