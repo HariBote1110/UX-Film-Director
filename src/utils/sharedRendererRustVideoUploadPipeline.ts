@@ -12,6 +12,7 @@ import {
   type SharedVideoFrameCopyBridge,
 } from './sharedVideoFrameUploadBridge';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
 
 type NativeOverlaySceneSnapshotPayload = {
   frameIndex: number;
@@ -66,6 +67,11 @@ export interface NativeOverlayDecodedFrameBridge {
     media?: readonly NativeOverlaySceneMediaPayload[];
     slotCount: number;
     frame: RustBackendSharedVideoFrame;
+    // Bug B対策（症状B: 選択枠・本体フレームが2チャネル独立配信のため
+    // ドラッグ中にズレる不具合）— この present と同じ (objects, time)
+    // から計算された選択デコレーション。addon 側は同梱があればそれを
+    // グローバル state の再読みなしにこの present へ使う。
+    selectionDecoration?: SelectionDecorationPayload;
   }) => Promise<{
     success: boolean;
     attached: boolean;
@@ -89,6 +95,10 @@ export interface PresentNativeOverlayRustDecodedVideoFrameInput {
   // プロジェクト解像度（シーン canvas サイズ）。snapshot がある場合は必須。
   canvas?: { width: number; height: number };
   slotCount: number;
+  // Bug B対策 — 呼び出し元（prepareSharedRendererViewportNativeOverlayPresent）
+  // がこの present と同じ (objects, time) から計算した選択デコレーション。
+  // 渡された場合、そのまま presentSharedFrame の payload に同梱する。
+  selectionDecoration?: SelectionDecorationPayload;
   nativeOverlayBridge: NativeOverlayDecodedFrameBridge;
   rustBackendBridge: RustBackendVideoDecodeBridge;
 }
@@ -168,6 +178,7 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   media,
   canvas,
   slotCount,
+  selectionDecoration,
   nativeOverlayBridge,
   rustBackendBridge,
 }: PresentNativeOverlayRustDecodedVideoFrameInput): Promise<PresentNativeOverlayRustDecodedVideoFrameResult> => {
@@ -203,6 +214,7 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
     ...(media ? { media: media.map(toNativeOverlaySceneMediaPayload) } : {}),
     slotCount,
     frame,
+    ...(selectionDecoration ? { selectionDecoration } : {}),
   });
   if (!presentResponse.success || !presentResponse.releaseFrame) {
     return {
