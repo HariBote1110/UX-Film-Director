@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use crate::frames::{
     base64_encode, checksum_for_bytes, descriptor_for_release, pad_rgba_rows, tight_rgba_byte_len,
 };
+use crate::inprocess_decode::{inprocess_decode_enabled, InProcessDecodeSession};
 use crate::params::DecodeStopRequest;
 use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::{
@@ -113,6 +114,8 @@ pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendSta
         format: descriptor.format,
         colour: descriptor.colour,
     };
+    let inprocess = open_inprocess_decode_session(&parsed.job_id, &parsed.source, &response);
+
     state.decode_sessions.insert(
         response.job_id.clone(),
         DecodeSession {
@@ -122,6 +125,7 @@ pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendSta
             ffprobe_path,
             ring: SharedFrameRing::new(layout),
             data_plane_ring,
+            inprocess,
             streaming_decoder: None,
             decoded_frame_cache: std::collections::VecDeque::new(),
             decoded_frame_leases: std::collections::HashMap::new(),
@@ -560,6 +564,44 @@ pub(crate) type DecodeDataPlaneRing = PosixSharedRing;
 #[cfg(not(unix))]
 pub(crate) struct DecodeDataPlaneRing;
 
+/// Phase 4c Stage 1 automatic fallback: attempts to open `source` via the
+/// in-process `macos-video-decode` worker at the ring's requested output
+/// resolution. Returns `None` (never an error to the caller) whenever the
+/// in-process path is unavailable for any reason -- disabled via
+/// `UXFD_DISABLE_INPROCESS_DECODE=1`, not macOS, or `VideoDecodeSession::open`
+/// itself failing (unsupported codec/container, e.g. the sandboxed-HEVC
+/// pixel-decode constraint from `progress/phase4a-macos-video-decode-core.md`)
+/// -- so `decode_rgba_frame_for_session` transparently falls back to the
+/// existing ffmpeg streaming pipeline for this session. The failure is
+/// logged exactly once, here, at session-open time.
+fn open_inprocess_decode_session(
+    job_id: &str,
+    source: &str,
+    response: &DecodeStartResponse,
+) -> Option<InProcessDecodeSession> {
+    if !inprocess_decode_enabled() {
+        return None;
+    }
+    match InProcessDecodeSession::open(
+        std::path::Path::new(source),
+        response.width,
+        response.height,
+    ) {
+        Ok(session) => {
+            if decode_trace_enabled() {
+                eprintln!("[decode.trace] job={job_id} decodePath=inprocess (VideoToolbox, resident)");
+            }
+            Some(session)
+        }
+        Err(error) => {
+            eprintln!(
+                "[uxfd-decode] in-process decode unavailable for jobId={job_id}, falling back to ffmpeg pipeline: {error}"
+            );
+            None
+        }
+    }
+}
+
 fn decode_memory_id(job_id: &str) -> String {
     let mut hasher = crc32fast::Hasher::new();
     hasher.update(job_id.as_bytes());
@@ -679,6 +721,35 @@ fn decode_rgba_frame_for_session(
 ) -> Result<DecodedRgbaFrame, String> {
     let expected_len =
         tight_rgba_byte_len(session.start_response.width, session.start_response.height)?;
+
+    // Phase 4c Stage 1: an in-process session (see `open_inprocess_decode_session`)
+    // fully replaces the ffmpeg pipeline below for this session -- the
+    // decoder worker thread owns its own pts-ordered prefetch ring, so
+    // `decoded_frame_cache`/`streaming_decoder` (ffmpeg-specific) are never
+    // touched on this path. `request_frame` never runs a decode on this (RPC)
+    // thread; it only does a bounded ring lookup (see `inprocess_decode.rs`).
+    if let Some(inprocess) = session.inprocess.as_ref() {
+        let target_pts_seconds = frame_index as f64
+            * f64::from(session.start_response.source_rate.denominator)
+            / f64::from(session.start_response.source_rate.numerator);
+        let frame = inprocess.request_frame(target_pts_seconds).map_err(|error| {
+            format!("in-process decode failed for frame {frame_index}: {error}")
+        })?;
+        if decode_trace_enabled() {
+            eprintln!(
+                "[decode.trace] inprocess targetPts={target_pts_seconds:.4} servedPts={:.4}",
+                frame.pts_seconds
+            );
+        }
+        return Ok(DecodedRgbaFrame {
+            bytes: frame.rgba,
+            decode_path: "inprocess",
+            stream_restarted: false,
+            stream_skipped_frame_count: 0,
+            decode_invocation_count: 0,
+            stream_restart_reason: "inprocess",
+        });
+    }
 
     if let Some(bytes) = cached_decoded_frame_bytes(session, frame_index, expected_len) {
         return Ok(DecodedRgbaFrame {

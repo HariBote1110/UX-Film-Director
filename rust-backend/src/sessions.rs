@@ -3,6 +3,7 @@ use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use uxfd_sidecar_protocol::{ColourMetadata, DecodeStartResponse, FrameFormat, SharedFrameRing};
 
 use crate::decode::DecodeDataPlaneRing;
+use crate::inprocess_decode::InProcessDecodeSession;
 
 pub(crate) struct DecodeSession {
     pub(crate) start_response: DecodeStartResponse,
@@ -11,6 +12,14 @@ pub(crate) struct DecodeSession {
     pub(crate) ffprobe_path: String,
     pub(crate) ring: SharedFrameRing,
     pub(crate) data_plane_ring: Option<DecodeDataPlaneRing>,
+    /// Phase 4c Stage 1: when `Some`, this session decodes via the in-process
+    /// `macos-video-decode` worker thread instead of the ffmpeg pipeline
+    /// below. Set once at `decode.start` time (see
+    /// `crate::decode::handle_decode_start`); `None` means either the
+    /// platform/opt-out disabled it or `VideoDecodeSession::open` failed for
+    /// this source, and every `decode.requestFrame` for this session falls
+    /// back to `streaming_decoder`/`decoded_frame_cache` below.
+    pub(crate) inprocess: Option<InProcessDecodeSession>,
     pub(crate) streaming_decoder: Option<StreamingDecodeProcess>,
     pub(crate) decoded_frame_cache: VecDeque<CachedDecodedRgbaFrame>,
     /// Outstanding decoded-frame leases, keyed by the renderer-visible

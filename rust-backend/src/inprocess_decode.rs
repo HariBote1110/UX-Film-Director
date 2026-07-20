@@ -23,10 +23,10 @@ pub(crate) fn inprocess_decode_enabled() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) use platform::{InProcessDecodeSession, InProcessFrame};
+pub(crate) use platform::InProcessDecodeSession;
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) use stub::{InProcessDecodeSession, InProcessFrame};
+pub(crate) use stub::InProcessDecodeSession;
 
 #[cfg(not(target_os = "macos"))]
 mod stub {
