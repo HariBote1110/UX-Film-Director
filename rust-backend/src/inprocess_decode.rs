@@ -103,6 +103,15 @@ mod platform {
         /// itself has been trimmed from `frames`, so seek-vs-sequential
         /// decisions do not depend on how much of the ring is still buffered.
         last_decoded_pts: Option<f64>,
+        /// pts of the most recently *requested* frame (the playhead), set by
+        /// every `request_frame` call. Consumed frames strictly behind this
+        /// (see `trim_consumed_frames`) are dropped, and the worker's "ring
+        /// is full enough, pause" check is relative to this rather than a
+        /// fixed frame count -- otherwise, once the ring reaches
+        /// `PREFETCH_RING_DEPTH` frames starting from pts=0, it would never
+        /// shrink again as playback advances (nothing else removes frames),
+        /// and the worker would permanently stop decoding new ones.
+        target_pts_seconds: f64,
         seek_request: Option<f64>,
         eof: bool,
         fatal_error: Option<String>,
@@ -156,6 +165,7 @@ mod platform {
                 ring: Mutex::new(RingState {
                     frames: VecDeque::new(),
                     last_decoded_pts: None,
+                    target_pts_seconds: 0.0,
                     seek_request: None,
                     eof: false,
                     fatal_error: None,
@@ -221,6 +231,8 @@ mod platform {
                     ring.frames.clear();
                     ring.eof = false;
                 }
+                ring.target_pts_seconds = target_pts_seconds;
+                trim_consumed_frames(&mut ring, target_pts_seconds);
             }
             self.shared.condvar.notify_all();
 
@@ -280,6 +292,23 @@ mod platform {
             .rev()
             .find(|frame| frame.pts_seconds <= target_pts_seconds)
             .or_else(|| frames.front())
+    }
+
+    /// Drops frames that playback has already moved past, keeping exactly
+    /// one (the frame `nearest_frame` would currently serve) as the
+    /// hold-last-frame fallback. Without this, once the ring fills to
+    /// `PREFETCH_RING_DEPTH` starting from pts=0 it never shrinks again (the
+    /// worker only ever appends), so the worker's "is the ring full"
+    /// check permanently answers "yes" and it stops decoding forward --
+    /// exactly the ffmpeg-restart-storm-shaped bug this design set out to
+    /// avoid, just moved into the new path. Trimming here, driven by every
+    /// `request_frame` call (i.e. the playhead), is what lets the ring
+    /// actually behave as a window that tracks playback instead of a
+    /// snapshot of the first `PREFETCH_RING_DEPTH` frames ever decoded.
+    fn trim_consumed_frames(ring: &mut RingState, target_pts_seconds: f64) {
+        while ring.frames.len() > 1 && ring.frames[1].pts_seconds <= target_pts_seconds {
+            ring.frames.pop_front();
+        }
     }
 
     fn worker_loop(
@@ -591,29 +620,28 @@ mod platform {
             assert_eq!(held.pts_seconds, 1.0);
         }
 
-        #[test]
-        fn should_seek_is_false_for_first_request_before_anything_decoded() {
-            let ring = RingState {
+        fn empty_ring_state() -> RingState {
+            RingState {
                 frames: VecDeque::new(),
                 last_decoded_pts: None,
+                target_pts_seconds: 0.0,
                 seek_request: None,
                 eof: false,
                 fatal_error: None,
                 shutdown: false,
-            };
+            }
+        }
+
+        #[test]
+        fn should_seek_is_false_for_first_request_before_anything_decoded() {
+            let ring = empty_ring_state();
             assert!(!should_seek(&ring, 3.0));
         }
 
         #[test]
         fn should_seek_is_true_for_large_forward_gap_and_backward_step() {
-            let mut ring = RingState {
-                frames: VecDeque::new(),
-                last_decoded_pts: Some(1.0),
-                seek_request: None,
-                eof: false,
-                fatal_error: None,
-                shutdown: false,
-            };
+            let mut ring = empty_ring_state();
+            ring.last_decoded_pts = Some(1.0);
             assert!(should_seek(&ring, 1.0 + FORWARD_SEEK_GAP_SECONDS + 0.5));
             assert!(should_seek(&ring, 0.0));
             ring.last_decoded_pts = None;
@@ -621,6 +649,52 @@ mod platform {
             ring.frames.push_back(RingFrame { pts_seconds: 2.1, rgba: vec![] });
             assert!(!should_seek(&ring, 2.05), "target inside ring range must not seek");
             assert!(should_seek(&ring, 0.5), "target before ring range must seek");
+        }
+
+        #[test]
+        fn trim_consumed_frames_keeps_only_the_frame_nearest_frame_would_serve() {
+            let mut ring = empty_ring_state();
+            for pts in [0.0, 0.1, 0.2, 0.3, 0.4] {
+                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![] });
+            }
+            trim_consumed_frames(&mut ring, 0.25);
+            let pts_values: Vec<f64> = ring.frames.iter().map(|frame| frame.pts_seconds).collect();
+            assert_eq!(pts_values, vec![0.2, 0.3, 0.4], "{pts_values:?}");
+        }
+
+        #[test]
+        fn trim_consumed_frames_never_empties_the_ring_when_target_is_ahead_of_everything() {
+            let mut ring = empty_ring_state();
+            for pts in [0.0, 0.1, 0.2] {
+                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![] });
+            }
+            trim_consumed_frames(&mut ring, 99.0);
+            assert_eq!(ring.frames.len(), 1, "must hold the last frame, never empty out");
+            assert_eq!(ring.frames[0].pts_seconds, 0.2);
+        }
+
+        /// Regression test for the bug the perf harness caught: once the ring
+        /// reaches `PREFETCH_RING_DEPTH` starting from pts=0 and playback
+        /// keeps advancing (repeated `request_frame` calls with an
+        /// increasing target), trimming must keep shrinking the ring so the
+        /// worker's "full" check (`len >= PREFETCH_RING_DEPTH`) does not
+        /// latch permanently true.
+        #[test]
+        fn trim_consumed_frames_lets_a_full_ring_shrink_as_target_pts_advances() {
+            let mut ring = empty_ring_state();
+            for index in 0..PREFETCH_RING_DEPTH {
+                ring.frames.push_back(RingFrame {
+                    pts_seconds: index as f64 * 0.1,
+                    rgba: vec![],
+                });
+            }
+            assert_eq!(ring.frames.len(), PREFETCH_RING_DEPTH);
+            trim_consumed_frames(&mut ring, 0.35);
+            assert!(
+                ring.frames.len() < PREFETCH_RING_DEPTH,
+                "ring must shrink below capacity once playback moves past buffered frames, \
+                 otherwise the worker's fullness check never resumes decoding"
+            );
         }
     }
 }
