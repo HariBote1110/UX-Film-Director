@@ -1,3 +1,50 @@
+## 2026-07-20 — Phase 4a: macOS動画デコードコア(uxfd-macos-video-decode)を新設（版0.1.1-Beta-449a）
+
+### 実施内容
+
+現行のffmpeg CLIサブプロセス方式デコード（`rust-backend/src/decode.rs`、
+decodeMs 12〜96ms/frame・150〜400msのコールド再起動、
+`markdown/Rust_Preview_Jank_Handoff.md`参照）を将来置き換えるための土台として、
+独立クレート `macos-video-decode/`（objc2エコシステム、macOS専用）を新設した。
+rust-backend/decode.rs・RPC層・TS/JSは一切変更していない（統合はPhase 4c）。
+
+- `VideoDecodeSession::open/info/next_frame/seek`：`AVURLAsset`/
+  `AVAssetReader`/`AVAssetReaderTrackOutput`によるサブプロセス起動なしの
+  常駐デマックス+VideoToolboxハードウェアデコード。
+- `DecodedVideoFrame`：IOSurface-backedなNV12 `CVPixelBuffer`、
+  `pts_seconds`、`ColourMetadata`（range/matrix、ソースの
+  `FullRangeVideo`タグ・`YCbCrMatrix` attachmentから判定、フォールバックは
+  `rust-backend/src/decode.rs`の規約に合わせた）、CPU読み戻し
+  （`read_nv12`）と`io_surface_id()`。
+- `seek()`はAVAssetReader再生成方式（forward-only制約の裏返し）。契約は
+  「target以上に着地（at-or-after）」で`tests/seek.rs`で前方・後方双方検証。
+- fixtureはテスト実行時にシステムffmpeg CLIで生成（本体コードはサブプロセス
+  なし、ffmpeg不在環境は明示skip）。H.264/HEVC双方カバー。
+- HEVC全イントラ(keyint=1)がx265で"Range Extensions"プロファイル判定され
+  VideoToolboxでハードウェアデコード不能になる既知の癖を発見しkeyint=15に
+  回避。さらに本開発サンドボックス環境ではHEVCのピクセルデコード開始が
+  `VTCouldNotFindVideoDecoderErr`(-12906)で失敗する制約を確認（実機は
+  Apple M4でHEVCハードウェアデコード対応済み、H.264は問題なし）。該当分岐
+  はこの既知環境制約を検出して明示的にskipする専用ヘルパーを用意した。
+- 詳細な決定理由・却下案は`progress/phase4a-macos-video-decode-core.md`。
+
+### 検証
+
+- `cargo test --manifest-path macos-video-decode/Cargo.toml` は11件成功
+  （colour単体テスト2件、open/逐次デコード/CPU読み戻し/seekの結合テスト9件、
+  うちHEVC系3件はこのサンドボックスの既知制約によりskip）。
+- `cargo build --manifest-path macos-video-decode/Cargo.toml` は警告なしで
+  green。
+- `cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend`
+  は93件成功（無改修であることの確認）。
+
+### 残課題・次のステップ
+
+- Phase 4c: このクレートをrust-backendへpath依存として組み込み、
+  `decode.rs`のffmpeg CLIストリーミング経路を置き換える。
+- HEVCハードウェアデコードの実機検証（本サンドボックス外）。
+- 専用デコーダスレッドへの移動（`Send`のみ実装済み、`Sync`は非対応の設計）。
+
 ## 2026-07-13 — Remote Control Deck Phase 6: 仕上げ（版0.1.1-Beta-443a・全フェーズ完了）
 
 ### 実施内容
