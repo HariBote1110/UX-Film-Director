@@ -1,6 +1,7 @@
 mod cpu_simple_video;
 pub(crate) mod decode;
 mod encode;
+mod fonts;
 mod frames;
 mod generated;
 mod media;

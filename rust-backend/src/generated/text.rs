@@ -3,6 +3,7 @@ use cosmic_text::{
     Attrs, Buffer, Color as CosmicColor, Family, FontSystem, Metrics, Shaping, SwashCache,
 };
 use serde::Deserialize;
+use std::collections::BTreeSet;
 use std::sync::OnceLock;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_rust_core::SceneMediaReference;
@@ -57,6 +58,27 @@ pub(crate) struct GeneratedTextSource {
 fn font_system() -> &'static std::sync::Mutex<FontSystem> {
     static FONT_SYSTEM: OnceLock<std::sync::Mutex<FontSystem>> = OnceLock::new();
     FONT_SYSTEM.get_or_init(|| std::sync::Mutex::new(FontSystem::new()))
+}
+
+/// インストール済みフォントファミリー名を重複排除・ソート済みで返す。
+///
+/// ラスタライズに使うのと同じ共有 `FontSystem`（＝同じ `fontdb::Database`）
+/// を参照するため、ここで返したファミリー名は必ず
+/// `build_generated_text_source_frame` 側で解決できる。
+pub(crate) fn list_font_families() -> Result<Vec<String>, String> {
+    let font_system_lock = font_system();
+    let font_system = font_system_lock
+        .lock()
+        .map_err(|_| "Font system lock poisoned".to_string())?;
+
+    let mut families: BTreeSet<String> = BTreeSet::new();
+    for face in font_system.db().faces() {
+        for (name, _language) in &face.families {
+            families.insert(name.clone());
+        }
+    }
+
+    Ok(families.into_iter().collect())
 }
 
 pub(crate) fn build_generated_text_source_frame(
@@ -266,5 +288,32 @@ fn family_with_cjk_fallback(font_family: &str) -> Family<'_> {
         Family::SansSerif
     } else {
         Family::Name(font_family)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::list_font_families;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn list_font_families_returns_sorted_deduplicated_non_empty_list() {
+        let families = list_font_families().expect("font system should be queryable");
+        assert!(
+            !families.is_empty(),
+            "expected at least one installed font family on macOS"
+        );
+
+        let mut sorted = families.clone();
+        sorted.sort();
+        assert_eq!(families, sorted, "families must be returned in sorted order");
+
+        let mut deduped = families.clone();
+        deduped.dedup();
+        assert_eq!(
+            families.len(),
+            deduped.len(),
+            "families must not contain duplicates"
+        );
     }
 }
