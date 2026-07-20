@@ -87,6 +87,13 @@ interface Window {
       };
       error?: string;
     }>;
+    listFonts: () => Promise<{
+      success: boolean;
+      result?: {
+        families: string[];
+      };
+      error?: string;
+    }>;
   };
   rustVideoEncoder: {
     nativeDirectEncodeEnabled?: boolean;

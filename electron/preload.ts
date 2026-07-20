@@ -169,6 +169,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   requestAudioWaveformSamples(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-audio-waveform-samples', payload)
   },
+  listFonts() {
+    return ipcRenderer.invoke('rust-backend-fonts-list')
+  },
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {

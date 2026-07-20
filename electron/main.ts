@@ -1319,6 +1319,18 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('rust-backend-fonts-list', async () => {
+    try {
+      const result = await callRustBackend('fonts.list', {});
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
   ipcMain.handle('coreml-track-object-supported', () => ({
     supported: process.platform === 'darwin',
   }));
