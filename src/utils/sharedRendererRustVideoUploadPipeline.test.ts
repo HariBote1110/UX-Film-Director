@@ -193,6 +193,92 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     });
   });
 
+  // 症状B（本体フレームと選択枠 present が独立2チャネルのためズレる不具合）
+  // 対策 — body present の呼び出し元（prepareSharedRendererViewportNativeOverlayPresent）
+  // が同じ (objects, time) から計算した decoration を渡した場合、
+  // presentSharedFrame の payload にそのまま同梱する。
+  it('embeds the provided selectionDecoration in the presentSharedFrame payload (Bug B対策: body co-delivery)', async () => {
+    resetNativeOverlayVisualFrameCache();
+    const calls: unknown[] = [];
+    const selectionDecoration = {
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      quads: [{
+        topLeftX: 10, topLeftY: 20,
+        topRightX: 110, topRightY: 20,
+        bottomRightX: 110, bottomRightY: 70,
+        bottomLeftX: 10, bottomLeftY: 70,
+      }],
+    };
+
+    const result = await presentNativeOverlayRustDecodedVideoFrame({
+      windowId: 7,
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      selectionDecoration,
+      nativeOverlayBridge: {
+        presentSharedFrame: async (payload) => {
+          calls.push(payload.selectionDecoration);
+          return {
+            success: true,
+            attached: true,
+            releaseFrame: {
+              memoryId: payload.frame.descriptor.memoryId,
+              slotIndex: payload.frame.descriptor.slotIndex,
+              generation: payload.frame.descriptor.generation,
+              ptsFrame: payload.frame.ptsFrame,
+              copyOutState: 'gpuUploadFenceSignalled',
+            },
+          };
+        },
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async () => ({ success: true, result: { released: true } }),
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([selectionDecoration]);
+  });
+
+  it('omits selectionDecoration from the presentSharedFrame payload when the caller does not provide one', async () => {
+    resetNativeOverlayVisualFrameCache();
+    const calls: unknown[] = [];
+
+    await presentNativeOverlayRustDecodedVideoFrame({
+      windowId: 7,
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge: {
+        presentSharedFrame: async (payload) => {
+          calls.push('selectionDecoration' in payload);
+          return {
+            success: true,
+            attached: true,
+            releaseFrame: {
+              memoryId: payload.frame.descriptor.memoryId,
+              slotIndex: payload.frame.descriptor.slotIndex,
+              generation: payload.frame.descriptor.generation,
+              ptsFrame: payload.frame.ptsFrame,
+              copyOutState: 'gpuUploadFenceSignalled',
+            },
+          };
+        },
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async () => ({ success: true, result: { released: true } }),
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    });
+
+    expect(calls).toEqual([false]);
+  });
+
   // 元コミット 19cbb966 の dedup 契約。実機 trace で同一 ptsFrame の cacheHit が連続して
   // 16ms 超の surface 待ちを作っていた退行を抑止する。Bug C 修正後は dedup の判定条件に
   // snapshot.frame_index を含めるため、本テストでも 2 回目の入力で frame_index を変えず
