@@ -264,6 +264,17 @@ describe('scene selection overlay native decoration boundary', () => {
     expect(preload).toContain('nativeOverlayIpcChannels.setSelectionDecoration');
     expect(envTypes).toContain('setSelectionDecoration: (payload: {');
   });
+
+  it('wires the body co-delivery split (Bug B対策) into Viewport: shouldSendStandaloneDecoration gates standalone sends, and the native-overlay present call carries selectionDecoration', () => {
+    const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
+
+    // standalone channel は shouldSendStandaloneDecoration の判定を経由する。
+    expect(viewport).toContain('shouldSendStandaloneDecoration');
+    expect(viewport).toContain('nativeOverlayBodyCoDeliveryEligible');
+    // body present（video-only reuse 経路）は selectionDecoration を同梱する。
+    expect(viewport).toContain('prepareSharedRendererViewportNativeOverlayPresent');
+    expect(viewport).toContain('selectionDecoration: sessionSelectionDecoration');
+  });
 });
 
 describe('native decoration quad matches the SVG overlay CSS position (default camera)', () => {

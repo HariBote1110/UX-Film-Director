@@ -78,6 +78,8 @@ import {
 import {
   buildSelectionDecorationQuads,
   createNativeOverlaySelectionDecorationSender,
+  shouldSendStandaloneDecoration,
+  type SelectionDecorationSendState,
 } from '../utils/nativeOverlaySelectionDecoration';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 
@@ -555,6 +557,10 @@ const Viewport: React.FC = () => {
     createNativeOverlaySelectionDecorationSender((payload) =>
       window.nativeOverlay!.setSelectionDecoration(payload)),
   );
+  // 症状B（本体フレームと選択枠 present が独立2チャネルのためドラッグ中に
+  // ズレる不具合）対策 — shouldSendStandaloneDecoration が「前回 tick から
+  // 何が変化したか」を判定するための直近状態。
+  const selectionDecorationSendStateRef = useRef<SelectionDecorationSendState | null>(null);
   const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
   // 二重クロック対策（発見1）の逃げ道 — 実機で吸着が不自然に見えた場合は
   // VITE_UXFD_EXTERNAL_VIDEO_MASTER_CLOCK=0 で無効化して従来の rAF 積算のみに
@@ -779,10 +785,22 @@ const Viewport: React.FC = () => {
 
   const editorMode = projectSettings.editorMode ?? '2d';
 
-  // 選択デコレーション — 選択変更・ドラッグ中の毎 pointermove（objects 更新で
-  // 再レンダーされる）・時間変化のたびに world quad を送る。値が不変なら
-  // sender が dedupe して IPC を発行しない。応答の success/attached で SVG の
-  // 透明化（native 描画が生きている間のみ）を切り替える。
+  // 選択デコレーション（standalone チャネル）— 選択変更・時間変化のたびに
+  // world quad を送る。値が不変なら sender が dedupe して IPC を発行しない。
+  // 応答の success/attached で SVG の透明化（native 描画が生きている間のみ）
+  // を切り替える。
+  //
+  // 症状B対策: native overlay の body co-delivery が有効な tick
+  // （video-only セッションの reuse present 経路。publishSharedRendererPreviewSession
+  // 内で selectionDecoration を presentNativeOverlaySharedFrame に同梱する）では、
+  // objects/currentTime が変化した tick の送信を shouldSendStandaloneDecoration
+  // がスキップする。body 側が同じ (objects, time) から計算した decoration を
+  // 同じ present に同梱するため、ここで独立に送ると2チャネルが同じ native
+  // overlay live surface へ競合 present してしまう（ドラッグ中に本体と選択枠
+  // がズレる根本原因）。selectedIds のみの変化、および co-delivery 非対象
+  // （図形のみ/混在セッションが使う DOM WebGPU canvas 経路など、本体が
+  // native overlay の presentSharedFrame に一切乗らない場合）は従来どおり
+  // standalone が唯一の配信経路であり続ける。
   useEffect(() => {
     if (
       !nativeOverlayPreviewEnabled
@@ -790,8 +808,21 @@ const Viewport: React.FC = () => {
       || typeof window.nativeOverlay?.setSelectionDecoration !== 'function'
     ) {
       setNativeSelectionDecorationActive(false);
+      selectionDecorationSendStateRef.current = null;
       return;
     }
+    const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled
+      && sharedRendererPreviewSession != null
+      && isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession);
+    const nextSendState: SelectionDecorationSendState = {
+      selectedIds,
+      objects,
+      time: currentTime,
+      nativeOverlayBodyCoDeliveryEligible,
+    };
+    const shouldSend = shouldSendStandaloneDecoration(selectionDecorationSendStateRef.current, nextSendState);
+    selectionDecorationSendStateRef.current = nextSendState;
+    if (!shouldSend) return;
     const quads = buildSelectionDecorationQuads({
       selectedIds,
       objects,
@@ -828,6 +859,8 @@ const Viewport: React.FC = () => {
     projectSettings.width,
     projectSettings.height,
     nativeOverlayAttachTick,
+    rustVideoOnlyEnabled,
+    sharedRendererPreviewSession,
   ]);
 
   const selectedBillboardPsdId = useMemo(() => {
@@ -858,6 +891,16 @@ const Viewport: React.FC = () => {
   
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;
+  // 症状B対策 — publishSharedRendererPreviewSession（body co-delivery する
+  // 選択デコレーションの算出に selectedIds を使う）の依存配列に selectedIds を
+  // 直接載せると、選択変更のたびにコールバック identity が変わり、それに
+  // 連動する再 publish effect が余分な decode+present（dedupe skip 前提でも
+  // Rust バックエンドへの decode リクエスト自体は発生する）を毎回誘発して
+  // しまう。ref 経由で読むことで、selectedIds の変化はここへ反映されつつ
+  // publishSharedRendererPreviewSession 自体の identity は変えない
+  // （latestObjectsRef と同じパターン）。
+  const latestSelectedIdsRef = useRef(selectedIds);
+  latestSelectedIdsRef.current = selectedIds;
 
   // インタラクションは useSceneInteraction（Pixi 非依存のヒットテスト・
   // ドラッグ・リサイズ）が担う（PixiJS 排除計画 Phase 3/4）。
@@ -1042,6 +1085,22 @@ const Viewport: React.FC = () => {
     // presenter フル再起動時の present 対象の正本。reuse 経路（state 非更新）
     // 中でも毎 tick 最新化し、再起動が stale なフレームを出さないようにする。
     sharedRendererLatestPublishedPreviewSessionRef.current = session;
+    // 症状B対策（本体フレームと選択枠 present が独立2チャネルのためズレる
+    // 不具合）— native overlay の body co-delivery（video-only reuse present
+    // 経路）が同梱する選択デコレーションを、body と全く同じ (currentObjects,
+    // previewTime) から計算する。standalone 側（shouldSendStandaloneDecoration）
+    // はこの present が body co-delivery を行う tick では送信をスキップする。
+    const sessionSelectionDecoration = nativeOverlayPreviewEnabled
+      ? {
+        canvasWidth: projectSettings.width,
+        canvasHeight: projectSettings.height,
+        quads: buildSelectionDecorationQuads({
+          selectedIds: latestSelectedIdsRef.current,
+          objects: currentObjects,
+          time: previewTime,
+        }),
+      }
+      : undefined;
     updateSharedRendererGeneratedEffectObjectIds(collectSharedRendererGeneratedEffectObjectIdsFromSession(session));
     const diagnosticsWindow = window as unknown as {
       __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
@@ -1205,6 +1264,9 @@ const Viewport: React.FC = () => {
                 // この in-flight present が完了して削除済みフレームで overlay を
                 // 上書きするレースを防ぐ（Bug F clear の後だと残像が恒久化する）。
                 isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === nativeOverlayReuseRequestId,
+                // 症状B対策 — この present と同じ (currentObjects, previewTime)
+                // から計算した選択デコレーションを同梱する。
+                selectionDecoration: sessionSelectionDecoration,
               });
               if (result.ok) {
                 sharedRendererVideoDecodeJobsRef.current = [result.activeJob];
