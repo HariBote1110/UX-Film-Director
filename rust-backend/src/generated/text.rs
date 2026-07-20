@@ -268,3 +268,30 @@ fn family_with_cjk_fallback(font_family: &str) -> Family<'_> {
         Family::Name(font_family)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::list_font_families;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn list_font_families_returns_sorted_deduplicated_non_empty_list() {
+        let families = list_font_families().expect("font system should be queryable");
+        assert!(
+            !families.is_empty(),
+            "expected at least one installed font family on macOS"
+        );
+
+        let mut sorted = families.clone();
+        sorted.sort();
+        assert_eq!(families, sorted, "families must be returned in sorted order");
+
+        let mut deduped = families.clone();
+        deduped.dedup();
+        assert_eq!(
+            families.len(),
+            deduped.len(),
+            "families must not contain duplicates"
+        );
+    }
+}
