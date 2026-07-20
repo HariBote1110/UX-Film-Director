@@ -530,6 +530,57 @@ describe('sharedRendererViewportVideoUpload', () => {
     void copyBridge;
   });
 
+  // 症状B（本体フレームと選択枠 present が独立2チャネルのためズレる不具合）
+  // 対策 — 呼び出し元が渡した selectionDecoration を、そのまま
+  // presentNativeOverlayRustDecodedVideoFrame 経由で presentSharedFrame の
+  // payload へ同梱する（body と同じ present に乗せることで body/decoration の
+  // 状態が必ず一致する = Bug B の invariant を満たす）。
+  it('threads the caller-provided selectionDecoration through to the presentSharedFrame payload', async () => {
+    const { rustBackendBridge, copyBridge } = createBridges();
+    const calls: unknown[] = [];
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: any) => {
+        calls.push(payload.selectionDecoration);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+    const selectionDecoration = {
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      quads: [{
+        topLeftX: 1, topLeftY: 2,
+        topRightX: 3, topRightY: 2,
+        bottomRightX: 3, bottomRightY: 4,
+        bottomLeftX: 1, bottomLeftY: 4,
+      }],
+    };
+
+    const result = await prepareSharedRendererViewportNativeOverlayPresent({
+      windowId: 7,
+      session,
+      requestId: 80,
+      slotCount: 2,
+      activeJob: null,
+      rustBackendBridge,
+      nativeOverlayBridge,
+      copyBridge,
+      selectionDecoration,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual([selectionDecoration]);
+  });
+
   it('releases the decoded frame without presenting when a newer request superseded this native overlay present', async () => {
     // 実機バグ「動画をタイムラインから消してもキャンバスに動画フレームが残る」
     // の主因: native reuse の in-flight decode+present は、削除 publish が
