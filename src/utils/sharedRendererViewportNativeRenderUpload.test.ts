@@ -3,7 +3,10 @@ import type { RustBackendNativeRenderSharedFrameResult } from './rustBackendNati
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
-import { prepareSharedRendererViewportNativeRenderUpload } from './sharedRendererViewportNativeRenderUpload';
+import {
+  prepareSharedRendererViewportNativeRenderOverlayPresent,
+  prepareSharedRendererViewportNativeRenderUpload,
+} from './sharedRendererViewportNativeRenderUpload';
 
 const descriptor: RustBackendVideoFrameDescriptor = {
   memoryId: '/uxfd-preview-native-render-24',
@@ -1754,5 +1757,147 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
       detail: 'prepared native render source abort release failed',
       activeJobs: [],
     });
+  });
+});
+
+// Phase 3b Step 2 — native-render-only（図形/画像のみ）セッションは
+// render.nativeSharedFrame の出力を DOM canvas へ upload せず、そのまま
+// native overlay の presentSharedFrame（選択デコレーション同梱つき）へ渡す。
+describe('prepareSharedRendererViewportNativeRenderOverlayPresent', () => {
+  it('renders a media-only scene natively and presents the shared-memory frame directly to the native overlay with embedded selection decoration', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session: mediaOnlySession,
+      requestId: 24,
+      selectionDecoration: { canvasWidth: 4, canvasHeight: 4, quads: [] },
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: renderResult,
+        };
+      },
+      nativeOverlayBridge: {
+        presentSharedFrame: async (payload) => {
+          calls.push(['presentSharedFrame', payload]);
+          return {
+            success: true,
+            attached: true,
+            releaseFrame: {
+              memoryId: descriptor.memoryId,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              ptsFrame: 24,
+              copyOutState: 'gpuUploadFenceSignalled',
+            },
+          };
+        },
+      },
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: { released: true, memoryId: payload.memoryId },
+        };
+      },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', {
+        renderId: 'preview-native-render-24',
+        memoryId: '/uxfd-pn-o',
+        slotCount: 1,
+        ptsFrame: 24,
+        width: 4,
+        height: 4,
+        snapshot: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.snapshot : null,
+        media: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.media : null,
+        sources: [],
+      }],
+      ['presentSharedFrame', {
+        windowId: undefined,
+        mediaId: '/uxfd-pn-o',
+        slotCount: 1,
+        frame: renderResult.frame,
+        selectionDecoration: { canvasWidth: 4, canvasHeight: 4, quads: [] },
+      }],
+      ['releaseNativeSharedFrame', { memoryId: '/uxfd-pn-o' }],
+    ]);
+  });
+
+  it('rejects sessions containing media that Rust native render does not support (e.g. Video), leaving the DOM canvas path as the caller-selected fallback', async () => {
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session: videoWithRemotePsdSession,
+      requestId: 24,
+      renderNativeSharedFrame: async () => {
+        throw new Error('native renderer must not run for unsupported media-only gate failures.');
+      },
+      nativeOverlayBridge: {
+        presentSharedFrame: async () => {
+          throw new Error('native overlay must not be called for unsupported media-only gate failures.');
+        },
+      },
+      releaseNativeSharedFrame: async () => ({ success: true, result: { released: true, memoryId: 'unused' } }),
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'nativeRenderUnsupportedMediaOnly' });
+  });
+
+  it('releases the rendered shared-memory output when the native overlay present fails (e.g. overlay not attached), so the caller can restart onto the DOM canvas fallback', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session: mediaOnlySession,
+      requestId: 24,
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: renderResult,
+      }),
+      nativeOverlayBridge: {
+        presentSharedFrame: async () => ({
+          success: false,
+          attached: false,
+          reason: 'Native overlay is not attached.',
+        }),
+      },
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return { success: true, result: { released: true, memoryId: payload.memoryId } };
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'nativeOverlayPresentFailed' });
+    expect(calls).toEqual([['releaseNativeSharedFrame', { memoryId: '/uxfd-pn-o' }]]);
+  });
+
+  it('reports a release mismatch without double-releasing when the native overlay release payload does not match the rendered frame descriptor', async () => {
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session: mediaOnlySession,
+      requestId: 24,
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: renderResult,
+      }),
+      nativeOverlayBridge: {
+        presentSharedFrame: async () => ({
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: 'mismatched-memory-id',
+            slotIndex: descriptor.slotIndex,
+            generation: descriptor.generation,
+            ptsFrame: 24,
+            copyOutState: 'gpuUploadFenceSignalled',
+          },
+        }),
+      },
+      releaseNativeSharedFrame: async () => {
+        throw new Error('must not release again after a release mismatch is reported.');
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'nativeOverlayReleaseMismatch' });
   });
 });
