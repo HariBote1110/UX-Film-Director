@@ -21,6 +21,7 @@ import {
   type PrepareSharedRendererRustDecodedVideoUploadResult,
 } from './sharedRendererRustVideoUploadPipeline';
 import type { SharedVideoFrameCopyBridge } from './sharedVideoFrameUploadBridge';
+import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
 
 export interface SharedRendererViewportVideoDecodeJob {
   jobId: string;
@@ -70,6 +71,11 @@ export interface PrepareSharedRendererViewportNativeOverlayPresentInput {
   nativeOverlayBridge?: NativeOverlayDecodedFrameBridge;
   copyBridge?: SharedVideoFrameCopyBridge;
   decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
+  // Bug B対策（症状B: 選択枠・本体フレームが2チャネル独立配信のため
+  // ドラッグ中にズレる不具合）— 呼び出し元がこの present と同じ
+  // (objects, time) から計算した選択デコレーション。渡された場合、
+  // そのまま presentNativeOverlayRustDecodedVideoFrame へ橋渡しする。
+  selectionDecoration?: SelectionDecorationPayload;
   /**
    * 追い越し検知 — decode 完了後・present 直前に呼ばれ、false を返すと
    * decode 済みスロットを解放して present を抑止する（reason:
@@ -439,6 +445,7 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
   nativeOverlayBridge = window.nativeOverlay,
   decodeRequestBuilder = buildSharedRendererVideoFrameDecodeRequests,
   isRequestCurrent,
+  selectionDecoration,
 }: PrepareSharedRendererViewportNativeOverlayPresentInput): Promise<PrepareSharedRendererViewportNativeOverlayPresentResult> => {
   if (!session.surfaceGate.ok) {
     return {
@@ -604,6 +611,7 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
     media: surfaceGate.media,
     canvas: surfaceGate.canvas,
     slotCount: resolvedJob.slotCount,
+    selectionDecoration,
     nativeOverlayBridge,
     rustBackendBridge,
   });
