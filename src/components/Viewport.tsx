@@ -41,7 +41,10 @@ import {
   NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE,
   type NativeOverlayTransparentClearState,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
-import { prepareSharedRendererViewportNativeRenderUpload } from '../utils/sharedRendererViewportNativeRenderUpload';
+import {
+  prepareSharedRendererViewportNativeRenderOverlayPresent,
+  prepareSharedRendererViewportNativeRenderUpload,
+} from '../utils/sharedRendererViewportNativeRenderUpload';
 import {
   prepareSharedRendererViewportNativeOverlayPresent,
   type SharedRendererViewportVideoDecodeJob,
@@ -827,9 +830,17 @@ const Viewport: React.FC = () => {
       selectionDecorationSendStateRef.current = null;
       return;
     }
+    // Phase 3b Step2 — native-render-only（図形/画像のみ）セッションの reuse
+    // tick も native overlay の presentSharedFrame へ selectionDecoration を
+    // 同梱するようになったため、co-delivery 対象を video-only だけでなく
+    // native-render-only にも拡張する。混在セッションは DOM canvas 経路の
+    // ままのため対象外（standalone 送信が引き続き唯一の配信経路）。
     const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled
       && sharedRendererPreviewSession != null
-      && isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession);
+      && (
+        isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)
+        || isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)
+      );
     const nextSendState: SelectionDecorationSendState = {
       selectedIds,
       objects,
@@ -1249,12 +1260,16 @@ const Viewport: React.FC = () => {
     }
     if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
       const control = sharedRendererPresenterControlRef.current;
-      // 図形（非 video）は DOM 側 WebGPU canvas に描画されるため、
-      // nativeOverlayPreviewEnabled でも overlay 経路には乗せず常に
-      // presentPreparedNativeRenderFrame サブパスを使う。overlay 経路は
-      // video-only セッションに限定する。
+      // video-only は動画デコード注入経由、native-render-only（図形/画像のみ）
+      // は Phase 3b Step2 から render.nativeSharedFrame の合成結果を直接
+      // 同梱 present する経路で、どちらも nativeOverlayPreviewEnabled のとき
+      // native overlay へ乗る。混在セッションはどちらにも該当せず、DOM 側
+      // WebGPU canvas（presentPreparedNativeRenderFrame）に描画され続ける
+      // （Phase 4 の Rust 自前 video デコード統合が前提、five-bugs-structural-
+      // redesign.md 参照）。
       if (control?.ok && (
         (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session))
+        || (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session))
         || control.presentPreparedNativeRenderFrame
       )) {
         const presentPreparedNativeRenderFrame = control.presentPreparedNativeRenderFrame;
@@ -1296,6 +1311,28 @@ const Viewport: React.FC = () => {
                 // 復活させてしまう。decode jobs ref も新しい要求側が管理する。
               } else {
                 sharedRendererVideoDecodeJobsRef.current = [];
+                sharedRendererPresenterSessionKeyRef.current = null;
+                setSharedRendererPreviewSession(session);
+              }
+              return;
+            }
+            if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {
+              // Phase 3b Step2 — 図形/画像のみのセッションは DOM canvas を
+              // 経由せず render.nativeSharedFrame の合成結果を直接 native
+              // overlay へ present する（選択デコレーション同梱つき）。
+              if (session.surfaceGate.ok) {
+                sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
+              }
+              const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+                session,
+                requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+                nativeOverlayBridge: window.nativeOverlay,
+                selectionDecoration: sessionSelectionDecoration,
+              });
+              if (!result.ok) {
+                // overlay 未 attach 等の失敗は video-only 経路と同じ
+                // self-healing restart パターンで DOM canvas フォールバック
+                // （presentPreparedNativeRenderFrame）へ収束させる。
                 sharedRendererPresenterSessionKeyRef.current = null;
                 setSharedRendererPreviewSession(session);
               }
