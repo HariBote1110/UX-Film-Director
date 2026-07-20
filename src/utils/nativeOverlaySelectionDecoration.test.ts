@@ -5,6 +5,8 @@ import type { TimelineObject } from '../types';
 import {
   buildSelectionDecorationQuads,
   createNativeOverlaySelectionDecorationSender,
+  shouldSendStandaloneDecoration,
+  type SelectionDecorationSendState,
 } from './nativeOverlaySelectionDecoration';
 import { getObjectWorldCorners, worldPointToCssPoint, type SceneHitTestViewport } from './sceneHitTest';
 
@@ -349,5 +351,67 @@ describe('native decoration quad matches the SVG overlay CSS position (default c
     // だけを検出できればよい。
     expect(Math.abs(nativeTopLeftCss.x - svgTopLeftCss.x)).toBeLessThan(0.5);
     expect(Math.abs(nativeTopLeftCss.y - svgTopLeftCss.y)).toBeLessThan(0.5);
+  });
+});
+
+describe('shouldSendStandaloneDecoration: 症状B（本体フレームと選択枠のズレ）対策の送信チャネル分岐', () => {
+  // Bug B 根本原因: setNativeOverlaySelectionDecoration（standalone）と
+  // presentNativeOverlaySharedFrame（body present）が独立に native overlay の
+  // 同じ live surface へ present してしまい、ドラッグ中は互いを追い越す。
+  // objects/time が変化した tick（本体が再 present される tick）は body 側が
+  // 同じ (objects, time) から計算した decoration を同梱して送るため、
+  // standalone 送信は不要かつ有害（追い越しレースの再導入）になる。
+  // selectedIds だけが変化した tick（本体は変わらない）は standalone が唯一の
+  // 送信経路であり続ける。
+  //
+  // native overlay の body co-delivery は「video-only セッションの reuse
+  // present 経路」でのみ発生する（図形のみ/混在セッションは別の DOM WebGPU
+  // canvas 経路を使い、native overlay の本体 present には一切乗らない）ため、
+  // 呼び出し側は `nativeOverlayBodyCoDeliveryEligible` でこれを明示する。
+  // eligible=false の間は常に standalone が正本（skip してはならない）。
+
+  const objectsA: TimelineObject[] = [{ id: 'a' } as unknown as TimelineObject];
+  const objectsB: TimelineObject[] = [{ id: 'b' } as unknown as TimelineObject];
+
+  const state = (overrides: Partial<SelectionDecorationSendState> = {}): SelectionDecorationSendState => ({
+    selectedIds: ['obj-1'],
+    objects: objectsA,
+    time: 0,
+    nativeOverlayBodyCoDeliveryEligible: true,
+    ...overrides,
+  });
+
+  it('初回（prevがnull）は常に送信する', () => {
+    expect(shouldSendStandaloneDecoration(null, state())).toBe(true);
+  });
+
+  it('co-delivery非対象（DOM WebGPU canvas経路等）の間は、objects/timeが変化していても常に送信する', () => {
+    const prev = state({ nativeOverlayBodyCoDeliveryEligible: false, objects: objectsA, time: 0 });
+    const next = state({ nativeOverlayBodyCoDeliveryEligible: false, objects: objectsB, time: 1 });
+    expect(shouldSendStandaloneDecoration(prev, next)).toBe(true);
+  });
+
+  it('co-delivery対象で objects が変化した tick は送信をスキップする（body側が同梱する）', () => {
+    const prev = state({ objects: objectsA });
+    const next = state({ objects: objectsB });
+    expect(shouldSendStandaloneDecoration(prev, next)).toBe(false);
+  });
+
+  it('co-delivery対象で time が変化した tick は送信をスキップする（body側が同梱する）', () => {
+    const prev = state({ time: 0 });
+    const next = state({ time: 1 });
+    expect(shouldSendStandaloneDecoration(prev, next)).toBe(false);
+  });
+
+  it('co-delivery対象で selectedIds のみが変化した tick は送信する（本体は変わらないため standalone が唯一の経路）', () => {
+    const prev = state({ selectedIds: ['obj-1'] });
+    const next = state({ selectedIds: ['obj-2'] });
+    expect(shouldSendStandaloneDecoration(prev, next)).toBe(true);
+  });
+
+  it('co-delivery対象で何も変化していない tick は送信しない', () => {
+    const prev = state();
+    const next = state();
+    expect(shouldSendStandaloneDecoration(prev, next)).toBe(false);
   });
 });
