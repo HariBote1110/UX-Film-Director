@@ -85,6 +85,19 @@ pub struct NativeOverlaySharedFramePayload {
     pub pts_frame: f64,
 }
 
+/// Bug B（症状B: 選択枠・本体フレームが2チャネル独立配信のためズレる不具合）
+/// 対策 — presentNativeOverlaySharedFrame に同梱できる選択デコレーション。
+/// `NativeOverlaySelectionDecorationPayload` と同じ quad/canvas 形状だが、
+/// window_id は外側の `NativeOverlaySharedFramePresentPayload.window_id` と
+/// 共通のため持たない。Optional のため、addon が未対応でも既存呼び出しは
+/// そのまま動く（graceful degrade）。
+#[napi(object)]
+pub struct NativeOverlaySharedFrameSelectionDecorationPayload {
+    pub canvas_width: u32,
+    pub canvas_height: u32,
+    pub quads: Vec<NativeOverlaySelectionDecorationQuadPayload>,
+}
+
 #[napi(object)]
 pub struct NativeOverlaySharedFramePresentPayload {
     pub window_id: u32,
@@ -94,6 +107,11 @@ pub struct NativeOverlaySharedFramePresentPayload {
     pub media: Option<Vec<NativeOverlaySceneMediaPayload>>,
     pub slot_count: u32,
     pub frame: NativeOverlaySharedFramePayload,
+    /// この present と同じ (objects, time) スナップショットから計算された
+    /// 選択デコレーション。渡された場合、この present はグローバル
+    /// SELECTION_DECORATIONS map を再読みせず、必ずこの値を使う（かつ
+    /// map もこの値で置き換える）。省略時は従来どおり map の値を使う。
+    pub selection_decoration: Option<NativeOverlaySharedFrameSelectionDecorationPayload>,
 }
 
 #[napi(object)]
@@ -212,6 +230,11 @@ pub struct OverlayUploadFrame {
 pub struct OverlaySharedFramePresentRequest {
     pub source: OverlaySharedFrameSource,
     pub scene: Option<NativeOverlaySceneSource>,
+    /// Bug B対策 — この present に同梱された選択デコレーション（あれば）。
+    /// `present_overlay_shared_frame_to_live_surface` はこれを
+    /// `resolve_present_selection_decoration` に渡し、SELECTION_DECORATIONS
+    /// map の再読みではなく同梱値そのものを使う。
+    pub selection_decoration: Option<SelectionDecorationState>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -635,20 +658,11 @@ pub fn set_native_overlay_selection_decoration_napi(
 fn set_native_overlay_selection_decoration_inner(
     payload: NativeOverlaySelectionDecorationPayload,
 ) -> NativeOverlayResponse {
-    let state = SelectionDecorationState {
-        canvas_width: payload.canvas_width,
-        canvas_height: payload.canvas_height,
-        quads: payload
-            .quads
-            .into_iter()
-            .map(|quad| SelectionDecorationQuad {
-                top_left: (quad.top_left_x, quad.top_left_y),
-                top_right: (quad.top_right_x, quad.top_right_y),
-                bottom_right: (quad.bottom_right_x, quad.bottom_right_y),
-                bottom_left: (quad.bottom_left_x, quad.bottom_left_y),
-            })
-            .collect(),
-    };
+    let state = selection_decoration_state_from_quad_payloads(
+        payload.canvas_width,
+        payload.canvas_height,
+        payload.quads,
+    );
     match set_native_overlay_selection_decoration(payload.window_id, state) {
         Ok(()) => NativeOverlayResponse {
             success: true,
@@ -938,6 +952,13 @@ fn scene_present_request_from_payload(
             },
         },
         scene,
+        selection_decoration: payload.selection_decoration.map(|decoration| {
+            selection_decoration_state_from_quad_payloads(
+                decoration.canvas_width,
+                decoration.canvas_height,
+                decoration.quads,
+            )
+        }),
     })
 }
 
@@ -1119,6 +1140,59 @@ fn remove_native_overlay_selection_decoration(window_id: u32) {
         if let Ok(mut map) = map.lock() {
             map.remove(&window_id);
         }
+    }
+}
+
+/// napi の quad payload（quads の生配列 + canvas サイズ）を
+/// `SelectionDecorationState` へ変換する唯一の実装。
+/// `set_native_overlay_selection_decoration_inner`（standalone 経路）と
+/// `scene_present_request_from_payload`（Bug B対策の同梱経路）の双方が使う。
+fn selection_decoration_state_from_quad_payloads(
+    canvas_width: u32,
+    canvas_height: u32,
+    quads: Vec<NativeOverlaySelectionDecorationQuadPayload>,
+) -> SelectionDecorationState {
+    SelectionDecorationState {
+        canvas_width,
+        canvas_height,
+        quads: quads
+            .into_iter()
+            .map(|quad| SelectionDecorationQuad {
+                top_left: (quad.top_left_x, quad.top_left_y),
+                top_right: (quad.top_right_x, quad.top_right_y),
+                bottom_right: (quad.bottom_right_x, quad.bottom_right_y),
+                bottom_left: (quad.bottom_left_x, quad.bottom_left_y),
+            })
+            .collect(),
+    }
+}
+
+/// Bug B（症状B）対策 — この present で使う選択デコレーションを決定する。
+/// `embedded`（presentNativeOverlaySharedFrame に同梱された値）がある場合は
+/// SELECTION_DECORATIONS map をそれで置き換えた上で、その値そのものを返す
+/// （map を再読みしない。呼び出し直後に他の呼び出しが map を書き換えていても
+/// この present の結果は同梱値のまま変わらない）。空 quads は
+/// standalone 経路（`store_native_overlay_selection_decoration`）と同じ
+/// 「デコレーション解除」として扱い、map からエントリを除去した上で None を
+/// 返す。`embedded` が無い場合は従来どおり map に格納済みの値へフォールバック
+/// する（addon が同梱に未対応な JS 側との後方互換）。
+fn resolve_present_selection_decoration(
+    window_id: u32,
+    embedded: Option<SelectionDecorationState>,
+) -> Option<SelectionDecorationState> {
+    match embedded {
+        Some(state) => {
+            // store 自体が失敗する（mutex poisoned）ケースはこの present の
+            // 描画継続を止めるほどではないため、ここでは結果を無視する
+            // （後続の present 群でも再試行される）。
+            let _ = store_native_overlay_selection_decoration(window_id, state.clone());
+            if state.quads.is_empty() {
+                None
+            } else {
+                Some(state)
+            }
+        }
+        None => stored_native_overlay_selection_decoration(window_id),
     }
 }
 
@@ -1412,9 +1486,14 @@ pub fn present_overlay_shared_frame_to_live_surface(
     let upload =
         copy_overlay_shared_frame_source_for_upload(&request.source, Duration::from_millis(100))?;
     let descriptor = &request.source.frame.descriptor;
+    // Bug B対策 — この present に選択デコレーションが同梱されていれば
+    // （body frame と同じ (objects, time) から計算された値）それを唯一の
+    // 正本として使い、SELECTION_DECORATIONS map もそれで置き換える。
+    // 同梱が無い場合のみ、従来どおり map の値へフォールバックする
+    // （standalone setSelectionDecoration 経路との後方互換）。
     // ロック順序: decoration → renderers（set_native_overlay_selection_decoration
     // と同順。両ロックの同時保持はしない）。
-    let decoration = stored_native_overlay_selection_decoration(window_id);
+    let decoration = resolve_present_selection_decoration(window_id, request.selection_decoration);
     let mut renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -2101,6 +2180,7 @@ mod tests {
                 },
             },
             scene: None,
+            selection_decoration: None,
         })
         .expect("present overlay shared frame");
 
