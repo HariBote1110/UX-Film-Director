@@ -25,14 +25,30 @@ const blockedControl = {
 } as SharedRendererPreviewPresenterControl;
 
 describe('buildSharedRendererPreviewDiagnostic', () => {
-  it('hides non-blocking external video upload warnings while the preview is ready', () => {
+  it('hides the banner for a plain ready status with no failure info', () => {
+    expect(buildSharedRendererPreviewDiagnostic({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterVideoPresentationSource: 'external-video-source',
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+    }, readyControl)).toBeNull();
+  });
+
+  // Non-blocking, superseded video upload failures (e.g. a decoded-frame
+  // upload that failed while the external-video-source path already owns
+  // presentation) are no longer filtered here: the write site
+  // (sharedRendererPreviewPresenterController.ts) simply never puts them into
+  // the ready diagnostics state, so this dataset shape does not occur in
+  // practice. See sharedRendererPreviewPresenterController.test.ts, "keeps a
+  // superseded decoded-video-upload failure out of the persistent ready
+  // diagnostics...".
+  it('surfaces a videoUploadFailureReason present on the dataset as a banner', () => {
     expect(buildSharedRendererPreviewDiagnostic({
       uxfdSharedRendererPresenterStatus: 'ready',
       uxfdSharedRendererPresenterVideoPresentationSource: 'external-video-source',
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
       uxfdSharedRendererPresenterVideoUploadFailureReason: 'copyReportTargetChecksumMismatch',
       uxfdSharedRendererPresenterVideoUploadFailureDetail: 'Shared video frame upload buffer checksum must match the copy report.',
-    }, readyControl)).toBeNull();
+    }, readyControl)).toContain('video=copyReportTargetChecksumMismatch');
   });
 
   it('keeps blocked preview diagnostics visible on the canvas', () => {
@@ -40,6 +56,21 @@ describe('buildSharedRendererPreviewDiagnostic', () => {
       uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
     }, blockedControl)).toContain('status=blocked');
+  });
+
+  // The transient skip debug counter (written by
+  // sharedRendererPresenterDiagnostics.ts) is not part of the banner
+  // decision: a busy counter while status stays 'ready' must not surface a
+  // banner, otherwise every one-tick videoTextureViewUnavailable skip would
+  // flash the diagnostics banner again.
+  it('ignores the transient skip debug counter while the status stays ready', () => {
+    expect(buildSharedRendererPreviewDiagnostic({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterVideoPresentationSource: 'external-video-source',
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterTransientSkips: '42',
+      uxfdSharedRendererPresenterLastTransientSkipReason: 'videoTextureViewUnavailable',
+    }, readyControl)).toBeNull();
   });
 });
 

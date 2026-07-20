@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { writeSharedRendererPresenterDiagnostics } from './sharedRendererPresenterDiagnostics';
+import {
+  recordSharedRendererPresenterTransientSkip,
+  writeSharedRendererPresenterDiagnostics,
+} from './sharedRendererPresenterDiagnostics';
 
 describe('writeSharedRendererPresenterDiagnostics', () => {
   it('publishes ready presenter details and clears stale fallback reasons', () => {
@@ -246,5 +249,46 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoOwner');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoCutoverReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSharedVideoObjectCount');
+  });
+});
+
+describe('recordSharedRendererPresenterTransientSkip', () => {
+  it('increments a monotonic counter without touching the persistent status fields', () => {
+    const dataset: Record<string, string | undefined> = {
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterFormat: 'bgra8unorm',
+    };
+
+    recordSharedRendererPresenterTransientSkip(dataset, 'videoTextureViewUnavailable');
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterFormat: 'bgra8unorm',
+      uxfdSharedRendererPresenterTransientSkips: '1',
+      uxfdSharedRendererPresenterLastTransientSkipReason: 'videoTextureViewUnavailable',
+    });
+  });
+
+  it('keeps accumulating across calls instead of resetting', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    recordSharedRendererPresenterTransientSkip(dataset, 'videoTextureViewUnavailable');
+    recordSharedRendererPresenterTransientSkip(dataset, 'videoTextureViewUnavailable');
+    recordSharedRendererPresenterTransientSkip(dataset, 'videoTextureViewUnavailable');
+
+    expect(dataset.uxfdSharedRendererPresenterTransientSkips).toBe('3');
+  });
+
+  it('does not reset when a normal ready/fallback diagnostics write happens afterwards', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    recordSharedRendererPresenterTransientSkip(dataset, 'videoTextureViewUnavailable');
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'ready',
+      format: 'bgra8unorm',
+      swatch: 'no-presentation',
+    });
+
+    expect(dataset.uxfdSharedRendererPresenterTransientSkips).toBe('1');
   });
 });

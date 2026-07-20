@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import {
+  EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD,
   getSharedRendererSolidSwatchCssColour,
+  isTransientExternalVideoPresentationFailure,
   SHARED_RENDERER_SOLID_SWATCH,
   startSharedRendererPreviewPresenter,
 } from './sharedRendererPreviewPresenterController';
@@ -1533,6 +1535,128 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('keeps the persistent ready status and only records a transient skip counter when a repaint tick has no presentable external video frame', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const externalVideoSource = { tagName: 'VIDEO' };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererExternalVideoSourcesByClipId: new Map([
+        ['video-1', externalVideoSource],
+      ]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onImportExternalTexture: () => 'external-video-texture',
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({ ok: true });
+    if (!control.ok) throw new Error('expected ready control');
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('ready');
+
+    // A mid-seek element momentarily has no source registered for its clip,
+    // which is exactly what makes the presenter report videoTextureViewUnavailable.
+    const presentation = control.presentExternalVideoFrameScene?.({
+      session: videoSession,
+      sourcesByClipId: new Map(),
+    });
+
+    expect(presentation).toMatchObject({ ok: false, reason: 'videoTextureViewUnavailable' });
+    expect(isTransientExternalVideoPresentationFailure(presentation)).toBe(true);
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('ready');
+    expect(dataset.uxfdSharedRendererPresenterFailureReason).toBeUndefined();
+    expect(dataset.uxfdSharedRendererPresenterTransientSkips).toBe('1');
+  });
+
+  it('escalates repeated transient external video presentation skips to a persistent fallback status', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const externalVideoSource = { tagName: 'VIDEO' };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererExternalVideoSourcesByClipId: new Map([
+        ['video-1', externalVideoSource],
+      ]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onImportExternalTexture: () => 'external-video-texture',
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({ ok: true });
+    if (!control.ok) throw new Error('expected ready control');
+
+    let lastPresentation;
+    for (let tick = 0; tick <= EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD; tick += 1) {
+      lastPresentation = control.presentExternalVideoFrameScene?.({
+        session: videoSession,
+        sourcesByClipId: new Map(),
+      });
+    }
+
+    expect(lastPresentation).toMatchObject({ ok: false, reason: 'videoTextureViewUnavailable' });
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('fallback');
+    expect(dataset.uxfdSharedRendererPresenterFailureReason).toBe('videoTextureViewUnavailable');
+  });
+
   it('does not claim multi-video ownership from a legacy single decoded upload without clip scope', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
@@ -2837,6 +2961,75 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterVideoOwner: 'pixi',
       uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
     });
+  });
+
+  it('keeps a superseded decoded-video-upload failure out of the persistent ready diagnostics when the external video source path presents instead', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+    const externalVideoSource = { tagName: 'VIDEO' };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterUploadAbort: async () => {
+          events.push('release-abort');
+        },
+      },
+      sharedRendererExternalVideoSourcesByClipId: new Map([
+        ['video-1', externalVideoSource],
+      ]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeWriteTexture: false,
+            onImportExternalTexture: () => 'external-video-texture',
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    // The decoded upload fails (no writeTexture), but the external video
+    // source path still owns and presents the clip, so the upload failure is
+    // a superseded event, not a persistent problem with what is on screen.
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: { owner: 'sharedRenderer' },
+    });
+    expect(events).toEqual(['release-abort']);
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('ready');
+    expect(dataset.uxfdSharedRendererPresenterVideoPresentationSource).toBe('external-video-source');
+    expect(dataset.uxfdSharedRendererPresenterVideoUploadFailureReason).toBeUndefined();
+    expect(dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail).toBeUndefined();
   });
 
   it('publishes decoded Rust video abort release failures instead of throwing out of the presenter', async () => {
