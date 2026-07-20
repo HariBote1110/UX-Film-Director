@@ -1,3 +1,25 @@
+use serde_json::json;
+
+use crate::generated::list_font_families;
+use crate::rpc::{response_error, RpcResponse};
+
+/// インストール済みフォントファミリー一覧を返す `fonts.list` RPC ハンドラ。
+///
+/// テキストのラスタライズに使う `FontSystem` を再利用して列挙するため、
+/// ここで返る候補は必ずレンダラー側で解決できる（＝UI がラスタライザに
+/// 存在しないフォントを提示することはない）。
+pub(crate) fn handle_fonts_list(id: u64) -> RpcResponse {
+    match list_font_families() {
+        Ok(families) => RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({ "families": families })),
+            error: None,
+        },
+        Err(message) => response_error(id, -32040, &format!("Failed to list fonts: {message}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::handle_fonts_list;
