@@ -1119,7 +1119,10 @@ name = "uxfd-native-wgpu-renderer"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "core-foundation",
  "half",
+ "metal",
+ "objc",
  "pollster",
  "raw-window-handle",
  "tempfile",

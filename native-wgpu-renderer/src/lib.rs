@@ -11,13 +11,18 @@ use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
 use uxfd_rust_core::{
     build_audio_waveform_line_strip, AudioWaveformSceneError, AudioWaveformSource, Effect,
-    SamplingMode, SceneSnapshot, WipeEdge,
+    EvaluatedClip, SamplingMode, SceneSnapshot, WipeEdge,
 };
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, ColourMetadata, FrameFormat, FrameRingLayoutBuildError, SharedFrame,
 };
 use wgpu::util::DeviceExt;
+
+mod nv12;
+pub use nv12::{
+    Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
+};
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const OUTPUT_BYTES_PER_PIXEL: u32 = 4;
@@ -57,6 +62,14 @@ pub enum NativeWgpuRenderError {
     AudioWaveform(AudioWaveformSceneError),
     BufferMap,
     InvalidFrame(RgbaFrameError),
+    /// NV12 IOSurface import は macOS(Metal) 専用。他プラットフォームでは
+    /// ビルドは通るが、実際に NV12 クリップを渡すとこのエラーになる。
+    Nv12ImportUnsupportedPlatform,
+    /// `IOSurfaceLookup` が指定 `surface_id` を解決できなかった
+    /// （デコード側がすでに解放した／不正な id を渡した等）。
+    Nv12SurfaceLookupFailed {
+        surface_id: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -159,6 +172,19 @@ pub struct NativeWgpuRenderer {
     /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
     media_texture_cache_hits: AtomicU64,
     media_texture_cache_misses: AtomicU64,
+    /// Phase 4b: NV12 IOSurface クリップ用の合成パイプライン（RGBA 用
+    /// `pipeline`/`bind_group_layout` とは別のシェーダ・バインドグループ
+    /// レイアウトを持つが、blend state・出力フォーマット・頂点シェーダは
+    /// 完全に同一なので同一レンダーパス内で両方の pipeline を交互に
+    /// `set_pipeline` して合成できる）。
+    nv12_pipeline: wgpu::RenderPipeline,
+    nv12_bind_group_layout: wgpu::BindGroupLayout,
+    /// media_id ＋ (surface_id, revision) でキー付けした NV12 Y/CbCr
+    /// プレーンテクスチャキャッシュ。`media_texture_cache` と同じ設計。
+    nv12_texture_cache: Mutex<nv12::Nv12MediaTextureCache>,
+    /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
+    nv12_texture_cache_hits: AtomicU64,
+    nv12_texture_cache_misses: AtomicU64,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -305,6 +331,8 @@ impl NativeWgpuLiveSurfaceRenderer {
 
         let pipeline = create_pipeline_for_format(&device, surface_format);
         let bind_group_layout = pipeline.get_bind_group_layout(0);
+        let (nv12_bind_group_layout, nv12_pipeline) =
+            nv12::create_nv12_pipeline_for_format(&device, surface_format);
         let output_texture =
             create_output_texture_for_format(&device, width, height, surface_format);
         let readback_buffer = create_readback_buffer(&device, width, height);
@@ -323,6 +351,11 @@ impl NativeWgpuLiveSurfaceRenderer {
             media_texture_cache: Mutex::new(MediaTextureCache::default()),
             media_texture_cache_hits: AtomicU64::new(0),
             media_texture_cache_misses: AtomicU64::new(0),
+            nv12_pipeline,
+            nv12_bind_group_layout,
+            nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
+            nv12_texture_cache_hits: AtomicU64::new(0),
+            nv12_texture_cache_misses: AtomicU64::new(0),
         };
 
         Ok(Self {
@@ -700,6 +733,8 @@ impl NativeWgpuRenderer {
 
         let pipeline = create_pipeline(&device);
         let bind_group_layout = pipeline.get_bind_group_layout(0);
+        let (nv12_bind_group_layout, nv12_pipeline) =
+            nv12::create_nv12_pipeline_for_format(&device, OUTPUT_FORMAT);
         let output_texture = create_output_texture(&device, width, height);
         let readback_buffer = create_readback_buffer(&device, width, height);
 
@@ -718,6 +753,11 @@ impl NativeWgpuRenderer {
             media_texture_cache: Mutex::new(MediaTextureCache::default()),
             media_texture_cache_hits: AtomicU64::new(0),
             media_texture_cache_misses: AtomicU64::new(0),
+            nv12_pipeline,
+            nv12_bind_group_layout,
+            nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
+            nv12_texture_cache_hits: AtomicU64::new(0),
+            nv12_texture_cache_misses: AtomicU64::new(0),
         })
     }
 
@@ -1043,141 +1083,7 @@ impl NativeWgpuRenderer {
                 &self.device,
                 &self.bind_group_layout,
                 &texture_view,
-                RenderParams {
-                    opacity: clip.opacity,
-                    gain: clip
-                        .effects
-                        .iter()
-                        .fold(1.0, |gain, effect| gain * effect_gain(effect)),
-                    colour_aberration_offset_x: effect_colour_aberration_offset(clip, |effect| {
-                        match effect {
-                            Effect::ColourAberration { offset_x, .. } => Some(*offset_x),
-                            _ => None,
-                        }
-                    }),
-                    colour_aberration_offset_y: effect_colour_aberration_offset(clip, |effect| {
-                        match effect {
-                            Effect::ColourAberration { offset_y, .. } => Some(*offset_y),
-                            _ => None,
-                        }
-                    }),
-                    outline_colour_r: outline_colour_component(clip, 0),
-                    outline_colour_g: outline_colour_component(clip, 1),
-                    outline_colour_b: outline_colour_component(clip, 2),
-                    outline_thickness: outline_thickness(clip),
-                    outline_opacity: outline_opacity(clip),
-                    wipe_edge: wipe_edge(clip),
-                    wipe_progress: wipe_progress(clip),
-                    clipping_top: clipping_extent(clip, |effect| match effect {
-                        Effect::Clipping { top, .. } => Some(*top),
-                        _ => None,
-                    }),
-                    clipping_bottom: clipping_extent(clip, |effect| match effect {
-                        Effect::Clipping { bottom, .. } => Some(*bottom),
-                        _ => None,
-                    }),
-                    clipping_left: clipping_extent(clip, |effect| match effect {
-                        Effect::Clipping { left, .. } => Some(*left),
-                        _ => None,
-                    }),
-                    clipping_right: clipping_extent(clip, |effect| match effect {
-                        Effect::Clipping { right, .. } => Some(*right),
-                        _ => None,
-                    }),
-                    clipping_angle: clipping_angle(clip),
-                    spot_light_colour_r: spot_light_colour_component(clip, 0),
-                    spot_light_colour_g: spot_light_colour_component(clip, 1),
-                    spot_light_colour_b: spot_light_colour_component(clip, 2),
-                    spot_light_centre_x: spot_light_centre_component(clip, 0),
-                    spot_light_centre_y: spot_light_centre_component(clip, 1),
-                    spot_light_radius: spot_light_radius(clip),
-                    spot_light_intensity: spot_light_intensity(clip),
-                    displacement_amount_x: displacement_amount_component(clip, 0),
-                    displacement_amount_y: displacement_amount_component(clip, 1),
-                    displacement_size: displacement_size(clip),
-                    displacement_strength: displacement_strength(clip),
-                    fake_dof_focus_x: fake_dof_focus_component(clip, 0),
-                    fake_dof_focus_y: fake_dof_focus_component(clip, 1),
-                    fake_dof_focus_radius: fake_dof_focus_radius(clip),
-                    fake_dof_blur: fake_dof_blur(clip),
-                    fake_dof_strength: fake_dof_strength(clip),
-                    auto_blur_angle: auto_blur_angle(clip),
-                    auto_blur_radius: auto_blur_radius(clip),
-                    auto_blur_strength: auto_blur_strength(clip),
-                    auto_blur_colour_shift: auto_blur_colour_shift(clip),
-                    stretch_angle: stretch_angle(clip),
-                    stretch_amount: stretch_amount(clip),
-                    stretch_strength: stretch_strength(clip),
-                    multi_slicer_angle: multi_slicer_angle(clip),
-                    multi_slicer_offset: multi_slicer_offset(clip),
-                    multi_slicer_slices: multi_slicer_slices(clip),
-                    multi_slicer_expansion: multi_slicer_expansion(clip),
-                    multi_slicer_strength: multi_slicer_strength(clip),
-                    oct_transform_scale: oct_transform_scale(clip),
-                    oct_transform_rotation: oct_transform_rotation(clip),
-                    oct_transform_vertex_count: oct_transform_vertex_count(clip),
-                    oct_transform_warp: oct_transform_warp(clip),
-                    oct_transform_strength: oct_transform_strength(clip),
-                    area_expand_top: area_expand_extent(clip, |effect| match effect {
-                        Effect::AreaExpand { top, .. } => Some(*top),
-                        _ => None,
-                    }),
-                    area_expand_bottom: area_expand_extent(clip, |effect| match effect {
-                        Effect::AreaExpand { bottom, .. } => Some(*bottom),
-                        _ => None,
-                    }),
-                    area_expand_left: area_expand_extent(clip, |effect| match effect {
-                        Effect::AreaExpand { left, .. } => Some(*left),
-                        _ => None,
-                    }),
-                    area_expand_right: area_expand_extent(clip, |effect| match effect {
-                        Effect::AreaExpand { right, .. } => Some(*right),
-                        _ => None,
-                    }),
-                    area_expand_fill: area_expand_fill(clip),
-                    colour_correction_brightness: colour_correction_brightness(clip),
-                    colour_correction_contrast: colour_correction_contrast(clip),
-                    colour_correction_saturation: colour_correction_saturation(clip),
-                    colour_correction_hue: colour_correction_hue(clip),
-                    blur_radius: blur_radius(clip),
-                    blur_strength: blur_strength(clip),
-                    drop_shadow_colour_r: drop_shadow_colour_component(clip, 0),
-                    drop_shadow_colour_g: drop_shadow_colour_component(clip, 1),
-                    drop_shadow_colour_b: drop_shadow_colour_component(clip, 2),
-                    drop_shadow_offset_x: drop_shadow_offset_component(clip, 0),
-                    drop_shadow_offset_y: drop_shadow_offset_component(clip, 1),
-                    drop_shadow_opacity: drop_shadow_opacity(clip),
-                    gradient_overlay_direction: gradient_overlay_direction(clip),
-                    gradient_overlay_stop_a: gradient_overlay_stop_a(clip),
-                    gradient_overlay_stop_b: gradient_overlay_stop_b(clip),
-                    gradient_overlay_is_radial: gradient_overlay_is_radial(clip),
-                    gradient_overlay_colour_a_r: gradient_overlay_colour_a_component(clip, 0),
-                    gradient_overlay_colour_a_g: gradient_overlay_colour_a_component(clip, 1),
-                    gradient_overlay_colour_a_b: gradient_overlay_colour_a_component(clip, 2),
-                    gradient_overlay_colour_a_a: gradient_overlay_colour_a_component(clip, 3),
-                    gradient_overlay_colour_b_r: gradient_overlay_colour_b_component(clip, 0),
-                    gradient_overlay_colour_b_g: gradient_overlay_colour_b_component(clip, 1),
-                    gradient_overlay_colour_b_b: gradient_overlay_colour_b_component(clip, 2),
-                    gradient_overlay_colour_b_a: gradient_overlay_colour_b_component(clip, 3),
-                    gradient_overlay_bounds_x: gradient_overlay_bounds_x(clip),
-                    gradient_overlay_bounds_y: gradient_overlay_bounds_y(clip),
-                    gradient_overlay_bounds_width: gradient_overlay_bounds_width(clip),
-                    gradient_overlay_bounds_height: gradient_overlay_bounds_height(clip),
-                    source_width: prepared_width as f32,
-                    source_height: prepared_height as f32,
-                    translation_x: clip.transform.translation_x,
-                    translation_y: clip.transform.translation_y,
-                    scale_x: clip.transform.scale_x,
-                    scale_y: clip.transform.scale_y,
-                    sampling_mode: sampling_mode_value(clip.transform.sampling),
-                    rotation_cos: rotation_radians.cos(),
-                    rotation_sin: rotation_radians.sin(),
-                    _padding6: 0.0,
-                    _padding7: 0.0,
-                    _padding8: 0.0,
-                    _padding9: 0.0,
-                    _padding10: 0.0,
-                },
+                build_render_params(clip, rotation_radians, prepared_width, prepared_height),
             )));
         }
         // このフレームで参照されなかった media のテクスチャは連続不参照フレーム数
@@ -1938,6 +1844,149 @@ fn sampling_mode_value(sampling: SamplingMode) -> f32 {
     match sampling {
         SamplingMode::Nearest => 0.0,
         SamplingMode::Bilinear => 1.0,
+    }
+}
+
+/// `clip`（transform/opacity/effects）と、アップロード済みソーステクスチャの
+/// 実サイズから共有フラグメントシェーダ用の `RenderParams` を組み立てる。
+/// RGBA クリップ・NV12 クリップの双方から呼ばれる（Phase 4b で NV12 対応の
+/// ために抽出。挙動は抽出前と完全に同一）。
+fn build_render_params(
+    clip: &EvaluatedClip,
+    rotation_radians: f32,
+    prepared_width: u32,
+    prepared_height: u32,
+) -> RenderParams {
+    RenderParams {
+        opacity: clip.opacity,
+        gain: clip
+            .effects
+            .iter()
+            .fold(1.0, |gain, effect| gain * effect_gain(effect)),
+        colour_aberration_offset_x: effect_colour_aberration_offset(clip, |effect| match effect {
+            Effect::ColourAberration { offset_x, .. } => Some(*offset_x),
+            _ => None,
+        }),
+        colour_aberration_offset_y: effect_colour_aberration_offset(clip, |effect| match effect {
+            Effect::ColourAberration { offset_y, .. } => Some(*offset_y),
+            _ => None,
+        }),
+        outline_colour_r: outline_colour_component(clip, 0),
+        outline_colour_g: outline_colour_component(clip, 1),
+        outline_colour_b: outline_colour_component(clip, 2),
+        outline_thickness: outline_thickness(clip),
+        outline_opacity: outline_opacity(clip),
+        wipe_edge: wipe_edge(clip),
+        wipe_progress: wipe_progress(clip),
+        clipping_top: clipping_extent(clip, |effect| match effect {
+            Effect::Clipping { top, .. } => Some(*top),
+            _ => None,
+        }),
+        clipping_bottom: clipping_extent(clip, |effect| match effect {
+            Effect::Clipping { bottom, .. } => Some(*bottom),
+            _ => None,
+        }),
+        clipping_left: clipping_extent(clip, |effect| match effect {
+            Effect::Clipping { left, .. } => Some(*left),
+            _ => None,
+        }),
+        clipping_right: clipping_extent(clip, |effect| match effect {
+            Effect::Clipping { right, .. } => Some(*right),
+            _ => None,
+        }),
+        clipping_angle: clipping_angle(clip),
+        spot_light_colour_r: spot_light_colour_component(clip, 0),
+        spot_light_colour_g: spot_light_colour_component(clip, 1),
+        spot_light_colour_b: spot_light_colour_component(clip, 2),
+        spot_light_centre_x: spot_light_centre_component(clip, 0),
+        spot_light_centre_y: spot_light_centre_component(clip, 1),
+        spot_light_radius: spot_light_radius(clip),
+        spot_light_intensity: spot_light_intensity(clip),
+        displacement_amount_x: displacement_amount_component(clip, 0),
+        displacement_amount_y: displacement_amount_component(clip, 1),
+        displacement_size: displacement_size(clip),
+        displacement_strength: displacement_strength(clip),
+        fake_dof_focus_x: fake_dof_focus_component(clip, 0),
+        fake_dof_focus_y: fake_dof_focus_component(clip, 1),
+        fake_dof_focus_radius: fake_dof_focus_radius(clip),
+        fake_dof_blur: fake_dof_blur(clip),
+        fake_dof_strength: fake_dof_strength(clip),
+        auto_blur_angle: auto_blur_angle(clip),
+        auto_blur_radius: auto_blur_radius(clip),
+        auto_blur_strength: auto_blur_strength(clip),
+        auto_blur_colour_shift: auto_blur_colour_shift(clip),
+        stretch_angle: stretch_angle(clip),
+        stretch_amount: stretch_amount(clip),
+        stretch_strength: stretch_strength(clip),
+        multi_slicer_angle: multi_slicer_angle(clip),
+        multi_slicer_offset: multi_slicer_offset(clip),
+        multi_slicer_slices: multi_slicer_slices(clip),
+        multi_slicer_expansion: multi_slicer_expansion(clip),
+        multi_slicer_strength: multi_slicer_strength(clip),
+        oct_transform_scale: oct_transform_scale(clip),
+        oct_transform_rotation: oct_transform_rotation(clip),
+        oct_transform_vertex_count: oct_transform_vertex_count(clip),
+        oct_transform_warp: oct_transform_warp(clip),
+        oct_transform_strength: oct_transform_strength(clip),
+        area_expand_top: area_expand_extent(clip, |effect| match effect {
+            Effect::AreaExpand { top, .. } => Some(*top),
+            _ => None,
+        }),
+        area_expand_bottom: area_expand_extent(clip, |effect| match effect {
+            Effect::AreaExpand { bottom, .. } => Some(*bottom),
+            _ => None,
+        }),
+        area_expand_left: area_expand_extent(clip, |effect| match effect {
+            Effect::AreaExpand { left, .. } => Some(*left),
+            _ => None,
+        }),
+        area_expand_right: area_expand_extent(clip, |effect| match effect {
+            Effect::AreaExpand { right, .. } => Some(*right),
+            _ => None,
+        }),
+        area_expand_fill: area_expand_fill(clip),
+        colour_correction_brightness: colour_correction_brightness(clip),
+        colour_correction_contrast: colour_correction_contrast(clip),
+        colour_correction_saturation: colour_correction_saturation(clip),
+        colour_correction_hue: colour_correction_hue(clip),
+        blur_radius: blur_radius(clip),
+        blur_strength: blur_strength(clip),
+        drop_shadow_colour_r: drop_shadow_colour_component(clip, 0),
+        drop_shadow_colour_g: drop_shadow_colour_component(clip, 1),
+        drop_shadow_colour_b: drop_shadow_colour_component(clip, 2),
+        drop_shadow_offset_x: drop_shadow_offset_component(clip, 0),
+        drop_shadow_offset_y: drop_shadow_offset_component(clip, 1),
+        drop_shadow_opacity: drop_shadow_opacity(clip),
+        gradient_overlay_direction: gradient_overlay_direction(clip),
+        gradient_overlay_stop_a: gradient_overlay_stop_a(clip),
+        gradient_overlay_stop_b: gradient_overlay_stop_b(clip),
+        gradient_overlay_is_radial: gradient_overlay_is_radial(clip),
+        gradient_overlay_colour_a_r: gradient_overlay_colour_a_component(clip, 0),
+        gradient_overlay_colour_a_g: gradient_overlay_colour_a_component(clip, 1),
+        gradient_overlay_colour_a_b: gradient_overlay_colour_a_component(clip, 2),
+        gradient_overlay_colour_a_a: gradient_overlay_colour_a_component(clip, 3),
+        gradient_overlay_colour_b_r: gradient_overlay_colour_b_component(clip, 0),
+        gradient_overlay_colour_b_g: gradient_overlay_colour_b_component(clip, 1),
+        gradient_overlay_colour_b_b: gradient_overlay_colour_b_component(clip, 2),
+        gradient_overlay_colour_b_a: gradient_overlay_colour_b_component(clip, 3),
+        gradient_overlay_bounds_x: gradient_overlay_bounds_x(clip),
+        gradient_overlay_bounds_y: gradient_overlay_bounds_y(clip),
+        gradient_overlay_bounds_width: gradient_overlay_bounds_width(clip),
+        gradient_overlay_bounds_height: gradient_overlay_bounds_height(clip),
+        source_width: prepared_width as f32,
+        source_height: prepared_height as f32,
+        translation_x: clip.transform.translation_x,
+        translation_y: clip.transform.translation_y,
+        scale_x: clip.transform.scale_x,
+        scale_y: clip.transform.scale_y,
+        sampling_mode: sampling_mode_value(clip.transform.sampling),
+        rotation_cos: rotation_radians.cos(),
+        rotation_sin: rotation_radians.sin(),
+        _padding6: 0.0,
+        _padding7: 0.0,
+        _padding8: 0.0,
+        _padding9: 0.0,
+        _padding10: 0.0,
     }
 }
 
@@ -3736,5 +3785,559 @@ mod tests {
             "an empty scene present must clear the drawable to fully transparent \
              (post_clear invariant for the residual-frame fix)"
         );
+    }
+
+    // Phase 4b: NV12 IOSurface import・GPU 合成のテスト。実 IOSurface を
+    // 使うため macOS(Metal) 限定。
+    #[cfg(target_os = "macos")]
+    mod nv12_iosurface {
+        use super::*;
+
+        // ITU-R BT.601 / BT.709 の YCbCr→RGB 変換を CPU で再現する参照実装。
+        // `shared-renderer/shaders/nv12_composite.wgsl` の
+        // `nv12_ycbcr_to_rgb`/`load_source_linear` と数式を一致させてある。
+        // 出力フォーマットが `Rgba8UnormSrgb` のため、ここで返す値は
+        // (GPU がシェーダ内で linear へ変換してブレンドした後、書き込み時に
+        // 再び sRGB へエンコードし直すので) readback される sRGB8 バイトと
+        // 直接比較できる。
+        fn nv12_reference_srgb_bytes(
+            y_raw: u8,
+            cb_raw: u8,
+            cr_raw: u8,
+            colour_range: Nv12ColourRange,
+            colour_matrix: Nv12ColourMatrix,
+        ) -> [u8; 3] {
+            let y = y_raw as f32 / 255.0;
+            let cb = cb_raw as f32 / 255.0;
+            let cr = cr_raw as f32 / 255.0;
+
+            let (y_n, cb_n, cr_n) = match colour_range {
+                Nv12ColourRange::Full => (y, cb - 0.5, cr - 0.5),
+                Nv12ColourRange::Video => (
+                    ((y * 255.0 - 16.0) / 219.0).clamp(0.0, 1.0),
+                    ((cb * 255.0 - 128.0) / 224.0).clamp(-0.5, 0.5),
+                    ((cr * 255.0 - 128.0) / 224.0).clamp(-0.5, 0.5),
+                ),
+            };
+
+            let (r, g, b) = match colour_matrix {
+                Nv12ColourMatrix::Bt709 => (
+                    y_n + 1.5748 * cr_n,
+                    y_n - 0.187_324 * cb_n - 0.468_124 * cr_n,
+                    y_n + 1.8556 * cb_n,
+                ),
+                Nv12ColourMatrix::Bt601 => (
+                    y_n + 1.402 * cr_n,
+                    y_n - 0.344_136 * cb_n - 0.714_136 * cr_n,
+                    y_n + 1.772 * cb_n,
+                ),
+            };
+
+            let to_byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+            [to_byte(r), to_byte(g), to_byte(b)]
+        }
+
+        fn identity_nv12_clip(clip_id: &str, media_id: &str, z_index: u32) -> EvaluatedClip {
+            EvaluatedClip {
+                clip_id: clip_id.to_string(),
+                track_id: "track-1".to_string(),
+                media_id: media_id.to_string(),
+                source_frame: 0,
+                z_index,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }
+        }
+
+        fn assert_pixels_close(actual: &RgbaFrame, expected: &RgbaFrame, tolerance: i32, context: &str) {
+            assert_eq!(actual.width, expected.width, "{context}: width mismatch");
+            assert_eq!(actual.height, expected.height, "{context}: height mismatch");
+            for (index, (a, e)) in actual
+                .pixels
+                .iter()
+                .zip(expected.pixels.iter())
+                .enumerate()
+            {
+                let diff = (*a as i32 - *e as i32).abs();
+                assert!(
+                    diff <= tolerance,
+                    "{context}: byte {index} differs by {diff} (actual={a}, expected={e}, tolerance={tolerance})"
+                );
+            }
+        }
+
+        fn new_test_renderer(width: u32, height: u32) -> Option<NativeWgpuRenderer> {
+            match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
+                Ok(renderer) => Some(renderer),
+                Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                    eprintln!("skipping nv12 test: no GPU adapter available");
+                    None
+                }
+                Err(error) => panic!("renderer creation failed: {error:?}"),
+            }
+        }
+
+        #[test]
+        fn solid_colour_bt601_video_range_matches_cpu_reference() {
+            let Some(renderer) = new_test_renderer(4, 4) else {
+                return;
+            };
+            let colour_range = Nv12ColourRange::Video;
+            let colour_matrix = Nv12ColourMatrix::Bt601;
+            let (y_value, cb_value, cr_value) = (180_u8, 90_u8, 200_u8);
+
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                4,
+                4,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, _col| y_value,
+                |_row, _col| (cb_value, cr_value),
+            );
+
+            let layers = vec![SceneLayer {
+                clip: identity_nv12_clip("clip-nv12", "media-nv12", 0),
+                content: SceneLayerContent::Nv12 {
+                    source: Nv12IoSurfaceSource {
+                        surface_id: buffer.surface_id,
+                        width: buffer.width,
+                        height: buffer.height,
+                        colour_range,
+                        colour_matrix,
+                    },
+                    revision: 1,
+                },
+            }];
+
+            let frame = pollster::block_on(renderer.render_layers_to_rgba(&layers))
+                .expect("nv12 solid colour render must succeed");
+
+            let [r, g, b] =
+                nv12_reference_srgb_bytes(y_value, cb_value, cr_value, colour_range, colour_matrix);
+            for pixel in frame.pixels.chunks_exact(4) {
+                assert!(
+                    (pixel[0] as i32 - r as i32).abs() <= 2
+                        && (pixel[1] as i32 - g as i32).abs() <= 2
+                        && (pixel[2] as i32 - b as i32).abs() <= 2
+                        && pixel[3] == 255,
+                    "nv12 BT.601 video-range solid colour mismatch: got {pixel:?}, expected [{r}, {g}, {b}, 255]"
+                );
+            }
+        }
+
+        #[test]
+        fn solid_colour_bt709_full_range_matches_cpu_reference() {
+            let Some(renderer) = new_test_renderer(4, 4) else {
+                return;
+            };
+            let colour_range = Nv12ColourRange::Full;
+            let colour_matrix = Nv12ColourMatrix::Bt709;
+            let (y_value, cb_value, cr_value) = (60_u8, 180_u8, 40_u8);
+
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                4,
+                4,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_FULL_RANGE,
+                |_row, _col| y_value,
+                |_row, _col| (cb_value, cr_value),
+            );
+
+            let layers = vec![SceneLayer {
+                clip: identity_nv12_clip("clip-nv12", "media-nv12", 0),
+                content: SceneLayerContent::Nv12 {
+                    source: Nv12IoSurfaceSource {
+                        surface_id: buffer.surface_id,
+                        width: buffer.width,
+                        height: buffer.height,
+                        colour_range,
+                        colour_matrix,
+                    },
+                    revision: 1,
+                },
+            }];
+
+            let frame = pollster::block_on(renderer.render_layers_to_rgba(&layers))
+                .expect("nv12 solid colour render must succeed");
+
+            let [r, g, b] =
+                nv12_reference_srgb_bytes(y_value, cb_value, cr_value, colour_range, colour_matrix);
+            for pixel in frame.pixels.chunks_exact(4) {
+                assert!(
+                    (pixel[0] as i32 - r as i32).abs() <= 2
+                        && (pixel[1] as i32 - g as i32).abs() <= 2
+                        && (pixel[2] as i32 - b as i32).abs() <= 2
+                        && pixel[3] == 255,
+                    "nv12 BT.709 full-range solid colour mismatch: got {pixel:?}, expected [{r}, {g}, {b}, 255]"
+                );
+            }
+        }
+
+        #[test]
+        fn gradient_matches_cpu_reference_within_tolerance() {
+            let width = 8_u32;
+            let height = 4_u32;
+            let Some(renderer) = new_test_renderer(width, height) else {
+                return;
+            };
+            let colour_range = Nv12ColourRange::Video;
+            let colour_matrix = Nv12ColourMatrix::Bt601;
+
+            // 列ごとに Y を変化させた水平グラデーション。Cb/Cr は一定
+            // （無彩色）にして、輝度グラデーションが正しく変換されることを
+            // 確認する。
+            let y_for_col = |col: u32| -> u8 {
+                let ratio = col as f32 / (width - 1) as f32;
+                (16.0 + ratio * (235.0 - 16.0)).round() as u8
+            };
+            let cb_value = 128_u8;
+            let cr_value = 128_u8;
+
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                width,
+                height,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, col| y_for_col(col),
+                |_row, _col| (cb_value, cr_value),
+            );
+
+            let layers = vec![SceneLayer {
+                clip: identity_nv12_clip("clip-nv12", "media-nv12", 0),
+                content: SceneLayerContent::Nv12 {
+                    source: Nv12IoSurfaceSource {
+                        surface_id: buffer.surface_id,
+                        width: buffer.width,
+                        height: buffer.height,
+                        colour_range,
+                        colour_matrix,
+                    },
+                    revision: 1,
+                },
+            }];
+
+            let frame = pollster::block_on(renderer.render_layers_to_rgba(&layers))
+                .expect("nv12 gradient render must succeed");
+
+            for row in 0..height {
+                for col in 0..width {
+                    // シェーダは pixel/2（整数除算）で chroma を最近傍サンプル
+                    // する。CPU 参照でも同じ規則で対応する chroma 値を選ぶ
+                    // （このグラデーションは chroma 一定なのでどの列でも同じ値）。
+                    let y_value = y_for_col(col);
+                    let [r, g, b] = nv12_reference_srgb_bytes(
+                        y_value,
+                        cb_value,
+                        cr_value,
+                        colour_range,
+                        colour_matrix,
+                    );
+                    let index = ((row * width + col) * 4) as usize;
+                    let pixel = &frame.pixels[index..index + 4];
+                    assert!(
+                        (pixel[0] as i32 - r as i32).abs() <= 2
+                            && (pixel[1] as i32 - g as i32).abs() <= 2
+                            && (pixel[2] as i32 - b as i32).abs() <= 2,
+                        "nv12 gradient mismatch at (row={row}, col={col}): got {pixel:?}, expected [{r}, {g}, {b}]"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn compositing_with_rgba_clip_matches_two_rgba_clip_reference() {
+            let width = 4_u32;
+            let height = 4_u32;
+            let Some(renderer) = new_test_renderer(width, height) else {
+                return;
+            };
+            let colour_range = Nv12ColourRange::Video;
+            let colour_matrix = Nv12ColourMatrix::Bt601;
+            let (y_value, cb_value, cr_value) = (200_u8, 100_u8, 90_u8);
+            let [bottom_r, bottom_g, bottom_b] =
+                nv12_reference_srgb_bytes(y_value, cb_value, cr_value, colour_range, colour_matrix);
+
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                width,
+                height,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, _col| y_value,
+                |_row, _col| (cb_value, cr_value),
+            );
+
+            let mut top_clip = identity_nv12_clip("clip-rgba-top", "media-rgba-top", 1);
+            top_clip.opacity = 0.5;
+            let top_rgba = RgbaFrame::from_rgba8(
+                width,
+                height,
+                std::iter::repeat([30_u8, 200_u8, 60_u8, 255_u8])
+                    .take((width * height) as usize)
+                    .flatten()
+                    .collect(),
+            )
+            .expect("valid top rgba frame");
+
+            let mixed_layers = vec![
+                SceneLayer {
+                    clip: identity_nv12_clip("clip-nv12-bottom", "media-nv12-bottom", 0),
+                    content: SceneLayerContent::Nv12 {
+                        source: Nv12IoSurfaceSource {
+                            surface_id: buffer.surface_id,
+                            width: buffer.width,
+                            height: buffer.height,
+                            colour_range,
+                            colour_matrix,
+                        },
+                        revision: 1,
+                    },
+                },
+                SceneLayer {
+                    clip: top_clip.clone(),
+                    content: SceneLayerContent::Rgba(top_rgba.clone()),
+                },
+            ];
+
+            let bottom_rgba_equivalent = RgbaFrame::from_rgba8(
+                width,
+                height,
+                std::iter::repeat([bottom_r, bottom_g, bottom_b, 255_u8])
+                    .take((width * height) as usize)
+                    .flatten()
+                    .collect(),
+            )
+            .expect("valid bottom rgba reference frame");
+            let reference_layers = vec![
+                SceneLayer {
+                    clip: identity_nv12_clip("clip-rgba-bottom", "media-rgba-bottom", 0),
+                    content: SceneLayerContent::Rgba(bottom_rgba_equivalent),
+                },
+                SceneLayer {
+                    clip: top_clip,
+                    content: SceneLayerContent::Rgba(top_rgba),
+                },
+            ];
+
+            let mixed_frame = pollster::block_on(renderer.render_layers_to_rgba(&mixed_layers))
+                .expect("nv12+rgba compositing render must succeed");
+            let reference_frame =
+                pollster::block_on(renderer.render_layers_to_rgba(&reference_layers))
+                    .expect("rgba+rgba reference render must succeed");
+
+            assert_pixels_close(
+                &mixed_frame,
+                &reference_frame,
+                2,
+                "nv12 clip composited under an rgba clip must match an equivalent all-rgba composite",
+            );
+        }
+
+        #[test]
+        fn unchanged_revision_reuses_imported_plane_textures() {
+            let Some(renderer) = new_test_renderer(4, 4) else {
+                return;
+            };
+            let buffer = nv12_fixture::SyntheticNv12Buffer::new(
+                4,
+                4,
+                nv12_fixture::K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE,
+                |_row, _col| 128,
+                |_row, _col| (128, 128),
+            );
+            let source = Nv12IoSurfaceSource {
+                surface_id: buffer.surface_id,
+                width: buffer.width,
+                height: buffer.height,
+                colour_range: Nv12ColourRange::Video,
+                colour_matrix: Nv12ColourMatrix::Bt601,
+            };
+            let layers = vec![SceneLayer {
+                clip: identity_nv12_clip("clip-nv12", "media-nv12", 0),
+                content: SceneLayerContent::Nv12 {
+                    source,
+                    revision: 7,
+                },
+            }];
+
+            pollster::block_on(renderer.render_layers_to_rgba(&layers))
+                .expect("first nv12 render must succeed (cache miss expected)");
+            assert_eq!(renderer.nv12_texture_cache_stats(), (0, 1));
+            assert_eq!(renderer.nv12_texture_cache_len(), 1);
+
+            pollster::block_on(renderer.render_layers_to_rgba(&layers))
+                .expect("second nv12 render with unchanged revision must succeed (cache hit expected)");
+            assert_eq!(
+                renderer.nv12_texture_cache_stats(),
+                (1, 1),
+                "unchanged (surface_id, revision) must hit the plane texture cache and skip re-import"
+            );
+            assert_eq!(renderer.nv12_texture_cache_len(), 1);
+
+            // revision が変われば再 import（ミス）になる。
+            let layers_new_revision = vec![SceneLayer {
+                clip: identity_nv12_clip("clip-nv12", "media-nv12", 0),
+                content: SceneLayerContent::Nv12 {
+                    source,
+                    revision: 8,
+                },
+            }];
+            pollster::block_on(renderer.render_layers_to_rgba(&layers_new_revision))
+                .expect("nv12 render with new revision must succeed (cache miss expected)");
+            assert_eq!(renderer.nv12_texture_cache_stats(), (1, 2));
+        }
+
+        /// テスト専用: IOSurface-backed NV12 CVPixelBuffer を合成する。
+        /// デコード側（AVAssetReader）とは独立した synthetic フィクスチャで、
+        /// production の import 経路（`IOSurfaceLookup` 経由）が実運用と
+        /// 同じ形の入力（CVPixelBuffer から取り出した IOSurface）を正しく
+        /// 扱えることを検証する。
+        mod nv12_fixture {
+            use core_foundation::base::{CFType, CFTypeRef, TCFType};
+            use core_foundation::dictionary::CFDictionary;
+            use core_foundation::string::{CFString, CFStringRef};
+            use std::ffi::c_void;
+
+            type CVPixelBufferRef = *mut c_void;
+            type IOSurfaceRef = *mut c_void;
+            type CVReturn = i32;
+            type OSType = u32;
+
+            pub(super) const K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_VIDEO_RANGE: OSType =
+                0x3432_3076; // '420v'
+            pub(super) const K_CV_PIXEL_FORMAT_TYPE_420YP_CB_CR8_BI_PLANAR_FULL_RANGE: OSType =
+                0x3432_3066; // '420f'
+
+            #[link(name = "CoreVideo", kind = "framework")]
+            extern "C" {
+                static kCVPixelBufferIOSurfacePropertiesKey: CFStringRef;
+                fn CVPixelBufferCreate(
+                    allocator: CFTypeRef,
+                    width: usize,
+                    height: usize,
+                    pixel_format_type: OSType,
+                    pixel_buffer_attributes: CFTypeRef,
+                    pixel_buffer_out: *mut CVPixelBufferRef,
+                ) -> CVReturn;
+                fn CVPixelBufferRelease(buffer: CVPixelBufferRef);
+                fn CVPixelBufferGetIOSurface(buffer: CVPixelBufferRef) -> IOSurfaceRef;
+                fn CVPixelBufferLockBaseAddress(buffer: CVPixelBufferRef, flags: u64) -> CVReturn;
+                fn CVPixelBufferUnlockBaseAddress(buffer: CVPixelBufferRef, flags: u64)
+                    -> CVReturn;
+                fn CVPixelBufferGetBaseAddressOfPlane(
+                    buffer: CVPixelBufferRef,
+                    plane: usize,
+                ) -> *mut c_void;
+                fn CVPixelBufferGetBytesPerRowOfPlane(
+                    buffer: CVPixelBufferRef,
+                    plane: usize,
+                ) -> usize;
+            }
+
+            #[link(name = "IOSurface", kind = "framework")]
+            extern "C" {
+                fn IOSurfaceGetID(surface: IOSurfaceRef) -> u32;
+            }
+
+            /// テスト用の IOSurface-backed NV12 `CVPixelBuffer`。Drop で解放する。
+            pub(super) struct SyntheticNv12Buffer {
+                pixel_buffer: CVPixelBufferRef,
+                pub(super) surface_id: u32,
+                pub(super) width: u32,
+                pub(super) height: u32,
+            }
+
+            // CVPixelBufferRef は生ポインタだが、テストではシングルスレッド
+            // かつ Drop まで所有権を保持するだけなので Send を明示する。
+            unsafe impl Send for SyntheticNv12Buffer {}
+
+            impl Drop for SyntheticNv12Buffer {
+                fn drop(&mut self) {
+                    unsafe { CVPixelBufferRelease(self.pixel_buffer) };
+                }
+            }
+
+            impl SyntheticNv12Buffer {
+                /// `width`/`height` は偶数であること（4:2:0 の要件）。
+                /// `y_at`/`cbcr_at` は plane 内の (row, col) → 値。
+                pub(super) fn new(
+                    width: u32,
+                    height: u32,
+                    pixel_format_type: OSType,
+                    y_at: impl Fn(u32, u32) -> u8,
+                    cbcr_at: impl Fn(u32, u32) -> (u8, u8),
+                ) -> Self {
+                    assert_eq!(width % 2, 0, "NV12 width must be even");
+                    assert_eq!(height % 2, 0, "NV12 height must be even");
+
+                    let empty_props: CFDictionary<CFString, CFType> =
+                        CFDictionary::from_CFType_pairs(&[]);
+                    let key = unsafe {
+                        CFString::wrap_under_get_rule(kCVPixelBufferIOSurfacePropertiesKey)
+                    };
+                    let attributes: CFDictionary<CFString, CFType> =
+                        CFDictionary::from_CFType_pairs(&[(key, empty_props.as_CFType())]);
+
+                    let mut pixel_buffer: CVPixelBufferRef = std::ptr::null_mut();
+                    let status = unsafe {
+                        CVPixelBufferCreate(
+                            std::ptr::null(),
+                            width as usize,
+                            height as usize,
+                            pixel_format_type,
+                            attributes.as_concrete_TypeRef() as CFTypeRef,
+                            &mut pixel_buffer,
+                        )
+                    };
+                    assert_eq!(
+                        status, 0,
+                        "CVPixelBufferCreate must succeed for the NV12 test fixture"
+                    );
+                    assert!(!pixel_buffer.is_null());
+
+                    let lock_status = unsafe { CVPixelBufferLockBaseAddress(pixel_buffer, 0) };
+                    assert_eq!(lock_status, 0);
+
+                    unsafe {
+                        let y_base =
+                            CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 0) as *mut u8;
+                        let y_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 0);
+                        for row in 0..height {
+                            for col in 0..width {
+                                let offset = row as usize * y_stride + col as usize;
+                                *y_base.add(offset) = y_at(row, col);
+                            }
+                        }
+
+                        let cbcr_base =
+                            CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1) as *mut u8;
+                        let cbcr_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
+                        let chroma_width = width / 2;
+                        let chroma_height = height / 2;
+                        for row in 0..chroma_height {
+                            for col in 0..chroma_width {
+                                let (cb, cr) = cbcr_at(row, col);
+                                let offset = row as usize * cbcr_stride + col as usize * 2;
+                                *cbcr_base.add(offset) = cb;
+                                *cbcr_base.add(offset + 1) = cr;
+                            }
+                        }
+                    }
+
+                    unsafe { CVPixelBufferUnlockBaseAddress(pixel_buffer, 0) };
+
+                    let surface_ref = unsafe { CVPixelBufferGetIOSurface(pixel_buffer) };
+                    assert!(
+                        !surface_ref.is_null(),
+                        "CVPixelBufferCreate must produce an IOSurface-backed buffer \
+                         (kCVPixelBufferIOSurfacePropertiesKey)"
+                    );
+                    let surface_id = unsafe { IOSurfaceGetID(surface_ref) };
+
+                    Self {
+                        pixel_buffer,
+                        surface_id,
+                        width,
+                        height,
+                    }
+                }
+            }
+        }
     }
 }
