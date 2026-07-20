@@ -26,6 +26,7 @@
 import type { LayerState, TimelineObject } from '../types';
 import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { evaluateObjectPositionAtTime } from './keyframes';
+import { isObjectVisibleAtTime } from './objectVisibility';
 
 export interface SceneCamera {
   centreOffsetX: number;
@@ -146,6 +147,7 @@ export const getObjectWorldCorners = (
 ): ObjectWorldCorners | null => {
   const size = getObjectSize(obj);
   if (!size) return null;
+  if (!isObjectVisibleAtTime(obj, time)) return null;
 
   const base = evaluateObjectPositionAtTime(obj, time);
   const groupEffects = getGroupTransforms(obj, time, allObjects);
@@ -231,10 +233,8 @@ const worldPointToObjectLocalPoint = (
   };
 };
 
-const isVisible = (obj: TimelineObject, time: number, layers: LayerState[] | undefined): boolean => {
-  if (layers && layers[obj.layer]?.visible === false) return false;
-  return time >= obj.startTime && time < obj.startTime + obj.duration;
-};
+const isVisible = (obj: TimelineObject, time: number, layers: LayerState[] | undefined): boolean =>
+  isObjectVisibleAtTime(obj, time, layers);
 
 /**
  * viewport CSS 座標 + 現在時刻 + TimelineObject[] から、ヒットしたオブジェクト ID を返す。

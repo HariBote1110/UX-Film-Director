@@ -251,6 +251,13 @@ describe('getObjectWorldCorners: 変形済み矩形の四隅', () => {
     expect(corners!.topRight.y).toBeCloseTo(150);
   });
 
+  it('現在時刻がstartTime/durationの範囲外ならnullを返す（症状A: ゴースト選択枠対策）', () => {
+    const obj = shape({ startTime: 5, duration: 10 });
+    expect(getObjectWorldCorners(obj, 4.999, [obj])).toBeNull();
+    expect(getObjectWorldCorners(obj, 15, [obj])).toBeNull();
+    expect(getObjectWorldCorners(obj, 5, [obj])).not.toBeNull();
+  });
+
   it('width/heightを持たないオブジェクトはnullを返す', () => {
     const group: TimelineObject = {
       id: 'group-1',

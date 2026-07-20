@@ -47,6 +47,7 @@ import type {
 } from '../types';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { evaluateObjectPositionAtTime } from './keyframes';
+import { isObjectVisibleAtTime } from './objectVisibility';
 import { getVibrationOffset } from './sceneTransforms';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 
@@ -298,10 +299,7 @@ const collectVisibleObjects = (
   layers: LayerState[],
   time: number
 ): TimelineObject[] =>
-  objects.filter((object) => {
-    if (layers[object.layer]?.visible === false) return false;
-    return time >= object.startTime && time < object.startTime + object.duration;
-  });
+  objects.filter((object) => isObjectVisibleAtTime(object, time, layers));
 
 const collectBuildIssues = (
   objects: TimelineObject[],
