@@ -189,6 +189,11 @@ describe('Rust video preview E2E', () => {
         ok: true,
         activeJobs: [videoJob],
         upload: videoUpload,
+        diagnostics: {
+          decodePaths: ['inprocess'],
+          renderPath: 'webgpuSceneComposite',
+          nv12ZeroCopyMediaIds: ['media-gopro'],
+        },
       };
     });
     const prepareVideoUploads = vi.fn<SharedRendererViewportVideoUploadsPreparer>(async () => {

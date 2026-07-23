@@ -36,7 +36,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge);
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any);
 
     // 選択デコレーション channel が追加され、登録される channel は 7 個になった。
     expect(ipcMain.handle).toHaveBeenCalledTimes(7);
@@ -95,7 +95,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
       resolveWindowIdFromEvent: vi.fn(() => 9),
     });
 
@@ -133,7 +133,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
       resolveWindowIdFromEvent: vi.fn(() => 9),
     });
 
@@ -166,7 +166,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: false })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
       resolveWindowIdFromEvent: vi.fn(() => 9),
       logDiagnostic: logger,
     });
@@ -204,7 +204,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
@@ -238,7 +238,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
@@ -274,7 +274,7 @@ describe('nativeOverlayIpc', () => {
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
-    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 

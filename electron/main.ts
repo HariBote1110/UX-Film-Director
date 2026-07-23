@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, screen, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, screen, shell, type WebContents } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
@@ -599,7 +599,12 @@ app.whenReady().then(() => {
     },
     logDiagnostic: (eventName, payload) => console.info(formatNativeOverlayDiagnosticLog(eventName, payload)),
   }), {
-    resolveWindowIdFromEvent: (event) => BrowserWindow.fromWebContents(event.sender)?.id ?? null,
+    resolveWindowIdFromEvent: (event) => {
+      const sender = typeof event === 'object' && event !== null && 'sender' in event
+        ? (event as { sender?: WebContents }).sender
+        : undefined
+      return sender ? BrowserWindow.fromWebContents(sender)?.id ?? null : null
+    },
     logDiagnostic: (eventName, payload) => console.info(formatNativeOverlayDiagnosticLog(eventName, payload)),
   })
 

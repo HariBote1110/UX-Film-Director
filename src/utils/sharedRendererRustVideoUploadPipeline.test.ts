@@ -3,6 +3,7 @@ import {
   presentNativeOverlayRustDecodedVideoFrame,
   prepareSharedRendererRustDecodedVideoUpload,
   resetNativeOverlayVisualFrameCache,
+  type PresentNativeOverlayRustDecodedVideoFrameInput,
 } from './sharedRendererRustVideoUploadPipeline';
 import type {
   RustBackendResult,
@@ -325,7 +326,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       },
     };
 
-    const baseInput = {
+    const baseInput: Omit<PresentNativeOverlayRustDecodedVideoFrameInput, 'decodeResponse'> = {
       windowId: 77,
       mediaId: 'steady-video-duplicate',
       snapshot: {
@@ -513,7 +514,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       },
     };
 
-    const baseInput = {
+    const baseInput: Omit<PresentNativeOverlayRustDecodedVideoFrameInput, 'snapshot'> = {
       windowId: 81,
       mediaId: 'playhead-advance',
       decodeResponse: decodedFrameResponse,
@@ -524,7 +525,9 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       canvas: { width: 1920, height: 1080 },
     };
 
-    const snapshotAt = (frameIndex: number) => ({
+    const snapshotAt = (
+      frameIndex: number
+    ): NonNullable<PresentNativeOverlayRustDecodedVideoFrameInput['snapshot']> => ({
       frame_index: frameIndex,
       colour: {
         profile: 'rec709-sdr',

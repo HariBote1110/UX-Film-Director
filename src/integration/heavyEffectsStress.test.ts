@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { FilterType, ShapeObject } from '../types';
+import type { FilterType, PositionKeyframe, ShapeObject } from '../types';
 import { useStore } from '../store/useStore';
 import { easingFunctions, type EasingType } from '../utils/easings';
 import {

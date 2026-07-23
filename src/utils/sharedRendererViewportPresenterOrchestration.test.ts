@@ -4,6 +4,7 @@ import {
   resolveNativeOverlayTransparentClearTransition,
   NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE,
   type SharedRendererViewportNativeRenderUploadPreparer,
+  type SharedRendererViewportNativeOverlayPresenter,
   type SharedRendererViewportPresenterStarter,
   type SharedRendererViewportVideoUploadPreparer,
   type SharedRendererViewportVideoUploadsPreparer,
@@ -27,6 +28,11 @@ const activeJob: SharedRendererViewportVideoDecodeJob = {
     numerator: 60,
     denominator: 1,
   },
+};
+const nativeRenderDiagnostics = {
+  decodePaths: ['inprocess'],
+  renderPath: 'webgpuSceneComposite',
+  nv12ZeroCopyMediaIds: ['video-1'],
 };
 const secondActiveJob: SharedRendererViewportVideoDecodeJob = {
   jobId: 'shared-renderer-video-video-2-80x45-30over1',
@@ -325,7 +331,9 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       activeVideoDecodeJob: activeJob,
       requestId: 24,
       prepareVideoUpload,
-      presentNativeOverlayDecodedFrame: async (input) => {
+      presentNativeOverlayDecodedFrame: async (
+        input: Parameters<SharedRendererViewportNativeOverlayPresenter>[0]
+      ) => {
         events.push(`nativeOverlay:${input.requestId}:${input.activeJob?.jobId ?? 'none'}`);
         return {
           ok: true,
@@ -401,6 +409,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         ok: true,
         activeJobs: [activeJob],
         upload: upload as any,
+        diagnostics: nativeRenderDiagnostics,
       };
     };
     const startPresenter: SharedRendererViewportPresenterStarter = async () => {
@@ -421,7 +430,9 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       activeVideoDecodeJobs: [activeJob],
       requestId: 25,
       prepareNativeRenderUpload,
-      presentNativeOverlayDecodedFrame: async (input) => {
+      presentNativeOverlayDecodedFrame: async (
+        input: Parameters<SharedRendererViewportNativeOverlayPresenter>[0]
+      ) => {
         events.push(`nativeOverlay:${input.requestId}`);
         return {
           ok: true,
@@ -563,6 +574,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         ok: true,
         activeJobs: [activeJob],
         upload: upload as any,
+        diagnostics: nativeRenderDiagnostics,
       };
     };
     const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => {
@@ -628,6 +640,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         ok: true,
         activeJobs: [activeJob],
         upload: upload as any,
+        diagnostics: nativeRenderDiagnostics,
       };
     };
     const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => {
@@ -844,6 +857,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         ok: true,
         activeJobs: [activeJob],
         upload: upload as any,
+        diagnostics: nativeRenderDiagnostics,
       };
     };
     const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {

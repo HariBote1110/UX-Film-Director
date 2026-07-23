@@ -38,14 +38,14 @@ export type SharedRendererViewportPresenterStarter = (
 export type SharedRendererViewportNativeOverlayPresentResult =
   | {
       ok: true;
-      activeJob: SharedRendererViewportVideoDecodeJob | null;
+      activeJob?: SharedRendererViewportVideoDecodeJob | null;
       activeJobs?: SharedRendererViewportVideoDecodeJob[];
     }
   | {
       ok: false;
       reason: string;
       detail: string;
-      activeJob: SharedRendererViewportVideoDecodeJob | null;
+      activeJob?: SharedRendererViewportVideoDecodeJob | null;
       activeJobs?: SharedRendererViewportVideoDecodeJob[];
     };
 
@@ -228,7 +228,7 @@ export const startSharedRendererViewportPresenter = async ({
     })()
     : undefined;
   if (nativeOverlayPresentResult) {
-    nextActiveVideoDecodeJob = nativeOverlayPresentResult.activeJob;
+    nextActiveVideoDecodeJob = nativeOverlayPresentResult.activeJob ?? null;
     nextActiveVideoDecodeJobs = nativeOverlayPresentResult.activeJobs
       ?? (nextActiveVideoDecodeJob ? [nextActiveVideoDecodeJob] : []);
   }

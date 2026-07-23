@@ -34,7 +34,7 @@ export interface NativeOverlayCapabilities {
 export interface NativeOverlayIpcMainLike {
   handle: (
     channel: string,
-    handler: (event: unknown, payload: unknown) => Promise<unknown> | unknown,
+    handler: (event: unknown, payload: unknown) => Promise<unknown>,
   ) => void
 }
 
@@ -67,7 +67,11 @@ export const registerNativeOverlayIpcHandlers = (
     bridge.detach(withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload))
   ipcMain.handle(nativeOverlayIpcChannels.presentSharedFrame, async (event, payload) =>
     bridge.presentSharedFrame(
-      withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlaySharedFramePayload,
+      withWindowId(
+        payload,
+        event,
+        options.resolveWindowIdFromEvent,
+      ) as unknown as NativeOverlaySharedFramePayload,
     ))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>
     bridge.getCapabilities())
