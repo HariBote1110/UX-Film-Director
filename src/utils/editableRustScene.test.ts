@@ -21,7 +21,7 @@ const projectSettings: ProjectSettings = {
 const layers: LayerState[] = Array.from({ length: 8 }, (_, index) => ({
   id: `layer-${index}`,
   name: `Layer ${index}`,
-  visible: true,
+  visible: index !== 7,
   locked: false,
 }));
 
@@ -104,8 +104,9 @@ const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
   filePath: '/tmp/design.psd',
   width: 800,
   height: 600,
-  activeLayerIds: { title: true, hidden: false },
   ...patch,
+  scale: patch.scale ?? 1,
+  activeLayerIds: patch.activeLayerIds ?? { title: true, hidden: false },
 });
 
 describe('buildEditableRustScene', () => {
@@ -114,7 +115,7 @@ describe('buildEditableRustScene', () => {
       sceneId: 'scene-1',
       projectSettings,
       layers,
-      objects: [text(), psd(), image(), video(), shape()],
+      objects: [text(), psd(), image(), video(), shape(), image({ id: 'hidden', layer: 7 })],
     });
 
     expect(result.ok).toBe(true);
@@ -197,7 +198,7 @@ describe('buildEditableRustScene', () => {
       },
       { ...image({ id: 'mask' }), clipping: true },
       { ...shape({ id: 'group-control' }), type: 'group_control' as const, targetLayerCount: 2 } as TimelineObject,
-      { ...shape({ id: 'particle' }), type: 'particle' as const, particleCount: 5, spread: 1, speed: 1, size: 2, colour: '#ffffff', seed: 1 } as TimelineObject,
+      { ...shape({ id: 'particle' }), type: 'particle' as const, particleCount: 5, spread: 1, speed: 1, size: 2, colour: '#ffffff', seed: 1 } as unknown as TimelineObject,
     ];
 
     const result = buildEditableRustScene({ sceneId: 'scene-rejected', projectSettings, layers, objects: unsupported });

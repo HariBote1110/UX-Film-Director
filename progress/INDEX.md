@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [editable-rust-scene-v1.md](editable-rust-scene-v1.md) — 編集可能なRust Project V1の対象、track順序、snapshot serializer再利用、位置keyframe互換、明示拒否する表現（2026-07-24）
 - [rust-scene-rpc-scheduler.md](rust-scene-rpc-scheduler.md) — `scene.replace`/`scene.evaluate`の型付きElectron橋渡し、revision付きlatest-winsプレビュー評価スケジューラ、古い評価結果をpresentしない契約（2026-07-24）
 - [realistic-heavy-edit-verification.md](realistic-heavy-edit-verification.md) — 4K動画2本・音声・画像・テキスト・図形・エフェクト・グループを重ねた現実的な重量編集を、生成・操作・保存復元・目視・動画書き出しまで自動検証するCLI基盤と、初回測定結果（2026-07-24）
 - [cametal-direct-preview.md](cametal-direct-preview.md) — 対応する非動画・動画1件混在シーンをCAMetalLayerへ直接presentし、全画面RGBA読戻し往復を除去する設計、MissingSource適格判定、GPU化の残課題（2026-07-23）

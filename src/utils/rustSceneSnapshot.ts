@@ -200,7 +200,7 @@ type SupportedTextObject = TextObject;
 type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | HologramObject | ProtractorObject | ShakingPolygonObject | ShatteredSphereObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject | SupportedTextObject;
 
-const rustColourPipeline = (): RustColourPipeline => ({
+export const rustColourPipeline = (): RustColourPipeline => ({
   profile: 'rec709-sdr',
   working_space: 'linear-light',
   alpha: 'premultiplied',
@@ -1357,6 +1357,17 @@ const mediaReferenceForObject = (
   return reference;
 };
 
+/**
+ * 編集可能な Rust Project へ変換する際に、snapshot と同一の media
+ * serializer を使うための狭い公開入口。時間依存の生成 media は含めない。
+ */
+export const mediaReferenceForEditableRustScene = (
+  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject,
+  projectFps: number
+): RustSceneMediaReference => (
+  mediaReferenceForObject(object, projectFps, 'previewProxy', [object], object.startTime)
+);
+
 const activeLayerIdsForPsd = (object: PsdObject): string[] =>
   Object.entries(object.activeLayerIds ?? {})
     .filter(([, active]) => active)
@@ -2218,13 +2229,13 @@ const sourceFrameForObject = (
   return Math.min(frameIndex, maxFrame);
 };
 
-const secondsToFrameIndex = (seconds: number, fps: number): number => {
+export const secondsToFrameIndex = (seconds: number, fps: number): number => {
   const safeSeconds = Number.isFinite(seconds) ? seconds : 0;
   const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 60;
   return Math.max(0, Math.round(safeSeconds * safeFps));
 };
 
-const fpsToFrameRate = (fps: number): RustFrameRate => {
+export const fpsToFrameRate = (fps: number): RustFrameRate => {
   const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 60;
   const rounded = Math.round(safeFps);
   if (Math.abs(safeFps - rounded) < 1e-6) {
