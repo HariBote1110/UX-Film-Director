@@ -79,9 +79,11 @@ mod platform {
     /// How long a `request_frame` call will wait for the ring to produce
     /// *any* frame before giving up. This is not "wait for the decode of the
     /// requested frame" (that would defeat the whole point of prefetching) --
-    /// it only covers the brief window right after `open()`/a seek before the
-    /// worker has produced its first frame in the new position.
-    const RING_WAIT_TIMEOUT: Duration = Duration::from_millis(200);
+    /// it only covers the window right after `open()`/a seek before the
+    /// worker has produced its first frame in the new position. A real 4K
+    /// seek can take longer than 200ms, so use the same correctness budget as
+    /// the initial hardware decode instead of failing an export prematurely.
+    const RING_WAIT_TIMEOUT: Duration = FIRST_FRAME_TIMEOUT;
     /// A forward gap larger than this triggers a `seek()` (cheap: an
     /// AVAssetReader restart, no subprocess) instead of discard-decoding
     /// every frame in between. Generous relative to the ~400ms ring so a
