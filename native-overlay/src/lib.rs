@@ -417,11 +417,10 @@ impl NativeOverlayLiveSurfaceRenderer {
             merged_snapshot.clips.extend(decoration_clips);
             merged_sources.extend(decoration_sources);
             let report = pollster::block_on(
-                self.renderer
-                    .present_scene_to_surface_texture_with_readback(
-                        &merged_snapshot,
-                        &merged_sources,
-                    ),
+                self.renderer.present_scene_to_surface_texture_with_readback(
+                    &merged_snapshot,
+                    &merged_sources,
+                ),
             )
             .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
             let live_readback_export_max_channel_delta = compare_live_overlay_readback_with_export(
@@ -436,14 +435,13 @@ impl NativeOverlayLiveSurfaceRenderer {
         }
 
         let report = pollster::block_on(
-            self.renderer
-                .present_scene_with_decoration_to_surface_texture(
-                    self.scene_generation,
-                    base_snapshot,
-                    base_sources,
-                    &decoration_clips,
-                    &decoration_sources,
-                ),
+            self.renderer.present_scene_with_decoration_to_surface_texture(
+                self.scene_generation,
+                base_snapshot,
+                base_sources,
+                &decoration_clips,
+                &decoration_sources,
+            ),
         )
         .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
         if let Some(start) = trace_start {
@@ -507,7 +505,9 @@ impl NativeOverlayLiveSurfaceRenderer {
                         &decoration_sources,
                     ),
             )
-            .map_err(|error| format!("Native overlay clear-readback present failed: {error:?}"))?;
+            .map_err(|error| {
+                format!("Native overlay clear-readback present failed: {error:?}")
+            })?;
             eprintln!(
                 "[uxfd-overlay-trace] clear_readback window_id={} drawable={}x{} \
                  prepared_clips={} pre_clear_non_transparent={} post_clear_non_transparent={}",
@@ -522,14 +522,13 @@ impl NativeOverlayLiveSurfaceRenderer {
         }
 
         let report = pollster::block_on(
-            self.renderer
-                .present_scene_with_decoration_to_surface_texture(
-                    self.scene_generation,
-                    base_snapshot,
-                    base_sources,
-                    &decoration_clips,
-                    &decoration_sources,
-                ),
+            self.renderer.present_scene_with_decoration_to_surface_texture(
+                self.scene_generation,
+                base_snapshot,
+                base_sources,
+                &decoration_clips,
+                &decoration_sources,
+            ),
         )
         .map_err(|error| {
             format!("Native overlay selection decoration present failed: {error:?}")
@@ -1319,20 +1318,15 @@ pub fn build_selection_decoration_clips(
         drawable_width,
         drawable_height,
     );
-    let fit = |point: (f64, f64)| {
-        (
-            point.0 * fit_scale + offset_x,
-            point.1 * fit_scale + offset_y,
-        )
-    };
+    let fit = |point: (f64, f64)| (point.0 * fit_scale + offset_x, point.1 * fit_scale + offset_y);
 
     let line_width = SELECTION_DECORATION_LINE_WIDTH_CSS * contents_scale;
-    let handle_frame_size = (SELECTION_DECORATION_HANDLE_SIZE_CSS
-        + SELECTION_DECORATION_HANDLE_STROKE_CSS)
-        * contents_scale;
-    let handle_face_size = (SELECTION_DECORATION_HANDLE_SIZE_CSS
-        - SELECTION_DECORATION_HANDLE_STROKE_CSS)
-        * contents_scale;
+    let handle_frame_size =
+        (SELECTION_DECORATION_HANDLE_SIZE_CSS + SELECTION_DECORATION_HANDLE_STROKE_CSS)
+            * contents_scale;
+    let handle_face_size =
+        (SELECTION_DECORATION_HANDLE_SIZE_CSS - SELECTION_DECORATION_HANDLE_STROKE_CSS)
+            * contents_scale;
 
     for (quad_index, quad) in state.quads.iter().enumerate() {
         let corners = [
@@ -1400,8 +1394,7 @@ pub fn append_selection_decoration_to_scene(
 /// sources を live surface に present し、既存 render pass の
 /// `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable 全 pixel を
 /// alpha=0 で上書きする。専用 clear render logic は追加しない。
-pub fn build_empty_scene_snapshot_for_transparent_clear(
-) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+pub fn build_empty_scene_snapshot_for_transparent_clear() -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
     (
         SceneSnapshot {
             frame_index: 0,
@@ -2375,9 +2368,8 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let sources = load_overlay_native_sources_for_scene(&scene).expect(
-            "direct CAMetalLayer scene must build GetColor without a completed-frame upload",
-        );
+        let sources = load_overlay_native_sources_for_scene(&scene)
+            .expect("direct CAMetalLayer scene must build GetColor without a completed-frame upload");
 
         assert!(
             !sources.contains_key("video-media"),
@@ -2698,7 +2690,9 @@ mod tests {
             "the obstructed toggle must lower the child window with NSWindowBelow (not orderOut:), \
              so live surface present keeps running while the child window is simply behind the parent",
         );
-        assert!(source.contains("fn set_overlay_view_obstructed"),);
+        assert!(
+            source.contains("fn set_overlay_view_obstructed") ,
+        );
     }
 
     #[test]
@@ -2753,8 +2747,9 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, _sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
-            .expect("scene upload must fit into the drawable pixel size");
+        let (snapshot, _sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+                .expect("scene upload must fit into the drawable pixel size");
 
         let expected_fit_scale = (1564.0_f32 / 1920.0).min(880.0_f32 / 1080.0);
         assert!(
@@ -2846,8 +2841,9 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
-            .expect("scene upload must compensate decode downscale and fit to drawable");
+        let (snapshot, sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+                .expect("scene upload must compensate decode downscale and fit to drawable");
 
         let source = sources
             .get("video-1")
@@ -2935,8 +2931,9 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
-            .expect("drawable-matched decode edge must present 1:1");
+        let (snapshot, sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+                .expect("drawable-matched decode edge must present 1:1");
 
         let source = sources.get("video-1").expect("video source must exist");
         let clip = &snapshot.clips[0];
@@ -3014,8 +3011,9 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 2000, 880)
-            .expect("scene upload must centre the fitted scene in a wide drawable");
+        let (snapshot, sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 2000, 880)
+                .expect("scene upload must centre the fitted scene in a wide drawable");
 
         let source = sources.get("video-1").expect("video source must exist");
         let clip = &snapshot.clips[0];
@@ -3077,24 +3075,15 @@ mod tests {
         let (fit_scale, offset_x, offset_y) = contain_fit_transform(1920, 1080, 1564, 880);
         assert_approx(fit_scale as f32, 1564.0 / 1920.0, "fit_scale");
         // 1564/1920 ≈ 0.8146 と 880/1080 ≈ 0.8148 のうち小さい方（横基準の letterbox）。
-        assert!(
-            fit_scale < 880.0 / 1080.0,
-            "fit_scale must pick the smaller axis ratio"
-        );
-        assert_approx(
-            offset_x as f32,
-            0.0,
-            "offset_x must be ~0 for a near-matching aspect ratio",
-        );
-        assert!(
-            offset_y >= 0.0,
-            "offset_y must be non-negative letterbox padding"
-        );
+        assert!(fit_scale < 880.0 / 1080.0, "fit_scale must pick the smaller axis ratio");
+        assert_approx(offset_x as f32, 0.0, "offset_x must be ~0 for a near-matching aspect ratio");
+        assert!(offset_y >= 0.0, "offset_y must be non-negative letterbox padding");
 
         // canvas サイズ 0（projectSettings 未到達などの Fail Safe 経路）は
         // 無変換（fit_scale=1, offset=0）でなければならない。scene 本体
         // （fit_scene_snapshot_to_drawable の早期 return）と同じ契約。
-        let (zero_fit_scale, zero_offset_x, zero_offset_y) = contain_fit_transform(0, 0, 1564, 880);
+        let (zero_fit_scale, zero_offset_x, zero_offset_y) =
+            contain_fit_transform(0, 0, 1564, 880);
         assert_approx(zero_fit_scale as f32, 1.0, "zero-canvas fit_scale");
         assert_approx(zero_offset_x as f32, 0.0, "zero-canvas offset_x");
         assert_approx(zero_offset_y as f32, 0.0, "zero-canvas offset_y");
@@ -3129,21 +3118,9 @@ mod tests {
 
         // 右辺: TR(150,50)→BR(150,100)、回転 90 度。
         let right = &clips[1];
-        assert_approx(
-            right.transform.rotation_degrees,
-            90.0,
-            "right edge rotation",
-        );
-        assert_approx(
-            right.transform.translation_x,
-            151.0,
-            "right edge translation_x",
-        );
-        assert_approx(
-            right.transform.translation_y,
-            49.0,
-            "right edge translation_y",
-        );
+        assert_approx(right.transform.rotation_degrees, 90.0, "right edge rotation");
+        assert_approx(right.transform.translation_x, 151.0, "right edge translation_x");
+        assert_approx(right.transform.translation_y, 49.0, "right edge translation_y");
         assert_approx(right.transform.scale_x, 52.0, "right edge scale_x");
         assert_approx(right.transform.scale_y, 2.0, "right edge scale_y");
 
@@ -3151,24 +3128,12 @@ mod tests {
         // の 2 clip で再現する。TL corner (50,50) 中心。
         let gold_handle = &clips[4];
         assert_eq!(gold_handle.media_id, SELECTION_DECORATION_GOLD_MEDIA_ID);
-        assert_approx(
-            gold_handle.transform.translation_x,
-            50.0 - 5.6,
-            "gold handle tx",
-        );
-        assert_approx(
-            gold_handle.transform.translation_y,
-            50.0 - 5.6,
-            "gold handle ty",
-        );
+        assert_approx(gold_handle.transform.translation_x, 50.0 - 5.6, "gold handle tx");
+        assert_approx(gold_handle.transform.translation_y, 50.0 - 5.6, "gold handle ty");
         assert_approx(gold_handle.transform.scale_x, 11.2, "gold handle scale_x");
         let white_handle = &clips[8];
         assert_eq!(white_handle.media_id, SELECTION_DECORATION_WHITE_MEDIA_ID);
-        assert_approx(
-            white_handle.transform.translation_x,
-            50.0 - 4.4,
-            "white handle tx",
-        );
+        assert_approx(white_handle.transform.translation_x, 50.0 - 4.4, "white handle tx");
         assert_approx(white_handle.transform.scale_x, 8.8, "white handle scale_x");
 
         // z-order: 動画・画像 clip より常に上。辺 < ハンドル金 < ハンドル白。
@@ -3223,21 +3188,9 @@ mod tests {
         let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 1.0);
 
         let edge = &clips[0];
-        assert_approx(
-            edge.transform.rotation_degrees,
-            90.0,
-            "rotated edge rotation",
-        );
-        assert_approx(
-            edge.transform.translation_x,
-            1.0,
-            "rotated edge translation_x",
-        );
-        assert_approx(
-            edge.transform.translation_y,
-            -1.0,
-            "rotated edge translation_y",
-        );
+        assert_approx(edge.transform.rotation_degrees, 90.0, "rotated edge rotation");
+        assert_approx(edge.transform.translation_x, 1.0, "rotated edge translation_x");
+        assert_approx(edge.transform.translation_y, -1.0, "rotated edge translation_y");
         assert_approx(edge.transform.scale_x, 102.0, "rotated edge scale_x");
         assert_approx(edge.transform.scale_y, 2.0, "rotated edge scale_y");
     }
@@ -3264,9 +3217,7 @@ mod tests {
         assert_eq!(snapshot.clips.len(), 1 + 12);
         assert_eq!(snapshot.clips[0].clip_id, "existing");
         assert_eq!(snapshot.clips[0].z_index, 5);
-        assert!(snapshot.clips[1..]
-            .iter()
-            .all(|clip| clip.z_index >= u32::MAX - 2));
+        assert!(snapshot.clips[1..].iter().all(|clip| clip.z_index >= u32::MAX - 2));
         assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
         assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
     }
@@ -3478,10 +3429,7 @@ mod tests {
         // 上辺中点 (100, 40): 金（#ffd700 相当。red 高・blue 低・不透明）。
         let border = pixel(100, 40);
         assert!(border[3] > 200, "border must be opaque, got {border:?}");
-        assert!(
-            border[0] > 180 && border[2] < 120,
-            "border must be gold, got {border:?}"
-        );
+        assert!(border[0] > 180 && border[2] < 120, "border must be gold, got {border:?}");
         // TL corner (40, 40): 白ハンドル面。
         let handle = pixel(40, 40);
         assert!(handle[3] > 200, "handle must be opaque, got {handle:?}");
@@ -3491,10 +3439,7 @@ mod tests {
         );
         // quad 中央 (100, 100): 透明のまま（枠の内側は塗らない）。
         let interior = pixel(100, 100);
-        assert_eq!(
-            interior[3], 0,
-            "interior must stay transparent, got {interior:?}"
-        );
+        assert_eq!(interior[3], 0, "interior must stay transparent, got {interior:?}");
     }
 
     #[test]
@@ -3528,26 +3473,10 @@ mod tests {
         // （TL(100,100)→TR(300,100)）を線幅 2 で載せた位置になるはずで、
         // offset_x/y はどちらも 0 でなければならない。
         let top = &clips[0];
-        assert_approx(
-            top.transform.translation_x,
-            99.0,
-            "top edge translation_x (no offset)",
-        );
-        assert_approx(
-            top.transform.translation_y,
-            99.0,
-            "top edge translation_y (no offset)",
-        );
-        assert_approx(
-            top.transform.scale_x,
-            202.0,
-            "top edge scale_x (no fit scale)",
-        );
-        assert_approx(
-            top.transform.scale_y,
-            2.0,
-            "top edge scale_y (no fit scale)",
-        );
+        assert_approx(top.transform.translation_x, 99.0, "top edge translation_x (no offset)");
+        assert_approx(top.transform.translation_y, 99.0, "top edge translation_y (no offset)");
+        assert_approx(top.transform.scale_x, 202.0, "top edge scale_x (no fit scale)");
+        assert_approx(top.transform.scale_y, 2.0, "top edge scale_y (no fit scale)");
     }
 
     #[test]
@@ -3574,11 +3503,7 @@ mod tests {
         let frame = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 100, 100))
             .expect("offscreen render of an out-of-bounds decoration must not panic");
 
-        assert_eq!(
-            frame.pixels.len(),
-            100 * 100 * 4,
-            "frame must stay drawable-sized"
-        );
+        assert_eq!(frame.pixels.len(), 100 * 100 * 4, "frame must stay drawable-sized");
         assert!(
             frame.pixels.iter().all(|byte| *byte == 0),
             "drawable must remain fully transparent when the decoration falls entirely outside it"
