@@ -119,3 +119,31 @@ fn hex_value(value: u8) -> Option<u8> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_generated_source_builder_supports_solid_colour_for_direct_present() {
+        let media = SceneMediaReference {
+            id: "solid-colour".to_string(),
+            kind: MediaKind::SolidColour,
+            source: "#123456".to_string(),
+            width: 2,
+            height: 1,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_native_generated_source_frame(&media, 0)
+            .expect("solid colour generation must succeed")
+            .expect("solid colour must be available to direct CAMetalLayer presentation");
+
+        assert_eq!((frame.width, frame.height), (2, 1));
+        assert_eq!(
+            frame.pixels,
+            vec![0x12, 0x34, 0x56, 0xff, 0x12, 0x34, 0x56, 0xff]
+        );
+    }
+}
