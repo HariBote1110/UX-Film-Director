@@ -82,7 +82,9 @@ pub(crate) fn handle_encode_write_native_frame(
         );
     }
 
-    if audio_waveforms.is_empty() {
+    let nv12_sources = collect_native_render_nv12_sources(&parsed.sources, &state.decode_sessions);
+
+    if audio_waveforms.is_empty() && nv12_sources.is_empty() {
         if let Some(frame) = match try_render_simple_video_frame(
             &parsed.snapshot,
             &parsed.media,
@@ -122,6 +124,7 @@ pub(crate) fn handle_encode_write_native_frame(
                     "timestampUs": parsed.timestamp_us,
                     "encodedFrameByteLen": encoded_frame_byte_len,
                     "frameCount": frame_count,
+                    "nv12ZeroCopyMediaIds": Vec::<String>::new(),
                 })),
                 error: None,
             };
@@ -150,16 +153,12 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.media,
         &parsed.sources,
     );
-    // Phase 4c Stage 2 zero-copy NV12 is scoped to the `render.nativeSharedFrame`
-    // hot path (see `handle_native_render_shared_frame` below); this export/
-    // `encode.writeNativeFrame` path keeps resolving every media_id via the
-    // existing RGBA bridge.
     let render = match pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
         &parsed.snapshot,
         &sources,
         &audio_waveforms,
         &content_revisions,
-        &std::collections::HashMap::new(),
+        &nv12_sources,
     )) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -189,6 +188,8 @@ pub(crate) fn handle_encode_write_native_frame(
             encoded_frame_byte_len,
         )
     };
+    let nv12_zero_copy_media_ids: Vec<&str> =
+        nv12_sources.keys().map(String::as_str).collect();
 
     RpcResponse {
         id,
@@ -198,6 +199,8 @@ pub(crate) fn handle_encode_write_native_frame(
             "writtenNativeFrame": true,
             "sessionId": session_id,
             "renderId": parsed.render_id,
+            "renderPath": "webgpuSceneComposite",
+            "nv12ZeroCopyMediaIds": nv12_zero_copy_media_ids,
             "frameIndex": parsed.frame_index,
             "timestampUs": parsed.timestamp_us,
             "encodedFrameByteLen": encoded_frame_byte_len,
