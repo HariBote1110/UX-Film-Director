@@ -23,11 +23,15 @@ export interface EditableRustScenePreviewController {
 export const createEditableRustScenePreviewController = ({
   sceneId,
   scheduler,
+  initialRevision = Date.now(),
 }: {
   sceneId: string;
   scheduler: SharedRendererScenePreviewScheduler;
+  initialRevision?: number;
 }): EditableRustScenePreviewController => {
-  let revision = 0;
+  let revision = Number.isSafeInteger(initialRevision) && initialRevision >= 0
+    ? initialRevision
+    : Date.now();
 
   return {
     replaceScene: (input) => {
