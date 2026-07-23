@@ -10,7 +10,11 @@ use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThreshol
 use uxfd_native_wgpu_renderer::{
     render_native_wgpu_frame, NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
 };
-use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SamplingMode, SceneSnapshot, Transform};
+use uxfd_rust_backend::build_native_generated_source_frame;
+use uxfd_rust_core::{
+    ColourPipeline, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
+    Transform,
+};
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
 #[cfg(target_os = "macos")]
@@ -1669,7 +1673,7 @@ pub fn upload_frame_to_scene_sources(
     let frame = RgbaFrame::from_rgba8(upload.width, upload.height, upload.pixels.clone())
         .map_err(|error| format!("Native overlay upload frame is invalid: {error:?}"))?;
     let mut sources = scene
-        .map(load_overlay_image_sources_for_scene)
+        .map(load_overlay_native_sources_for_scene)
         .transpose()?
         .unwrap_or_default();
     sources.insert(upload.media_id.clone(), frame);
@@ -1854,6 +1858,38 @@ pub fn load_overlay_image_sources_for_scene(
         let frame = load_rgba_png(&media.source)
             .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?;
         sources.insert(media.id.clone(), frame);
+    }
+    Ok(sources)
+}
+
+pub fn load_overlay_native_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, RgbaFrame>, String> {
+    let mut sources = load_overlay_image_sources_for_scene(scene)?;
+    for media in &scene.media {
+        let kind = match media.kind.as_str() {
+            "GeneratedGetColorDots" => MediaKind::GeneratedGetColorDots,
+            _ => continue,
+        };
+        let source_frame = scene
+            .snapshot
+            .clips
+            .iter()
+            .find(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame)
+            .unwrap_or(scene.snapshot.frame_index);
+        let reference = SceneMediaReference {
+            id: media.id.clone(),
+            kind,
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+        if let Some(frame) = build_native_generated_source_frame(&reference, source_frame)? {
+            sources.insert(media.id.clone(), frame);
+        }
     }
     Ok(sources)
 }

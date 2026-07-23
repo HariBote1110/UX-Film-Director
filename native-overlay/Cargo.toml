@@ -17,6 +17,7 @@ uxfd-shared-video-frame-bridge = { path = "../shared-video-frame-bridge" }
 uxfd-native-wgpu-renderer = { path = "../native-wgpu-renderer" }
 uxfd-golden-harness = { path = "../golden-harness" }
 uxfd-rust-core = { path = "../rust-core" }
+uxfd-rust-backend = { path = "../rust-backend" }
 wgpu = "0.20"
 
 [target.'cfg(target_os = "macos")'.dependencies]
