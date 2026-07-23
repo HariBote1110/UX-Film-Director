@@ -9,6 +9,7 @@ import type {
 
 export interface RustBackendNativeRenderSharedFrameSource {
   mediaId: string;
+  jobId?: string;
   slotCount: number;
   frame: RustBackendSharedVideoFrame;
 }

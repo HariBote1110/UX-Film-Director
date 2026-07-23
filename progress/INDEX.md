@@ -1,6 +1,6 @@
 # 決定ログ索引
 
-- [phase4c-inprocess-decode-integration.md](phase4c-inprocess-decode-integration.md) — Phase 4c Stage 1+2: `macos-video-decode` の decode.* RPC 面への統合（専用ワーカースレッド・pts順プリフェッチリング・自動フォールバック）に加え、NV12 zero-copy を render.nativeSharedFrame 本番合成パスへ統合（cross-process IOSurfaceLookup実機検証の結果rust-backend自身のコンポジタに限定・golden parity完全一致・decode+GPU合成実測でRGBAブリッジ比平均1.5ms/frame改善）（2026-07-20）
+- [phase4c-inprocess-decode-integration.md](phase4c-inprocess-decode-integration.md) — Phase 4c Stage 1+2: `macos-video-decode` の decode.* RPC 面への統合とNV12 zero-copy本番合成。実Electron検証で判明した`jobId`/`mediaId`相関不具合を修正し、本番形式の異なるIDでもzero-copyが発火する契約を追加（2026-07-23）
 - [phase4b-nv12-iosurface-gpu-import.md](phase4b-nv12-iosurface-gpu-import.md) — Phase 4b: NV12 IOSurface のゼロコピー import（wgpu-hal Metal）とGPU上YCbCr→RGB合成の設計・依存バージョン一致方針・エフェクト統合ポイント・却下案・制約（2026-07-20）
 - [phase4a-macos-video-decode-core.md](phase4a-macos-video-decode-core.md) — Phase 4a: `macos-video-decode`（AVAssetReaderベースのin-process動画デコードコア）のAVAssetReader採用理由・forward-only seek契約・色域判定規約・Send/Sync境界・このサンドボックス環境でのHEVCピクセルデコード制約（2026-07-20）
 - [phase3b-present-path-unification.md](phase3b-present-path-unification.md) — Phase 3b: presenter reuseの全セッション化（混在セッションの毎pointermoveフル再起動解消）とnative-render-onlyセッションのnative overlay同時配信（DOM canvas経路からの一本化）の現状トレース・設計・却下案・残課題（2026-07-20）

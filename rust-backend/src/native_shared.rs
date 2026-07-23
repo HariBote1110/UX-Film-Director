@@ -184,6 +184,7 @@ mod tests {
 
         let source = NativeRenderSharedFrameSource {
             media_id: "native-shared-test".to_string(),
+            job_id: None,
             slot_count: 2,
             frame: SharedFrame {
                 descriptor: test_descriptor(&memory_id, 1, byte_len),

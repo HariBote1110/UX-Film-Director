@@ -127,6 +127,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     nativeRenderSources = nativeSources.sources;
     renderSources = nativeRenderSources.map((source) => ({
       mediaId: source.mediaId,
+      ...(source.jobId ? { jobId: source.jobId } : {}),
       slotCount: source.slotCount,
       frame: source.frame,
     }));

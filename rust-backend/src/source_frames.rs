@@ -117,12 +117,12 @@ pub(crate) fn collect_native_render_sources(
     Ok(sources)
 }
 
-/// Phase 4c Stage 2: for each `shared_sources` entry whose `media_id`
-/// correlates (by the same `mediaId ?? jobId` convention the JS side already
-/// uses) to an active in-process decode session (`state.decode_sessions`,
-/// keyed by job_id), resolves the zero-copy NV12 IOSurface reference for
-/// that session's most recently served frame instead of the CPU RGBA
-/// bridge. A media_id absent from the returned map (ffmpeg-fallback
+/// Phase 4c Stage 2: for each `shared_sources` entry whose `job_id` points to
+/// an active in-process decode session (`state.decode_sessions`, keyed by
+/// job_id), resolves the zero-copy NV12 IOSurface reference for that session's
+/// most recently served frame instead of the CPU RGBA bridge. Older callers
+/// without an explicit `job_id` retain the original `media_id` lookup. A
+/// decode job absent from the returned map (ffmpeg-fallback
 /// sessions, sessions with no served frame yet, or media_ids that are not
 /// video at all) simply falls back to the existing `sources`/RGBA resolution
 /// -- this is purely additive.
@@ -142,7 +142,8 @@ pub(crate) fn collect_native_render_nv12_sources(
     }
     let mut nv12_sources = HashMap::with_capacity(shared_sources.len());
     for source in shared_sources {
-        let Some(session) = decode_sessions.get(&source.media_id) else {
+        let decode_job_id = source.job_id.as_deref().unwrap_or(&source.media_id);
+        let Some(session) = decode_sessions.get(decode_job_id) else {
             continue;
         };
         let Some(inprocess) = session.inprocess.as_ref() else {
@@ -903,6 +904,7 @@ mod content_revision_tests {
         };
         let source = NativeRenderSharedFrameSource {
             media_id: "video-1".to_string(),
+            job_id: None,
             slot_count: 2,
             frame: SharedFrame {
                 descriptor: descriptor.clone(),
@@ -922,6 +924,7 @@ mod content_revision_tests {
         advanced_descriptor.generation = 6;
         let advanced_source = NativeRenderSharedFrameSource {
             media_id: "video-1".to_string(),
+            job_id: None,
             slot_count: 2,
             frame: SharedFrame {
                 descriptor: advanced_descriptor,

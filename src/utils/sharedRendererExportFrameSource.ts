@@ -487,6 +487,7 @@ export function createSharedRendererExportFrameSource({
       media: surfaceGate.media,
       sources: nativeRenderSources.map((source) => ({
         mediaId: source.mediaId,
+        ...(source.jobId ? { jobId: source.jobId } : {}),
         slotCount: source.slotCount,
         frame: source.frame,
       })),

@@ -202,6 +202,8 @@ pub(crate) struct NativeRenderSharedFrameParams {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NativeRenderSharedFrameSource {
     pub(crate) media_id: String,
+    #[serde(default)]
+    pub(crate) job_id: Option<String>,
     pub(crate) slot_count: u32,
     pub(crate) frame: SharedFrame,
 }

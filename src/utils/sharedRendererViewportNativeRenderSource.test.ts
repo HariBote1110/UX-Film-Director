@@ -157,6 +157,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }],
       sources: [{
         mediaId: 'video-1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
         slotCount: 2,
         frame,
       }],

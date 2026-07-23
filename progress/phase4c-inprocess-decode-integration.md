@@ -326,3 +326,22 @@ GPUセットアップ・readback・JSON往復を含むため。
   Bt601/Bt709 と区別して保持されるが、GPU shader（`Nv12Params::new`）・
   CPU ブリッジ（`ycbcr_to_rgb`）双方とも数値係数としては Bt709 と同一
   （Phase 4b から引き継いだ「専用係数なし」の近似で、変更なし）。
+
+## 実Electron検証で発見・修正したID相関不具合
+
+実Electronで実HEVC素材を再生し、production形式のデコード`jobId`
+（`shared-renderer-video-{mediaId}-{size}-{fps}`）を使って
+`render.nativeSharedFrame`を呼ぶと、VideoToolboxデコード自体は
+`decodePath="inprocess"`でも`nv12ZeroCopyMediaIds=[]`となり、
+`cpuSimpleVideoComposite`へ戻ることを確認した。
+
+原因は、シーン合成キーである`mediaId`とデコードセッションキーである
+`jobId`を同一視していたこと。フロントエンドは両者を別値として生成する一方、
+Rust側のNV12探索は`decode_sessions.get(media_id)`を実行していた。既存統合
+テストも`jobId == mediaId`としていたため、本番規約との差を検出できなかった。
+
+**決定**: 共有フレームsource境界に省略可能な`jobId`を追加する。
+`mediaId`はSceneSnapshotとRGBA/NV12 source mapの合成キーとして維持し、
+`jobId`だけをデコードセッション探索へ使う。旧呼び出しは`jobId`省略時に
+`mediaId`へフォールバックして後方互換を保つ。回帰テストでは両IDを明示的に
+異なる値にし、NV12 zero-copyが発火することを固定する。
