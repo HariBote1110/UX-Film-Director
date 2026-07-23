@@ -117,6 +117,7 @@ pub(crate) fn handle_scene_evaluate(
         result: Some(json!({
             "sceneId": session.scene_id,
             "revision": session.revision,
+            "frameIndex": parsed.frame_index,
             "snapshot": snapshot,
             "media": session.media,
         })),
