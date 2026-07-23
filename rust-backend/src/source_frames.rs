@@ -29,7 +29,7 @@ pub(crate) fn collect_native_render_sources(
             MediaKind::Psd => build_psd_source_frame(media, source_frame_cache)?,
             MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => continue,
             MediaKind::Video => continue,
-            _ => crate::build_native_generated_source_frame(
+            _ => uxfd_rust_backend::build_native_generated_source_frame(
                 media,
                 source_frame_for_media(snapshot, &media.id),
             )?
