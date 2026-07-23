@@ -91,6 +91,44 @@ const writeWaveFixture = (filePath, durationSeconds = 8, sampleRate = 48_000) =>
   writeFileSync(filePath, buffer);
 };
 
+const readImageDimensions = (filePath) => {
+  const bytes = readFileSync(filePath);
+  const isPng = bytes.length >= 24
+    && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (isPng) {
+    return {
+      width: bytes.readUInt32BE(16),
+      height: bytes.readUInt32BE(20),
+    };
+  }
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = bytes[offset + 1];
+      if (marker === 0xd9 || marker === 0xda) break;
+      const segmentLength = bytes.readUInt16BE(offset + 2);
+      const isStartOfFrame = (
+        marker >= 0xc0
+        && marker <= 0xcf
+        && ![0xc4, 0xc8, 0xcc].includes(marker)
+      );
+      if (isStartOfFrame && segmentLength >= 7) {
+        return {
+          width: bytes.readUInt16BE(offset + 7),
+          height: bytes.readUInt16BE(offset + 5),
+        };
+      }
+      if (segmentLength < 2) break;
+      offset += 2 + segmentLength;
+    }
+  }
+  throw new Error(`PNG/JPEG dimensions could not be read: ${filePath}`);
+};
+
 const processSample = () => {
   try {
     const output = execFileSync('ps', ['-axo', 'pid,ppid,%cpu,%mem,rss,command'], {
@@ -275,11 +313,14 @@ const main = async () => {
   const ready = await waitForHarness();
   if (!ready?.ok) throw new Error(`renderer harness did not become ready: ${JSON.stringify(ready)}`);
 
+  const imageDimensions = readImageDimensions(IMAGE_PATH);
   const paths = {
     videoPath: VIDEO_PATH,
     proxyPath: existsSync(PROXY_PATH) ? PROXY_PATH : undefined,
     audioPath: AUDIO_PATH,
     imagePath: IMAGE_PATH,
+    imageWidth: imageDimensions.width,
+    imageHeight: imageDimensions.height,
   };
   log('重量プロジェクトを生成');
   const seed = await client.evaluate(`

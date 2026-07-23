@@ -21,6 +21,8 @@ export interface RealisticHeavyEditPaths {
   proxyPath?: string;
   audioPath: string;
   imagePath: string;
+  imageWidth: number;
+  imageHeight: number;
 }
 
 export interface RealisticHeavyEditScenario {
@@ -148,11 +150,11 @@ const buildImage = (paths: RealisticHeavyEditPaths): ImageObject => ({
   duration: 18,
   x: 1480,
   y: 80,
-  width: 320,
-  height: 320,
+  width: paths.imageWidth,
+  height: paths.imageHeight,
   rotation: -2,
-  scaleX: 1,
-  scaleY: 1,
+  scaleX: Math.min(1, 320 / paths.imageWidth),
+  scaleY: Math.min(1, 320 / paths.imageHeight),
   opacity: 0.88,
   enableAnimation: true,
   endX: 1450,
