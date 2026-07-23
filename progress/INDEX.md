@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [realistic-heavy-edit-verification.md](realistic-heavy-edit-verification.md) — 4K動画2本・音声・画像・テキスト・図形・エフェクト・グループを重ねた現実的な重量編集を、生成・操作・保存復元・目視・動画書き出しまで自動検証するCLI基盤と、初回測定結果（2026-07-24）
 - [cametal-direct-preview.md](cametal-direct-preview.md) — 対応する非動画・動画1件混在シーンをCAMetalLayerへ直接presentし、全画面RGBA読戻し往復を除去する設計、MissingSource適格判定、GPU化の残課題（2026-07-23）
 - [native-overlay-missing-source.md](native-overlay-missing-source.md) — 混在シーンで動画1枚だけをNative Overlayへ渡して発生していた`MissingSource`誤診断の原因と、動画のみへ試行を限定する方針（2026-07-23）
 - [phase4c-electron-diagnostics-and-export.md](phase4c-electron-diagnostics-and-export.md) — 実Electron混在シーンでのNV12 zero-copy確認、描画経路診断の可視化、`encode.writeNativeFrame`のNV12対応、全体型・境界契約・PSDフォールバック整備（2026-07-23）

@@ -302,11 +302,20 @@ const prepareShortExport = (durationSeconds = 2): HarnessResult => {
     selectedId: null,
     selectedIds: [],
   });
+  const expectedDurationSeconds = Math.max(
+    safeDuration,
+    ...objects.map((object) => object.startTime + object.duration),
+  );
+  const expectedFrameCount = Math.ceil(
+    expectedDurationSeconds * state.projectSettings.fps,
+  );
   return {
     ok: objects.length > 0,
     duration: safeDuration,
     objectCount: objects.length,
     videoCount: objects.filter((object) => object.type === 'video').length,
+    expectedDurationSeconds,
+    expectedFrameCount,
   };
 };
 

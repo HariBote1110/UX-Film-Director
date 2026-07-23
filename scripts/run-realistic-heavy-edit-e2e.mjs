@@ -143,7 +143,7 @@ const processSample = () => {
   }
 };
 
-const inspectExport = () => {
+const inspectExport = ({ expectedDurationSeconds, expectedFrameCount }) => {
   const stat = existsSync(EXPORT_PATH)
     ? { exists: true, size: statSync(EXPORT_PATH).size }
     : { exists: false, size: 0 };
@@ -162,10 +162,29 @@ const inspectExport = () => {
       probe = { error: error instanceof Error ? error.message : String(error) };
     }
   }
+  const stream = probe?.streams?.[0] ?? null;
+  const actualDurationSeconds = Number(probe?.format?.duration);
+  const actualFrameCount = Number(stream?.nb_frames);
+  const geometryMatches = stream?.width === 1920 && stream?.height === 1080;
+  const durationMatches = Number.isFinite(actualDurationSeconds)
+    && Math.abs(actualDurationSeconds - expectedDurationSeconds) <= 0.05;
+  const frameCountMatches = Number.isFinite(actualFrameCount)
+    && Math.abs(actualFrameCount - expectedFrameCount) <= 1;
   return {
     ...stat,
     probe,
-    ok: stat.exists && stat.size > 10_000,
+    expectedDurationSeconds,
+    expectedFrameCount,
+    actualDurationSeconds,
+    actualFrameCount,
+    geometryMatches,
+    durationMatches,
+    frameCountMatches,
+    ok: stat.exists
+      && stat.size > 10_000
+      && geometryMatches
+      && durationMatches
+      && frameCountMatches,
   };
 };
 
@@ -246,6 +265,21 @@ const waitForExport = async () => {
   }
   return { ok: false, reason: 'exportTimeout', durationMs: Date.now() - startedAt };
 };
+
+const waitForSettledSnapshot = async () => client.evaluate(`
+  new Promise((resolve) => {
+    const startedAt = Date.now();
+    const tick = () => {
+      const snapshot = window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.snapshot();
+      if (snapshot.ok || Date.now() - startedAt > 10000) {
+        resolve(snapshot);
+        return;
+      }
+      setTimeout(tick, 100);
+    };
+    tick();
+  })
+`);
 
 const stopProcesses = () => {
   client?.close();
@@ -363,12 +397,13 @@ const main = async () => {
       window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.prepareShortExport(${JSON.stringify(EXPORT_SECONDS)})
     `);
     exportRun = await waitForExport();
-    exportedFile = inspectExport();
+    exportedFile = inspectExport({
+      expectedDurationSeconds: exportPreparation.expectedDurationSeconds,
+      expectedFrameCount: exportPreparation.expectedFrameCount,
+    });
   }
 
-  const finalSnapshot = await client.evaluate(`
-    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.snapshot()
-  `);
+  const finalSnapshot = await waitForSettledSnapshot();
   const runtimeErrors = collectRuntimeErrors(client);
   const consoleLines = collectConsoleLines(client);
   const missingSourceLines = consoleLines.filter((line) => line.includes('MissingSource'));
