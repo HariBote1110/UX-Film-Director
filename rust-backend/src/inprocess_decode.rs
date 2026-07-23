@@ -790,6 +790,14 @@ mod platform {
         }
 
         #[test]
+        fn seek_wait_budget_covers_the_first_hardware_decoded_frame_budget() {
+            assert!(
+                RING_WAIT_TIMEOUT >= FIRST_FRAME_TIMEOUT,
+                "a 4K seek must not time out sooner than the initial hardware decode"
+            );
+        }
+
+        #[test]
         fn trim_consumed_frames_keeps_only_the_frame_nearest_frame_would_serve() {
             let mut ring = empty_ring_state();
             for pts in [0.0, 0.1, 0.2, 0.3, 0.4] {
