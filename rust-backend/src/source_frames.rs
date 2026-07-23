@@ -1,4 +1,3 @@
-use crate::generated::*;
 #[cfg(unix)]
 use crate::native_shared::read_native_render_source_frame;
 use crate::params::NativeRenderSharedFrameSource;
@@ -26,75 +25,20 @@ pub(crate) fn collect_native_render_sources(
     let mut sources = HashMap::with_capacity(shared_sources.len() + media_items.len());
     for media in media_items {
         let frame = match media.kind {
-            MediaKind::SolidColour => build_solid_colour_source_frame(media)?,
-            MediaKind::GeneratedGradient => build_generated_gradient_source_frame(media)?,
-            MediaKind::GeneratedParticle => build_generated_particle_source_frame(
-                media,
-                source_frame_for_media(snapshot, &media.id),
-            )?,
-            MediaKind::GeneratedBarcode => build_generated_barcode_source_frame(media)?,
-            MediaKind::GeneratedPuzzlePiece => build_generated_puzzle_piece_source_frame(media)?,
-            MediaKind::GeneratedColourWheel => build_generated_colour_wheel_source_frame(media)?,
-            MediaKind::GeneratedGourd => build_generated_gourd_source_frame(media)?,
-            MediaKind::GeneratedGear => build_generated_gear_source_frame(media)?,
-            MediaKind::GeneratedTrackBar => build_generated_track_bar_source_frame(media)?,
-            MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
-            MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
-            MediaKind::GeneratedToneCurve => build_generated_tone_curve_source_frame(media)?,
-            MediaKind::GeneratedGetColorDots => build_generated_getcolor_dots_source_frame(media)?,
-            MediaKind::GeneratedHksyCheckerGrid => {
-                build_generated_hksy_checker_grid_source_frame(media)?
-            }
-            MediaKind::GeneratedRegionFrame => build_generated_region_frame_source_frame(media)?,
-            MediaKind::GeneratedSimpleTube => build_generated_simple_tube_source_frame(media)?,
-            MediaKind::GeneratedSphereDots => build_generated_sphere_dots_source_frame(media)?,
-            MediaKind::GeneratedSphericalField => {
-                build_generated_spherical_field_source_frame(media)?
-            }
-            MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
-            MediaKind::GeneratedCircularArrow => {
-                build_generated_circular_arrow_source_frame(media)?
-            }
-            MediaKind::GeneratedTriangleBracket => {
-                build_generated_triangle_bracket_source_frame(media)?
-            }
-            MediaKind::GeneratedTartanCheck => build_generated_tartan_check_source_frame(media)?,
-            MediaKind::GeneratedHoundstooth => build_generated_houndstooth_source_frame(media)?,
-            MediaKind::GeneratedYagasuri => build_generated_yagasuri_source_frame(media)?,
-            MediaKind::GeneratedPaperAirplane => {
-                build_generated_paper_airplane_source_frame(media)?
-            }
-            MediaKind::GeneratedAsanohaPattern => {
-                build_generated_asanoha_pattern_source_frame(media)?
-            }
-            MediaKind::GeneratedFocusLinesPlus => build_generated_focus_lines_plus_source_frame(
-                media,
-                source_frame_for_media(snapshot, &media.id),
-            )?,
-            MediaKind::GeneratedRandomLineEx => build_generated_random_line_ex_source_frame(media)?,
-            MediaKind::GeneratedContourTrace => build_generated_contour_trace_source_frame(media)?,
-            MediaKind::GeneratedDisplacementPoly => {
-                build_generated_displacement_poly_source_frame(media)?
-            }
-            MediaKind::GeneratedPlainEffectorLine => {
-                build_generated_plain_effector_line_source_frame(media)?
-            }
-            MediaKind::GeneratedHologram => build_generated_hologram_source_frame(media)?,
-            MediaKind::GeneratedProtractor => build_generated_protractor_source_frame(media)?,
-            MediaKind::GeneratedShakingPolygon => build_generated_shaking_polygon_source_frame(
-                media,
-                source_frame_for_media(snapshot, &media.id),
-            )?,
-            MediaKind::GeneratedShatteredSphere => build_generated_shattered_sphere_source_frame(
-                media,
-                source_frame_for_media(snapshot, &media.id),
-            )?,
-            MediaKind::GeneratedShape => build_generated_shape_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media, source_frame_cache)?,
             MediaKind::Psd => build_psd_source_frame(media, source_frame_cache)?,
-            MediaKind::Text => build_generated_text_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => continue,
             MediaKind::Video => continue,
+            _ => crate::build_native_generated_source_frame(
+                media,
+                source_frame_for_media(snapshot, &media.id),
+            )?
+            .ok_or_else(|| {
+                format!(
+                    "Native generated source builder does not support {:?} media '{}'",
+                    media.kind, media.id
+                )
+            })?,
         };
         if sources.insert(media.id.clone(), frame).is_some() {
             return Err(format!(
@@ -193,9 +137,9 @@ pub(crate) fn collect_native_render_source_content_revisions(
     for media in media_items {
         let revision = match media.kind {
             MediaKind::Image | MediaKind::Psd => image_or_psd_content_revision(media),
-            MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere | MediaKind::Video => {
-                None
-            }
+            MediaKind::GeneratedAudioWaveform
+            | MediaKind::GeneratedAudioSphere
+            | MediaKind::Video => None,
             MediaKind::GeneratedParticle
             | MediaKind::GeneratedFocusLinesPlus
             | MediaKind::GeneratedShakingPolygon
@@ -261,35 +205,6 @@ fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
         .find(|clip| clip.media_id == media_id)
         .map(|clip| clip.source_frame)
         .unwrap_or(0)
-}
-
-fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
-    if media.width == 0 || media.height == 0 {
-        return Err(format!(
-            "SolidColour media dimensions must be positive, got {}x{}",
-            media.width, media.height
-        ));
-    }
-    let [red, green, blue] = parse_hex_colour_source(&media.source)
-        .map_err(|message| format!("Invalid SolidColour media '{}': {message}", media.id))?;
-    let pixel_count = usize::try_from(media.width)
-        .ok()
-        .and_then(|width| {
-            usize::try_from(media.height)
-                .ok()
-                .and_then(|height| width.checked_mul(height))
-        })
-        .ok_or_else(|| "SolidColour media pixel count overflows".to_string())?;
-    let byte_len = pixel_count
-        .checked_mul(4)
-        .ok_or_else(|| "SolidColour media byte length overflows".to_string())?;
-    let mut pixels = Vec::with_capacity(byte_len);
-    for _ in 0..pixel_count {
-        pixels.extend_from_slice(&[red, green, blue, 255]);
-    }
-
-    RgbaFrame::from_rgba8(media.width, media.height, pixels)
-        .map_err(|error| format!("SolidColour media frame is invalid: {error:?}"))
 }
 
 fn build_image_source_frame(
@@ -395,9 +310,8 @@ fn build_source_frame_cache_key(
     expected_width: u32,
     expected_height: u32,
 ) -> Result<SourceFrameCacheKey, String> {
-    let metadata = fs::metadata(source_path).map_err(|error| {
-        format!("Failed to read metadata for source '{source_path}': {error}")
-    })?;
+    let metadata = fs::metadata(source_path)
+        .map_err(|error| format!("Failed to read metadata for source '{source_path}': {error}"))?;
     let modified = metadata
         .modified()
         .map_err(|error| format!("Failed to read mtime for source '{source_path}': {error}"))?;
@@ -643,30 +557,19 @@ mod source_frame_cache_tests {
         let path = unique_temp_path("key-mtime.png");
         write_solid_png(&path, [10, 20, 30, 255]);
 
-        let key_before = build_source_frame_cache_key(
-            path.to_string_lossy().as_ref(),
-            &[],
-            2,
-            2,
-        )
-        .expect("key builds");
+        let key_before = build_source_frame_cache_key(path.to_string_lossy().as_ref(), &[], 2, 2)
+            .expect("key builds");
 
         let file = File::options()
             .write(true)
             .open(&path)
             .expect("open test PNG for mtime bump");
         let bumped = SystemTime::now() + Duration::from_secs(10);
-        file.set_modified(bumped)
-            .expect("set mtime for key test");
+        file.set_modified(bumped).expect("set mtime for key test");
         drop(file);
 
-        let key_after = build_source_frame_cache_key(
-            path.to_string_lossy().as_ref(),
-            &[],
-            2,
-            2,
-        )
-        .expect("key builds again");
+        let key_after = build_source_frame_cache_key(path.to_string_lossy().as_ref(), &[], 2, 2)
+            .expect("key builds again");
 
         assert_ne!(key_before.mtime_nanos, key_after.mtime_nanos);
         assert_eq!(key_before.file_len, key_after.file_len);
@@ -725,7 +628,11 @@ mod source_frame_cache_tests {
         bytes
     }
 
-    fn psd_media(id: &str, path: &std::path::Path, active_layer_ids: Vec<String>) -> SceneMediaReference {
+    fn psd_media(
+        id: &str,
+        path: &std::path::Path,
+        active_layer_ids: Vec<String>,
+    ) -> SceneMediaReference {
         SceneMediaReference {
             id: id.to_string(),
             kind: MediaKind::Psd,
@@ -835,8 +742,10 @@ mod content_revision_tests {
         let media = image_media("image-1", &path);
         let snapshot = empty_snapshot();
 
-        let first = collect_native_render_source_content_revisions(&snapshot, &[media.clone()], &[]);
-        let second = collect_native_render_source_content_revisions(&snapshot, &[media.clone()], &[]);
+        let first =
+            collect_native_render_source_content_revisions(&snapshot, &[media.clone()], &[]);
+        let second =
+            collect_native_render_source_content_revisions(&snapshot, &[media.clone()], &[]);
         assert_eq!(
             first.get("image-1"),
             second.get("image-1"),
