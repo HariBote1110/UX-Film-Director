@@ -159,6 +159,25 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('rustBackendBridge: window.rustBackend');
   });
 
+  it('limits decoded-frame native overlay startup to video-only sessions', () => {
+    const code = viewportSource();
+    const eligibilityStart = code.indexOf('const nativeOverlayDecodedFrameEligible =');
+    const presenterStart = code.indexOf('void startSharedRendererViewportPresenter({');
+    const presenterEnd = code.indexOf('}).then', presenterStart);
+    const presenterBlock = code.slice(presenterStart, presenterEnd);
+
+    expect(eligibilityStart).toBeGreaterThan(-1);
+    expect(code.slice(eligibilityStart, presenterStart)).toContain(
+      'nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(presenterRestartSession)'
+    );
+    expect(presenterBlock).toContain(
+      'nativeOverlayPreviewEnabled: nativeOverlayDecodedFrameEligible'
+    );
+    expect(presenterBlock).toContain(
+      'presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible'
+    );
+  });
+
   it('routes native-reuse playback frames through Native Overlay when the overlay flag is enabled', () => {
     const code = viewportSource();
     const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
