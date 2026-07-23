@@ -4416,29 +4416,55 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
-  it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
+  it('applies a visible group control without creating its own media source', () => {
     const layers = createDefaultLayers();
-    const unsupportedGroupControl: TimelineObject = {
+    const groupControl: TimelineObject = {
       id: 'group-control-1',
       type: 'group_control',
       name: 'Group Control',
       layer: 0,
       startTime: 0,
       duration: 5,
-      x: 0,
-      y: 0,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      opacity: 1,
+      x: 10,
+      y: 20,
+      rotation: 15,
+      scaleX: 2,
+      scaleY: 1.5,
+      opacity: 0.5,
       enableAnimation: false,
       endX: 0,
       endY: 0,
       easing: 'linear',
-      targetLayerCount: 1,
+      targetLayerCount: 2,
     };
-    // blur は Rust 対応済みになったため、未対応 filter の代表例は
-    // 非 shape オブジェクトへの gradient に差し替え。
+    const shape = baseShape({ id: 'grouped-shape', layer: 1 });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [groupControl, shape],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected grouped snapshot build to pass');
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].id).toBe('grouped-shape');
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'grouped-shape',
+      transform: {
+        translation_x: 310,
+        translation_y: 140,
+        scale_x: 2,
+        scale_y: 1.5,
+        rotation_degrees: 15,
+      },
+      opacity: 0.25,
+    });
+  });
+
+  it('fails loud for a visible filter the shared renderer cannot represent yet', () => {
+    const layers = createDefaultLayers();
     const gradientOnImage = baseImage({
       id: 'gradient-on-image',
       filters: [
@@ -4458,17 +4484,14 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [unsupportedGroupControl, gradientOnImage],
+      objects: [gradientOnImage],
       time: 2,
     });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected snapshot build to fail');
 
-    expect(issueCodes(result.issues)).toEqual([
-      'unsupportedObjectType',
-      'unsupportedFilter',
-    ]);
+    expect(issueCodes(result.issues)).toEqual(['unsupportedFilter']);
   });
 
   it('builds a generated shape plane for non-rectangle shapes', () => {

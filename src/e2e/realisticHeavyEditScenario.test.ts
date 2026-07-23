@@ -84,7 +84,6 @@ describe('現実的な重量編集シナリオ', () => {
       objects: activeScene!.objects,
       time: 0,
     });
-
     expect(plan).toMatchObject({ mode: 'sharedRenderer' });
   });
 });

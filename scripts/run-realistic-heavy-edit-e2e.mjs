@@ -1,0 +1,389 @@
+import { execFileSync, spawn } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { PNG } from 'pngjs';
+import {
+  CdpClient,
+  collectConsoleLines,
+  collectRuntimeErrors,
+  sleep,
+  waitForFreshElectronBundle,
+  waitForHttp,
+  waitForRendererTarget,
+} from './lib/electron-e2e-driver.mjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const OUTPUT_DIR = resolve(ROOT, '.codex/realistic-heavy-edit-e2e');
+const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
+const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
+const SCREENSHOT_PATH = resolve(OUTPUT_DIR, 'viewport.png');
+const PROJECT_PATH = resolve(OUTPUT_DIR, 'realistic-heavy-edit.uxfd.json');
+const EXPORT_PATH = resolve(OUTPUT_DIR, 'realistic-heavy-edit-preview.mp4');
+const AUDIO_PATH = resolve(OUTPUT_DIR, 'realistic-heavy-edit-bed.wav');
+const VIDEO_PATH = resolve(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_VIDEO_PATH
+    ?? resolve(ROOT, 'perf/heavy-media/GX010052.MP4'),
+);
+const PROXY_PATH = resolve(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_PROXY_PATH
+    ?? resolve(ROOT, 'perf/heavy-media/GX010052.proxy.mp4'),
+);
+const IMAGE_PATH = resolve(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_IMAGE_PATH
+    ?? resolve(ROOT, 'public/icon.jpg'),
+);
+const VITE_PORT = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_VITE_PORT ?? 5312);
+const DEBUG_PORT = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_DEBUG_PORT ?? 9344);
+const TIMEOUT_MS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_TIMEOUT_MS ?? 300_000);
+const PLAYBACK_MS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_PLAYBACK_MS ?? 3_000);
+const SCRUB_ITERATIONS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_SCRUB_ITERATIONS ?? 360);
+const EXPORT_SECONDS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_EXPORT_SECONDS ?? 2);
+const SKIP_EXPORT = process.env.UXFD_REALISTIC_HEAVY_EDIT_SKIP_EXPORT === '1';
+const USER_DATA_DIR = resolve(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_USER_DATA_DIR
+    ?? resolve(OUTPUT_DIR, `electron-profile-${process.pid}`),
+);
+const MAIN_BUNDLE = resolve(ROOT, 'dist-electron/main.js');
+const PRELOAD_BUNDLE = resolve(ROOT, 'dist-electron/preload.js');
+
+let vite = null;
+let electron = null;
+let client = null;
+const logLines = [];
+
+const log = (message) => {
+  const line = `[realistic-heavy-edit-e2e] ${message}`;
+  logLines.push(line);
+  console.log(line);
+};
+
+const writeWaveFixture = (filePath, durationSeconds = 8, sampleRate = 48_000) => {
+  const frameCount = Math.floor(durationSeconds * sampleRate);
+  const dataSize = frameCount * 2;
+  const buffer = Buffer.alloc(44 + dataSize);
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVEfmt ', 8);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+  for (let index = 0; index < frameCount; index += 1) {
+    const time = index / sampleRate;
+    const envelope = Math.min(1, time * 4, (durationSeconds - time) * 4);
+    const value = Math.sin(time * Math.PI * 2 * 220) * 0.16
+      + Math.sin(time * Math.PI * 2 * 330) * 0.08;
+    buffer.writeInt16LE(Math.round(value * envelope * 32767), 44 + index * 2);
+  }
+  writeFileSync(filePath, buffer);
+};
+
+const processSample = () => {
+  try {
+    const output = execFileSync('ps', ['-axo', 'pid,ppid,%cpu,%mem,rss,command'], {
+      encoding: 'utf8',
+    });
+    return output.split('\n')
+      .filter((line) => line.includes(USER_DATA_DIR) || line.includes('uxfd-rust-backend'))
+      .map((line) => line.trim())
+      .filter(Boolean);
+  } catch (error) {
+    return [`ps failed: ${error instanceof Error ? error.message : String(error)}`];
+  }
+};
+
+const inspectExport = () => {
+  const stat = existsSync(EXPORT_PATH)
+    ? { exists: true, size: statSync(EXPORT_PATH).size }
+    : { exists: false, size: 0 };
+  let probe = null;
+  if (stat.exists) {
+    try {
+      const output = execFileSync('ffprobe', [
+        '-v', 'error',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=width,height,nb_frames:format=duration',
+        '-of', 'json',
+        EXPORT_PATH,
+      ], { encoding: 'utf8' });
+      probe = JSON.parse(output);
+    } catch (error) {
+      probe = { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  return {
+    ...stat,
+    probe,
+    ok: stat.exists && stat.size > 10_000,
+  };
+};
+
+const inspectScreenshot = (filePath) => {
+  const png = PNG.sync.read(Buffer.from(readFileSync(filePath)));
+  let colourfulPixelCount = 0;
+  let visiblePixelCount = 0;
+  const xStart = Math.floor(png.width * 0.07);
+  const xEnd = Math.floor(png.width * 0.68);
+  const yStart = Math.floor(png.height * 0.05);
+  const yEnd = Math.floor(png.height * 0.49);
+  for (let y = yStart; y < yEnd; y += 2) {
+    for (let x = xStart; x < xEnd; x += 2) {
+      const offset = (y * png.width + x) * 4;
+      const red = png.data[offset];
+      const green = png.data[offset + 1];
+      const blue = png.data[offset + 2];
+      if (red + green + blue > 45) visiblePixelCount += 1;
+      if (Math.max(red, green, blue) - Math.min(red, green, blue) > 24) {
+        colourfulPixelCount += 1;
+      }
+    }
+  }
+  return {
+    ok: visiblePixelCount >= 1_000 && colourfulPixelCount >= 250,
+    width: png.width,
+    height: png.height,
+    visiblePixelCount,
+    colourfulPixelCount,
+  };
+};
+
+const waitForHarness = async () => client.evaluate(`
+  new Promise((resolve) => {
+    const startedAt = Date.now();
+    const tick = () => {
+      if (window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__) {
+        resolve({ ok: true });
+        return;
+      }
+      if (Date.now() - startedAt > 20000) {
+        resolve({ ok: false, body: document.body.innerText });
+        return;
+      }
+      setTimeout(tick, 100);
+    };
+    tick();
+  })
+`);
+
+const waitForExport = async () => {
+  const clicked = await client.evaluate(`
+    (() => {
+      const button = [...document.querySelectorAll('button')].find((entry) => (
+        (entry.textContent || '').includes('動画出力')
+        || (entry.textContent || '').includes('Export')
+      ));
+      if (!button) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!clicked) return { ok: false, reason: 'exportButtonMissing' };
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 240_000) {
+    const completion = client.dialogs.find((dialog) => (
+      dialog.message.includes('エクスポート完了')
+      || dialog.message.includes('エクスポート失敗')
+    ));
+    if (completion) {
+      return {
+        ok: completion.message.includes('エクスポート完了'),
+        durationMs: Date.now() - startedAt,
+        dialog: completion,
+      };
+    }
+    await sleep(500);
+  }
+  return { ok: false, reason: 'exportTimeout', durationMs: Date.now() - startedAt };
+};
+
+const stopProcesses = () => {
+  client?.close();
+  for (const child of [electron, vite]) {
+    if (child && !child.killed) child.kill('SIGTERM');
+  }
+};
+
+const main = async () => {
+  for (const [label, path] of [
+    ['video', VIDEO_PATH],
+    ['image', IMAGE_PATH],
+  ]) {
+    if (!existsSync(path)) throw new Error(`${label} fixture is missing: ${path}`);
+  }
+
+  rmSync(OUTPUT_DIR, { recursive: true, force: true });
+  mkdirSync(OUTPUT_DIR, { recursive: true });
+  mkdirSync(USER_DATA_DIR, { recursive: true });
+  writeWaveFixture(AUDIO_PATH);
+
+  const viteStartedAtMs = Date.now();
+  log(`Vite起動: ${VITE_PORT}`);
+  vite = spawn('npx', ['vite', '--port', String(VITE_PORT), '--strictPort'], {
+    cwd: ROOT,
+    env: { ...process.env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  vite.stdout.on('data', (chunk) => log(chunk.toString().trim()));
+  vite.stderr.on('data', (chunk) => log(chunk.toString().trim()));
+  await waitForHttp(`http://localhost:${VITE_PORT}/`);
+  await waitForFreshElectronBundle({
+    mainBundle: MAIN_BUNDLE,
+    preloadBundle: PRELOAD_BUNDLE,
+    startedAtMs: viteStartedAtMs,
+  });
+
+  log(`Electron起動: debug=${DEBUG_PORT}`);
+  electron = spawn(resolve(ROOT, 'node_modules/.bin/electron'), [
+    `--remote-debugging-port=${DEBUG_PORT}`,
+    `--user-data-dir=${USER_DATA_DIR}`,
+    '.',
+  ], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?realisticHeavyEditE2e=1`,
+      UXFD_VIDEO_EXPORT_E2E_SAVE_PATH: EXPORT_PATH,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  electron.stdout.on('data', (chunk) => log(chunk.toString().trim()));
+  electron.stderr.on('data', (chunk) => log(chunk.toString().trim()));
+
+  const target = await waitForRendererTarget({
+    debugPort: DEBUG_PORT,
+    urlPrefix: `http://localhost:${VITE_PORT}/`,
+  });
+  client = new CdpClient(target.webSocketDebuggerUrl, TIMEOUT_MS);
+  await client.connect();
+  await client.send('Runtime.enable');
+  await client.send('Page.enable');
+  await client.send('DOM.enable');
+
+  const ready = await waitForHarness();
+  if (!ready?.ok) throw new Error(`renderer harness did not become ready: ${JSON.stringify(ready)}`);
+
+  const paths = {
+    videoPath: VIDEO_PATH,
+    proxyPath: existsSync(PROXY_PATH) ? PROXY_PATH : undefined,
+    audioPath: AUDIO_PATH,
+    imagePath: IMAGE_PATH,
+  };
+  log('重量プロジェクトを生成');
+  const seed = await client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.seed(${JSON.stringify(paths)})
+  `);
+
+  log('スクラブ・複製・Undo/Redo・シーン切替・再生を実行');
+  const exercisePromise = client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.exercise({
+      scrubIterations: ${JSON.stringify(SCRUB_ITERATIONS)},
+      playbackMs: ${JSON.stringify(PLAYBACK_MS)}
+    })
+  `);
+  await sleep(Math.min(1_500, Math.max(500, PLAYBACK_MS / 2)));
+  const processesDuringPlayback = processSample();
+  const exercise = await exercisePromise;
+
+  log('保存形式の直列化・復元を検証');
+  const roundTrip = await client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.roundTrip()
+  `);
+  const projectText = await client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.serialiseProject()
+  `);
+  writeFileSync(PROJECT_PATH, projectText, 'utf8');
+
+  const screenshot = await client.send('Page.captureScreenshot', {
+    format: 'png',
+    captureBeyondViewport: false,
+  });
+  writeFileSync(SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'));
+  const screenshotInspection = inspectScreenshot(SCREENSHOT_PATH);
+
+  let exportPreparation = { ok: true, skipped: true };
+  let exportRun = { ok: true, skipped: true };
+  let exportedFile = { ok: true, skipped: true };
+  if (!SKIP_EXPORT) {
+    log(`${EXPORT_SECONDS}秒の重量混在シーンを書き出し`);
+    exportPreparation = await client.evaluate(`
+      window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.prepareShortExport(${JSON.stringify(EXPORT_SECONDS)})
+    `);
+    exportRun = await waitForExport();
+    exportedFile = inspectExport();
+  }
+
+  const finalSnapshot = await client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.snapshot()
+  `);
+  const runtimeErrors = collectRuntimeErrors(client);
+  const consoleLines = collectConsoleLines(client);
+  const missingSourceLines = consoleLines.filter((line) => line.includes('MissingSource'));
+  const result = {
+    passed: seed?.ok === true
+      && exercise?.ok === true
+      && roundTrip?.ok === true
+      && exportPreparation?.ok === true
+      && exportRun?.ok === true
+      && exportedFile?.ok === true
+      && runtimeErrors.length === 0
+      && missingSourceLines.length === 0
+      && finalSnapshot?.ok === true
+      && screenshotInspection.ok === true,
+    paths: {
+      video: VIDEO_PATH,
+      proxy: existsSync(PROXY_PATH) ? PROXY_PATH : null,
+      image: IMAGE_PATH,
+      audio: AUDIO_PATH,
+      project: PROJECT_PATH,
+      screenshot: SCREENSHOT_PATH,
+      export: SKIP_EXPORT ? null : EXPORT_PATH,
+    },
+    seed,
+    exercise,
+    roundTrip,
+    exportPreparation,
+    exportRun,
+    exportedFile,
+    finalSnapshot,
+    screenshotInspection,
+    processesDuringPlayback,
+    runtimeErrors,
+    missingSourceLines,
+    dialogs: client.dialogs,
+  };
+  writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+  writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
+  log(`結果: ${result.passed ? 'PASS' : 'FAIL'} ${RESULT_JSON}`);
+  stopProcesses();
+  process.exit(result.passed ? 0 : 1);
+};
+
+const timeout = setTimeout(() => {
+  log(`全体タイムアウト: ${TIMEOUT_MS}ms`);
+  stopProcesses();
+  process.exit(124);
+}, TIMEOUT_MS);
+
+main()
+  .catch((error) => {
+    const message = error instanceof Error ? error.stack ?? error.message : String(error);
+    log(`失敗: ${message}`);
+    mkdirSync(OUTPUT_DIR, { recursive: true });
+    writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
+    stopProcesses();
+    process.exit(1);
+  })
+  .finally(() => clearTimeout(timeout));

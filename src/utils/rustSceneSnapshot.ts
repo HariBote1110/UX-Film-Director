@@ -48,7 +48,7 @@ import type {
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { isObjectVisibleAtTime } from './objectVisibility';
-import { getVibrationOffset } from './sceneTransforms';
+import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 
 export type RustSamplingMode = 'nearest' | 'bilinear';
@@ -235,9 +235,18 @@ export const buildRustSceneSnapshotForTimeline = ({
   supportedObjects.forEach((object) => {
     const position = evaluateObjectPositionAtTime(object, time);
     const vibration = getVibrationOffset(object, time);
+    const group = getGroupTransforms(object, time, objects);
     worldBoundsByObjectId.set(
       object.id,
-      computeObjectWorldBounds(object, position.x + vibration.x, position.y + vibration.y)
+      computeObjectWorldBounds(
+        {
+          ...object,
+          scaleX: object.scaleX * group.scaleX,
+          scaleY: object.scaleY * group.scaleY,
+        },
+        position.x + vibration.x + group.x,
+        position.y + vibration.y + group.y,
+      )
     );
   });
   const groupGradientEffectByObjectId = computeGroupGradientEffects(supportedObjects, worldBoundsByObjectId);
@@ -248,7 +257,12 @@ export const buildRustSceneSnapshotForTimeline = ({
     // オフセットのため TS 側（sceneTransforms.getVibrationOffset）で計算し
     // translation に畳み込む（PixiJS 排除計画 Phase 4/5 の最小移植）。
     const vibration = getVibrationOffset(object, time);
-    const opacity = clamp01((object.opacity ?? 1) * getFadeOpacityMultiplier(object));
+    const group = getGroupTransforms(object, time, objects);
+    const opacity = clamp01(
+      (object.opacity ?? 1)
+      * getFadeOpacityMultiplier(object)
+      * group.alpha,
+    );
     const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
     const effects = rustEffectsForObject(object, time);
     const groupGradientEffect = groupGradientEffectByObjectId.get(object.id);
@@ -260,11 +274,11 @@ export const buildRustSceneSnapshotForTimeline = ({
       source_frame: sourceFrameForObject(object, time, projectSettings.fps),
       z_index: zIndex,
       transform: {
-        translation_x: position.x + vibration.x,
-        translation_y: position.y + vibration.y,
-        scale_x: object.scaleX * transformScale.x * psdUniformScaleForObject(object),
-        scale_y: object.scaleY * transformScale.y * psdUniformScaleForObject(object),
-        rotation_degrees: normaliseRotationDegrees(object.rotation),
+        translation_x: position.x + vibration.x + group.x,
+        translation_y: position.y + vibration.y + group.y,
+        scale_x: object.scaleX * group.scaleX * transformScale.x * psdUniformScaleForObject(object),
+        scale_y: object.scaleY * group.scaleY * transformScale.y * psdUniformScaleForObject(object),
+        rotation_degrees: normaliseRotationDegrees(object.rotation + group.rotation),
         sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
       },
       opacity,
@@ -309,6 +323,25 @@ const collectBuildIssues = (
   const issues: RustSceneSnapshotBuildIssue[] = [];
 
   objects.forEach((object) => {
+    if (object.type === 'group_control') {
+      const position = evaluateObjectPositionAtTime(object, time);
+      if (
+        !Number.isFinite(position.x)
+        || !Number.isFinite(position.y)
+        || !Number.isFinite(object.rotation)
+        || !Number.isFinite(object.scaleX)
+        || !Number.isFinite(object.scaleY)
+        || object.scaleX <= 0
+        || object.scaleY <= 0
+      ) {
+        issues.push({
+          code: 'unsupportedTransform',
+          objectId: object.id,
+          detail: 'Group control transform must contain finite positive scales and finite position/rotation.',
+        });
+      }
+      return;
+    }
     if (!isSupportedSceneObject(object)) {
       issues.push({
         code: 'unsupportedObjectType',

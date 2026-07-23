@@ -13,13 +13,24 @@ schedulePerformanceHarness()
 
 const urlSearchParams = new URLSearchParams(window.location.search)
 
-if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e') || urlSearchParams.has('shatteredSpherePreviewE2e')) {
+if (
+  urlSearchParams.has('videoLoadE2e')
+  || urlSearchParams.has('videoExportE2e')
+  || urlSearchParams.has('shatteredSpherePreviewE2e')
+  || urlSearchParams.has('realisticHeavyEditE2e')
+) {
   useStore.getState().initializeProject({
     width: 1920,
     height: 1080,
     fps: 60,
     sampleRate: 48000,
     editorMode: '2d',
+  });
+}
+
+if (urlSearchParams.has('realisticHeavyEditE2e')) {
+  void import('./e2e/realisticHeavyEditHarness').then(({ installRealisticHeavyEditHarness }) => {
+    installRealisticHeavyEditHarness();
   });
 }
 
