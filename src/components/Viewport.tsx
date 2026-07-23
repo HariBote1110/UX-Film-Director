@@ -1541,14 +1541,15 @@ const Viewport: React.FC = () => {
       dataset.uxfdSharedRendererPresenterStartCount = String(sharedRendererPresenterStartCountRef.current);
     });
     sharedRendererPresenterStartingRef.current = true;
-    // The decoded-frame Native Overlay presenter injects only the active video
-    // source into the addon's source map. Passing a mixed snapshot here makes
-    // generated or other non-video clips look like missing sources even though
-    // the full native-render path can composite them correctly. Keep this
-    // specialised presenter exclusive to video-only sessions; mixed and
-    // non-video sessions use the complete native-render upload path.
+    // Native Overlay supplies decoded video frames and builds supported
+    // non-video sources locally, so mixed sessions can use the same direct
+    // CAMetalLayer presentation path. Native-render-only sessions still use
+    // their dedicated presentation path.
     const nativeOverlayDecodedFrameEligible = nativeOverlayPreviewEnabled
-      && isSharedRendererExternalVideoOnlySession(presenterRestartSession);
+      && (
+        isSharedRendererExternalVideoOnlySession(presenterRestartSession)
+        || isSharedRendererMixedNativeRenderSession(presenterRestartSession)
+      );
 
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
