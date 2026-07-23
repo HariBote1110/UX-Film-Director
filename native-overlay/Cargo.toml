@@ -13,6 +13,7 @@ napi = "3.9.2"
 napi-derive = "3.5.6"
 pollster = "0.3"
 raw-window-handle = "0.6"
+serde_json = "1.0"
 uxfd-shared-video-frame-bridge = { path = "../shared-video-frame-bridge" }
 uxfd-native-wgpu-renderer = { path = "../native-wgpu-renderer" }
 uxfd-golden-harness = { path = "../golden-harness" }

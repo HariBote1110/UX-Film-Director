@@ -460,6 +460,7 @@ describe('sharedRendererViewportVideoUpload', () => {
                 sampling: 'bilinear',
               },
               opacity: 1,
+              effectsJson: '[]',
             },
             {
               clipId: 'video-1',
@@ -476,6 +477,7 @@ describe('sharedRendererViewportVideoUpload', () => {
                 sampling: 'bilinear',
               },
               opacity: 1,
+              effectsJson: '[]',
             },
           ],
           canvasWidth: 1920,

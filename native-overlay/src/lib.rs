@@ -12,8 +12,8 @@ use uxfd_native_wgpu_renderer::{
 };
 use uxfd_rust_backend::build_native_generated_source_frame;
 use uxfd_rust_core::{
-    ColourPipeline, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
-    Transform,
+    ColourPipeline, Effect, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference,
+    SceneSnapshot, Transform,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -154,6 +154,9 @@ pub struct NativeOverlayEvaluatedClipPayload {
     pub z_index: u32,
     pub transform: NativeOverlayTransformPayload,
     pub opacity: f64,
+    /// rust-core `Vec<Effect>` のJSON。N-API objectで全Effect variantを
+    /// 二重定義せず、rust-coreのserde契約を直接の正本として使う。
+    pub effects_json: Option<String>,
 }
 
 #[napi(object)]
@@ -2056,6 +2059,13 @@ fn scene_snapshot_from_payload(
 fn evaluated_clip_from_payload(
     payload: NativeOverlayEvaluatedClipPayload,
 ) -> Result<EvaluatedClip, String> {
+    let effects = payload
+        .effects_json
+        .as_deref()
+        .map(serde_json::from_str::<Vec<Effect>>)
+        .transpose()
+        .map_err(|error| format!("clip.effectsJson is invalid: {error}"))?
+        .unwrap_or_default();
     Ok(EvaluatedClip {
         clip_id: payload.clip_id,
         track_id: payload.track_id,
@@ -2071,7 +2081,7 @@ fn evaluated_clip_from_payload(
             sampling: sampling_mode_from_payload(payload.transform.sampling.as_deref()),
         },
         opacity: payload.opacity as f32,
-        effects: Vec::new(),
+        effects,
     })
 }
 
@@ -2114,6 +2124,41 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn evaluated_clip_payload_preserves_rust_core_effects_for_direct_present() {
+        let clip = evaluated_clip_from_payload(NativeOverlayEvaluatedClipPayload {
+            clip_id: "clip-effect".to_string(),
+            track_id: "track-1".to_string(),
+            media_id: "generated-getcolor".to_string(),
+            source_frame: 12.0,
+            z_index: 3,
+            transform: NativeOverlayTransformPayload {
+                translation_x: 10.0,
+                translation_y: 20.0,
+                scale_x: 1.0,
+                scale_y: 1.0,
+                rotation_degrees: 0.0,
+                sampling: Some("bilinear".to_string()),
+            },
+            opacity: 0.8,
+            effects_json: Some(
+                r#"[{"ColourCorrection":{"brightness":1.1,"contrast":0.9,"saturation":1.2,"hue_degrees":15.0}}]"#
+                    .to_string(),
+            ),
+        })
+        .expect("valid rust-core effect JSON");
+
+        assert_eq!(
+            clip.effects,
+            vec![Effect::ColourCorrection {
+                brightness: 1.1,
+                contrast: 0.9,
+                saturation: 1.2,
+                hue_degrees: 15.0,
+            }]
+        );
+    }
 
     #[test]
     fn overlay_layer_contract_uses_bgra8_unorm_and_scaled_drawable_size() {

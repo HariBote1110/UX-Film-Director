@@ -36,6 +36,7 @@ export type NativeOverlaySceneSnapshotPayload = {
       sampling?: string;
     };
     opacity: number;
+    effectsJson: string;
   }>;
   // プロジェクト解像度（シーン canvas サイズ）。clips[].transform の座標系の基準。
   // native overlay の drawable ピクセルサイズと一致しない場合があるため、Rust 側の
@@ -354,6 +355,10 @@ export const toNativeOverlaySceneSnapshotPayload = (
         sampling: clip.transform.sampling,
       },
       opacity: clip.opacity,
+      // rust-core の externally-tagged Effect enumを文字列化し、N-API用の
+      // variant別optional fieldを二重管理せずにoverlayへ渡す。空配列も明示して
+      // 「未送信」と「エフェクトなし」を区別し、direct presentでの黙示脱落を防ぐ。
+      effectsJson: JSON.stringify(clip.effects),
     })),
     canvasWidth: canvas.width,
     canvasHeight: canvas.height,

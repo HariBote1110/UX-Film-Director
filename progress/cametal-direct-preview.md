@@ -39,6 +39,18 @@ scene-only presentでは、既存の一貫したscene fitting、装飾、present
 ため、参照されない1×1透明uploadを内部入口として使う。このuploadは完成フレーム
 ではなく、シーン解像度に比例する転送も発生しない。
 
+## エフェクト境界
+
+`SceneSnapshot`内の`effects`はRust compositorが直接解釈できるため、
+CAMetalLayer直描画でも必ず保持する。以前はTS側のsnapshotには存在していたが、
+N-API用clip payloadにフィールドがなく、overlayで`effects: Vec::new()`へ
+置き換えられていた。このため直描画だけ色補正・ぼかし・輪郭などが無音で脱落した。
+
+2026-07-24以降は、rust-coreのexternally-tagged `Vec<Effect>`を`effectsJson`
+としてN-API境界へ渡し、native-overlayが同じrust-core型へ復元する。
+Effect variantをTS/N-API/Rustで三重定義せず、rust-coreのserde契約を正本とする。
+不正JSONはエフェクトなしへ退避せず、scene payloadエラーとして拒否する。
+
 ## `MissingSource`診断
 
 `MissingSource`は描画失敗そのものではなく、Overlayへ渡した
