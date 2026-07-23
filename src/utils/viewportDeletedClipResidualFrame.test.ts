@@ -25,7 +25,7 @@ describe('viewport deleted clip residual frame boundary', () => {
 
   it('guards the native reuse in-flight overlay present with a current-request check', () => {
     const code = viewportSource();
-    const start = code.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    const start = code.indexOf('const nativeOverlayReuseRequestId =');
     const end = code.indexOf('if (!presentPreparedNativeRenderFrame) return;', start);
     const reuseOverlayBlock = code.slice(start, end);
 
@@ -40,7 +40,7 @@ describe('viewport deleted clip residual frame boundary', () => {
 
   it('guards the presenter restart overlay present with a current-request check', () => {
     const code = viewportSource();
-    const start = code.indexOf('presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible');
+    const start = code.indexOf('presentNativeOverlayDecodedFrame: nativeOverlayDirectSceneEligible');
     const end = code.indexOf('activeVideoDecodeJob:', start);
     const restartWrapperBlock = code.slice(start, end);
 

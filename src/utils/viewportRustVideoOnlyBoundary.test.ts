@@ -153,7 +153,7 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(code).toContain('prepareSharedRendererViewportNativeOverlayPresent');
     expect(presenterBlock).toContain('nativeOverlayPreviewEnabled');
-    expect(presenterBlock).toContain('presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible');
+    expect(presenterBlock).toContain('presentNativeOverlayDecodedFrame: nativeOverlayDirectSceneEligible');
     expect(presenterBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(presenterBlock).toContain('nativeOverlayBridge: window.nativeOverlay');
     expect(presenterBlock).toContain('rustBackendBridge: window.rustBackend');
@@ -161,7 +161,7 @@ describe('Viewport Rust video-only boundary', () => {
 
   it('starts decoded-frame native overlay presentation for video-only and mixed sessions', () => {
     const code = viewportSource();
-    const eligibilityStart = code.indexOf('const nativeOverlayDecodedFrameEligible =');
+    const eligibilityStart = code.indexOf('const nativeOverlayDirectSceneEligible =');
     const presenterStart = code.indexOf('void startSharedRendererViewportPresenter({');
     const presenterEnd = code.indexOf('}).then', presenterStart);
     const presenterBlock = code.slice(presenterStart, presenterEnd);
@@ -171,14 +171,17 @@ describe('Viewport Rust video-only boundary', () => {
     expect(eligibilityBlock).toContain(
       'isNativeOverlayDirectSceneSession(presenterRestartSession)'
     );
-    expect(eligibilityBlock).toContain(
-      '!isSharedRendererNativeRenderOnlySession(presenterRestartSession)'
+    expect(presenterBlock).toContain(
+      'nativeOverlayPreviewEnabled: nativeOverlayDirectSceneEligible'
     );
     expect(presenterBlock).toContain(
-      'nativeOverlayPreviewEnabled: nativeOverlayDecodedFrameEligible'
+      'presentNativeOverlayDecodedFrame: nativeOverlayDirectSceneEligible'
     );
     expect(presenterBlock).toContain(
-      'presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible'
+      'isSharedRendererNativeRenderOnlySession(input.session)'
+    );
+    expect(presenterBlock).toContain(
+      'prepareSharedRendererViewportNativeRenderOverlayPresent({'
     );
   });
 

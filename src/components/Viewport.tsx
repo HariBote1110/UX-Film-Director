@@ -1545,9 +1545,8 @@ const Viewport: React.FC = () => {
     // non-video sources locally, so mixed sessions can use the same direct
     // CAMetalLayer presentation path. Native-render-only sessions still use
     // their dedicated presentation path.
-    const nativeOverlayDecodedFrameEligible = nativeOverlayPreviewEnabled
-      && isNativeOverlayDirectSceneSession(presenterRestartSession)
-      && !isSharedRendererNativeRenderOnlySession(presenterRestartSession);
+    const nativeOverlayDirectSceneEligible = nativeOverlayPreviewEnabled
+      && isNativeOverlayDirectSceneSession(presenterRestartSession);
 
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
@@ -1562,17 +1561,23 @@ const Viewport: React.FC = () => {
       skipDecodedVideoUploadForBenchmark: phase0SkipDecodedUploadEnabled,
       sharedRendererWriteTextureNoOpEnabled: phase0WriteTextureNoOpEnabled,
       discardNativeRenderOutputForBenchmark: phase0DiscardNativeRenderOutputEnabled,
-      nativeOverlayPreviewEnabled: nativeOverlayDecodedFrameEligible,
-      presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible
-        ? (input) => prepareSharedRendererViewportNativeOverlayPresent({
-          ...input,
-          nativeOverlayBridge: window.nativeOverlay,
-          rustBackendBridge: window.rustBackend,
-          // この再起動より新しい要求（さらに新しい再起動 / reuse tick）が
-          // 始まっていたら、decode 完了後の present を抑止して古いフレームの
-          // 上書きを防ぐ。
-          isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === input.requestId,
-        })
+      nativeOverlayPreviewEnabled: nativeOverlayDirectSceneEligible,
+      presentNativeOverlayDecodedFrame: nativeOverlayDirectSceneEligible
+        ? (input) => isSharedRendererNativeRenderOnlySession(input.session)
+          ? prepareSharedRendererViewportNativeRenderOverlayPresent({
+            session: input.session,
+            requestId: input.requestId,
+            nativeOverlayBridge: window.nativeOverlay,
+          })
+          : prepareSharedRendererViewportNativeOverlayPresent({
+            ...input,
+            nativeOverlayBridge: window.nativeOverlay,
+            rustBackendBridge: window.rustBackend,
+            // この再起動より新しい要求（さらに新しい再起動 / reuse tick）が
+            // 始まっていたら、decode 完了後の present を抑止して古いフレームの
+            // 上書きを防ぐ。
+            isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === input.requestId,
+          })
         : undefined,
       activeVideoDecodeJob: rustPreviewDecodeEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
