@@ -135,4 +135,26 @@ describe('sharedRendererScenePreviewScheduler', () => {
     expect(presented).toEqual([]);
     expect(scheduler.diagnostics).toMatchObject({ requested: 0, resolved: 0, stale: 0, coalesced: 0, failed: 0 });
   });
+
+  it('未対応編集でinvalidateした後は、実行中の旧評価結果をpresentしない', async () => {
+    const evaluationDeferred = deferred<any>();
+    const presented: SharedRendererSceneEvaluation[] = [];
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc: {
+        replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+        evaluateScene: () => evaluationDeferred.promise,
+      },
+      onEvaluation: (value) => presented.push(value),
+    });
+
+    scheduler.submitRevision(revision(1));
+    scheduler.requestFrame(14);
+    await flush();
+    scheduler.invalidate();
+    evaluationDeferred.resolve({ ok: true, value: evaluation('preview:main', 1, 14) });
+    await flush();
+
+    expect(presented).toEqual([]);
+    expect(scheduler.diagnostics.stale).toBe(1);
+  });
 });
