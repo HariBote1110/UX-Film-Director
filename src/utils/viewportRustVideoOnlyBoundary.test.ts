@@ -153,7 +153,7 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(code).toContain('prepareSharedRendererViewportNativeOverlayPresent');
     expect(presenterBlock).toContain('nativeOverlayPreviewEnabled');
-    expect(presenterBlock).toContain('presentNativeOverlayDecodedFrame: nativeOverlayPreviewEnabled');
+    expect(presenterBlock).toContain('presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible');
     expect(presenterBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(presenterBlock).toContain('nativeOverlayBridge: window.nativeOverlay');
     expect(presenterBlock).toContain('rustBackendBridge: window.rustBackend');
@@ -167,8 +167,8 @@ describe('Viewport Rust video-only boundary', () => {
     const presenterBlock = code.slice(presenterStart, presenterEnd);
 
     expect(eligibilityStart).toBeGreaterThan(-1);
-    expect(code.slice(eligibilityStart, presenterStart)).toContain(
-      'nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(presenterRestartSession)'
+    expect(code.slice(eligibilityStart, presenterStart)).toMatch(
+      /nativeOverlayPreviewEnabled\s*&& isSharedRendererExternalVideoOnlySession\(presenterRestartSession\)/
     );
     expect(presenterBlock).toContain(
       'nativeOverlayPreviewEnabled: nativeOverlayDecodedFrameEligible'
