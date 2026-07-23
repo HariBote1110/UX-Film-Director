@@ -16,7 +16,7 @@ pub struct SceneMediaReference {
     pub source: String,
     pub width: u32,
     pub height: u32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_rate: Option<Fps>,
     #[serde(default)]
     pub active_layer_ids: Vec<String>,
