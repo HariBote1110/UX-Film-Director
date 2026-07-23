@@ -27,6 +27,10 @@ import {
   collectSharedRendererGeneratedEffectObjectIdsFromSession,
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
+import { buildSharedRendererPreviewSessionFromEvaluatedScene } from '../utils/sharedRendererEvaluatedScenePreviewSession';
+import { createEditableRustScenePreviewController, type EditableRustScenePreviewController } from '../utils/editableRustScenePreviewController';
+import { createSharedRendererScenePreviewScheduler } from '../utils/sharedRendererScenePreviewScheduler';
+import { evaluateRustBackendScene, replaceRustBackendScene } from '../utils/rustBackendSceneControl';
 import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererPresenterSessionKey';
 import { buildSharedRendererVideoMediaReadiness } from '../utils/sharedRendererVideoMediaReadiness';
 import {
@@ -93,6 +97,42 @@ const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
 const PAUSE_SNAP_MIN_DELTA_SECONDS = 0.004;
 
 type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefined>;
+
+type RustTimelineSceneRpcStatus = 'disabled' | 'pending' | 'ready' | 'blocked';
+
+interface RustTimelineSceneRpcDiagnostics {
+  status: RustTimelineSceneRpcStatus;
+  projectId: string | null;
+  detail?: string;
+  requested?: number;
+  resolved?: number;
+  stale?: number;
+  coalesced?: number;
+  failed?: number;
+}
+
+/** Rust常駐sceneの評価結果がある間は、Chromiumでsceneを再構築しない。 */
+export const shouldBuildSharedRendererPreviewSessionForTick = (
+  rustTimelineSceneRpcEnabled: boolean,
+): boolean => !rustTimelineSceneRpcEnabled;
+
+const writeRustTimelineSceneRpcDiagnostics = (diagnostics: RustTimelineSceneRpcDiagnostics) => {
+  if (typeof document === 'undefined') return;
+  const dataset = document.documentElement.dataset as Record<string, string | undefined>;
+  dataset.uxfdRustTimelineSceneRpcStatus = diagnostics.status;
+  if (diagnostics.projectId) dataset.uxfdRustTimelineSceneRpcProjectId = diagnostics.projectId;
+  else delete dataset.uxfdRustTimelineSceneRpcProjectId;
+  if (diagnostics.detail) dataset.uxfdRustTimelineSceneRpcDetail = diagnostics.detail;
+  else delete dataset.uxfdRustTimelineSceneRpcDetail;
+  for (const key of ['requested', 'resolved', 'stale', 'coalesced', 'failed'] as const) {
+    const value = diagnostics[key];
+    const datasetKey = `uxfdRustTimelineSceneRpc${key[0].toUpperCase()}${key.slice(1)}`;
+    if (typeof value === 'number') dataset[datasetKey] = String(value);
+    else delete dataset[datasetKey];
+  }
+  (window as unknown as { __UXFD_RUST_TIMELINE_SCENE_RPC__?: RustTimelineSceneRpcDiagnostics })
+    .__UXFD_RUST_TIMELINE_SCENE_RPC__ = diagnostics;
+};
 
 type SharedRendererExternalVideoSourceEntry = {
   url: string;
@@ -573,6 +613,7 @@ const Viewport: React.FC = () => {
   const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
+  const rustTimelineScenePreviewControllerRef = useRef<EditableRustScenePreviewController | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
@@ -581,6 +622,9 @@ const Viewport: React.FC = () => {
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
+  // 常駐Rust scene RPC は段階的移行用の明示 opt-in。enabled 中は timeline の
+  // 評価を renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
+  const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC === '1';
   const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';
   // 選択デコレーション — SVG（SceneSelectionOverlay）は child NSWindow 化された
   // native overlay に隠れるため、選択枠・ハンドルの見た目は addon 側で描く。
@@ -1041,6 +1085,14 @@ const Viewport: React.FC = () => {
     previewEnabled: sharedRendererPreviewEnabled,
     exportEnabled: sharedRendererExportEnabled,
   });
+  const rustTimelineScenePresentationRef = useRef({
+    webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+    fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
+  });
+  rustTimelineScenePresentationRef.current = {
+    webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+    fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
+  };
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled && !sharedRendererExportEnabled) return;
@@ -1098,7 +1150,11 @@ const Viewport: React.FC = () => {
     });
   }, [objects]);
 
-  const publishSharedRendererPreviewSession = useCallback((time: number, currentObjects: TimelineObject[]) => {
+  const publishSharedRendererPreviewSession = useCallback((
+    time: number,
+    currentObjects: TimelineObject[],
+    evaluatedSession?: SharedRendererPreviewSession,
+  ) => {
     if (!sharedRendererPreviewEnabled) return;
     const rawPreviewTime = isPlaying
       ? quantiseSharedRendererPlaybackPreviewTime(time)
@@ -1114,7 +1170,7 @@ const Viewport: React.FC = () => {
       })
       : rawPreviewTime;
 
-    const session = buildSharedRendererPreviewSession({
+    const session = evaluatedSession ?? buildSharedRendererPreviewSession({
       enabled: true,
       projectSettings,
       layers,
@@ -1432,11 +1488,126 @@ const Viewport: React.FC = () => {
   const publishSharedRendererPreviewSessionRef = useRef(publishSharedRendererPreviewSession);
   publishSharedRendererPreviewSessionRef.current = publishSharedRendererPreviewSession;
 
+  // controller/scheduler は Viewport の寿命中に一つだけ保持する。sceneの編集
+  // （objects/layers/size/fps/projectId）と時刻要求を別effectにしたため、再生
+  // tick が Project JSON の再変換・replace RPC を引き起こさない。
   useEffect(() => {
-    publishSharedRendererPreviewSession(currentTime, objects);
+    if (!rustTimelineSceneRpcEnabled) {
+      rustTimelineScenePreviewControllerRef.current?.dispose();
+      rustTimelineScenePreviewControllerRef.current = null;
+      writeRustTimelineSceneRpcDiagnostics({ status: 'disabled', projectId: projectId ?? null });
+      return;
+    }
+
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc: {
+        replaceScene: replaceRustBackendScene,
+        evaluateScene: evaluateRustBackendScene,
+      },
+      onEvaluation: (evaluation) => {
+        const currentSettings = useStore.getState().projectSettings;
+        const session = buildSharedRendererPreviewSessionFromEvaluatedScene({
+          evaluation,
+          projectSettings: currentSettings,
+          editorMode: currentSettings.editorMode ?? '2d',
+          isExporting: useStore.getState().isExporting,
+          webGpuAvailable: rustTimelineScenePresentationRef.current.webGpuAvailable,
+          fallbackAdapter: rustTimelineScenePresentationRef.current.fallbackAdapter,
+        });
+        if (!session.surfaceGate.ok) {
+          setSharedRendererPreviewSession(null);
+          writeRustTimelineSceneRpcDiagnostics({
+            status: 'blocked',
+            projectId: useStore.getState().activeSceneId ?? null,
+            detail: `評価済みsceneを提示できません: ${session.surfaceGate.reason}`,
+            ...scheduler.diagnostics,
+          });
+          return;
+        }
+        writeRustTimelineSceneRpcDiagnostics({
+          status: 'ready',
+          projectId: useStore.getState().activeSceneId ?? null,
+          ...scheduler.diagnostics,
+        });
+        publishSharedRendererPreviewSessionRef.current(
+          evaluation.frameIndex / currentSettings.fps,
+          latestObjectsRef.current,
+          session,
+        );
+      },
+      onFailure: (failure) => {
+        // 前revisionの画を残すと、unsupported編集をした直後にも古いsceneが
+        // 見え続ける。明示的に止め、Chromiumの旧Canvas経路には戻さない。
+        setSharedRendererPreviewSession(null);
+        writeRustTimelineSceneRpcDiagnostics({
+          status: 'blocked',
+          projectId: useStore.getState().activeSceneId ?? null,
+          detail: `${failure.operation}: ${failure.reason} (${failure.detail})`,
+          ...scheduler.diagnostics,
+        });
+      },
+    });
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'viewport-rust-timeline',
+      scheduler,
+    });
+    rustTimelineScenePreviewControllerRef.current = controller;
+    writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
+
+    return () => {
+      controller.dispose();
+      if (rustTimelineScenePreviewControllerRef.current === controller) {
+        rustTimelineScenePreviewControllerRef.current = null;
+      }
+    };
+    // scheduler の callback は store/refから最新値を読むため、flagの変化時のみ
+    // 再生成する。ここにobjectsやcurrentTimeを足すと常駐の意味がなくなる。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rustTimelineSceneRpcEnabled]);
+
+  useEffect(() => {
+    if (!rustTimelineSceneRpcEnabled) return;
+    const controller = rustTimelineScenePreviewControllerRef.current;
+    if (!controller) return;
+    const result = controller.replaceScene({ projectSettings, layers, objects });
+    if (!result.ok) {
+      setSharedRendererPreviewSession(null);
+      writeRustTimelineSceneRpcDiagnostics({
+        status: 'blocked',
+        projectId: projectId ?? null,
+        detail: result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '),
+      });
+      return;
+    }
+    writeRustTimelineSceneRpcDiagnostics({
+      status: 'pending',
+      projectId: projectId ?? null,
+    });
+  }, [
+    layers,
+    objects,
+    projectId,
+    projectSettings.fps,
+    projectSettings.height,
+    projectSettings.width,
+    rustTimelineSceneRpcEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!rustTimelineSceneRpcEnabled) return;
+    const controller = rustTimelineScenePreviewControllerRef.current;
+    if (!controller) return;
+    controller.requestTime(currentTime, projectSettings.fps);
+    writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
+  }, [currentTime, projectId, projectSettings.fps, rustTimelineSceneRpcEnabled]);
+
+  useEffect(() => {
+    if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
+      publishSharedRendererPreviewSession(currentTime, objects);
+    }
     // sharedRendererExternalVideoFrameReadyTick re-publishes the session so a
     // paused frame that has just become presentable gets re-presented.
-  }, [currentTime, objects, publishSharedRendererPreviewSession, sharedRendererExternalVideoFrameReadyTick]);
+  }, [currentTime, objects, publishSharedRendererPreviewSession, rustTimelineSceneRpcEnabled, sharedRendererExternalVideoFrameReadyTick]);
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
@@ -1774,7 +1945,9 @@ const Viewport: React.FC = () => {
       }
     });
 
-    publishSharedRendererPreviewSession(time, currentObjects);
+    if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
+      publishSharedRendererPreviewSession(time, currentObjects);
+    }
 
     const workspaceMode = useStore.getState().projectSettings.editorMode ?? '2d';
     if (workspaceMode === '3d_stage' && threeStageRef.current) {
@@ -1830,6 +2003,7 @@ const Viewport: React.FC = () => {
     isPlaying,
     layers,
     publishSharedRendererPreviewSession,
+    rustTimelineSceneRpcEnabled,
   ]);
 
   useEffect(() => {

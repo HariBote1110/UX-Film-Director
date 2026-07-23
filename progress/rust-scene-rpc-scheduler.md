@@ -6,6 +6,7 @@
 - `scene.replace`と`scene.evaluate`のエラーコード`-32060`、`-32061`、`-32062`は、rendererでそれぞれ`missingScene`、`staleRevision`、`revisionMismatch`として扱う。
 - プレビュー用スケジューラは評価中のフレーム要求を一件だけ保持するlatest-wins方式とする。古い評価結果はpresentへ渡さない。
 - revisionの置換中に新しいrevisionが到着した場合は、中間revisionを送らず、最新revisionだけを置換する。
+- `VITE_UXFD_RUST_TIMELINE_SCENE_RPC=1` のViewportでは、同期の`buildSharedRendererPreviewSession`を時刻tickで実行せず、評価済みsnapshotから既存presenterへ接続する。未対応表現・RPC失敗・境界不正は最後のsceneを残さずblockedとして停止する。
 
 ## 検討した代替案
 
@@ -14,5 +15,5 @@
 
 ## 制約
 
-- この段階ではReact/Viewport統合を行わない。既存presenter reuseとデコード要求IDの安全機構は、次段階でschedulerが採用した評価結果にのみ接続する。
+- React/Viewport統合はfeature flag下だけで有効にする。既存presenter reuseとデコード要求IDの安全機構は、schedulerが採用した評価結果にのみ接続する。
 - 書き出しはフレーム欠落を許容できないため、latest-winsのプレビューscene sessionを共有しない。
