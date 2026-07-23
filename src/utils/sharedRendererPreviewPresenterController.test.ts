@@ -2344,6 +2344,47 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('keeps a superseded decoded-video-upload failure out of diagnostics when the native render frame presents instead', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes: new Uint8Array(nativeRenderDescriptor.byteLen),
+      },
+      sharedRendererVideoUploadFailure: {
+        reason: 'sharedMemoryReadFailed',
+        detail: 'SharedMemory: TimedOut { operation: "read_frame" }',
+        clipId: 'video-1',
+        mediaId: 'video-1',
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+      },
+    });
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('ready');
+    expect(dataset.uxfdSharedRendererPresenterVideoPresentationSource).toBe('native-render-frame');
+    expect(dataset.uxfdSharedRendererPresenterVideoUploadFailureReason).toBeUndefined();
+    expect(dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail).toBeUndefined();
+  });
+
   it('publishes solid colour ownership when a native rendered preview frame already contains the composited solid scene', async () => {
     const dataset: Record<string, string | undefined> = {};
     const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
