@@ -3,10 +3,18 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::NativeWgpuRenderer;
+use uxfd_rust_core::{Project, SceneMediaReference};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 
 use crate::sessions::{DecodeSession, EncodeSession};
+
+pub(crate) struct SceneSession {
+    pub(crate) scene_id: String,
+    pub(crate) revision: u64,
+    pub(crate) project: Project,
+    pub(crate) media: Vec<SceneMediaReference>,
+}
 
 /// Shared state for the in-progress PSD pixel blob write.
 /// `None` = no write pending; `Some(Ok(path))` = done; `Some(Err(msg))` = failed.
@@ -16,6 +24,7 @@ pub(crate) type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
 pub(crate) struct BackendState {
     pub(crate) decode_sessions: HashMap<String, DecodeSession>,
     pub(crate) encode_sessions: HashMap<String, EncodeSession>,
+    pub(crate) scene_sessions: HashMap<String, SceneSession>,
     pub(crate) psd_overlay_cache: HashMap<String, PsdOverlayCacheEntry>,
     #[cfg(unix)]
     pub(crate) native_render_outputs: HashMap<String, PosixSharedRing>,

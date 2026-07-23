@@ -14,6 +14,7 @@ use crate::native_render::{handle_encode_write_native_frame, handle_native_rende
 use crate::native_shared::handle_release_native_render_shared_frame;
 use crate::proxy::handle_proxy_generate;
 use crate::rpc::{HealthResult, RpcError, RpcRequest, RpcResponse};
+use crate::scene::{handle_scene_evaluate, handle_scene_replace};
 use crate::state::BackendState;
 use crate::transcode::handle_encode_transcode_video;
 use serde_json::Value;
@@ -71,6 +72,8 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "render.releaseNativeSharedFrame" => {
             handle_release_native_render_shared_frame(request.id, request.params, state)
         }
+        "scene.replace" => handle_scene_replace(request.id, request.params, state),
+        "scene.evaluate" => handle_scene_evaluate(request.id, request.params, state),
         "proxy.generate" => handle_proxy_generate(request.id, request.params),
         _ => RpcResponse {
             id: request.id,
@@ -154,7 +157,10 @@ mod tests {
             request(1, "scene.replace", replace_params("scene-1", 4, "#112233")),
             &mut state,
         );
-        assert!(replaced.ok, "scene.replace must create the resident session");
+        assert!(
+            replaced.ok,
+            "scene.replace must create the resident session"
+        );
 
         let evaluated = handle_request(
             request(
@@ -174,15 +180,21 @@ mod tests {
     #[test]
     fn scene_replace_rejects_same_or_older_revision_without_overwriting_resident_scene() {
         let mut state = BackendState::default();
-        assert!(handle_request(
-            request(1, "scene.replace", replace_params("scene-1", 4, "#112233")),
-            &mut state,
-        )
-        .ok);
+        assert!(
+            handle_request(
+                request(1, "scene.replace", replace_params("scene-1", 4, "#112233")),
+                &mut state,
+            )
+            .ok
+        );
 
         for revision in [4, 3] {
             let stale = handle_request(
-                request(2, "scene.replace", replace_params("scene-1", revision, "#ff0000")),
+                request(
+                    2,
+                    "scene.replace",
+                    replace_params("scene-1", revision, "#ff0000"),
+                ),
                 &mut state,
             );
             assert!(!stale.ok);
@@ -218,11 +230,13 @@ mod tests {
         assert!(!missing.ok);
         assert_eq!(missing.error.expect("missing scene error").code, -32060);
 
-        assert!(handle_request(
-            request(2, "scene.replace", replace_params("scene-1", 4, "#112233")),
-            &mut state,
-        )
-        .ok);
+        assert!(
+            handle_request(
+                request(2, "scene.replace", replace_params("scene-1", 4, "#112233")),
+                &mut state,
+            )
+            .ok
+        );
         let mismatch = handle_request(
             request(
                 3,
@@ -232,6 +246,9 @@ mod tests {
             &mut state,
         );
         assert!(!mismatch.ok);
-        assert_eq!(mismatch.error.expect("revision mismatch error").code, -32062);
+        assert_eq!(
+            mismatch.error.expect("revision mismatch error").code,
+            -32062
+        );
     }
 }

@@ -13,6 +13,7 @@ mod proxy;
 mod psd_fast;
 mod rpc;
 mod rpc_dispatch;
+mod scene;
 mod sessions;
 mod source_frames;
 mod state;
