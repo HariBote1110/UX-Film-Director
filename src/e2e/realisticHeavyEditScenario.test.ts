@@ -3,6 +3,7 @@ import {
   buildRealisticHeavyEditScenario,
   inspectRealisticHeavyEditScenario,
 } from './realisticHeavyEditScenario';
+import { buildSharedRendererPreviewPlan } from '../utils/sharedRendererPreviewBridge';
 
 const paths = {
   videoPath: '/fixtures/4k-source.mov',
@@ -69,5 +70,21 @@ describe('現実的な重量編集シナリオ', () => {
     expect(report.uniqueObjectIdCount).toBe(report.objectCount);
     expect(report.nonFiniteNumberCount).toBe(0);
     expect(report.danglingReferenceCount).toBe(0);
+  });
+
+  it('開始フレームを共有レンダラーで描画でき、黒画面へ退化しない', () => {
+    const scenario = buildRealisticHeavyEditScenario(paths);
+    const activeScene = scenario.scenes.find((scene) => scene.id === scenario.activeSceneId);
+    expect(activeScene).toBeDefined();
+
+    const plan = buildSharedRendererPreviewPlan({
+      enabled: true,
+      projectSettings: scenario.settings,
+      layers: activeScene!.layers,
+      objects: activeScene!.objects,
+      time: 0,
+    });
+
+    expect(plan).toMatchObject({ mode: 'sharedRenderer' });
   });
 });
