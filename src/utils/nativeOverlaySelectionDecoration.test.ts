@@ -286,9 +286,8 @@ describe('scene selection overlay native decoration boundary', () => {
     const block = viewport.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)');
+    expect(block).toContain('isNativeOverlayDirectSceneSession(sharedRendererPreviewSession)');
     expect(block).toContain('isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)');
-    expect(block).toContain('isSharedRendererMixedNativeRenderSession(sharedRendererPreviewSession)');
   });
 });
 

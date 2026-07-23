@@ -40,7 +40,7 @@ const buildSession = (
       height: 1080,
     })) as never,
   },
-});
+} as unknown as SharedRendererPreviewSession);
 
 describe('isNativeOverlayDirectSceneSession', () => {
   it('accepts one decoded video mixed with a generated GetColor source', () => {

@@ -73,6 +73,7 @@ import {
 } from '../utils/sharedRendererExternalVideoMasterClock';
 import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRendererPresenterRestartSession';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
+import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
 import {
   NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS,
   buildNativeOverlayAttachKey,
@@ -853,9 +854,8 @@ const Viewport: React.FC = () => {
     const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled
       && sharedRendererPreviewSession != null
       && (
-        isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)
+        isNativeOverlayDirectSceneSession(sharedRendererPreviewSession)
         || isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)
-        || isSharedRendererMixedNativeRenderSession(sharedRendererPreviewSession)
       );
     const nextSendState: SelectionDecorationSendState = {
       selectedIds,
@@ -1282,10 +1282,7 @@ const Viewport: React.FC = () => {
       // native overlay へ乗る。失敗時だけDOM側WebGPU canvas
       // （presentPreparedNativeRenderFrame）へフォールバックする。
       if (control?.ok && (
-        (nativeOverlayPreviewEnabled && (
-          isSharedRendererExternalVideoOnlySession(session)
-          || isSharedRendererMixedNativeRenderSession(session)
-        ))
+        (nativeOverlayPreviewEnabled && isNativeOverlayDirectSceneSession(session))
         || (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session))
         || control.presentPreparedNativeRenderFrame
       )) {
@@ -1298,8 +1295,11 @@ const Viewport: React.FC = () => {
         sharedRendererNativeReusePreparingRef.current = true;
         void (async () => {
           try {
-            if (nativeOverlayPreviewEnabled && (isSharedRendererExternalVideoOnlySession(session)
-              || isSharedRendererMixedNativeRenderSession(session))) {
+            if (
+              nativeOverlayPreviewEnabled
+              && isNativeOverlayDirectSceneSession(session)
+              && !isSharedRendererNativeRenderOnlySession(session)
+            ) {
               if (session.surfaceGate.ok) {
                 sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
               }
@@ -1546,10 +1546,8 @@ const Viewport: React.FC = () => {
     // CAMetalLayer presentation path. Native-render-only sessions still use
     // their dedicated presentation path.
     const nativeOverlayDecodedFrameEligible = nativeOverlayPreviewEnabled
-      && (
-        isSharedRendererExternalVideoOnlySession(presenterRestartSession)
-        || isSharedRendererMixedNativeRenderSession(presenterRestartSession)
-      );
+      && isNativeOverlayDirectSceneSession(presenterRestartSession)
+      && !isSharedRendererNativeRenderOnlySession(presenterRestartSession);
 
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
