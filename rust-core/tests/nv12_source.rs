@@ -88,6 +88,7 @@ fn existing_scene_snapshot_shape_is_unaffected_by_the_new_nv12_type() {
                 },
                 opacity: 1.0,
                 opacity_keyframes: Vec::new(),
+                position_keyframes: Vec::new(),
                 effects: Vec::new(),
             }],
         }],

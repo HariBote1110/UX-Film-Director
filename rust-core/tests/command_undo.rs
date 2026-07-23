@@ -32,6 +32,7 @@ fn valid_project() -> Project {
                 transform: Transform::identity(),
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),
+                position_keyframes: Vec::new(),
                 effects: Vec::new(),
             }],
         }],

@@ -33,6 +33,7 @@ fn project_model_round_trip_preserves_identity() {
                 transform: Transform::identity(),
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),
+                position_keyframes: Vec::new(),
                 effects: Vec::new(),
             }],
         }],

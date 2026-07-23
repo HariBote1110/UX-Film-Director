@@ -16,8 +16,9 @@ pub use audio_waveform_scene::{
 pub use command::{apply_command, AppliedCommand, Command, CommandError};
 pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
 pub use schema::{
-    Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference, Project, ProjectSize,
-    SamplingMode, ScalarKeyframe, Track, Transform, WipeEdge,
+    Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, MediaKind, MediaReference,
+    PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, Track, Transform,
+    WipeEdge,
 };
 pub use solid_colour_scene::{
     build_solid_colour_draw_list, build_solid_colour_vertex_scene, CanvasSize, NormalisedColour,

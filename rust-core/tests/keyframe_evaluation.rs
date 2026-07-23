@@ -41,6 +41,7 @@ fn project_with_opacity_keyframes() -> Project {
                         value: 1.0,
                     },
                 ],
+                position_keyframes: Vec::new(),
                 effects: Vec::new(),
             }],
         }],

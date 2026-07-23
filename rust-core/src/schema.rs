@@ -132,6 +132,57 @@ pub struct ScalarKeyframe {
     pub value: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Easing {
+    Linear,
+    EaseInSine,
+    EaseOutSine,
+    EaseInOutSine,
+    EaseInQuad,
+    EaseOutQuad,
+    EaseInOutQuad,
+    EaseInCubic,
+    EaseOutCubic,
+    EaseInOutCubic,
+    EaseInQuart,
+    EaseOutQuart,
+    EaseInOutQuart,
+    EaseInQuint,
+    EaseOutQuint,
+    EaseInOutQuint,
+    EaseInExpo,
+    EaseOutExpo,
+    EaseInOutExpo,
+    EaseInCirc,
+    EaseOutCirc,
+    EaseInOutCirc,
+    EaseInBack,
+    EaseOutBack,
+    EaseInOutBack,
+    EaseInElastic,
+    EaseOutElastic,
+    EaseInOutElastic,
+    EaseInBounce,
+    EaseOutBounce,
+    EaseInOutBounce,
+}
+
+impl Default for Easing {
+    fn default() -> Self {
+        Self::Linear
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PositionKeyframe {
+    pub frame_offset: u64,
+    pub x: f32,
+    pub y: f32,
+    #[serde(default)]
+    pub easing: Easing,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transform {
     pub translation_x: f32,
@@ -310,6 +361,8 @@ pub struct Clip {
     pub opacity: f32,
     #[serde(default)]
     pub opacity_keyframes: Vec<ScalarKeyframe>,
+    #[serde(default)]
+    pub position_keyframes: Vec<PositionKeyframe>,
     #[serde(default)]
     pub effects: Vec<Effect>,
 }

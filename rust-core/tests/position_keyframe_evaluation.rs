@@ -55,7 +55,10 @@ fn position_keyframes_use_left_keyframe_linear_easing_and_keep_non_position_tran
     assert_eq!(clip.transform.scale_x, 1.5);
     assert_eq!(clip.transform.scale_y, 0.5);
     assert_eq!(clip.transform.rotation_degrees, 15.0);
-    assert_eq!(clip.transform.sampling, uxfd_rust_core::SamplingMode::Bilinear);
+    assert_eq!(
+        clip.transform.sampling,
+        uxfd_rust_core::SamplingMode::Bilinear
+    );
 }
 
 #[test]
@@ -113,7 +116,11 @@ fn existing_clip_json_without_position_keyframes_uses_an_empty_default() {
         }]
     });
 
-    let project: Project = serde_json::from_value(value).expect("existing project JSON must remain valid");
+    let project: Project =
+        serde_json::from_value(value).expect("existing project JSON must remain valid");
     let clip = &evaluate_frame(&project, 0).clips[0];
-    assert_eq!((clip.transform.translation_x, clip.transform.translation_y), (33.0, 44.0));
+    assert_eq!(
+        (clip.transform.translation_x, clip.transform.translation_y),
+        (33.0, 44.0)
+    );
 }

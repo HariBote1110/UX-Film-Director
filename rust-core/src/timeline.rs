@@ -1,4 +1,4 @@
-use crate::keyframe::evaluate_scalar_keyframes;
+use crate::keyframe::{evaluate_position_keyframes, evaluate_scalar_keyframes};
 use crate::schema::{Clip, ColourPipeline, Effect, Project, Transform};
 use serde::{Deserialize, Serialize};
 
@@ -30,16 +30,25 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 continue;
             }
 
+            let frame_offset = frame_index - clip.start_frame;
+            let mut transform = clip.transform.clone();
+            (transform.translation_x, transform.translation_y) = evaluate_position_keyframes(
+                &clip.position_keyframes,
+                frame_offset,
+                transform.translation_x,
+                transform.translation_y,
+            );
+
             clips.push(EvaluatedClip {
                 clip_id: clip.id.clone(),
                 track_id: track.id.clone(),
                 media_id: clip.media_id.clone(),
-                source_frame: frame_index - clip.start_frame,
+                source_frame: frame_offset,
                 z_index: clips.len() as u32,
-                transform: clip.transform.clone(),
+                transform,
                 opacity: evaluate_scalar_keyframes(
                     &clip.opacity_keyframes,
-                    frame_index - clip.start_frame,
+                    frame_offset,
                     clip.opacity,
                 ),
                 effects: clip.effects.clone(),
