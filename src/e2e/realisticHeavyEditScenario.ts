@@ -198,7 +198,7 @@ const buildTitle = (id: string, name: string, layer: number, startTime: number):
   textAlignment: 'left',
   letterSpacing: 2,
   textStroke: { colour: '#111827', width: 5 },
-  textShadow: { colour: '#00000099', offsetX: 8, offsetY: 10, blur: 8 },
+  textShadow: { colour: '#000000', offsetX: 8, offsetY: 10, blur: 8 },
   filters: [{
     id: `${id}-wipe`,
     type: 'wipe',

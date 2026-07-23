@@ -73,7 +73,7 @@ describe('現実的な重量編集シナリオ', () => {
     expect(report.danglingReferenceCount).toBe(0);
   });
 
-  it('開始フレームを共有レンダラーで描画でき、黒画面へ退化しない', () => {
+  it('代表フレームを共有レンダラーで描画・書出しでき、黒画面へ退化しない', () => {
     const scenario = buildRealisticHeavyEditScenario(paths);
     const activeScene = scenario.scenes.find((scene) => scene.id === scenario.activeSceneId);
     expect(activeScene).toBeDefined();
