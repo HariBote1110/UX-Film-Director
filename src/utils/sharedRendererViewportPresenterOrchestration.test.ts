@@ -366,6 +366,30 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('clears stale Native Overlay diagnostics when the current session skips the overlay attempt', async () => {
+    const dataset: Record<string, string | undefined> = {
+      uxfdSharedRendererPresenterNativeOverlayAttempt: 'failed',
+      uxfdSharedRendererPresenterNativeOverlayFailureReason: 'nativeOverlayPresentFailed',
+      uxfdSharedRendererPresenterNativeOverlayFailureDetail: 'MissingSource { media_id: "generated-1" }',
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: false,
+      nativeOverlayPreviewEnabled: false,
+      activeVideoDecodeJob: null,
+      requestId: 27,
+      startPresenter: async () => control,
+    });
+
+    expect(dataset.uxfdSharedRendererPresenterNativeOverlayAttempt).toBeUndefined();
+    expect(dataset.uxfdSharedRendererPresenterNativeOverlayFailureReason).toBeUndefined();
+    expect(dataset.uxfdSharedRendererPresenterNativeOverlayFailureDetail).toBeUndefined();
+  });
+
   it('does not require WebGPU video ownership after Native Overlay presents the decoded scene', async () => {
     let presenterInput: unknown;
     const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
