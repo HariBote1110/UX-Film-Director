@@ -403,6 +403,143 @@ fn render_native_shared_frame_nv12_zero_copy_kill_switch_falls_back_to_rgba_brid
     );
 }
 
+#[test]
+fn encode_write_native_frame_uses_nv12_zero_copy_for_inprocess_video_session() {
+    if !require_ffmpeg() {
+        eprintln!("skipping: ffmpeg not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new("encode");
+    let source = build_playable_h264_fixture(dir.path());
+    let output = dir.path().join("nv12-zero-copy-export.mp4");
+    let job_id = "export-video-job";
+    let media_id = "export-video-media";
+    let mut backend = BackendProcess::start_with_env(&[]);
+
+    let encode_start = backend.request(json!({
+        "id": 10,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "nv12-zero-copy-export",
+            "filePath": output.to_string_lossy(),
+            "width": WIDTH,
+            "height": HEIGHT,
+            "fps": FPS,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(encode_start["ok"], true, "encode.start failed: {encode_start}");
+
+    let decode_start = backend.request(json!({
+        "id": 11,
+        "method": "decode.start",
+        "params": {
+            "jobId": job_id,
+            "source": source.to_string_lossy(),
+            "slotCount": 2,
+            "width": WIDTH,
+            "height": HEIGHT,
+            "sourceRate": { "numerator": FPS, "denominator": 1 },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(decode_start["ok"], true, "decode.start failed: {decode_start}");
+
+    let decoded = backend.request(json!({
+        "id": 12,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": job_id,
+            "requestId": 0,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(decoded["ok"], true, "decode.requestFrame failed: {decoded}");
+    assert_eq!(decoded["result"]["decodePath"], "inprocess", "{decoded}");
+
+    let write = backend.request(json!({
+        "id": 13,
+        "method": "encode.writeNativeFrame",
+        "params": {
+            "sessionId": "nv12-zero-copy-export",
+            "renderId": "nv12-zero-copy-export-frame",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "width": WIDTH,
+            "height": HEIGHT,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "export-video-clip",
+                    "track_id": "track-1",
+                    "media_id": media_id,
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": media_id,
+                "kind": "Video",
+                "source": source.to_string_lossy(),
+                "width": WIDTH,
+                "height": HEIGHT,
+                "source_rate": { "numerator": FPS, "denominator": 1 }
+            }],
+            "sources": [{
+                "mediaId": media_id,
+                "jobId": job_id,
+                "slotCount": decode_start["result"]["slotCount"],
+                "frame": decoded["result"]["frame"]
+            }]
+        }
+    }));
+
+    assert_eq!(write["ok"], true, "encode.writeNativeFrame failed: {write}");
+    assert_eq!(write["result"]["renderPath"], "webgpuSceneComposite", "{write}");
+    assert_eq!(
+        write["result"]["nv12ZeroCopyMediaIds"],
+        json!([media_id]),
+        "export must report the video resolved through NV12 zero-copy: {write}"
+    );
+
+    let finish = backend.request(json!({
+        "id": 14,
+        "method": "encode.finish",
+        "params": { "sessionId": "nv12-zero-copy-export" }
+    }));
+    assert_eq!(finish["ok"], true, "encode.finish failed: {finish}");
+    assert!(std::fs::metadata(output).expect("export output exists").len() > 0);
+}
+
 /// Golden parity test (Phase 4c Stage 2 requirement): the exact same decoded
 /// frame, composited via the zero-copy NV12 path vs the CPU RGBA bridge
 /// (forced via the kill switch), must produce matching pixels within
