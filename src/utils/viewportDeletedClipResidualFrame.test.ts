@@ -40,7 +40,7 @@ describe('viewport deleted clip residual frame boundary', () => {
 
   it('guards the presenter restart overlay present with a current-request check', () => {
     const code = viewportSource();
-    const start = code.indexOf('presentNativeOverlayDecodedFrame: nativeOverlayPreviewEnabled');
+    const start = code.indexOf('presentNativeOverlayDecodedFrame: nativeOverlayDecodedFrameEligible');
     const end = code.indexOf('activeVideoDecodeJob:', start);
     const restartWrapperBlock = code.slice(start, end);
 
