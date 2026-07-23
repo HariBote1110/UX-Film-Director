@@ -196,6 +196,11 @@ describe('package scripts', () => {
     expect(script).toContain('quality-report.json');
   });
 
+  it('provides a realistic heavy editing verification command', () => {
+    expect(packageJson.scripts['test:realistic-heavy-edit:e2e'])
+      .toBe('node scripts/run-realistic-heavy-edit-e2e.mjs');
+  });
+
   it('provides an all-readable-media Rust boundary E2E command', () => {
     expect(packageJson.scripts['test:all-readable-media:e2e'])
       .toBe('vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts');
