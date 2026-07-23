@@ -2241,6 +2241,82 @@ mod tests {
     }
 
     #[test]
+    fn overlay_native_source_loader_builds_getcolor_for_direct_mixed_scene_present() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 236,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![
+                    EvaluatedClip {
+                        clip_id: "video-clip".to_string(),
+                        track_id: "video-track".to_string(),
+                        media_id: "video-media".to_string(),
+                        source_frame: 236,
+                        z_index: 0,
+                        transform: Transform::identity(),
+                        opacity: 1.0,
+                        effects: Vec::new(),
+                    },
+                    EvaluatedClip {
+                        clip_id: "getcolor-clip".to_string(),
+                        track_id: "getcolor-track".to_string(),
+                        media_id: "getcolor-media".to_string(),
+                        source_frame: 0,
+                        z_index: 1,
+                        transform: Transform::identity(),
+                        opacity: 1.0,
+                        effects: Vec::new(),
+                    },
+                ],
+            },
+            media: vec![
+                NativeOverlaySceneMedia {
+                    id: "video-media".to_string(),
+                    kind: "Video".to_string(),
+                    source: "/tmp/video.mov".to_string(),
+                    width: 1920,
+                    height: 1080,
+                },
+                NativeOverlaySceneMedia {
+                    id: "getcolor-media".to_string(),
+                    kind: "GeneratedGetColorDots".to_string(),
+                    source: concat!(
+                        r##"{"generator":"getcolor-v2r-dot-field","columns":4,"rows":2,"##,
+                        r##""dot_size":18.0,"size_influence":0.65,"luminance_influence":0.7,"##,
+                        r##""hue_shift_degrees":0.0,"alternate_rows":true,"##,
+                        r##""foreground_colour":"#ffffff","secondary_colour":"#36c2ff","##,
+                        r##""background_colour":"#000000","seed":93}"##
+                    )
+                    .to_string(),
+                    width: 160,
+                    height: 90,
+                },
+            ],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let sources = load_overlay_native_sources_for_scene(&scene)
+            .expect("direct CAMetalLayer scene must build GetColor without a completed-frame upload");
+
+        assert!(
+            !sources.contains_key("video-media"),
+            "video pixels are supplied by the decoded-frame upload"
+        );
+        let getcolor = sources
+            .get("getcolor-media")
+            .expect("GetColor source must be generated in the native-overlay process");
+        assert_eq!((getcolor.width, getcolor.height), (160, 90));
+        assert!(
+            getcolor
+                .pixels
+                .chunks_exact(4)
+                .any(|pixel| pixel[2] > 200 && pixel[3] == 255),
+            "generated source must contain visible blue/cyan dots"
+        );
+    }
+
+    #[test]
     fn build_empty_scene_snapshot_for_transparent_clear_yields_no_clips_and_no_sources() {
         // Bug D — `clear_native_overlay_live_surface` は空 scene を live surface に present し、
         // `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable を全 pixel alpha=0 で
