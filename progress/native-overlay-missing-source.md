@@ -8,6 +8,9 @@
   `render.nativeSharedFrame`経路を使い、DOM WebGPU canvasへpresentする。
 - Native Overlayの有効フラグだけでデコード済み動画presentを試行せず、
   `isSharedRendererExternalVideoOnlySession`を同じ判定に含める。
+- 現在のセッションがOverlay presentを試行しない場合は、前セッションの
+  `NativeOverlayAttempt`、failure reason、failure detailをdatasetから消去する。
+  これにより、混在シーンへ切り替わった後に旧成功・失敗状態を表示しない。
 
 ## 根本原因
 
@@ -33,4 +36,3 @@ Overlay側へ注入されない。このため本来のNV12/WebGPU混在合成�
   `prepareSharedRendererViewportNativeRenderOverlayPresent`経路を維持する。
 - 混在セッションを将来Native Overlayへ直接presentする場合は、単一動画source
   注入ではなく、完成済みのネイティブ合成出力を渡す必要がある。
-
