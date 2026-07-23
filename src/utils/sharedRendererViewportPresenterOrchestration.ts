@@ -208,7 +208,11 @@ export const startSharedRendererViewportPresenter = async ({
   }
   assertPresenterStartCurrent(isStartCurrent);
 
-  const nativeOverlayPresentResult = nativeOverlayPreviewEnabled && presentNativeOverlayDecodedFrame
+  const shouldAttemptNativeOverlay = nativeOverlayPreviewEnabled && Boolean(presentNativeOverlayDecodedFrame);
+  if (!shouldAttemptNativeOverlay) {
+    clearNativeOverlayAttemptDiagnostics(datasets);
+  }
+  const nativeOverlayPresentResult = shouldAttemptNativeOverlay && presentNativeOverlayDecodedFrame
     ? await (async () => {
       writeNativeOverlayAttemptDiagnostics(datasets, { attempt: 'pending' });
       const result = await presentNativeOverlayDecodedFrame({
@@ -375,6 +379,16 @@ const writeNativeOverlayAttemptDiagnostics = (
     } else {
       delete dataset.uxfdSharedRendererPresenterNativeOverlayFailureDetail;
     }
+  });
+};
+
+const clearNativeOverlayAttemptDiagnostics = (
+  datasets: StartSharedRendererPreviewPresenterInput['datasets'],
+): void => {
+  datasets.forEach((dataset) => {
+    delete dataset.uxfdSharedRendererPresenterNativeOverlayAttempt;
+    delete dataset.uxfdSharedRendererPresenterNativeOverlayFailureReason;
+    delete dataset.uxfdSharedRendererPresenterNativeOverlayFailureDetail;
   });
 };
 
