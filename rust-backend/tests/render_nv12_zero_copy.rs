@@ -182,9 +182,10 @@ impl Drop for BackendProcess {
 /// `effects` is the clip's `effects` JSON array as-is (usually `json!([])`,
 /// the truly simple/common case -- see callers for when a disqualifying
 /// no-op effect is deliberately used instead).
-fn decode_and_render_frame_zero(
+fn decode_and_render_frame_zero_with_ids(
     envs: &[(&str, &str)],
     job_id: &str,
+    media_id: &str,
     source: &Path,
     effects: Value,
 ) -> (Value, Vec<u8>) {
@@ -249,7 +250,7 @@ fn decode_and_render_frame_zero(
                 "clips": [{
                     "clip_id": "clip-video",
                     "track_id": "track-1",
-                    "media_id": job_id,
+                    "media_id": media_id,
                     "source_frame": 0,
                     "z_index": 0,
                     "transform": {
@@ -265,7 +266,7 @@ fn decode_and_render_frame_zero(
                 }]
             },
             "media": [{
-                "id": job_id,
+                "id": media_id,
                 "kind": "Video",
                 "source": source.to_string_lossy(),
                 "width": WIDTH,
@@ -273,7 +274,8 @@ fn decode_and_render_frame_zero(
                 "source_rate": { "numerator": FPS, "denominator": 1 }
             }],
             "sources": [{
-                "mediaId": job_id,
+                "mediaId": media_id,
+                "jobId": job_id,
                 "slotCount": decode_slot_count,
                 "frame": decoded["result"]["frame"]
             }]
@@ -298,6 +300,15 @@ fn decode_and_render_frame_zero(
         .expect("read nv12 zero-copy render output frame");
 
     (render, output_frame.bytes)
+}
+
+fn decode_and_render_frame_zero(
+    envs: &[(&str, &str)],
+    job_id: &str,
+    source: &Path,
+    effects: Value,
+) -> (Value, Vec<u8>) {
+    decode_and_render_frame_zero_with_ids(envs, job_id, job_id, source, effects)
 }
 
 #[test]
@@ -339,6 +350,32 @@ fn render_native_shared_frame_reports_nv12_zero_copy_for_inprocess_video_session
     assert!(
         pixels.chunks_exact(4).any(|pixel| pixel[3] != 0),
         "nv12 zero-copy composite must produce a non-transparent frame"
+    );
+}
+
+#[test]
+fn render_native_shared_frame_correlates_distinct_decode_job_and_media_ids() {
+    if !require_ffmpeg() {
+        eprintln!("skipping: ffmpeg not on PATH");
+        return;
+    }
+    let dir = TempDir::new("distinct-job-and-media-ids");
+    let source = build_playable_h264_fixture(dir.path());
+    let media_id = "video-media-1";
+    let job_id = "shared-renderer-video-video-media-1-64x32-60over1";
+
+    let (render, _pixels) =
+        decode_and_render_frame_zero_with_ids(&[], job_id, media_id, &source, json!([]));
+
+    assert_eq!(
+        render["result"]["nv12ZeroCopyMediaIds"],
+        json!([media_id]),
+        "the production decode job id must still correlate to the scene media id: {render}"
+    );
+    assert_ne!(
+        render["result"]["renderPath"],
+        json!("cpuSimpleVideoComposite"),
+        "a production-style decode job id must not disable NV12 zero-copy: {render}"
     );
 }
 
