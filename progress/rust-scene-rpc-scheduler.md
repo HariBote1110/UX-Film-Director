@@ -17,3 +17,28 @@
 
 - React/Viewport統合はfeature flag下だけで有効にする。既存presenter reuseとデコード要求IDの安全機構は、schedulerが採用した評価結果にのみ接続する。
 - 書き出しはフレーム欠落を許容できないため、latest-winsのプレビューscene sessionを共有しない。
+- V1変換対象はshape/image/video/PSD/textである。GetColor、HKSY、
+  SimpleTube、グループ、マスク、逆再生、有効filterは現時点では明示的に
+  `blocked`とし、旧Chromium描画へ黙って戻さない。
+
+## 2026-07-24 実機確認
+
+`VITE_UXFD_RUST_TIMELINE_SCENE_RPC=1`でElectronを起動し、Computer Useと
+CDP診断を併用して次を確認した。
+
+- 1920×1080/60 fpsのプロジェクトで矩形を追加すると、`scene.replace`後の
+  `scene.evaluate`からCAMetalLayerへ赤い矩形が表示される。
+- 矩形を複製しても`ready`へ収束し、1.2秒の再生で74回の評価要求・74回の
+  応答、失敗0件となる。表示と選択枠も維持される。
+- 有効filterを追加すると`unsupportedFilter`で`blocked`になり、旧Canvasへ
+  フォールバックしない。
+- 実機で発見した境界不整合2件を修正した。
+  - 動画以外の`source_rate: None`を`null`として返して境界検証に失敗して
+    いたため、未指定時はフィールド自体を省略する。
+  - 常駐scene全体のmediaを毎frame返すと、非アクティブclipの未使用mediaが
+    境界検証に失敗していたため、そのframeの可視clipが参照するmediaだけを返す。
+
+この段階でChromiumから除去できたのは、対応V1シーンの毎tick可視判定・
+位置keyframe評価・clip snapshot再構築・media JSON再構築である。GPU描画後の
+全画面転送除去は既存CAMetalLayer直描画が担う。一方、生成エフェクトのCPU
+ラスタライズと複数動画/NV12の直結は引き続き次段階の対象である。

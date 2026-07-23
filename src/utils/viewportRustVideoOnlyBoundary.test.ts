@@ -37,7 +37,7 @@ describe('Viewport Rust video-only boundary', () => {
 
   it('updates generated effect Pixi cutover ids from the shared renderer preview session before presenter completion', () => {
     const code = viewportSource();
-    const start = code.indexOf('const session = buildSharedRendererPreviewSession({');
+    const start = code.indexOf('const session = evaluatedSession ?? buildSharedRendererPreviewSession({');
     const end = code.indexOf('setSharedRendererPreviewSession(session)', start);
     const publishSessionBlock = code.slice(start, end);
 
