@@ -645,24 +645,23 @@ describe('Viewport Rust video-only boundary', () => {
     expect(restartBlock).toContain('isSharedRendererMixedNativeRenderSession(presenterRestartSession)');
   });
 
-  it('routes the mixed-session reuse tick through prepareSharedRendererViewportNativeRenderUpload (DOM canvas fallback, no overlay co-delivery yet)', () => {
-    // Phase 3b Step 3 — mixed セッションは reuse には乗るが、overlay
-    // co-delivery（Step 2）の対象は video-only / native-render-only のみ。
-    // mixed は引き続き DOM canvas 経路（presentPreparedNativeRenderFrame）を
-    // 通す（Rust 側の video 自前デコード統合は Phase 4 の対象）。
+  it('routes the mixed-session reuse tick directly to the CAMetalLayer overlay', () => {
+    // native-overlay が生成ソースを構築できるため、動画＋非動画の混在シーンも
+    // 完成済みRGBAフレームのGPU readback/shared-memory再転送を経由せず、
+    // decode済み動画フレームとscene snapshotをCAMetalLayerへ直接presentする。
     const code = viewportSource();
     const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
     const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    // mixed セッションはどちらの overlay 分岐（video-only / native-render-only）
-    // にも該当しないため、両方の if を通り過ぎて DOM canvas 経路まで落ちる。
-    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    expect(block).toContain('if (nativeOverlayPreviewEnabled && (isSharedRendererExternalVideoOnlySession(session)');
+    expect(block).toContain('|| isSharedRendererMixedNativeRenderSession(session))) {');
+    expect(block).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
+    expect(block).toContain('selectionDecoration: sessionSelectionDecoration');
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
-    expect(block).toContain('if (!presentPreparedNativeRenderFrame) return;');
-    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, {');
-    expect(block).toContain('nativeRenderDiagnostics: result.diagnostics');
+    expect(block.indexOf('isSharedRendererMixedNativeRenderSession(session)'))
+      .toBeLessThan(block.indexOf('if (!presentPreparedNativeRenderFrame) return;'));
   });
 
   it('routes the native-render-only reuse tick through the native overlay with co-delivery when the overlay is enabled (Phase 3b Step 2)', () => {

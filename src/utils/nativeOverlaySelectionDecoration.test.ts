@@ -276,11 +276,10 @@ describe('scene selection overlay native decoration boundary', () => {
     expect(viewport).toContain('selectionDecoration: sessionSelectionDecoration');
   });
 
-  it('extends nativeOverlayBodyCoDeliveryEligible to native-render-only sessions (Phase 3b Step 2)', () => {
-    // native-render-only（図形/画像のみ）セッションの reuse tick も native
-    // overlay の presentSharedFrame へ selectionDecoration を同梱するように
-    // なったため、standalone 送信の skip 判定もこの形状を co-delivery 対象に
-    // 含める必要がある（さもないと2チャネルが競合 present してしまう）。
+  it('extends nativeOverlayBodyCoDeliveryEligible to every directly presented session shape', () => {
+    // native-render-only と混在セッションの reuse tick も native overlay の
+    // presentSharedFrame へ selectionDecoration を同梱するため、standalone
+    // 送信のskip判定へ両方を含めて2チャネルの競合presentを防ぐ。
     const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
     const start = viewport.indexOf('const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled');
     const end = viewport.indexOf(';', start);
@@ -289,6 +288,7 @@ describe('scene selection overlay native decoration boundary', () => {
     expect(start).toBeGreaterThan(-1);
     expect(block).toContain('isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)');
     expect(block).toContain('isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)');
+    expect(block).toContain('isSharedRendererMixedNativeRenderSession(sharedRendererPreviewSession)');
   });
 });
 
