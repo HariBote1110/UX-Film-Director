@@ -44,6 +44,11 @@ Rust backendへ渡した結果は次のとおり。
 できることを優先した。失敗診断と同じ表示面を再利用し、別のデバッグUIは
 増やさない。
 
+実機検証では、ネイティブ描画が成功している場合にも、それ以前のRGBA共有
+メモリ読込タイムアウトが動画upload失敗として残ることを確認した。現行出力を
+`native-render-frame`または`external-video-source`が所有する場合、旧RGBA
+upload失敗は置き換え済みの一時イベントとして永続診断から除外する。
+
 ## 動画出力の決定
 
 `encode.writeNativeFrame`でも`collect_native_render_nv12_sources`を実行する。
@@ -80,3 +85,11 @@ sourceを`encode.writeNativeFrame`へ渡してMP4を完了させる。出力フ�
 
 診断面の追加とexport経路の機能拡張を含むため、
 `0.1.1-Beta-452c`から`0.1.1-Beta-453a`へ更新する。
+
+## 最終検証
+
+- 実Electron混在シーン: `decode=inprocess`、
+  `render=webgpuSceneComposite`、動画media IDのNV12 zero-copy採用を確認。
+- Vitest: 200ファイル、1482テスト合格。
+- TypeScript: `npx tsc --noEmit`合格。
+- Rust NV12統合: `render_nv12_zero_copy` 5テスト合格。
