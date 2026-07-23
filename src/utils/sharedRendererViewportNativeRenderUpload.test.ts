@@ -1821,6 +1821,42 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
 // render.nativeSharedFrame の出力を DOM canvas へ upload せず、そのまま
 // native overlay の presentSharedFrame（選択デコレーション同梱つき）へ渡す。
 describe('prepareSharedRendererViewportNativeRenderOverlayPresent', () => {
+  it('presents a media-only scene directly without rendering or reading back a completed RGBA frame', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session: mediaOnlySession,
+      requestId: 24,
+      selectionDecoration: { canvasWidth: 4, canvasHeight: 4, quads: [] },
+      renderNativeSharedFrame: async () => {
+        throw new Error('direct CAMetalLayer presentation must not render a completed RGBA frame.');
+      },
+      nativeOverlayBridge: {
+        presentSharedFrame: async () => {
+          throw new Error('direct CAMetalLayer presentation must not upload a shared RGBA frame.');
+        },
+        presentScene: async (payload) => {
+          calls.push(['presentScene', payload]);
+          return { success: true, attached: true };
+        },
+      },
+      releaseNativeSharedFrame: async () => {
+        throw new Error('direct CAMetalLayer presentation has no shared output to release.');
+      },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      ['presentScene', {
+        windowId: undefined,
+        snapshot: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.snapshot : null,
+        media: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.media : null,
+        canvas: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.canvas : null,
+        selectionDecoration: { canvasWidth: 4, canvasHeight: 4, quads: [] },
+      }],
+    ]);
+  });
+
   it('renders a media-only scene natively and presents the shared-memory frame directly to the native overlay with embedded selection decoration', async () => {
     const calls: unknown[] = [];
 
