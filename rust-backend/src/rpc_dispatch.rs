@@ -83,3 +83,155 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    fn request(id: u64, method: &str, params: Value) -> RpcRequest {
+        RpcRequest {
+            id,
+            method: method.to_string(),
+            params,
+        }
+    }
+
+    fn replace_params(scene_id: &str, revision: u64, colour: &str) -> Value {
+        json!({
+            "sceneId": scene_id,
+            "revision": revision,
+            "project": {
+                "id": "project-1",
+                "version": 1,
+                "size": { "width": 1920, "height": 1080 },
+                "fps": { "numerator": 60, "denominator": 1 },
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "media": [{
+                    "id": "media-1",
+                    "kind": "SolidColour",
+                    "source": colour
+                }],
+                "tracks": [{
+                    "id": "track-1",
+                    "clips": [{
+                        "id": "clip-1",
+                        "media_id": "media-1",
+                        "kind": "SolidColourPlane",
+                        "start_frame": 0,
+                        "duration_frames": 60,
+                        "transform": {
+                            "translation_x": 12.0,
+                            "translation_y": 34.0,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "rotation_degrees": 0.0,
+                            "sampling": "nearest"
+                        },
+                        "opacity": 1.0,
+                        "effects": []
+                    }]
+                }]
+            },
+            "media": [{
+                "id": "media-1",
+                "kind": "SolidColour",
+                "source": colour,
+                "width": 320,
+                "height": 180
+            }]
+        })
+    }
+
+    #[test]
+    fn scene_replace_then_evaluate_returns_resident_project_snapshot_and_media() {
+        let mut state = BackendState::default();
+        let replaced = handle_request(
+            request(1, "scene.replace", replace_params("scene-1", 4, "#112233")),
+            &mut state,
+        );
+        assert!(replaced.ok, "scene.replace must create the resident session");
+
+        let evaluated = handle_request(
+            request(
+                2,
+                "scene.evaluate",
+                json!({ "sceneId": "scene-1", "revision": 4, "frameIndex": 12 }),
+            ),
+            &mut state,
+        );
+        assert!(evaluated.ok, "scene.evaluate must use the resident session");
+        let result = evaluated.result.expect("scene.evaluate result");
+        assert_eq!(result["snapshot"]["frame_index"], 12);
+        assert_eq!(result["snapshot"]["clips"][0]["clip_id"], "clip-1");
+        assert_eq!(result["media"][0]["source"], "#112233");
+    }
+
+    #[test]
+    fn scene_replace_rejects_same_or_older_revision_without_overwriting_resident_scene() {
+        let mut state = BackendState::default();
+        assert!(handle_request(
+            request(1, "scene.replace", replace_params("scene-1", 4, "#112233")),
+            &mut state,
+        )
+        .ok);
+
+        for revision in [4, 3] {
+            let stale = handle_request(
+                request(2, "scene.replace", replace_params("scene-1", revision, "#ff0000")),
+                &mut state,
+            );
+            assert!(!stale.ok);
+            assert_eq!(stale.error.expect("stale replace error").code, -32061);
+        }
+
+        let evaluated = handle_request(
+            request(
+                3,
+                "scene.evaluate",
+                json!({ "sceneId": "scene-1", "revision": 4, "frameIndex": 0 }),
+            ),
+            &mut state,
+        );
+        assert!(evaluated.ok);
+        assert_eq!(
+            evaluated.result.expect("scene result")["media"][0]["source"],
+            "#112233"
+        );
+    }
+
+    #[test]
+    fn scene_evaluate_rejects_revision_mismatch_and_missing_scene() {
+        let mut state = BackendState::default();
+        let missing = handle_request(
+            request(
+                1,
+                "scene.evaluate",
+                json!({ "sceneId": "missing", "revision": 1, "frameIndex": 0 }),
+            ),
+            &mut state,
+        );
+        assert!(!missing.ok);
+        assert_eq!(missing.error.expect("missing scene error").code, -32060);
+
+        assert!(handle_request(
+            request(2, "scene.replace", replace_params("scene-1", 4, "#112233")),
+            &mut state,
+        )
+        .ok);
+        let mismatch = handle_request(
+            request(
+                3,
+                "scene.evaluate",
+                json!({ "sceneId": "scene-1", "revision": 5, "frameIndex": 0 }),
+            ),
+            &mut state,
+        );
+        assert!(!mismatch.ok);
+        assert_eq!(mismatch.error.expect("revision mismatch error").code, -32062);
+    }
+}
