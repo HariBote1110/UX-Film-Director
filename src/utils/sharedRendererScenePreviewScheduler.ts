@@ -28,6 +28,7 @@ export interface SharedRendererScenePreviewSchedulerDiagnostics {
 export interface SharedRendererScenePreviewScheduler {
   submitRevision: (payload: RustBackendSceneReplacePayload) => void;
   requestFrame: (frameIndex: number) => void;
+  invalidate: () => void;
   dispose: () => void;
   readonly diagnostics: Readonly<SharedRendererScenePreviewSchedulerDiagnostics>;
 }
@@ -152,6 +153,14 @@ export const createSharedRendererScenePreviewScheduler = ({
       lastRequestedFrame = frameIndex;
       queueLatestFrame(frameIndex);
       pump();
+    },
+    invalidate: () => {
+      if (disposed) return;
+      desiredRevision = null;
+      remoteReadyRevision = null;
+      pendingLatestFrame = null;
+      lastRequestedFrame = null;
+      failedRevisionKey = null;
     },
     dispose: () => {
       disposed = true;
