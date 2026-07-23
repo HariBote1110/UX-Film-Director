@@ -145,6 +145,12 @@ contextBridge.exposeInMainWorld('rustBackend', {
   echo(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-echo', payload)
   },
+  replaceScene(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-scene-replace', payload)
+  },
+  evaluateScene(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-scene-evaluate', payload)
+  },
   startVideoDecode(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-decode-start', payload)
   },

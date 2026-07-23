@@ -30,6 +30,8 @@ interface Window {
   rustBackend: {
     health: () => Promise<{ success: boolean; result?: unknown; error?: string }>;
     echo: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    replaceScene: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
+    evaluateScene: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
     startVideoDecode: (payload: {
       jobId: string;
       source: string;

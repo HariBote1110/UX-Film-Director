@@ -79,6 +79,16 @@ type RustRpcResponse = {
   };
 };
 
+class RustBackendRpcError extends Error {
+  readonly code: number | undefined;
+
+  constructor(message: string, code: number | undefined) {
+    super(message);
+    this.name = 'RustBackendRpcError';
+    this.code = code;
+  }
+}
+
 type RustBackendEvent = {
   event?: string;
   payload?: unknown;
@@ -350,7 +360,10 @@ const handleRustStdout = (chunk: string) => {
     if (response.ok) {
       pending.resolve(response.result ?? null);
     } else {
-      pending.reject(new Error(response.error?.message ?? 'Rust backend returned an error'));
+      pending.reject(new RustBackendRpcError(
+        response.error?.message ?? 'Rust backend returned an error',
+        response.error?.code,
+      ));
     }
   }
 };
@@ -1225,6 +1238,30 @@ app.whenReady().then(() => {
         success: false,
         error: error instanceof Error ? error.message : String(error)
       };
+    }
+  });
+
+  const sceneRpcFailure = (error: unknown) => ({
+    success: false,
+    error: error instanceof Error ? error.message : String(error),
+    errorCode: error instanceof RustBackendRpcError ? error.code : undefined,
+  });
+
+  ipcMain.handle('rust-backend-scene-replace', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('scene.replace', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return sceneRpcFailure(error);
+    }
+  });
+
+  ipcMain.handle('rust-backend-scene-evaluate', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('scene.evaluate', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return sceneRpcFailure(error);
     }
   });
 
