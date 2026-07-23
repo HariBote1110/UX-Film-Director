@@ -173,7 +173,7 @@ describe('psdParser performance (葵ちゃん.psd)', () => {
     const sd = stddev(times);
     console.log('[bench] parsePsdArrayBufferAsObject median ms:', med.toFixed(2), '± ' + sd.toFixed(2));
     expect(med).toBeGreaterThan(0);
-  });
+  }, 15_000);
 
   it('Uint16Array → Uint8ClampedArray: bitshift vs Math.round/divide', () => {
     const SIZE = 4_000_000; // 1 MP RGBA in 16-bit

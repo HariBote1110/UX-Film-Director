@@ -108,11 +108,21 @@ async function parseMainThread(data: ArrayBuffer): Promise<ParsedWasmPsd> {
       return canvas;
     },
     (w: number, h: number, d?: Uint8ClampedArray) =>
-      d ? new ImageData(new Uint8ClampedArray(d.buffer as ArrayBuffer), w, h) : new ImageData(w, h),
+      new ImageData(
+        d
+          ? new Uint8ClampedArray(d.buffer as ArrayBuffer)
+          : new Uint8ClampedArray(w * h * 4),
+        w,
+        h,
+      ),
   );
 
   const t0 = performance.now();
-  const psd = readPsd(data);
+  const psd = readPsd(data, {
+    useImageData: true,
+    skipThumbnail: true,
+    skipCompositeImageData: true,
+  });
 
   type LayerMeta = WasmLayerMeta;
   type WalkResult = { meta: LayerMeta; rgba: Uint8Array | null };
@@ -126,13 +136,16 @@ async function parseMainThread(data: ArrayBuffer): Promise<ParsedWasmPsd> {
     for (const layer of layers) {
       const isGroup = Array.isArray(layer.children);
       const ownGroupId = isGroup ? counter.n++ : null;
-      const canvas = layer.canvas as HTMLCanvasElement | undefined;
-      const w = canvas?.width  ?? Math.max(0, (layer.right  ?? 0) - (layer.left ?? 0));
-      const h = canvas?.height ?? Math.max(0, (layer.bottom ?? 0) - (layer.top  ?? 0));
+      const imageData = layer.imageData;
+      const w = imageData?.width ?? Math.max(0, (layer.right  ?? 0) - (layer.left ?? 0));
+      const h = imageData?.height ?? Math.max(0, (layer.bottom ?? 0) - (layer.top  ?? 0));
       let rgba: Uint8Array | null = null;
-      if (!isGroup && canvas && w > 0 && h > 0) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) rgba = new Uint8Array(ctx.getImageData(0, 0, w, h).data.buffer);
+      if (!isGroup && imageData && w > 0 && h > 0) {
+        rgba = new Uint8Array(
+          imageData.data.buffer,
+          imageData.data.byteOffset,
+          imageData.data.byteLength,
+        );
       }
       results.push({
         meta: {
@@ -160,6 +173,9 @@ async function parseMainThread(data: ArrayBuffer): Promise<ParsedWasmPsd> {
 // ── 公開 API ──────────────────────────────────────────────────────────────────
 
 export async function parsePsdWithWasm(data: ArrayBuffer): Promise<ParsedWasmPsd> {
+  if (typeof Worker === 'undefined') {
+    return parseMainThread(data);
+  }
   try {
     return await parseWithWorker(data);
   } catch (e) {
