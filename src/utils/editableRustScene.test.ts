@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type {
   ImageObject,
+  GetColorDotFieldObject,
+  HksyCheckerGridObject,
   LayerState,
   PsdObject,
   ProjectSettings,
   ShapeObject,
+  SimpleTubeObject,
   TextObject,
   TimelineObject,
   VideoObject,
@@ -107,6 +110,65 @@ const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
   ...patch,
   scale: patch.scale ?? 1,
   activeLayerIds: patch.activeLayerIds ?? { title: true, hidden: false },
+});
+
+const getColor = (patch: Partial<GetColorDotFieldObject> = {}): GetColorDotFieldObject => ({
+  ...base,
+  id: 'getcolor',
+  type: 'getcolor_dot_field',
+  layer: 5,
+  width: 320,
+  height: 180,
+  columns: 32,
+  rows: 18,
+  dotSize: 14,
+  sizeInfluence: 0.65,
+  luminanceInfluence: 0.7,
+  hueShiftDegrees: 0,
+  alternateRows: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#36c2ff',
+  backgroundColour: '#000000',
+  seed: 93,
+  ...patch,
+});
+
+const hksy = (patch: Partial<HksyCheckerGridObject> = {}): HksyCheckerGridObject => ({
+  ...base,
+  id: 'hksy',
+  type: 'hksy_checker_grid',
+  layer: 5,
+  width: 320,
+  height: 180,
+  cellSize: 50,
+  lineWidth: 2,
+  checkerEnabled: true,
+  gridEnabled: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#333333',
+  backgroundColour: '#000000',
+  ...patch,
+});
+
+const simpleTube = (patch: Partial<SimpleTubeObject> = {}): SimpleTubeObject => ({
+  ...base,
+  id: 'tube',
+  type: 'simple_tube',
+  layer: 6,
+  width: 320,
+  height: 180,
+  radius: 150,
+  depth: 280,
+  segments: 16,
+  rings: 10,
+  twistDegrees: 0,
+  randomAmount: 0,
+  strokeWidth: 3,
+  colour: '#0e769f',
+  secondaryColour: '#ffffff',
+  seed: 93,
+  torus: false,
+  ...patch,
 });
 
 describe('buildEditableRustScene', () => {
@@ -214,5 +276,57 @@ describe('buildEditableRustScene', () => {
       ['group-control', 'unsupportedObjectType'],
       ['particle', 'unsupportedObjectType'],
     ]);
+  });
+
+  it('GetColor・HKSY・SimpleTube を同じ生成media serializerとclip kindで常駐Rust sceneへ変換する', () => {
+    const sampled = getColor({ sampleSourceObjectId: 'sample-psd', sampleStrength: 0.8 });
+    const sourcePsd = psd({ id: 'sample-psd', layer: 1, activeLayerIds: { title: true, hidden: false } });
+
+    const result = buildEditableRustScene({
+      sceneId: 'scene-generated',
+      projectSettings,
+      layers,
+      objects: [sourcePsd, sampled, hksy({ layer: 3 }), simpleTube()],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated scene conversion to succeed');
+    expect(result.project.tracks.flatMap((track) => track.clips)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'getcolor', kind: 'GeneratedGetColorDotsPlane' }),
+      expect.objectContaining({ id: 'hksy', kind: 'GeneratedHksyCheckerGridPlane' }),
+      expect.objectContaining({ id: 'tube', kind: 'GeneratedSimpleTubePlane' }),
+    ]));
+    expect(result.media).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'getcolor', kind: 'GeneratedGetColorDots', width: 320, height: 180 }),
+      expect.objectContaining({ id: 'hksy', kind: 'GeneratedHksyCheckerGrid' }),
+      expect.objectContaining({ id: 'tube', kind: 'GeneratedSimpleTube' }),
+    ]));
+    const getColorMedia = result.media.find((media) => media.id === 'getcolor');
+    expect(JSON.parse(getColorMedia?.source ?? '{}')).toMatchObject({
+      generator: 'getcolor-v2r-dot-field',
+      source_image: '/tmp/design.psd',
+      source_active_layer_ids: ['title'],
+      sample_strength: 0.8,
+    });
+  });
+
+  it('GetColorの参照画像・PSDをnativeが読めないときは具体的なissueで拒否する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-invalid-getcolor-source',
+      projectSettings,
+      layers,
+      objects: [
+        getColor({ id: 'missing-target', sampleSourceObjectId: 'not-found' }),
+        getColor({ id: 'blob-source', sampleSourcePath: 'blob:temporary-image' }),
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      issues: [
+        expect.objectContaining({ objectId: 'missing-target', code: 'unsupportedGetColorSampleSource' }),
+        expect.objectContaining({ objectId: 'blob-source', code: 'unsupportedGetColorSampleSource' }),
+      ],
+    });
   });
 });
