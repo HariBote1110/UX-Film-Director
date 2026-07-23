@@ -179,6 +179,56 @@ mod tests {
     }
 
     #[test]
+    fn scene_evaluate_returns_only_media_referenced_by_active_clips() {
+        let mut params = replace_params("scene-1", 4, "#112233");
+        params["project"]["media"]
+            .as_array_mut()
+            .expect("project media array")
+            .push(json!({
+                "id": "media-later",
+                "kind": "SolidColour",
+                "source": "#ff0000"
+            }));
+        params["project"]["tracks"][0]["clips"]
+            .as_array_mut()
+            .expect("track clips array")
+            .push(json!({
+                "id": "clip-later",
+                "media_id": "media-later",
+                "kind": "SolidColourPlane",
+                "start_frame": 30,
+                "duration_frames": 30,
+                "opacity": 1.0,
+                "effects": []
+            }));
+        params["media"]
+            .as_array_mut()
+            .expect("scene media array")
+            .push(json!({
+                "id": "media-later",
+                "kind": "SolidColour",
+                "source": "#ff0000",
+                "width": 320,
+                "height": 180
+            }));
+        let mut state = BackendState::default();
+        assert!(handle_request(request(1, "scene.replace", params), &mut state).ok);
+
+        let evaluated = handle_request(
+            request(
+                2,
+                "scene.evaluate",
+                json!({ "sceneId": "scene-1", "revision": 4, "frameIndex": 12 }),
+            ),
+            &mut state,
+        );
+        let result = evaluated.result.expect("scene.evaluate result");
+
+        assert_eq!(result["media"].as_array().expect("evaluated media").len(), 1);
+        assert_eq!(result["media"][0]["id"], "media-1");
+    }
+
+    #[test]
     fn scene_replace_rejects_same_or_older_revision_without_overwriting_resident_scene() {
         let mut state = BackendState::default();
         assert!(
