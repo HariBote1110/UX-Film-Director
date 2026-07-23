@@ -769,11 +769,14 @@ export const startSharedRendererPreviewPresenter = async ({
     : undefined;
   // A decoded-frame upload failure only reflects a genuine, persistent
   // problem when the active output actually depends on that upload. When the
-  // external-video-source path already owns and presents the clip, the
-  // decode-upload attempt (and its failure) is superseded — surfacing it as
-  // part of the 'ready' diagnostics would flash a non-blocking banner over a
-  // preview that is, in fact, presenting correctly.
-  const videoUploadFailureIsPersistent = hasVideoScene && videoPresentationSource !== 'external-video-source';
+  // external-video-source or native-render-frame path already owns and
+  // presents the clip, the decode-upload attempt (and its failure) is
+  // superseded — surfacing it as part of the 'ready' diagnostics would flash
+  // a non-blocking banner over a preview that is, in fact, presenting
+  // correctly.
+  const videoUploadFailureIsPersistent = hasVideoScene
+    && videoPresentationSource !== 'external-video-source'
+    && videoPresentationSource !== 'native-render-frame';
   const presentExternalVideoFrameScene = shouldPresentExternalVideoFrame
     ? ({
       session: repaintSession,
