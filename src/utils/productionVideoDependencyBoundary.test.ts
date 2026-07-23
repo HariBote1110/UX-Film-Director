@@ -38,9 +38,29 @@ const forbiddenTokens = [
 
 const allowedProductionVideoDependencyTokens = new Map<string, Set<string>>([
   [
+    'src/components/Viewport.tsx',
+    new Set([
+      'HTMLVideoElement',
+      'requestVideoFrameCallback',
+    ]),
+  ],
+  [
+    'src/utils/sharedRendererExternalVideoMasterClock.ts',
+    new Set([
+      'HTMLVideoElement',
+    ]),
+  ],
+  [
     'src/utils/sharedRendererExternalVideoSource.ts',
     new Set([
       "document.createElement('video')",
+      'requestVideoFrameCallback',
+    ]),
+  ],
+  [
+    'src/utils/sharedRendererWebGpuPresenter.ts',
+    new Set([
+      'HTMLVideoElement',
     ]),
   ],
 ]);
@@ -65,7 +85,7 @@ const collectProductionSources = (dir: string): string[] => {
 };
 
 describe('production video dependency boundary', () => {
-  it('keeps browser/Pixi video fallbacks out of production implementation files', () => {
+  it('limits browser/Pixi video fallbacks to explicit shared-renderer compatibility modules', () => {
     const offenders = collectProductionSources(srcRoot).flatMap((path) => {
       const code = readFileSync(path, 'utf8');
       const relativePath = relative(projectRoot, path);
@@ -78,12 +98,32 @@ describe('production video dependency boundary', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('limits low-copy browser video source creation to the shared renderer external source provider', () => {
+  it('pins the approved shared-renderer browser video compatibility surface', () => {
     expect([...allowedProductionVideoDependencyTokens.entries()]).toEqual([
+      [
+        'src/components/Viewport.tsx',
+        new Set([
+          'HTMLVideoElement',
+          'requestVideoFrameCallback',
+        ]),
+      ],
+      [
+        'src/utils/sharedRendererExternalVideoMasterClock.ts',
+        new Set([
+          'HTMLVideoElement',
+        ]),
+      ],
       [
         'src/utils/sharedRendererExternalVideoSource.ts',
         new Set([
           "document.createElement('video')",
+          'requestVideoFrameCallback',
+        ]),
+      ],
+      [
+        'src/utils/sharedRendererWebGpuPresenter.ts',
+        new Set([
+          'HTMLVideoElement',
         ]),
       ],
     ]);

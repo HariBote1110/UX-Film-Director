@@ -175,9 +175,10 @@ describe('Viewport Rust video-only boundary', () => {
     // superseded（追い越し）時は jobs ref を触らないため、成功時のみの更新へ
     // 分岐が分かれた（viewportDeletedClipResidualFrame.test.ts の契約を参照）。
     expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = [result.activeJob]');
-    expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
+    expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, {');
+    expect(nativeReuseBlock).toContain('nativeRenderDiagnostics: result.diagnostics');
     expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {')).toBeLessThan(
-      nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, { session })')
+      nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, {')
     );
   });
 
@@ -574,7 +575,8 @@ describe('Viewport Rust video-only boundary', () => {
     // 無効時はどちらもスキップされ DOM canvas 経路まで落ちる。
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
-    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
+    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, {');
+    expect(block).toContain('nativeRenderDiagnostics: result.diagnostics');
   });
 
   it('defines a mixed-session predicate as the residual of video-only/native-render-only (Phase 3b)', () => {
@@ -640,7 +642,8 @@ describe('Viewport Rust video-only boundary', () => {
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
     expect(block).toContain('if (!presentPreparedNativeRenderFrame) return;');
-    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
+    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, {');
+    expect(block).toContain('nativeRenderDiagnostics: result.diagnostics');
   });
 
   it('routes the native-render-only reuse tick through the native overlay with co-delivery when the overlay is enabled (Phase 3b Step 2)', () => {

@@ -11,7 +11,15 @@ const viteEnvSource = () =>
   readFileSync(new URL('../vite-env.d.ts', import.meta.url), 'utf8');
 
 const rustBackendSource = () =>
-  readFileSync(new URL('../../rust-backend/src/main.rs', import.meta.url), 'utf8');
+  [
+    'main.rs',
+    'state.rs',
+    'native_render.rs',
+    'rpc_dispatch.rs',
+    'encode.rs',
+  ].map((fileName) =>
+    readFileSync(new URL(`../../rust-backend/src/${fileName}`, import.meta.url), 'utf8')
+  ).join('\n');
 
 const rustEncodeBackendBridgeSource = () =>
   readFileSync(new URL('../../electron/rustVideoEncodeBackendBridge.ts', import.meta.url), 'utf8');
@@ -47,7 +55,7 @@ describe('Rust backend native render bridge boundary', () => {
     expect(code).toContain('NativeWgpuRenderer');
     expect(code).toContain('native_wgpu_renderer: Option<NativeWgpuRenderer>');
     expect(code).toContain('get_or_create_native_wgpu_renderer');
-    expect(code).toContain('.render_frame_to_shared_ring(');
+    expect(code).toContain('.render_frame_to_shared_ring_with_audio_waveforms(');
   });
 
   it('exposes direct native render encode without returning an output shared frame', () => {
@@ -63,8 +71,8 @@ describe('Rust backend native render bridge boundary', () => {
     expect(preload).toContain('rustVideoEncodeIpcChannels.writeNativeFrame');
     expect(viteEnv).toContain('writeNativeEncodeFrame: (payload:');
     expect(backend).toContain('"encode.writeNativeFrame"');
-    expect(backend).toContain('render_frame_stages(');
-    expect(backend).toContain('write_tight_rgba_frame_to_encoder');
+    expect(backend).toContain('render_frame_stages_with_audio_waveforms(');
+    expect(backend).toContain('write_rgba_frame_to_encoder');
     expect(backend).not.toContain('render_frame_to_shared_ring_for_encode');
   });
 });
