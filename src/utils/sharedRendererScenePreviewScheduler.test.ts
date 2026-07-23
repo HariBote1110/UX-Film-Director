@@ -157,4 +157,26 @@ describe('sharedRendererScenePreviewScheduler', () => {
     expect(presented).toEqual([]);
     expect(scheduler.diagnostics.stale).toBe(1);
   });
+
+  it('scene RPC失敗を呼び出し側へ通知し、同じrevisionの評価を停止する', async () => {
+    const failures: string[] = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      evaluateScene: async () => ({ ok: false, reason: 'backendFailure', detail: 'renderer unavailable' }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc,
+      onEvaluation: () => {},
+      onFailure: (failure) => failures.push(`${failure.operation}:${failure.detail}`),
+    });
+
+    scheduler.submitRevision(revision(1));
+    scheduler.requestFrame(2);
+    await flush();
+    scheduler.requestFrame(3);
+    await flush();
+
+    expect(failures).toEqual(['evaluate:renderer unavailable']);
+    expect(scheduler.diagnostics).toMatchObject({ requested: 1, failed: 1 });
+  });
 });
