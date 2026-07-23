@@ -339,11 +339,10 @@ fn render_native_shared_frame_reports_nv12_zero_copy_for_inprocess_video_session
         &vec![json!("nv12-zero-copy-1")],
         "the in-process session's media_id must be resolved via the zero-copy NV12 path: {render}"
     );
-    assert_ne!(
+    assert_eq!(
         render["result"]["renderPath"],
-        json!("cpuSimpleVideoComposite"),
-        "this simple single-clip scene must not be intercepted by the unrelated CPU fast path \
-         before Stage 2's NV12 resolution runs: {render}"
+        json!("webgpuSceneComposite"),
+        "the NV12 render must expose the WebGPU scene-composite path: {render}"
     );
 
     // Sanity: the composited output is not all-zero/transparent.
@@ -372,10 +371,10 @@ fn render_native_shared_frame_correlates_distinct_decode_job_and_media_ids() {
         json!([media_id]),
         "the production decode job id must still correlate to the scene media id: {render}"
     );
-    assert_ne!(
+    assert_eq!(
         render["result"]["renderPath"],
-        json!("cpuSimpleVideoComposite"),
-        "a production-style decode job id must not disable NV12 zero-copy: {render}"
+        json!("webgpuSceneComposite"),
+        "a production-style decode job id must expose the WebGPU scene-composite path: {render}"
     );
 }
 
