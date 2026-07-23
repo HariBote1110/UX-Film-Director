@@ -1,6 +1,7 @@
 import type {
   RustBackendSceneEvaluatePayload,
   RustBackendSceneEvaluation,
+  RustBackendSceneFailureReason,
   RustBackendSceneReplacePayload,
   RustBackendSceneReplaceResult,
   RustBackendSceneRpcResult,
@@ -33,12 +34,21 @@ export interface SharedRendererScenePreviewScheduler {
   readonly diagnostics: Readonly<SharedRendererScenePreviewSchedulerDiagnostics>;
 }
 
+export interface SharedRendererScenePreviewSchedulerFailure {
+  operation: 'replace' | 'evaluate';
+  reason: RustBackendSceneFailureReason;
+  detail: string;
+  errorCode?: number;
+}
+
 export const createSharedRendererScenePreviewScheduler = ({
   rpc,
   onEvaluation,
+  onFailure,
 }: {
   rpc: SharedRendererScenePreviewSchedulerRpc;
   onEvaluation: (evaluation: SharedRendererSceneEvaluation) => void;
+  onFailure?: (failure: SharedRendererScenePreviewSchedulerFailure) => void;
 }): SharedRendererScenePreviewScheduler => {
   const diagnostics: SharedRendererScenePreviewSchedulerDiagnostics = {
     requested: 0,
@@ -55,6 +65,15 @@ export const createSharedRendererScenePreviewScheduler = ({
   let pendingLatestFrame: number | null = null;
   let lastRequestedFrame: number | null = null;
   let failedRevisionKey: string | null = null;
+
+  const blockAfterFailure = (failure: SharedRendererScenePreviewSchedulerFailure) => {
+    desiredRevision = null;
+    remoteReadyRevision = null;
+    pendingLatestFrame = null;
+    lastRequestedFrame = null;
+    failedRevisionKey = null;
+    onFailure?.(failure);
+  };
 
   const currentRevisionKey = () => desiredRevision
     ? `${desiredRevision.sceneId}:${desiredRevision.revision}`
@@ -82,7 +101,7 @@ export const createSharedRendererScenePreviewScheduler = ({
         if (disposed) return;
         if (!result.ok) {
           diagnostics.failed += 1;
-          failedRevisionKey = `${desired.sceneId}:${desired.revision}`;
+          blockAfterFailure({ operation: 'replace', ...result });
           return;
         }
         remoteReadyRevision = result.value;
@@ -91,7 +110,11 @@ export const createSharedRendererScenePreviewScheduler = ({
         replaceInFlight = false;
         if (disposed) return;
         diagnostics.failed += 1;
-        failedRevisionKey = `${desired.sceneId}:${desired.revision}`;
+        blockAfterFailure({
+          operation: 'replace',
+          reason: 'backendFailure',
+          detail: 'Rust scene.replace rejected unexpectedly.',
+        });
       });
       return;
     }
@@ -111,7 +134,7 @@ export const createSharedRendererScenePreviewScheduler = ({
       if (disposed) return;
       if (!result.ok) {
         diagnostics.failed += 1;
-        pump();
+        blockAfterFailure({ operation: 'evaluate', ...result });
         return;
       }
       diagnostics.resolved += 1;
@@ -131,7 +154,11 @@ export const createSharedRendererScenePreviewScheduler = ({
       evaluateInFlight = false;
       if (disposed) return;
       diagnostics.failed += 1;
-      pump();
+      blockAfterFailure({
+        operation: 'evaluate',
+        reason: 'backendFailure',
+        detail: 'Rust scene.evaluate rejected unexpectedly.',
+      });
     });
   };
 
