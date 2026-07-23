@@ -4,6 +4,7 @@ import {
   inspectRealisticHeavyEditScenario,
 } from './realisticHeavyEditScenario';
 import { buildSharedRendererPreviewPlan } from '../utils/sharedRendererPreviewBridge';
+import { isSharedRendererNativeMediaReferenceSupported } from '../utils/sharedRendererNativeMediaSupport';
 
 const paths = {
   videoPath: '/fixtures/4k-source.mov',
@@ -82,8 +83,15 @@ describe('現実的な重量編集シナリオ', () => {
       projectSettings: scenario.settings,
       layers: activeScene!.layers,
       objects: activeScene!.objects,
-      time: 0,
+      time: 2,
     });
     expect(plan).toMatchObject({ mode: 'sharedRenderer' });
+    if (plan.mode !== 'sharedRenderer') throw new Error('shared renderer plan is required');
+    expect(
+      plan.media
+        .filter((reference) => reference.kind !== 'Video')
+        .filter((reference) => !isSharedRendererNativeMediaReferenceSupported(reference))
+        .map((reference) => ({ id: reference.id, kind: reference.kind })),
+    ).toEqual([]);
   });
 });
