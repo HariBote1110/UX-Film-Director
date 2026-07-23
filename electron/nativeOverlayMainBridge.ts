@@ -89,6 +89,13 @@ export interface NativeOverlaySharedFramePayload {
   selectionDecoration?: NativeOverlaySelectionDecorationQuadsPayload
 }
 
+export interface NativeOverlayScenePayload {
+  windowId: number
+  snapshot: unknown
+  media: readonly unknown[]
+  selectionDecoration?: NativeOverlaySelectionDecorationQuadsPayload
+}
+
 export interface NativeOverlaySelectionDecorationQuadsPayload {
   canvasWidth: number
   canvasHeight: number
@@ -122,6 +129,7 @@ export interface NativeOverlayResponse {
 export interface NativeOverlayAddon {
   attachNativeOverlay?: (payload: NativeOverlayAddonAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   detachNativeOverlay?: (payload: NativeOverlayAddonDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  presentNativeOverlayScene?: (payload: NativeOverlayScenePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   presentNativeOverlaySharedFrame?: (payload: NativeOverlayAddonSharedFramePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   clearNativeOverlayLiveSurface?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   setNativeOverlayObstructed?: (payload: NativeOverlaySetObstructedPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
@@ -144,6 +152,7 @@ export interface CreateNativeOverlayMainBridgeInput {
 export interface NativeOverlayMainBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
+  presentScene: (payload: NativeOverlayScenePayload) => Promise<NativeOverlayResponse>
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
@@ -221,6 +230,7 @@ export const createNativeOverlayMainBridge = ({
       const addon = requireModule(modulePath)
       loadedAddon = typeof addon.attachNativeOverlay === 'function'
         || typeof addon.detachNativeOverlay === 'function'
+        || typeof addon.presentNativeOverlayScene === 'function'
         || typeof addon.presentNativeOverlaySharedFrame === 'function'
         || typeof addon.clearNativeOverlayLiveSurface === 'function'
         || typeof addon.setNativeOverlayObstructed === 'function'
@@ -318,6 +328,32 @@ export const createNativeOverlayMainBridge = ({
             liveReadbackNonTransparentPixels: response.liveReadbackNonTransparentPixels,
             liveReadbackChecksum: response.liveReadbackChecksum,
             liveReadbackExportMaxChannelDelta: response.liveReadbackExportMaxChannelDelta,
+          })
+        }
+        return response
+      } catch (error) {
+        return fallbackResponse(getErrorMessage(error))
+      }
+    },
+    async presentScene(payload) {
+      if (!nativeOverlayEnabled(env)) {
+        return fallbackResponse('Native overlay preview is disabled.')
+      }
+
+      const addon = loadAddon()
+      if (!addon || typeof addon.presentNativeOverlayScene !== 'function') {
+        return fallbackResponse('Native overlay direct scene presentation is unavailable.')
+      }
+
+      try {
+        const presentStartedAt = now()
+        const response = await addon.presentNativeOverlayScene(payload)
+        if (nativeOverlayTraceEnabled(env)) {
+          logDiagnostic?.('presentSceneTrace', {
+            presentMs: now() - presentStartedAt,
+            success: response.success,
+            attached: response.attached,
+            livePreparedClipCount: response.livePreparedClipCount,
           })
         }
         return response

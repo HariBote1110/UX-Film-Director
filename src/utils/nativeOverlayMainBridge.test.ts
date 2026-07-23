@@ -253,6 +253,33 @@ describe('createNativeOverlayMainBridge', () => {
     });
   });
 
+  it('presents a scene directly without resolving a shared-frame window handle', async () => {
+    const nativeAddon = {
+      presentNativeOverlayScene: vi.fn(() => ({
+        success: true,
+        attached: true,
+      })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+    const payload = {
+      windowId: 7,
+      snapshot: { frameIndex: 24, canvasWidth: 4, canvasHeight: 4 },
+      media: [{ id: 'shape-1', kind: 'SolidColour', source: '#ff0000', width: 4, height: 4 }],
+    };
+
+    await expect(bridge.presentScene(payload)).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+    expect(nativeAddon.presentNativeOverlayScene).toHaveBeenCalledWith(payload);
+  });
+
   it('passes an embedded selectionDecoration through to the native addon present call (Bug B対策: body co-delivery)', async () => {
     const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
     const nativeAddon = {

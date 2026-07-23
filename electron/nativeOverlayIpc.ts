@@ -2,6 +2,7 @@ import type {
   NativeOverlayAttachPayload,
   NativeOverlayDetachPayload,
   NativeOverlayResponse,
+  NativeOverlayScenePayload,
   NativeOverlaySelectionDecorationPayload,
   NativeOverlaySetObstructedPayload,
   NativeOverlaySharedFramePayload,
@@ -11,6 +12,7 @@ export const nativeOverlayIpcChannels = {
   attach: 'native-overlay-attach',
   detach: 'native-overlay-detach',
   presentSharedFrame: 'native-overlay-present-shared-frame',
+  presentScene: 'native-overlay-present-scene',
   capabilities: 'native-overlay-capabilities',
   // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状を
   // 潰すための独立 channel。scene 空遷移 / unmount / project 切替の
@@ -42,6 +44,7 @@ export interface NativeOverlayIpcBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
+  presentScene: (payload: NativeOverlayScenePayload) => Promise<NativeOverlayResponse>
   clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
   setSelectionDecoration: (payload: NativeOverlaySelectionDecorationPayload) => Promise<NativeOverlayResponse>
@@ -72,6 +75,14 @@ export const registerNativeOverlayIpcHandlers = (
         event,
         options.resolveWindowIdFromEvent,
       ) as unknown as NativeOverlaySharedFramePayload,
+    ))
+  ipcMain.handle(nativeOverlayIpcChannels.presentScene, async (event, payload) =>
+    bridge.presentScene(
+      withWindowId(
+        payload,
+        event,
+        options.resolveWindowIdFromEvent,
+      ) as unknown as NativeOverlayScenePayload,
     ))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>
     bridge.getCapabilities())

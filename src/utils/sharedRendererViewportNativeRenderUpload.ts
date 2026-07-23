@@ -28,7 +28,11 @@ import {
   type SharedRendererViewportNativeRenderSource,
 } from './sharedRendererViewportNativeRenderSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
-import type { NativeOverlayDecodedFrameBridge } from './sharedRendererRustVideoUploadPipeline';
+import {
+  toNativeOverlaySceneMediaPayload,
+  toNativeOverlaySceneSnapshotPayload,
+  type NativeOverlayDecodedFrameBridge,
+} from './sharedRendererRustVideoUploadPipeline';
 import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
 
 type PreparedNativeRenderUpload = Extract<
@@ -448,6 +452,31 @@ export const prepareSharedRendererViewportNativeRenderOverlayPresent = async ({
       ok: false,
       reason: 'nativeRenderUnsupportedMediaOnly',
       detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
+    };
+  }
+
+  const canPresentSceneDirectly = nativeOverlayBridge.presentScene != null
+    && surfaceGate.media.every((reference) => (
+      reference.kind !== 'Video'
+      && reference.kind !== 'Psd'
+      && reference.kind !== 'GeneratedAudioWaveform'
+      && reference.kind !== 'GeneratedAudioSphere'
+      && (reference.kind !== 'Image' || /\.png(?:[?#].*)?$/i.test(reference.source))
+    ));
+  if (canPresentSceneDirectly) {
+    const presentResponse = await nativeOverlayBridge.presentScene?.({
+      windowId,
+      snapshot: toNativeOverlaySceneSnapshotPayload(surfaceGate.snapshot, surfaceGate.canvas),
+      media: surfaceGate.media.map(toNativeOverlaySceneMediaPayload),
+      ...(selectionDecoration ? { selectionDecoration } : {}),
+    });
+    if (presentResponse?.success) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      reason: 'nativeOverlayPresentFailed',
+      detail: presentResponse?.reason ?? 'Native overlay did not present the scene directly.',
     };
   }
 

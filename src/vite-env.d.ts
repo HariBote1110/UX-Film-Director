@@ -339,6 +339,30 @@ interface Window {
       fallback?: 'webgpuPresenter';
       reason?: string;
     }>;
+    presentScene: (payload: {
+      windowId?: number;
+      snapshot: unknown;
+      media: readonly unknown[];
+      selectionDecoration?: {
+        canvasWidth: number;
+        canvasHeight: number;
+        quads: readonly {
+          topLeftX: number;
+          topLeftY: number;
+          topRightX: number;
+          topRightY: number;
+          bottomRightX: number;
+          bottomRightY: number;
+          bottomLeftX: number;
+          bottomLeftY: number;
+        }[];
+      };
+    }) => Promise<{
+      success: boolean;
+      attached: boolean;
+      fallback?: 'webgpuPresenter';
+      reason?: string;
+    }>;
     presentSharedFrame: (payload: {
       windowId?: number;
       mediaId: string;

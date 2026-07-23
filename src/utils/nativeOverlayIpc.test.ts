@@ -9,6 +9,7 @@ describe('nativeOverlayIpc', () => {
     expect(nativeOverlayIpcChannels.attach).toBe('native-overlay-attach');
     expect(nativeOverlayIpcChannels.detach).toBe('native-overlay-detach');
     expect(nativeOverlayIpcChannels.presentSharedFrame).toBe('native-overlay-present-shared-frame');
+    expect(nativeOverlayIpcChannels.presentScene).toBe('native-overlay-present-scene');
     expect(nativeOverlayIpcChannels.capabilities).toBe('native-overlay-capabilities');
     // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状を
     // 潰すため、`clear-surface` を独立 IPC channel として固定する。
@@ -31,6 +32,7 @@ describe('nativeOverlayIpc', () => {
     const bridge = {
       attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentScene: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
@@ -38,8 +40,8 @@ describe('nativeOverlayIpc', () => {
 
     registerNativeOverlayIpcHandlers(ipcMain, bridge as any);
 
-    // 選択デコレーション channel が追加され、登録される channel は 7 個になった。
-    expect(ipcMain.handle).toHaveBeenCalledTimes(7);
+    // scene-only direct present channel を含め、登録される channel は 8 個。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
@@ -208,8 +210,7 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    // 選択デコレーション channel が追加され、登録される channel は 7 個になった。
-    expect(ipcMain.handle).toHaveBeenCalledTimes(7);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
     await expect(handlers.get(nativeOverlayIpcChannels.clearSurface)?.({ sender: 'webContents' }, {})).resolves.toEqual({
       success: true,
       attached: true,
@@ -242,7 +243,7 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(7);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
     await expect(handlers.get(nativeOverlayIpcChannels.previewObstructionChanged)?.(
       { sender: 'webContents' },
       { obstructed: true, reason: 'export-modal' },

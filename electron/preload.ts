@@ -214,6 +214,9 @@ contextBridge.exposeInMainWorld('nativeOverlay', {
   presentSharedFrame(payload: unknown) {
     return ipcRenderer.invoke(nativeOverlayIpcChannels.presentSharedFrame, payload)
   },
+  presentScene(payload: unknown) {
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.presentScene, payload)
+  },
   clearSurface(payload: unknown) {
     // Bug D — scene 空遷移 / unmount / project 切替のいずれかで発火する
     // 単発 transparent clear。addon 側で drawable を全 pixel alpha=0 に

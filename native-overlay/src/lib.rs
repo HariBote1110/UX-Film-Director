@@ -119,6 +119,14 @@ pub struct NativeOverlaySharedFramePresentPayload {
 }
 
 #[napi(object)]
+pub struct NativeOverlayScenePresentPayload {
+    pub window_id: u32,
+    pub snapshot: NativeOverlaySceneSnapshotPayload,
+    pub media: Vec<NativeOverlaySceneMediaPayload>,
+    pub selection_decoration: Option<NativeOverlaySharedFrameSelectionDecorationPayload>,
+}
+
+#[napi(object)]
 pub struct NativeOverlaySceneSnapshotPayload {
     pub frame_index: f64,
     pub colour: NativeOverlayColourPipelinePayload,
@@ -455,6 +463,27 @@ impl NativeOverlayLiveSurfaceRenderer {
         }))
     }
 
+    fn present_scene(
+        &mut self,
+        scene: &NativeOverlaySceneSource,
+        decoration: Option<&SelectionDecorationState>,
+    ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
+        // `present_upload_frame` already owns the canonical scene fitting,
+        // caching, decoration and CAMetalLayer present path. Supply a single
+        // unreferenced transparent pixel so scene-only callers share that
+        // implementation without a completed-frame readback or shared-memory
+        // transfer. The renderer prepares textures only for referenced clips.
+        let unreferenced = OverlayUploadFrame {
+            media_id: "__uxfd_scene_only_unreferenced__".to_string(),
+            width: 1,
+            height: 1,
+            generation: self.scene_generation.wrapping_add(1),
+            pts_frame: scene.snapshot.frame_index,
+            pixels: vec![0, 0, 0, 0],
+        };
+        self.present_upload_frame(&unreferenced, Some(scene), decoration)
+    }
+
     /// キャッシュ済み scene（無ければ透明クリア相当の空 scene）にデコレーション
     /// を上乗せして再 present する。noVideoDecodeRequest の透明クリア状態でも
     /// デコレーションのみを present できる（426c の透明クリア機構と両立する）。
@@ -569,6 +598,18 @@ pub fn present_native_overlay_shared_frame(
     })) {
         Ok(response) => response,
         Err(_) => failure("Native overlay shared frame present panicked."),
+    }
+}
+
+#[napi(js_name = "presentNativeOverlayScene")]
+pub fn present_native_overlay_scene(
+    payload: NativeOverlayScenePresentPayload,
+) -> NativeOverlayResponse {
+    match catch_unwind(AssertUnwindSafe(|| {
+        present_native_overlay_scene_inner(payload)
+    })) {
+        Ok(response) => response,
+        Err(_) => failure("Native overlay scene present panicked."),
     }
 }
 
@@ -806,6 +847,53 @@ fn present_native_overlay_shared_frame_inner(
                     copy_out_state: release_frame.copy_out_state,
                 }
             }),
+        },
+        Err(reason) => failure(&reason),
+    }
+}
+
+fn present_native_overlay_scene_inner(
+    payload: NativeOverlayScenePresentPayload,
+) -> NativeOverlayResponse {
+    let window_id = payload.window_id;
+    let canvas_width = payload.snapshot.canvas_width;
+    let canvas_height = payload.snapshot.canvas_height;
+    let scene = match scene_snapshot_from_payload(payload.snapshot) {
+        Ok(snapshot) => NativeOverlaySceneSource {
+            snapshot,
+            media: payload.media.into_iter().map(scene_media_from_payload).collect(),
+            canvas_width,
+            canvas_height,
+        },
+        Err(reason) => return failure(&reason),
+    };
+    let decoration = payload.selection_decoration.map(|decoration| {
+        selection_decoration_state_from_quad_payloads(
+            decoration.canvas_width,
+            decoration.canvas_height,
+            decoration.quads,
+        )
+    });
+    match present_overlay_scene_to_live_surface(window_id, &scene, decoration) {
+        Ok(live_diagnostics) => NativeOverlayResponse {
+            success: true,
+            attached: true,
+            reason: None,
+            release_frame: None,
+            live_prepared_clip_count: live_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.live_prepared_clip_count as f64),
+            live_readback_non_transparent_pixels: live_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.live_readback_non_transparent_pixels as f64),
+            live_readback_checksum: live_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.live_readback_checksum as f64),
+            live_readback_export_max_channel_delta: live_diagnostics.as_ref().and_then(
+                |diagnostics| diagnostics
+                    .live_readback_export_max_channel_delta
+                    .map(|value| value as f64),
+            ),
         },
         Err(reason) => failure(&reason),
     }
@@ -1520,6 +1608,23 @@ pub fn present_overlay_shared_frame_to_live_surface(
             copy_out_state: "gpuUploadFenceSignalled".to_string(),
         }),
     })
+}
+
+pub fn present_overlay_scene_to_live_surface(
+    window_id: u32,
+    scene: &NativeOverlaySceneSource,
+    selection_decoration: Option<SelectionDecorationState>,
+) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
+    let decoration =
+        resolve_present_selection_decoration(window_id, selection_decoration);
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let renderer = renderers
+        .get_mut(&window_id)
+        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    renderer.present_scene(scene, decoration.as_ref())
 }
 
 /// Opt-in trace (`UXFD_OVERLAY_TRACE=1`): scene present ごとに canvas/drawable 寸法、

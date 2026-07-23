@@ -14,7 +14,7 @@ import {
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
 
-type NativeOverlaySceneSnapshotPayload = {
+export type NativeOverlaySceneSnapshotPayload = {
   frameIndex: number;
   colour: {
     profile: string;
@@ -44,7 +44,7 @@ type NativeOverlaySceneSnapshotPayload = {
   canvasHeight: number;
 };
 
-type NativeOverlaySceneMediaPayload = {
+export type NativeOverlaySceneMediaPayload = {
   id: string;
   kind: string;
   source: string;
@@ -60,6 +60,16 @@ export interface PrepareSharedRendererRustDecodedVideoUploadInput {
 }
 
 export interface NativeOverlayDecodedFrameBridge {
+  presentScene?: (payload: {
+    windowId?: number;
+    snapshot: NativeOverlaySceneSnapshotPayload;
+    media: readonly NativeOverlaySceneMediaPayload[];
+    selectionDecoration?: SelectionDecorationPayload;
+  }) => Promise<{
+    success: boolean;
+    attached: boolean;
+    reason?: string;
+  }>;
   presentSharedFrame: (payload: {
     windowId?: number;
     mediaId: string;
@@ -309,7 +319,7 @@ const buildNativeOverlayVisualFrameKey = ({
   media: media ?? null,
 });
 
-const toNativeOverlaySceneSnapshotPayload = (
+export const toNativeOverlaySceneSnapshotPayload = (
   snapshot: RustSceneSnapshot,
   canvas: { width: number; height: number } | undefined
 ): NativeOverlaySceneSnapshotPayload => {
@@ -350,7 +360,7 @@ const toNativeOverlaySceneSnapshotPayload = (
   };
 };
 
-const toNativeOverlaySceneMediaPayload = (
+export const toNativeOverlaySceneMediaPayload = (
   media: RustSceneMediaReference
 ): NativeOverlaySceneMediaPayload => ({
   id: media.id,

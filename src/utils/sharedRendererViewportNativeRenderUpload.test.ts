@@ -1847,13 +1847,16 @@ describe('prepareSharedRendererViewportNativeRenderOverlayPresent', () => {
 
     expect(result).toEqual({ ok: true });
     expect(calls).toEqual([
-      ['presentScene', {
+      ['presentScene', expect.objectContaining({
         windowId: undefined,
-        snapshot: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.snapshot : null,
+        snapshot: expect.objectContaining({
+          frameIndex: 24,
+          canvasWidth: 4,
+          canvasHeight: 4,
+        }),
         media: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.media : null,
-        canvas: mediaOnlySession.surfaceGate.ok ? mediaOnlySession.surfaceGate.canvas : null,
         selectionDecoration: { canvasWidth: 4, canvasHeight: 4, quads: [] },
-      }],
+      })],
     ]);
   });
 
