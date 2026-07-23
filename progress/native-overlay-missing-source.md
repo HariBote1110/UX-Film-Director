@@ -1,5 +1,9 @@
 # Native Overlay `MissingSource` 誤診断
 
+> 2026-07-23追補: 本文の「動画のみへ限定」は当時の暫定方針である。
+> 生成sourceの構築と直描画適格判定を追加した現在の方針は
+> [cametal-direct-preview.md](cametal-direct-preview.md)を参照すること。
+
 ## 決定
 
 - 動画のデコード済みフレームを直接Native Overlayへ渡す起動経路は、
