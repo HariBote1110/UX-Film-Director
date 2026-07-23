@@ -184,11 +184,9 @@ describe('Viewport Rust video-only boundary', () => {
     const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
     const nativeReuseBlock = code.slice(start, end);
 
-    // 非 video（図形）セッションは overlay 経路に乗せず DOM canvas 側の
-    // presentPreparedNativeRenderFrame を通すため、overlay 分岐は video-only
-    // セッションに限定される（isSharedRendererNativeRenderOnlySession 追加に伴う
-    // 挙動の絞り込み）。
-    expect(nativeReuseBlock).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    // decode済み動画を注入する直接presentはvideo-onlyと混在セッションで共有する。
+    expect(nativeReuseBlock).toContain('if (nativeOverlayPreviewEnabled && (isSharedRendererExternalVideoOnlySession(session)');
+    expect(nativeReuseBlock).toContain('|| isSharedRendererMixedNativeRenderSession(session))) {');
     expect(nativeReuseBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(nativeReuseBlock).toContain('activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null');
     // superseded（追い越し）時は jobs ref を触らないため、成功時のみの更新へ
@@ -196,7 +194,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = [result.activeJob]');
     expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, {');
     expect(nativeReuseBlock).toContain('nativeRenderDiagnostics: result.diagnostics');
-    expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {')).toBeLessThan(
+    expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled && (isSharedRendererExternalVideoOnlySession(session)')).toBeLessThan(
       nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, {')
     );
   });
@@ -592,7 +590,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(start).toBeGreaterThan(-1);
     // 両方の overlay 分岐は nativeOverlayPreviewEnabled をガードするため、
     // 無効時はどちらもスキップされ DOM canvas 経路まで落ちる。
-    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    expect(block).toContain('if (nativeOverlayPreviewEnabled && (isSharedRendererExternalVideoOnlySession(session)');
     expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
     expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, {');
     expect(block).toContain('nativeRenderDiagnostics: result.diagnostics');

@@ -827,14 +827,15 @@ const Viewport: React.FC = () => {
   // を切り替える。
   //
   // 症状B対策: native overlay の body co-delivery が有効な tick
-  // （video-only セッションの reuse present 経路。publishSharedRendererPreviewSession
+  // （video-only・native-render-only・混在セッションの reuse present 経路。
+  // publishSharedRendererPreviewSession
   // 内で selectionDecoration を presentNativeOverlaySharedFrame に同梱する）では、
   // objects/currentTime が変化した tick の送信を shouldSendStandaloneDecoration
   // がスキップする。body 側が同じ (objects, time) から計算した decoration を
   // 同じ present に同梱するため、ここで独立に送ると2チャネルが同じ native
   // overlay live surface へ競合 present してしまう（ドラッグ中に本体と選択枠
   // がズレる根本原因）。selectedIds のみの変化、および co-delivery 非対象
-  // （図形のみ/混在セッションが使う DOM WebGPU canvas 経路など、本体が
+  // （native overlayを利用できないフォールバック経路など、本体が
   // native overlay の presentSharedFrame に一切乗らない場合）は従来どおり
   // standalone が唯一の配信経路であり続ける。
   useEffect(() => {
@@ -847,16 +848,14 @@ const Viewport: React.FC = () => {
       selectionDecorationSendStateRef.current = null;
       return;
     }
-    // Phase 3b Step2 — native-render-only（図形/画像のみ）セッションの reuse
-    // tick も native overlay の presentSharedFrame へ selectionDecoration を
-    // 同梱するようになったため、co-delivery 対象を video-only だけでなく
-    // native-render-only にも拡張する。混在セッションは DOM canvas 経路の
-    // ままのため対象外（standalone 送信が引き続き唯一の配信経路）。
+    // native-overlay が生成ソースを構築できるため、混在セッションも
+    // CAMetalLayerへ本体とselectionDecorationを同時配信する。
     const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled
       && sharedRendererPreviewSession != null
       && (
         isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)
         || isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)
+        || isSharedRendererMixedNativeRenderSession(sharedRendererPreviewSession)
       );
     const nextSendState: SelectionDecorationSendState = {
       selectedIds,
@@ -1277,15 +1276,16 @@ const Viewport: React.FC = () => {
     }
     if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
       const control = sharedRendererPresenterControlRef.current;
-      // video-only は動画デコード注入経由、native-render-only（図形/画像のみ）
+      // video-only・混在は動画デコード注入経由、native-render-only（図形/画像のみ）
       // は Phase 3b Step2 から render.nativeSharedFrame の合成結果を直接
       // 同梱 present する経路で、どちらも nativeOverlayPreviewEnabled のとき
-      // native overlay へ乗る。混在セッションはどちらにも該当せず、DOM 側
-      // WebGPU canvas（presentPreparedNativeRenderFrame）に描画され続ける
-      // （Phase 4 の Rust 自前 video デコード統合が前提、five-bugs-structural-
-      // redesign.md 参照）。
+      // native overlay へ乗る。失敗時だけDOM側WebGPU canvas
+      // （presentPreparedNativeRenderFrame）へフォールバックする。
       if (control?.ok && (
-        (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session))
+        (nativeOverlayPreviewEnabled && (
+          isSharedRendererExternalVideoOnlySession(session)
+          || isSharedRendererMixedNativeRenderSession(session)
+        ))
         || (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session))
         || control.presentPreparedNativeRenderFrame
       )) {
@@ -1298,7 +1298,8 @@ const Viewport: React.FC = () => {
         sharedRendererNativeReusePreparingRef.current = true;
         void (async () => {
           try {
-            if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {
+            if (nativeOverlayPreviewEnabled && (isSharedRendererExternalVideoOnlySession(session)
+              || isSharedRendererMixedNativeRenderSession(session))) {
               if (session.surfaceGate.ok) {
                 sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
               }
