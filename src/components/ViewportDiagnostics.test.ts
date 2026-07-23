@@ -33,6 +33,18 @@ describe('buildSharedRendererPreviewDiagnostic', () => {
     }, readyControl)).toBeNull();
   });
 
+  it('shows successful native-render path diagnostics in the preview banner', () => {
+    expect(buildSharedRendererPreviewDiagnostic({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterNativeRenderDecodePaths: 'inprocess',
+      uxfdSharedRendererPresenterNativeRenderPath: 'webgpu',
+      uxfdSharedRendererPresenterNativeRenderNv12ZeroCopyMediaIds: 'video-1',
+    }, readyControl)).toBe(
+      'Rust shared renderer preview / status=ready / decode=inprocess / render=webgpu / nv12=video-1'
+    );
+  });
+
   // Non-blocking, superseded video upload failures (e.g. a decoded-frame
   // upload that failed while the external-video-source path already owns
   // presentation) are no longer filtered here: the write site

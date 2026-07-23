@@ -23,6 +23,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       videoOwner: 'sharedRenderer',
       videoCutoverReason: 'rustDecodedFrameUploadReady',
       sharedVideoObjectCount: 2,
+      nativeRenderDecodePaths: 'inprocess',
+      nativeRenderPath: 'webgpu',
+      nativeRenderNv12ZeroCopyMediaIds: 'video-1,video-2',
     });
 
     expect(dataset).toMatchObject({
@@ -38,6 +41,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
       uxfdSharedRendererPresenterSharedVideoObjectCount: '2',
+      uxfdSharedRendererPresenterNativeRenderDecodePaths: 'inprocess',
+      uxfdSharedRendererPresenterNativeRenderPath: 'webgpu',
+      uxfdSharedRendererPresenterNativeRenderNv12ZeroCopyMediaIds: 'video-1,video-2',
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFailureReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');

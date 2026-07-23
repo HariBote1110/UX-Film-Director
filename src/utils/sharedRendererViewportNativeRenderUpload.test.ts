@@ -369,6 +369,63 @@ const renderResult: RustBackendNativeRenderSharedFrameResult = {
 };
 
 describe('prepareSharedRendererViewportNativeRenderUpload', () => {
+  it('returns native render path diagnostics from the backend response', async () => {
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: mediaOnlySession,
+      requestId: 24,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [],
+        sources: [{
+          mediaId: 'video-1',
+          jobId: 'decode-job-1',
+          decodePath: 'inprocess',
+          slotCount: 2,
+          frame: renderResult.frame,
+          releaseAfterNativeRenderComplete: async () => {},
+          releaseAfterNativeRenderAbort: async () => {},
+        }],
+      }),
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: {
+          ...renderResult,
+          renderPath: 'webgpu',
+          nv12ZeroCopyMediaIds: ['video-1'],
+        },
+      }),
+      releaseNativeSharedFrame: async () => ({
+        success: true,
+      }),
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 24,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      diagnostics: {
+        decodePaths: ['inprocess'],
+        renderPath: 'webgpu',
+        nv12ZeroCopyMediaIds: ['video-1'],
+      },
+    });
+  });
+
   it('passes preview decode edge and source slot settings into native render source preparation', async () => {
     let sourcePreparationInput: unknown;
 
