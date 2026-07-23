@@ -43,6 +43,8 @@ export interface RustBackendNativeRenderSharedFrameResult {
   slotCount: number;
   slotByteLen: number;
   frame: RustBackendSharedVideoFrame;
+  renderPath?: string;
+  nv12ZeroCopyMediaIds?: string[];
 }
 
 export interface RustBackendNativeRenderReleaseSharedFramePayload {

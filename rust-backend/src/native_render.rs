@@ -406,6 +406,7 @@ pub(crate) fn handle_native_render_shared_frame(
             "slotCount": slot_count,
             "slotByteLen": slot_byte_len,
             "frame": frame,
+            "renderPath": "webgpuSceneComposite",
             "nv12ZeroCopyMediaIds": nv12_zero_copy_media_ids,
         })),
         error: None,

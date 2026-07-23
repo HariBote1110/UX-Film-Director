@@ -331,6 +331,9 @@ export const startSharedRendererViewportPresenter = async ({
     requireRustVideoControlPlane,
     requireSharedRendererOutput,
     sharedRendererNativeRenderFrameUpload,
+    sharedRendererNativeRenderDiagnostics: nativeRenderUploadResult?.ok
+      ? nativeRenderUploadResult.diagnostics
+      : undefined,
     sharedRendererNativeRenderFailure,
     sharedRendererVideoUploadFailure,
     sharedRendererExternalVideoSourcesByClipId,

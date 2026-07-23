@@ -93,6 +93,7 @@ export interface RustBackendVideoDecodeFrameResult {
   streamRestartReason?: string;
   streamRestarted?: boolean;
   streamSkippedFrameCount?: number;
+  decodePath?: string;
 }
 
 export interface RustBackendResult<T = unknown> {

@@ -1,4 +1,5 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import type { SharedRendererNativeRenderDiagnostics } from './sharedRendererViewportNativeRenderUpload';
 import type { SharedRendererSolidColourVertexSceneBuilder } from './sharedRendererSolidColourScene';
 import {
   buildSharedRendererVideoPlaneVertexScene,
@@ -106,6 +107,7 @@ export interface SharedRendererPresentPreparedNativeRenderFrameOptions {
   // Passing the current tick's session lets diagnostics be republished with
   // the frame that is actually now on screen.
   session?: SharedRendererPreviewSession;
+  nativeRenderDiagnostics?: SharedRendererNativeRenderDiagnostics;
 }
 
 export type SharedRendererPreviewPresenterControl =
@@ -159,6 +161,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   requireSharedRendererOutput?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererNativeRenderFrameUpload?: SharedRendererDecodedVideoFrameUpload;
+  sharedRendererNativeRenderDiagnostics?: SharedRendererNativeRenderDiagnostics;
   sharedRendererNativeRenderFailure?: {
     reason: string;
     detail: string;
@@ -212,6 +215,7 @@ export const startSharedRendererPreviewPresenter = async ({
   requireSharedRendererOutput = false,
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererNativeRenderFrameUpload,
+  sharedRendererNativeRenderDiagnostics,
   sharedRendererNativeRenderFailure,
   sharedRendererVideoUploadFailure,
   sharedRendererExternalVideoSourcesByClipId,
@@ -840,7 +844,9 @@ export const startSharedRendererPreviewPresenter = async ({
     forSession: SharedRendererPreviewSession,
     forNativeRenderFrameReady: boolean,
     forVideoOwnership: SharedRendererVideoOwnership,
-    forVideoPresentedSourceFrame: number | undefined = videoPresentedSourceFrame
+    forVideoPresentedSourceFrame: number | undefined = videoPresentedSourceFrame,
+    forNativeRenderDiagnostics: SharedRendererNativeRenderDiagnostics | undefined =
+      sharedRendererNativeRenderDiagnostics,
   ): SharedRendererPresenterDiagnosticState => ({
     status: 'ready',
     format: presenter.format,
@@ -886,6 +892,15 @@ export const startSharedRendererPreviewPresenter = async ({
       : undefined,
     nativeRenderSourceMediaIds: forNativeRenderFrameReady
       ? collectObjectIdsByMediaKind(forSession, 'Video').join(',')
+      : undefined,
+    nativeRenderDecodePaths: forNativeRenderFrameReady
+      ? forNativeRenderDiagnostics?.decodePaths.join(',')
+      : undefined,
+    nativeRenderPath: forNativeRenderFrameReady
+      ? forNativeRenderDiagnostics?.renderPath
+      : undefined,
+    nativeRenderNv12ZeroCopyMediaIds: forNativeRenderFrameReady
+      ? forNativeRenderDiagnostics?.nv12ZeroCopyMediaIds.join(',')
       : undefined,
     nativeRenderFailureReason: publishedNativeRenderFailure?.reason,
     nativeRenderFailureDetail: publishedNativeRenderFailure?.detail,
@@ -934,7 +949,13 @@ export const startSharedRendererPreviewPresenter = async ({
           ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
           : undefined,
       });
-      writeDiagnostics(buildReadyDiagnosticsState(options.session, true, reusedVideoOwnership, upload.ptsFrame));
+      writeDiagnostics(buildReadyDiagnosticsState(
+        options.session,
+        true,
+        reusedVideoOwnership,
+        upload.ptsFrame,
+        options.nativeRenderDiagnostics,
+      ));
     }
     return presentation;
   };

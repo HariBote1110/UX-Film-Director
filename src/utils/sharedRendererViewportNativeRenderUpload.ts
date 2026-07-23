@@ -36,6 +36,12 @@ type PreparedNativeRenderUpload = Extract<
   { ok: true }
 >;
 
+export interface SharedRendererNativeRenderDiagnostics {
+  decodePaths: string[];
+  renderPath?: string;
+  nv12ZeroCopyMediaIds: string[];
+}
+
 export type SharedRendererViewportNativeRenderSourcesPreparer = (
   input: PrepareSharedRendererViewportNativeRenderSourcesInput
 ) => Promise<PrepareSharedRendererViewportNativeRenderSourcesResult>;
@@ -68,6 +74,7 @@ export type PrepareSharedRendererViewportNativeRenderUploadResult =
       ok: true;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
       upload: PreparedNativeRenderUpload;
+      diagnostics: SharedRendererNativeRenderDiagnostics;
     }
   | {
       ok: false;
@@ -360,6 +367,13 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     ok: true,
     activeJobs: activeRenderJobs,
     upload,
+    diagnostics: {
+      decodePaths: [...new Set(nativeRenderSources
+        .map((source) => source.decodePath)
+        .filter((path): path is string => Boolean(path)))],
+      renderPath: renderResponse.result.renderPath,
+      nv12ZeroCopyMediaIds: renderResponse.result.nv12ZeroCopyMediaIds ?? [],
+    },
   };
 };
 

@@ -20,6 +20,7 @@ import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewp
 export interface SharedRendererViewportNativeRenderSource {
   mediaId: string;
   jobId?: string;
+  decodePath?: string;
   slotCount: number;
   frame: RustBackendSharedVideoFrame;
   releaseAfterNativeRenderComplete?: () => Promise<void>;
@@ -303,6 +304,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
     sources.push({
       mediaId: request.mediaId,
       jobId: resolvedJob.jobId,
+      decodePath: decodeResponse.result.decodePath,
       slotCount: resolvedJob.slotCount,
       frame,
       releaseAfterNativeRenderComplete: () => releaseFrame('gpuUploadFenceSignalled'),

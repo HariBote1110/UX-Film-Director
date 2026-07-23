@@ -481,8 +481,22 @@ export const buildSharedRendererPreviewDiagnostic = (
   const videoUploadFailureReason = dataset.uxfdSharedRendererPresenterVideoUploadFailureReason;
   const videoUploadFailureDetail = dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail;
   const videoFrameUploadReady = dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
+  const nativeRenderDecodePaths = dataset.uxfdSharedRendererPresenterNativeRenderDecodePaths;
+  const nativeRenderPath = dataset.uxfdSharedRendererPresenterNativeRenderPath;
+  const nativeRenderNv12ZeroCopyMediaIds =
+    dataset.uxfdSharedRendererPresenterNativeRenderNv12ZeroCopyMediaIds;
+  const hasNativeRenderPathDiagnostics = Boolean(
+    nativeRenderDecodePaths || nativeRenderPath || nativeRenderNv12ZeroCopyMediaIds
+  );
 
-  if (control?.ok && status === 'ready' && !nativeRenderFailureReason && !videoUploadFailureReason && videoFrameUploadReady !== 'false') {
+  if (
+    control?.ok
+    && status === 'ready'
+    && !nativeRenderFailureReason
+    && !videoUploadFailureReason
+    && videoFrameUploadReady !== 'false'
+    && !hasNativeRenderPathDiagnostics
+  ) {
     return null;
   }
 
@@ -496,6 +510,9 @@ export const buildSharedRendererPreviewDiagnostic = (
     videoUploadFailureReason ? `video=${videoUploadFailureReason}` : null,
     videoUploadFailureDetail,
     videoFrameUploadReady === 'false' ? 'videoFrameUploadReady=false' : null,
+    nativeRenderDecodePaths ? `decode=${nativeRenderDecodePaths}` : null,
+    nativeRenderPath ? `render=${nativeRenderPath}` : null,
+    nativeRenderNv12ZeroCopyMediaIds ? `nv12=${nativeRenderNv12ZeroCopyMediaIds}` : null,
   ].filter((part): part is string => Boolean(part));
 
   return parts.join(' / ');
@@ -1354,7 +1371,10 @@ const Viewport: React.FC = () => {
               // Pass the current tick's session so presenter diagnostics
               // (VideoPresentedFrameIndex etc.) advance with playback instead
               // of staying frozen at the frame the presenter first started on.
-              await presentPreparedNativeRenderFrame(result.upload, { session });
+              await presentPreparedNativeRenderFrame(result.upload, {
+                session,
+                nativeRenderDiagnostics: result.diagnostics,
+              });
             } else {
               // The scene changed under us (e.g. clip swapped); fall back to a full
               // presenter restart so it rebuilds for the new scene.

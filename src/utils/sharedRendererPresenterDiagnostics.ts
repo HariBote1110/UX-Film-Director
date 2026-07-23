@@ -32,6 +32,9 @@ export type SharedRendererPresenterDiagnosticState =
       nativeRenderMediaKinds?: string;
       nativeRenderSourceCount?: number;
       nativeRenderSourceMediaIds?: string;
+      nativeRenderDecodePaths?: string;
+      nativeRenderPath?: string;
+      nativeRenderNv12ZeroCopyMediaIds?: string;
       nativeRenderFailureReason?: string;
       nativeRenderFailureDetail?: string;
       geometrySource?: 'rust-wasm' | 'typescript';
@@ -132,6 +135,9 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterNativeRenderMediaKinds;
   delete dataset.uxfdSharedRendererPresenterNativeRenderSourceCount;
   delete dataset.uxfdSharedRendererPresenterNativeRenderSourceMediaIds;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderDecodePaths;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderPath;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderNv12ZeroCopyMediaIds;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureReason;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureLabel;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail;
@@ -234,6 +240,16 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.nativeRenderSourceMediaIds !== undefined) {
       dataset.uxfdSharedRendererPresenterNativeRenderSourceMediaIds = state.nativeRenderSourceMediaIds;
+    }
+    if (state.nativeRenderDecodePaths !== undefined) {
+      dataset.uxfdSharedRendererPresenterNativeRenderDecodePaths = state.nativeRenderDecodePaths;
+    }
+    if (state.nativeRenderPath !== undefined) {
+      dataset.uxfdSharedRendererPresenterNativeRenderPath = state.nativeRenderPath;
+    }
+    if (state.nativeRenderNv12ZeroCopyMediaIds !== undefined) {
+      dataset.uxfdSharedRendererPresenterNativeRenderNv12ZeroCopyMediaIds =
+        state.nativeRenderNv12ZeroCopyMediaIds;
     }
     if (state.nativeRenderFailureReason) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
