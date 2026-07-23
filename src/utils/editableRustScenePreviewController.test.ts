@@ -54,20 +54,21 @@ describe('editableRustScenePreviewController', () => {
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
+      initialRevision: 40,
     });
 
     expect(controller.replaceScene({ projectSettings, layers, objects: [shape()] })).toMatchObject({
       ok: true,
-      revision: 1,
+      revision: 41,
     });
     controller.requestTime(1.25, 60);
     expect(controller.replaceScene({ projectSettings, layers, objects: [shape({ x: 40 })] })).toMatchObject({
       ok: true,
-      revision: 2,
+      revision: 42,
     });
 
     expect(sceneScheduler.submitRevision).toHaveBeenCalledTimes(2);
-    expect(sceneScheduler.submitRevision.mock.calls.map(([payload]) => payload.revision)).toEqual([1, 2]);
+    expect(sceneScheduler.submitRevision.mock.calls.map(([payload]) => payload.revision)).toEqual([41, 42]);
     expect(sceneScheduler.requestFrame).toHaveBeenCalledWith(75);
     expect(sceneScheduler.invalidate).not.toHaveBeenCalled();
   });
