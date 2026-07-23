@@ -11,7 +11,6 @@ const projectSettings: ProjectSettings = {
 };
 
 const layers: LayerState[] = [{
-  id: 'layer-0',
   name: 'Layer 0',
   visible: true,
   locked: false,
