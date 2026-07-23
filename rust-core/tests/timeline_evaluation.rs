@@ -3,6 +3,48 @@ use uxfd_rust_core::{
     ProjectSize, Track, Transform,
 };
 
+fn project_from_clip_json(source_frame_offset: Option<u64>) -> Project {
+    let mut clip = serde_json::json!({
+        "id": "clip-1",
+        "media_id": "media-1",
+        "kind": "VideoPlane",
+        "start_frame": 10,
+        "duration_frames": 20,
+        "transform": {
+            "translation_x": 0.0,
+            "translation_y": 0.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation_degrees": 0.0,
+            "sampling": "nearest"
+        },
+        "opacity": 1.0,
+        "effects": []
+    });
+    if let Some(offset) = source_frame_offset {
+        clip["source_frame_offset"] = serde_json::json!(offset);
+    }
+
+    serde_json::from_value(serde_json::json!({
+        "id": "project-1",
+        "version": 1,
+        "size": { "width": 1920, "height": 1080 },
+        "fps": { "numerator": 60, "denominator": 1 },
+        "colour": {
+            "profile": "rec709-sdr",
+            "working_space": "linear-light",
+            "alpha": "premultiplied"
+        },
+        "media": [{
+            "id": "media-1",
+            "kind": "Video",
+            "source": "fixtures/clip-001.mp4"
+        }],
+        "tracks": [{ "id": "track-1", "clips": [clip] }]
+    }))
+    .expect("clip JSON must deserialise")
+}
+
 fn project_with_single_clip(start_frame: u64, duration_frames: u64) -> Project {
     Project {
         id: "project-1".to_string(),
@@ -77,4 +119,20 @@ fn zero_duration_clip_is_never_active() {
     let project = project_with_single_clip(10, 0);
 
     assert!(evaluate_frame(&project, 10).clips.is_empty());
+}
+
+#[test]
+fn trimmed_video_source_frame_starts_at_source_frame_offset_and_advances_with_playhead() {
+    let project = project_from_clip_json(Some(240));
+
+    assert_eq!(evaluate_frame(&project, 10).clips[0].source_frame, 240);
+    assert_eq!(evaluate_frame(&project, 17).clips[0].source_frame, 247);
+}
+
+#[test]
+fn existing_clip_json_defaults_source_frame_offset_to_zero() {
+    let project = project_from_clip_json(None);
+
+    assert_eq!(evaluate_frame(&project, 10).clips[0].source_frame, 0);
+    assert_eq!(evaluate_frame(&project, 17).clips[0].source_frame, 7);
 }
