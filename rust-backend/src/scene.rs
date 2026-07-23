@@ -2,6 +2,7 @@ use crate::rpc::{response_error, RpcResponse};
 use crate::state::{BackendState, SceneSession};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use uxfd_rust_core::{evaluate_frame, Project, SceneMediaReference};
 
 #[derive(Debug, Deserialize)]
@@ -111,6 +112,16 @@ pub(crate) fn handle_scene_evaluate(
     }
 
     let snapshot = evaluate_frame(&session.project, parsed.frame_index);
+    let referenced_media_ids: HashSet<&str> = snapshot
+        .clips
+        .iter()
+        .map(|clip| clip.media_id.as_str())
+        .collect();
+    let media: Vec<&SceneMediaReference> = session
+        .media
+        .iter()
+        .filter(|reference| referenced_media_ids.contains(reference.id.as_str()))
+        .collect();
     RpcResponse {
         id,
         ok: true,
@@ -119,7 +130,7 @@ pub(crate) fn handle_scene_evaluate(
             "revision": session.revision,
             "frameIndex": parsed.frame_index,
             "snapshot": snapshot,
-            "media": session.media,
+            "media": media,
         })),
         error: None,
     }
