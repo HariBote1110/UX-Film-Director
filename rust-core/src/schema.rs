@@ -356,6 +356,8 @@ pub struct Clip {
     pub kind: ClipKind,
     pub start_frame: u64,
     pub duration_frames: u64,
+    #[serde(default)]
+    pub source_frame_offset: u64,
     #[serde(default = "Transform::identity")]
     pub transform: Transform,
     pub opacity: f32,

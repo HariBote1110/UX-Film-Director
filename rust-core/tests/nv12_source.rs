@@ -78,6 +78,7 @@ fn existing_scene_snapshot_shape_is_unaffected_by_the_new_nv12_type() {
                 kind: ClipKind::VideoPlane,
                 start_frame: 0,
                 duration_frames: 10,
+                source_frame_offset: 0,
                 transform: Transform {
                     translation_x: 0.0,
                     translation_y: 0.0,

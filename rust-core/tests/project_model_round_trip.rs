@@ -30,6 +30,7 @@ fn project_model_round_trip_preserves_identity() {
                 kind: ClipKind::VideoPlane,
                 start_frame: 10,
                 duration_frames: 90,
+                source_frame_offset: 0,
                 transform: Transform::identity(),
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),

@@ -43,7 +43,7 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 clip_id: clip.id.clone(),
                 track_id: track.id.clone(),
                 media_id: clip.media_id.clone(),
-                source_frame: frame_offset,
+                source_frame: clip.source_frame_offset.saturating_add(frame_offset),
                 z_index: clips.len() as u32,
                 transform,
                 opacity: evaluate_scalar_keyframes(

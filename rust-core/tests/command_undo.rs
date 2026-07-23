@@ -29,6 +29,7 @@ fn valid_project() -> Project {
                 kind: ClipKind::VideoPlane,
                 start_frame: 10,
                 duration_frames: 90,
+                source_frame_offset: 0,
                 transform: Transform::identity(),
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),

@@ -30,6 +30,7 @@ fn project_with_transform() -> Project {
                 kind: ClipKind::ImagePlane,
                 start_frame: 10,
                 duration_frames: 20,
+                source_frame_offset: 0,
                 transform: Transform {
                     translation_x: 32.0,
                     translation_y: -8.0,
@@ -142,6 +143,7 @@ fn project_schema_accepts_solid_colour_media_for_rectangle_shapes() {
                 kind: ClipKind::SolidColourPlane,
                 start_frame: 0,
                 duration_frames: 60,
+                source_frame_offset: 0,
                 transform: Transform {
                     translation_x: 300.0,
                     translation_y: 120.0,
@@ -194,6 +196,7 @@ fn project_schema_accepts_generated_audio_waveform_media() {
                 kind: ClipKind::GeneratedAudioWaveformPlane,
                 start_frame: 0,
                 duration_frames: 60,
+                source_frame_offset: 0,
                 transform: Transform::identity(),
                 opacity: 1.0,
                 opacity_keyframes: Vec::new(),

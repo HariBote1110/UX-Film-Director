@@ -29,6 +29,7 @@ fn project_with_opacity_keyframes() -> Project {
                 kind: ClipKind::ImagePlane,
                 start_frame: 100,
                 duration_frames: 40,
+                source_frame_offset: 0,
                 transform: Transform::identity(),
                 opacity: 0.25,
                 opacity_keyframes: vec![

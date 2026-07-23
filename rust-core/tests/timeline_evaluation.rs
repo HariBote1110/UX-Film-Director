@@ -71,6 +71,7 @@ fn project_with_single_clip(start_frame: u64, duration_frames: u64) -> Project {
                 kind: ClipKind::VideoPlane,
                 start_frame,
                 duration_frames,
+                source_frame_offset: 0,
                 transform: Transform::identity(),
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),
