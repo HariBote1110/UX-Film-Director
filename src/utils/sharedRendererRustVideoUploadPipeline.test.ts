@@ -91,7 +91,14 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
             sampling: 'bilinear',
           },
           opacity: 1,
-          effects: [],
+          effects: [{
+            ColourCorrection: {
+              brightness: 1.1,
+              contrast: 0.9,
+              saturation: 1.2,
+              hue_degrees: 15,
+            },
+          }],
         }],
       },
       canvas: { width: 1920, height: 1080 },
@@ -142,6 +149,14 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
               sampling: 'bilinear',
             },
             opacity: 1,
+            effectsJson: JSON.stringify([{
+              ColourCorrection: {
+                brightness: 1.1,
+                contrast: 0.9,
+                saturation: 1.2,
+                hue_degrees: 15,
+              },
+            }]),
           }],
           canvasWidth: 1920,
           canvasHeight: 1080,
