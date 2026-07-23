@@ -1,6 +1,26 @@
 use uxfd_rust_core::{MediaKind, SceneMediaReference};
 
 #[test]
+fn scene_media_omits_absent_source_rate_at_the_renderer_boundary() {
+    let media = SceneMediaReference {
+        id: "solid-1".to_string(),
+        kind: MediaKind::SolidColour,
+        source: "#ff0000".to_string(),
+        width: 200,
+        height: 100,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let serialised = serde_json::to_value(media).expect("scene media must serialise");
+
+    assert!(
+        serialised.get("source_rate").is_none(),
+        "optional source_rate must be omitted instead of serialised as null"
+    );
+}
+
+#[test]
 fn rust_core_accepts_psd_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "psd-1",
