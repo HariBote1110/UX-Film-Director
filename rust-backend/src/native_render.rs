@@ -1062,6 +1062,52 @@ mod tests {
     }
 
     #[test]
+    fn getcolor_is_collected_as_gpu_descriptor_without_cpu_rgba() {
+        let snapshot = uxfd_rust_core::SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "getcolor-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "getcolor-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let media = vec![uxfd_rust_core::SceneMediaReference {
+            id: "getcolor-media".to_string(),
+            kind: uxfd_rust_core::MediaKind::GeneratedGetColorDots,
+            source: r##"{"generator":"getcolor-v2r-dot-field","columns":16,"rows":9,"dot_size":12,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","source_image":null,"seed":93}"##.to_string(),
+            width: 320,
+            height: 180,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }];
+        let mut cache = crate::state::SourceFrameCache::default();
+
+        let rgba_sources =
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+                .expect("GetColor CPU source collection must succeed");
+        assert!(
+            rgba_sources.is_empty(),
+            "GetColor must not allocate a completed CPU RGBA source"
+        );
+
+        let sources = collect_native_render_getcolor_sources(&media, &mut cache)
+            .expect("GetColor GPU descriptor collection must succeed");
+        let source = sources
+            .get("getcolor-media")
+            .expect("descriptor must be collected");
+        assert_eq!(source.width, 320);
+        assert_eq!(source.height, 180);
+        assert!(source.sample_frame.is_none());
+        assert_ne!(source.config_revision, 0);
+    }
+
+    #[test]
     fn shaking_polygon_is_collected_as_animated_gpu_descriptor_without_cpu_rgba() {
         let build_snapshot = |source_frame| uxfd_rust_core::SceneSnapshot {
             frame_index: source_frame,
