@@ -11,6 +11,7 @@ import type {
 } from '../types';
 import { buildAviUtlPackPolishRepresentativeScene } from '../utils/aviutl/aviutlPolishRepresentativeScene';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
+import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakingPolygonObjectFactory';
 import {
   createDefaultCamera,
   createDefaultLayers,
@@ -398,6 +399,25 @@ export const buildRealisticHeavyEditScenario = (
     ...cloneRepresentativeObjects('main-a', 0, 16, 12, 'realistic-main-audio', paths.imagePath),
     ...cloneRepresentativeObjects('main-b', 6, 32, 12, 'realistic-main-audio', paths.imagePath),
     ...cloneRepresentativeObjects('main-c', 12, 48, 12, 'realistic-main-audio', paths.imagePath),
+    {
+      ...buildAviUtlShakingPolygonObject({
+        id: 'realistic-main-shaking-polygon',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: 92,
+      }),
+      duration: MAIN_DURATION_SECONDS,
+      fill: true,
+      repeatCount: 3,
+      repeatFrequency: 2,
+      vertexCount: 5,
+      lineWidth: 6,
+      jitterRange: 14,
+      jitterInterval: 4,
+      colour: '#ff9f1c',
+      seed: 93,
+    },
   ];
 
   const cutawayObjects: TimelineObject[] = [
