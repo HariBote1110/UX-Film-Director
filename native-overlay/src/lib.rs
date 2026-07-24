@@ -15,8 +15,8 @@ use uxfd_native_wgpu_renderer::{
 };
 use uxfd_rust_backend::build_native_generated_source_frame;
 use uxfd_rust_core::{
-    ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind, SamplingMode, SceneMediaReference,
-    SceneSnapshot, Transform,
+    build_video_frame_decode_requests, ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind,
+    SamplingMode, SceneMediaReference, SceneSnapshot, Transform, VideoFrameDecodeRequest,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -2174,7 +2174,7 @@ fn load_overlay_native_sources_for_scene_cached(
             source: media.source.clone(),
             width: media.width,
             height: media.height,
-            source_rate: None,
+            source_rate: media.source_rate.clone(),
             active_layer_ids: Vec::new(),
         };
         let revision = native_overlay_media_content_revision(media, source_frame);
@@ -2204,6 +2204,44 @@ fn load_overlay_native_sources_for_scene_cached(
     }
     cache.evict_stale(&touched_media_ids);
     Ok(sources)
+}
+
+fn native_overlay_video_decode_requests(
+    scene: &NativeOverlaySceneSource,
+) -> Result<Vec<VideoFrameDecodeRequest>, String> {
+    let media: Vec<SceneMediaReference> = scene
+        .media
+        .iter()
+        .filter_map(|reference| {
+            overlay_media_kind(&reference.kind).map(|kind| SceneMediaReference {
+                id: reference.id.clone(),
+                kind,
+                source: reference.source.clone(),
+                width: reference.width,
+                height: reference.height,
+                source_rate: reference.source_rate.clone(),
+                active_layer_ids: Vec::new(),
+            })
+        })
+        .collect();
+    let requests = build_video_frame_decode_requests(&scene.snapshot, &media)
+        .map_err(|error| format!("Native overlay video decode request failed: {error:?}"))?;
+
+    let mut source_frames_by_media = HashMap::new();
+    for request in &requests.requests {
+        if let Some(previous) =
+            source_frames_by_media.insert(request.media_id.clone(), request.source_frame)
+        {
+            if previous != request.source_frame {
+                return Err(format!(
+                    "Native overlay cannot decode media {} at source frames {} and {} in one scene.",
+                    request.media_id, previous, request.source_frame
+                ));
+            }
+        }
+    }
+
+    Ok(requests.requests)
 }
 
 fn overlay_media_kind(kind: &str) -> Option<MediaKind> {
