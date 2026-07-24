@@ -133,6 +133,14 @@ GPUオフロードはまだ完了していない。
   CPU RGBA収集から除外し、GPU sourceがあるsceneではCPU simple compositorを選ばない。
   macOS統合テストでは空のCPU RGBA mapからShakingPolygonをBGRA IOSurfaceへ直接描画し、
   readback時間0と有色ピクセルを確認した。
+- Beta-475aで7種類の生成GPU source（Particle、GetColor、HKSY、SimpleTube、
+  FocusLinesPlus、ShakingPolygon、ShatteredSphere）を
+  `NativeGeneratedGpuSources`へ集約した。shared frame、RGBA readback、
+  BGRA IOSurfaceの各入口は個別のmapを受け取らず、このbundleを正本とする。
+  これにより新しいGPU sourceを追加したときに出力経路の一部だけへ渡し忘れる構造を
+  解消した。GetColorはexport/shared frameでもCPU完成RGBAを生成せず、sample画像だけを
+  RustのLRU cacheに常駐させる。cache keyとGPU revisionには画像パス、mtime、サイズ、
+  PSD active layerを含め、外部編集時だけ再デコード・再uploadする。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
@@ -147,11 +155,14 @@ GPUオフロードはまだ完了していない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
+1. HKSY、SimpleTube、FocusLinesPlus、Particleのdescriptor収集を
+   `NativeGeneratedGpuSources`へ接続し、previewだけでなくshared frameとexportでも
+   CPU完成RGBA生成を除去する。
+2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
-2. ShakingPolygonのsource frame更新で行うtexture再生成を、同一textureへの
+3. ShakingPolygonのsource frame更新で行うtexture再生成を、同一textureへの
    geometry buffer更新とrenderへ変え、Metal resource churnを減らす。
-3. Timeline分離後のCDP traceを基準に、PropertyPanel、Viewport、DOM compositorへ
+4. Timeline分離後のCDP traceを基準に、PropertyPanel、Viewport、DOM compositorへ
    残る更新をさらに局所化する。
 
 ## 採用しなかった案

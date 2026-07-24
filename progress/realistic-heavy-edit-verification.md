@@ -301,6 +301,32 @@ ShatteredSphereは設定revisionとsource frameを分離して同一textureを�
 macOSのBGRA IOSurface統合テストでも、CPU RGBA sourceを空にした
 ShakingPolygonを直接描画し、GPU readbackなしで橙色ピクセルが得られることを確認した。
 
+## GetColor export GPU接続とsource bundle化後の再検証
+
+Beta-475aでは出力経路へ渡す生成GPU sourceを`NativeGeneratedGpuSources`へ集約し、
+GetColorをshared frame、RGBA readback、BGRA IOSurface exportへ接続した。
+GetColorの完成RGBAはCPU側で生成しない。参照PNG/JPEG/PSDだけをRustのLRU cacheへ
+保持し、画像のmtime・サイズ・active layerが変わった場合に限って再デコードする。
+
+66素材・44同時クリップ、120回スクラブ、1秒再生、Undo/Redo、3シーン切替、
+保存復元、1秒exportを含む重量E2Eは総合PASSした。
+
+- 120回スクラブ: 165.10 ms
+- requestAnimationFrame: 平均16.69 ms、p95 19.22 ms、最大21.95 ms
+- long task: 1件（73 ms）
+- 保存復元: 66オブジェクト、fingerprint一致
+- 出力: 1920×1080、75フレーム投入、MP4 74フレーム、1.24秒
+- export所要時間: 34.81秒（開発ビルド、`ffmpegRawRgba`）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: visible pixel 261,341、colourful pixel 46,888
+- 最終状態: presenter `ready`、Rust timeline `ready`
+
+再生中の瞬間CPU sampleはElectron Renderer 77.6%、Rust backend 27.7%だった。
+GetColorの画素生成・sample再デコードはChromiumから外れたが、React/UI更新や
+未接続の生成source、開発ビルドの処理が残るため、GPU/Rust移管完了とは扱わない。
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない
