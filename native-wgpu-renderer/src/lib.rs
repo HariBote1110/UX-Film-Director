@@ -3873,6 +3873,99 @@ mod tests {
     }
 
     #[test]
+    fn getcolor_source_is_generated_on_gpu_and_reuses_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(16, 16)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU GetColor test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "getcolor-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "getcolor-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let sample_frame = RgbaFrame::from_rgba8(
+            2,
+            2,
+            vec![
+                255, 0, 0, 255, 0, 255, 0, 255,
+                0, 0, 255, 255, 255, 255, 255, 255,
+            ],
+        )
+        .expect("valid GetColor sample frame");
+        let source = NativeGetColorSource {
+            source: r##"{"generator":"getcolor-v2r-dot-field","columns":2,"rows":2,"dot_size":6,"dot_shape":"circle","stroke_width":0,"size_influence":0.5,"luminance_influence":0.5,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#808080","background_colour":"#000000","source_image":"/tmp/sample.png","sample_strength":1,"sample_hue_shift_degrees":0,"seed":93}"##.to_string(),
+            sample_frame: Some(Arc::new(sample_frame)),
+            width: 16,
+            height: 16,
+            config_revision: 7,
+        };
+        let getcolor_sources = HashMap::from([("getcolor-media".to_string(), source)]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+
+        let render = |renderer: &NativeWgpuRenderer| {
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &getcolor_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("GetColor preparation must succeed without a generated RGBA source");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD GetColor test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("GetColor output readback must succeed")
+        };
+
+        let first = render(&renderer);
+        let second = render(&renderer);
+        assert!(
+            first.pixels.chunks_exact(4).any(|pixel| {
+                pixel[3] > 0 && (pixel[0] > 0 || pixel[1] > 0 || pixel[2] > 0)
+            }),
+            "GPU GetColor pass must produce sampled coloured dots"
+        );
+        assert_eq!(first.pixels, second.pixels);
+        assert_eq!(
+            renderer.getcolor_renderer.stats(),
+            (1, 1),
+            "unchanged GetColor configuration must reuse one GPU texture and one source pass"
+        );
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 0),
+            "GPU GetColor output must never enter the CPU RGBA upload cache"
+        );
+    }
+
+    #[test]
     fn audio_sphere_source_is_rasterised_on_gpu_and_reuses_its_texture() {
         let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 64)) {
             Ok(renderer) => renderer,
