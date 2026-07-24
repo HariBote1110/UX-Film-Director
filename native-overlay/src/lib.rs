@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, NativeAudioReactiveSource, NativeGetColorSource,
+    render_native_wgpu_frame, NativeAudioReactiveSource, NativeGetColorSource, NativeHksySource,
     NativeParticleSource, NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
 };
 use uxfd_rust_backend::{build_native_generated_source_frame, load_native_getcolor_sample_frame};
@@ -725,6 +725,7 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     last_particle_sources: HashMap<String, NativeParticleSource>,
     last_audio_reactive_sources: HashMap<String, NativeAudioReactiveSource>,
     last_getcolor_sources: HashMap<String, NativeGetColorSource>,
+    last_hksy_sources: HashMap<String, NativeHksySource>,
     #[cfg(target_os = "macos")]
     video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
@@ -765,6 +766,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_particle_sources: HashMap::new(),
             last_audio_reactive_sources: HashMap::new(),
             last_getcolor_sources: HashMap::new(),
+            last_hksy_sources: HashMap::new(),
             #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
@@ -800,6 +802,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         self.last_particle_sources.clear();
         self.last_audio_reactive_sources.clear();
         self.last_getcolor_sources.clear();
+        self.last_hksy_sources.clear();
         #[cfg(target_os = "macos")]
         self.video_decoders.clear();
         let content_revisions = scene
@@ -960,12 +963,14 @@ impl NativeOverlayLiveSurfaceRenderer {
             scene,
             &mut self.getcolor_sample_cache,
         )?;
+        let hksy_sources = native_overlay_hksy_sources_for_scene(scene)?;
         self.last_scene = Some(Arc::new((snapshot, sources)));
         self.last_scene_content_revisions = content_revisions;
         self.last_nv12_sources = nv12_sources;
         self.last_particle_sources = particle_sources;
         self.last_audio_reactive_sources = audio_reactive_sources;
         self.last_getcolor_sources = getcolor_sources;
+        self.last_hksy_sources = hksy_sources;
         self.scene_generation = self.scene_generation.wrapping_add(1);
 
         let (decoration_clips, decoration_sources) = decoration
@@ -992,6 +997,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                     &self.last_particle_sources,
                     &self.last_audio_reactive_sources,
                     &self.last_getcolor_sources,
+                    &self.last_hksy_sources,
                     &decoration_clips,
                     &decoration_sources,
                 ),
@@ -1075,6 +1081,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             && self.last_particle_sources.is_empty()
             && self.last_audio_reactive_sources.is_empty()
             && self.last_getcolor_sources.is_empty()
+            && self.last_hksy_sources.is_empty()
         {
             pollster::block_on(
                 self.renderer
@@ -1098,6 +1105,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                         &self.last_particle_sources,
                         &self.last_audio_reactive_sources,
                         &self.last_getcolor_sources,
+                        &self.last_hksy_sources,
                         &decoration_clips,
                         &decoration_sources,
                     ),
@@ -2076,6 +2084,7 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
     renderer.last_nv12_sources.clear();
     renderer.last_particle_sources.clear();
     renderer.last_getcolor_sources.clear();
+    renderer.last_hksy_sources.clear();
     #[cfg(target_os = "macos")]
     renderer.video_decoders.clear();
     // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
@@ -2588,6 +2597,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
                     | MediaKind::GeneratedAudioWaveform
                     | MediaKind::GeneratedAudioSphere
                     | MediaKind::GeneratedGetColorDots
+                    | MediaKind::GeneratedHksyCheckerGrid
             )
         {
             continue;
@@ -2749,6 +2759,37 @@ fn native_overlay_particle_sources_for_scene(
         if sources.insert(media.id.clone(), source).is_some() {
             return Err(format!(
                 "Duplicate native overlay particle mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn native_overlay_hksy_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, NativeHksySource>, String> {
+    let mut sources = HashMap::new();
+    for media in scene
+        .media
+        .iter()
+        .filter(|media| media.kind == "GeneratedHksyCheckerGrid")
+    {
+        let config_revision = native_overlay_media_content_revision(media, 0).ok_or_else(|| {
+            format!(
+                "Native overlay HKSY media '{}' has no stable content revision.",
+                media.id
+            )
+        })?;
+        let descriptor = NativeHksySource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            config_revision,
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native overlay HKSY mediaId '{}'",
                 media.id
             ));
         }
@@ -3683,6 +3724,55 @@ mod tests {
         assert_eq!(descriptor.width, 64);
         assert_eq!(descriptor.height, 48);
         assert!(descriptor.sample_frame.is_none());
+    }
+
+    #[test]
+    fn direct_hksy_scene_uses_gpu_descriptor_instead_of_cpu_rgba_frame() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "hksy-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "hksy-media".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "hksy-media".to_string(),
+                kind: "GeneratedHksyCheckerGrid".to_string(),
+                source: r##"{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":8,"line_width":1,"checker_enabled":false,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#808080","background_colour":"#000000","palette_colours":null,"separate_interval":4,"separate_line_width":3,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 48,
+        };
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&scene, &mut cache, true)
+                .expect("direct HKSY source resolution must succeed");
+        assert!(
+            direct_rgba.is_empty(),
+            "direct HKSY scene must not allocate a completed CPU RGBA source"
+        );
+        assert_eq!(cache.stats(), (0, 0));
+
+        let descriptors = native_overlay_hksy_sources_for_scene(&scene)
+            .expect("HKSY GPU descriptor resolution must succeed");
+        let descriptor = descriptors
+            .get("hksy-media")
+            .expect("HKSY descriptor exists");
+        assert_eq!(descriptor.width, 64);
+        assert_eq!(descriptor.height, 48);
+        assert_eq!(descriptor.source, scene.media[0].source);
     }
 
     #[test]

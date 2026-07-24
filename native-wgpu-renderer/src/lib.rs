@@ -21,6 +21,7 @@ use wgpu::util::DeviceExt;
 
 mod audio_reactive;
 mod getcolor;
+mod hksy;
 #[cfg(target_os = "macos")]
 mod metal_encode_target;
 #[cfg(not(target_os = "macos"))]
@@ -30,6 +31,7 @@ mod nv12;
 mod particle;
 pub use audio_reactive::NativeAudioReactiveSource;
 pub use getcolor::NativeGetColorSource;
+pub use hksy::NativeHksySource;
 pub use nv12::{
     Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
 };
@@ -88,6 +90,7 @@ pub enum NativeWgpuRenderError {
     SharedMemory(uxfd_shared_memory_spike::PosixShmError),
     AudioWaveform(AudioWaveformSceneError),
     GetColor(String),
+    Hksy(String),
     BufferMap,
     InvalidFrame(RgbaFrameError),
     /// NV12 IOSurface import は macOS(Metal) 専用。他プラットフォームでは
@@ -236,6 +239,7 @@ pub struct NativeWgpuRenderer {
     particle_renderer: particle::ParticleGpuRenderer,
     audio_reactive_renderer: audio_reactive::AudioReactiveGpuRenderer,
     getcolor_renderer: getcolor::GetColorGpuRenderer,
+    hksy_renderer: hksy::HksyGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -400,6 +404,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let particle_renderer = particle::ParticleGpuRenderer::new(&device);
         let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
+        let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -425,6 +430,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             particle_renderer,
             audio_reactive_renderer,
             getcolor_renderer,
+            hksy_renderer,
         };
 
         Ok(Self {
@@ -588,6 +594,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         particle_sources: &HashMap<String, NativeParticleSource>,
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         getcolor_sources: &HashMap<String, NativeGetColorSource>,
+        hksy_sources: &HashMap<String, NativeHksySource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -600,6 +607,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 particle_sources,
                 audio_reactive_sources,
                 getcolor_sources,
+                hksy_sources,
                 false,
                 content_revisions,
             )?;
@@ -928,6 +936,7 @@ impl NativeWgpuRenderer {
         let particle_renderer = particle::ParticleGpuRenderer::new(&device);
         let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
+        let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -954,6 +963,7 @@ impl NativeWgpuRenderer {
             particle_renderer,
             audio_reactive_renderer,
             getcolor_renderer,
+            hksy_renderer,
         })
     }
 
@@ -1057,6 +1067,7 @@ impl NativeWgpuRenderer {
             nv12_sources,
             &HashMap::new(),
             audio_reactive_sources,
+            &HashMap::new(),
             &HashMap::new(),
             true,
             content_revisions,
@@ -1226,6 +1237,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             audio_reactive_sources,
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1356,6 +1368,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1370,6 +1383,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1398,6 +1412,7 @@ impl NativeWgpuRenderer {
         particle_sources: &HashMap<String, NativeParticleSource>,
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         getcolor_sources: &HashMap<String, NativeGetColorSource>,
+        hksy_sources: &HashMap<String, NativeHksySource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1410,6 +1425,7 @@ impl NativeWgpuRenderer {
         let mut touched_particle_media_ids: HashSet<String> = HashSet::new();
         let mut touched_audio_reactive_media_ids: HashSet<String> = HashSet::new();
         let mut touched_getcolor_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_hksy_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1473,6 +1489,21 @@ impl NativeWgpuRenderer {
                 continue;
             }
 
+            if let Some(hksy_source) = hksy_sources.get(&clip.media_id) {
+                touched_hksy_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .hksy_renderer
+                    .prepare(&self.device, &self.queue, &clip.media_id, hksy_source)
+                    .map_err(NativeWgpuRenderError::Hksy)?;
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
+                continue;
+            }
+
             let source = sources.get(&clip.media_id).ok_or_else(|| {
                 NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
@@ -1507,6 +1538,7 @@ impl NativeWgpuRenderer {
             .finish_frame(&touched_audio_reactive_media_ids);
         self.getcolor_renderer
             .finish_frame(&touched_getcolor_media_ids);
+        self.hksy_renderer.finish_frame(&touched_hksy_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -3768,6 +3800,7 @@ mod tests {
                         particle_sources,
                         &HashMap::new(),
                         &HashMap::new(),
+                        &HashMap::new(),
                         true,
                         &HashMap::new(),
                     )
@@ -3865,6 +3898,7 @@ mod tests {
                     &HashMap::new(),
                     &audio_sources,
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -3959,6 +3993,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &getcolor_sources,
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4083,6 +4118,104 @@ mod tests {
             (0, 0),
             "GPU HKSY output must never enter the CPU RGBA upload cache"
         );
+    }
+
+    #[test]
+    fn hksy_gpu_source_supports_diamond_measured_grid_and_anchor_line() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(32, 32)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping specialised GPU HKSY test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "hksy-specialised-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "hksy-specialised-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let render = |source: NativeHksySource| {
+            let hksy_sources =
+                HashMap::from([("hksy-specialised-media".to_string(), source)]);
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &hksy_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("specialised HKSY preparation must succeed");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD specialised HKSY test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("specialised HKSY output readback must succeed")
+        };
+
+        let diamond = render(NativeHksySource {
+            source: r##"{"generator":"hksy-checker-grid","pattern":"diamond","cell_size":8,"line_width":4,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            width: 32,
+            height: 32,
+            config_revision: 1,
+        });
+        assert!(diamond.pixels.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(diamond
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[0] > 200 && pixel[3] > 0));
+
+        let measured = render(NativeHksySource {
+            source: r##"{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":8,"line_width":1,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":2,"separate_line_width":3,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            width: 32,
+            height: 32,
+            config_revision: 2,
+        });
+        assert!(measured
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[2] > 200 && pixel[3] > 0));
+        assert!(measured
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[0] > 200 && pixel[3] > 0));
+
+        let anchor = render(NativeHksySource {
+            source: r##"{"generator":"hksy-checker-grid","pattern":"anchor-line","cell_size":8,"line_width":4,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":[{"x":-8,"y":0},{"x":8,"y":0}],"round_caps":true,"max_join_distance":100}"##.to_string(),
+            width: 32,
+            height: 32,
+            config_revision: 3,
+        });
+        assert!(anchor.pixels.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(anchor
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[0] > 200 && pixel[3] > 0));
+        assert_eq!(renderer.hksy_renderer.stats(), (3, 3));
     }
 
     #[test]
