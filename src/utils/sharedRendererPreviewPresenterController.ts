@@ -691,15 +691,35 @@ export const startSharedRendererPreviewPresenter = async ({
       videoObjectIds: new Set(videoOwnership.videoObjectIds),
     });
     if (!presentation.ok) {
-      writeDiagnostics({
-        status: requireSharedRendererOutput ? 'blocked' : 'fallback',
-        reason: presentation.reason,
-      });
-      return {
-        ok: false,
-        reason: presentation.reason,
-        dispose: presenter.dispose,
-      };
+      // An external video element recreated right after export finishes may
+      // start up with readyState=0, which is exactly the transient
+      // videoTextureViewUnavailable condition the reuse-tick path already
+      // tolerates below. Unless a genuinely required shared-renderer output
+      // demands strictness here, treat this the same way: keep the presenter
+      // alive, record it as a transient skip using the same counter/threshold
+      // as the reuse path, and let the normal startup flow continue. Recovery
+      // is handled by the resident-scene re-evaluation wiring once the video
+      // element becomes presentable.
+      if (
+        !requireSharedRendererOutput
+        && isTransientExternalVideoPresentationFailure(presentation)
+        && consecutiveExternalVideoTransientSkips < EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD
+      ) {
+        consecutiveExternalVideoTransientSkips += 1;
+        recordTransientSkip(presentation.reason);
+      } else {
+        writeDiagnostics({
+          status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+          reason: presentation.reason,
+        });
+        return {
+          ok: false,
+          reason: presentation.reason,
+          dispose: presenter.dispose,
+        };
+      }
+    } else {
+      consecutiveExternalVideoTransientSkips = 0;
     }
   } else if (shouldPresentUploadedVideoFrame) {
     const presentation = uploadedVideoFrameTexturesByClipId.size > 0
