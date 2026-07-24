@@ -977,7 +977,8 @@ impl NativeOverlayLiveSurfaceRenderer {
             scene,
             &mut self.getcolor_sample_cache,
         )?;
-        let hksy_sources = native_overlay_hksy_sources_for_scene(scene)?;
+        let mut hksy_sources = native_overlay_hksy_sources_for_scene(scene)?;
+        hksy_sources.extend(native_overlay_hologram_sources_for_scene(scene)?);
         let simple_tube_sources = native_overlay_simple_tube_sources_for_scene(scene)?;
         let focus_lines_sources = native_overlay_focus_lines_sources_for_scene(scene)?;
         let shaking_polygon_sources = native_overlay_shaking_polygon_sources_for_scene(scene)?;
@@ -2636,6 +2637,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
                     | MediaKind::GeneratedAudioSphere
                     | MediaKind::GeneratedGetColorDots
                     | MediaKind::GeneratedHksyCheckerGrid
+                    | MediaKind::GeneratedHologram
                     | MediaKind::GeneratedSimpleTube
                     | MediaKind::GeneratedFocusLinesPlus
                     | MediaKind::GeneratedShakingPolygon
@@ -2832,6 +2834,37 @@ fn native_overlay_hksy_sources_for_scene(
         if sources.insert(media.id.clone(), descriptor).is_some() {
             return Err(format!(
                 "Duplicate native overlay HKSY mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn native_overlay_hologram_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, NativeHksySource>, String> {
+    let mut sources = HashMap::new();
+    for media in scene
+        .media
+        .iter()
+        .filter(|media| media.kind == "GeneratedHologram")
+    {
+        let config_revision = native_overlay_media_content_revision(media, 0).ok_or_else(|| {
+            format!(
+                "Native overlay Hologram media '{}' has no stable content revision.",
+                media.id
+            )
+        })?;
+        let descriptor = NativeHksySource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            config_revision,
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native overlay Hologram mediaId '{}'",
                 media.id
             ));
         }
@@ -3983,6 +4016,55 @@ mod tests {
         let descriptor = descriptors
             .get("hksy-media")
             .expect("HKSY descriptor exists");
+        assert_eq!(descriptor.width, 64);
+        assert_eq!(descriptor.height, 48);
+        assert_eq!(descriptor.source, scene.media[0].source);
+    }
+
+    #[test]
+    fn direct_hologram_scene_uses_gpu_descriptor_instead_of_cpu_rgba_frame() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "hologram-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "hologram-media".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "hologram-media".to_string(),
+                kind: "GeneratedHologram".to_string(),
+                source: r##"{"generator":"hologram","tile_size":80,"rotation_degrees":17,"gradient_angle_degrees":-60,"colour_mode":2,"tint_colour":"#80c0ff"}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 48,
+        };
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&scene, &mut cache, true)
+                .expect("direct Hologram source resolution must succeed");
+        assert!(
+            direct_rgba.is_empty(),
+            "direct Hologram scene must not allocate a completed CPU RGBA source"
+        );
+        assert_eq!(cache.stats(), (0, 0));
+
+        let descriptors = native_overlay_hologram_sources_for_scene(&scene)
+            .expect("Hologram GPU descriptor resolution must succeed");
+        let descriptor = descriptors
+            .get("hologram-media")
+            .expect("Hologram descriptor exists");
         assert_eq!(descriptor.width, 64);
         assert_eq!(descriptor.height, 48);
         assert_eq!(descriptor.source, scene.media[0].source);

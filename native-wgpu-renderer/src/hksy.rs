@@ -50,6 +50,21 @@ struct HksyParams {
     max_join_distance: Option<f32>,
 }
 
+#[derive(Debug, Deserialize)]
+struct HologramParams {
+    generator: String,
+    tile_size: u32,
+    rotation_degrees: f32,
+    gradient_angle_degrees: f32,
+    colour_mode: u32,
+    tint_colour: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeneratedSourceKind {
+    generator: String,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct HksyFillUniform {
@@ -64,6 +79,17 @@ struct HksyFillUniform {
     secondary: [f32; 4],
     background: [f32; 4],
     palette: [[f32; 4]; HKSY_MAX_PALETTE_COLOURS],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct HologramUniform {
+    dimensions: [f32; 2],
+    tile_size: f32,
+    colour_mode: u32,
+    rotation: [f32; 2],
+    gradient: [f32; 2],
+    tint: [f32; 4],
 }
 
 #[repr(C)]
@@ -95,6 +121,7 @@ struct HksyTextureCache {
 pub(crate) struct HksyGpuRenderer {
     fill_pipeline: wgpu::RenderPipeline,
     fill_bind_group_layout: wgpu::BindGroupLayout,
+    hologram_pipeline: wgpu::RenderPipeline,
     line_pipeline: wgpu::RenderPipeline,
     line_bind_group_layout: wgpu::BindGroupLayout,
     cache: Mutex<HksyTextureCache>,
@@ -140,6 +167,30 @@ impl HksyGpuRenderer {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &fill_shader,
+                entry_point: "fs_main",
+                targets: &[Some(hksy_colour_target())],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+        let hologram_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("UXFD hologram fill shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("hologram_fill.wgsl").into()),
+        });
+        let hologram_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("UXFD hologram fill pipeline"),
+            layout: Some(&fill_layout),
+            vertex: wgpu::VertexState {
+                module: &hologram_shader,
+                entry_point: "vs_main",
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &hologram_shader,
                 entry_point: "fs_main",
                 targets: &[Some(hksy_colour_target())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -209,6 +260,7 @@ impl HksyGpuRenderer {
         Self {
             fill_pipeline,
             fill_bind_group_layout,
+            hologram_pipeline,
             line_pipeline,
             line_bind_group_layout,
             cache: Mutex::new(HksyTextureCache::default()),
@@ -246,6 +298,86 @@ impl HksyGpuRenderer {
                 touch_cache_order(&mut cache.order, media_id);
                 return Ok(hit);
             }
+        }
+
+        let source_kind: GeneratedSourceKind = serde_json::from_str(&source.source)
+            .map_err(|error| format!("Invalid generated fill source JSON: {error}"))?;
+        if source_kind.generator == "hologram" {
+            let params: HologramParams = serde_json::from_str(&source.source)
+                .map_err(|error| format!("Invalid Hologram source JSON: {error}"))?;
+            validate_hologram_source(source, &params)?;
+            let tint = parse_colour(&params.tint_colour)?;
+            let rotation = params.rotation_degrees.to_radians();
+            let gradient = params.gradient_angle_degrees.to_radians();
+            let uniform = HologramUniform {
+                dimensions: [source.width as f32, source.height as f32],
+                tile_size: params.tile_size as f32,
+                colour_mode: params.colour_mode,
+                rotation: [rotation.cos(), rotation.sin()],
+                gradient: [gradient.cos(), gradient.sin()],
+                tint,
+            };
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("UXFD hologram source texture"),
+                size: wgpu::Extent3d {
+                    width: source.width,
+                    height: source.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("UXFD hologram fill uniform"),
+                contents: bytemuck::bytes_of(&uniform),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("UXFD hologram fill bind group"),
+                layout: &self.fill_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                }],
+            });
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("UXFD hologram source encoder"),
+            });
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("UXFD hologram source pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
+                pass.set_pipeline(&self.hologram_pipeline);
+                pass.set_bind_group(0, &bind_group, &[]);
+                pass.draw(0..6, 0..1);
+            }
+            queue.submit(Some(encoder.finish()));
+            insert_rendered_texture(&mut cache, media_id, source, texture);
+            #[cfg(test)]
+            {
+                self.texture_creations
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.render_passes
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            return Ok((view, source.width, source.height));
         }
 
         let params: HksyParams = serde_json::from_str(&source.source)
@@ -361,24 +493,7 @@ impl HksyGpuRenderer {
         }
         queue.submit(Some(encoder.finish()));
 
-        let byte_len = source.width as usize * source.height as usize * 4;
-        if let Some(previous) = cache.entries.remove(media_id) {
-            cache.total_bytes = cache.total_bytes.saturating_sub(previous.byte_len);
-        }
-        cache.total_bytes = cache.total_bytes.saturating_add(byte_len);
-        cache.entries.insert(
-            media_id.to_string(),
-            HksyTextureEntry {
-                config_revision: source.config_revision,
-                texture,
-                width: source.width,
-                height: source.height,
-                byte_len,
-                idle_frames: 0,
-            },
-        );
-        touch_cache_order(&mut cache.order, media_id);
-        evict_over_budget(&mut cache);
+        insert_rendered_texture(&mut cache, media_id, source, texture);
         #[cfg(test)]
         {
             self.texture_creations
@@ -420,6 +535,32 @@ impl HksyGpuRenderer {
                 .load(std::sync::atomic::Ordering::Relaxed),
         )
     }
+}
+
+fn insert_rendered_texture(
+    cache: &mut HksyTextureCache,
+    media_id: &str,
+    source: &NativeHksySource,
+    texture: wgpu::Texture,
+) {
+    let byte_len = source.width as usize * source.height as usize * 4;
+    if let Some(previous) = cache.entries.remove(media_id) {
+        cache.total_bytes = cache.total_bytes.saturating_sub(previous.byte_len);
+    }
+    cache.total_bytes = cache.total_bytes.saturating_add(byte_len);
+    cache.entries.insert(
+        media_id.to_string(),
+        HksyTextureEntry {
+            config_revision: source.config_revision,
+            texture,
+            width: source.width,
+            height: source.height,
+            byte_len,
+            idle_frames: 0,
+        },
+    );
+    touch_cache_order(&mut cache.order, media_id);
+    evict_over_budget(cache);
 }
 
 fn touch_cache_order(order: &mut VecDeque<String>, media_id: &str) {
@@ -503,6 +644,35 @@ fn validate_source(source: &NativeHksySource, params: &HksyParams) -> Result<(),
             return Err("HKSY anchor-line parameters are invalid.".to_string());
         }
     }
+    Ok(())
+}
+
+fn validate_hologram_source(
+    source: &NativeHksySource,
+    params: &HologramParams,
+) -> Result<(), String> {
+    if source.width == 0 || source.height == 0 {
+        return Err("Hologram dimensions must be positive.".to_string());
+    }
+    if params.generator != "hologram" {
+        return Err("Hologram generator must be hologram.".to_string());
+    }
+    if !(10..=1000).contains(&params.tile_size) {
+        return Err("Hologram tile_size must be 10..1000.".to_string());
+    }
+    if !params.rotation_degrees.is_finite() || !(-720.0..=720.0).contains(&params.rotation_degrees)
+    {
+        return Err("Hologram rotation_degrees must be -720..720.".to_string());
+    }
+    if !params.gradient_angle_degrees.is_finite()
+        || !(-720.0..=720.0).contains(&params.gradient_angle_degrees)
+    {
+        return Err("Hologram gradient_angle_degrees must be -720..720.".to_string());
+    }
+    if params.colour_mode > 2 {
+        return Err("Hologram colour_mode must be 0..2.".to_string());
+    }
+    parse_colour(&params.tint_colour)?;
     Ok(())
 }
 

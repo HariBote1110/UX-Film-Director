@@ -4325,6 +4325,97 @@ mod tests {
     }
 
     #[test]
+    fn hologram_source_is_generated_on_gpu_and_reuses_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(32, 24)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU Hologram test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "hologram-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "hologram-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let source = NativeHksySource {
+            source: r##"{"generator":"hologram","tile_size":10,"rotation_degrees":17,"gradient_angle_degrees":-60,"colour_mode":2,"tint_colour":"#80c0ff"}"##.to_string(),
+            width: 32,
+            height: 24,
+            config_revision: 21,
+        };
+        let generated_sources = HashMap::from([("hologram-media".to_string(), source)]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+
+        let render = |renderer: &NativeWgpuRenderer| {
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &generated_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("Hologram preparation must succeed without a generated RGBA source");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD Hologram test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("Hologram output readback must succeed")
+        };
+
+        let first = render(&renderer);
+        let second = render(&renderer);
+        let distinct_colours = first
+            .pixels
+            .chunks_exact(4)
+            .map(|pixel| [pixel[0], pixel[1], pixel[2]])
+            .collect::<HashSet<_>>();
+        assert!(
+            distinct_colours.len() >= 6,
+            "GPU Hologram pass must produce multiple prism bands"
+        );
+        assert_eq!(first.pixels, second.pixels);
+        assert_eq!(
+            renderer.hksy_renderer.stats(),
+            (1, 1),
+            "unchanged Hologram configuration must reuse one GPU texture and one source pass"
+        );
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 0),
+            "GPU Hologram output must never enter the CPU RGBA upload cache"
+        );
+    }
+
+    #[test]
     fn hksy_gpu_source_supports_diamond_measured_grid_and_anchor_line() {
         let renderer = match pollster::block_on(NativeWgpuRenderer::new(32, 32)) {
             Ok(renderer) => renderer,

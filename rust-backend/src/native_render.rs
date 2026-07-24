@@ -225,6 +225,10 @@ pub(crate) fn handle_encode_write_native_frame(
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
     };
+    let hologram_sources = match collect_native_render_hologram_sources(&parsed.media) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
     let simple_tube_sources = match collect_native_render_simple_tube_sources(&parsed.media) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -243,7 +247,7 @@ pub(crate) fn handle_encode_write_native_frame(
         particles: particle_sources,
         focus_lines: focus_lines_sources,
         getcolor: getcolor_sources,
-        hksy: hksy_sources,
+        hksy: merge_generated_source_maps(hksy_sources, hologram_sources),
         simple_tubes: simple_tube_sources,
         shaking_polygons: shaking_polygon_sources,
         shattered_spheres: shattered_sphere_sources,
@@ -585,6 +589,10 @@ pub(crate) fn handle_native_render_shared_frame(
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
     };
+    let hologram_sources = match collect_native_render_hologram_sources(&parsed.media) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
     let simple_tube_sources = match collect_native_render_simple_tube_sources(&parsed.media) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -603,7 +611,7 @@ pub(crate) fn handle_native_render_shared_frame(
         particles: particle_sources,
         focus_lines: focus_lines_sources,
         getcolor: getcolor_sources,
-        hksy: hksy_sources,
+        hksy: merge_generated_source_maps(hksy_sources, hologram_sources),
         simple_tubes: simple_tube_sources,
         shaking_polygons: shaking_polygon_sources,
         shattered_spheres: shattered_sphere_sources,
@@ -1070,6 +1078,43 @@ fn collect_native_render_hksy_sources(
         }
     }
     Ok(sources)
+}
+
+fn collect_native_render_hologram_sources(
+    media_items: &[SceneMediaReference],
+) -> Result<HashMap<String, NativeHksySource>, String> {
+    let mut sources = HashMap::new();
+    for media in media_items
+        .iter()
+        .filter(|media| media.kind == MediaKind::GeneratedHologram)
+    {
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        let descriptor = NativeHksySource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native render Hologram mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn merge_generated_source_maps<T>(
+    mut left: HashMap<String, T>,
+    right: HashMap<String, T>,
+) -> HashMap<String, T> {
+    left.extend(right);
+    left
 }
 
 fn collect_native_render_simple_tube_sources(

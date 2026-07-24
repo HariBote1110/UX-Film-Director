@@ -33,6 +33,7 @@ pub(crate) fn collect_native_render_sources(
             | MediaKind::GeneratedFocusLinesPlus
             | MediaKind::GeneratedGetColorDots
             | MediaKind::GeneratedHksyCheckerGrid
+            | MediaKind::GeneratedHologram
             | MediaKind::GeneratedSimpleTube
             | MediaKind::GeneratedShakingPolygon
             | MediaKind::GeneratedShatteredSphere => continue,
