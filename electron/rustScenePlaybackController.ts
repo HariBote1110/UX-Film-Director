@@ -16,7 +16,33 @@ export interface RustScenePlaybackEvaluation {
   sceneId: string;
   revision: number;
   frameIndex: number;
-  snapshot: unknown;
+  snapshot: {
+    frame_index: number;
+    canvas_width: number;
+    canvas_height: number;
+    colour: {
+      profile: string;
+      working_space: string;
+      alpha: string;
+    };
+    clips: Array<{
+      clip_id: string;
+      track_id: string;
+      media_id: string;
+      source_frame: number;
+      z_index: number;
+      transform: {
+        translation_x: number;
+        translation_y: number;
+        scale_x: number;
+        scale_y: number;
+        rotation_degrees: number;
+        sampling: string;
+      };
+      opacity: number;
+      effects: unknown[];
+    }>;
+  };
   media: Array<{
     id: string;
     kind: string;
@@ -71,6 +97,36 @@ const isDirectOverlayMediaSupported = (kind: string, source: string): boolean =>
 const copyDiagnostics = (
   diagnostics: RustScenePlaybackDiagnostics,
 ): RustScenePlaybackDiagnostics => ({ ...diagnostics });
+
+const toNativeOverlayPlaybackSnapshot = (
+  snapshot: RustScenePlaybackEvaluation['snapshot'],
+) => ({
+  frameIndex: snapshot.frame_index,
+  colour: {
+    profile: snapshot.colour.profile,
+    workingSpace: snapshot.colour.working_space,
+    alpha: snapshot.colour.alpha,
+  },
+  clips: snapshot.clips.map((clip) => ({
+    clipId: clip.clip_id,
+    trackId: clip.track_id,
+    mediaId: clip.media_id,
+    sourceFrame: clip.source_frame,
+    zIndex: clip.z_index,
+    transform: {
+      translationX: clip.transform.translation_x,
+      translationY: clip.transform.translation_y,
+      scaleX: clip.transform.scale_x,
+      scaleY: clip.transform.scale_y,
+      rotationDegrees: clip.transform.rotation_degrees,
+      sampling: clip.transform.sampling,
+    },
+    opacity: clip.opacity,
+    effectsJson: JSON.stringify(clip.effects),
+  })),
+  canvasWidth: snapshot.canvas_width,
+  canvasHeight: snapshot.canvas_height,
+});
 
 export const createRustScenePlaybackController = ({
   evaluateScene,
@@ -191,11 +247,17 @@ export const createRustScenePlaybackController = ({
     ) {
       return { active: false, reason: 'unsupportedDirectMedia' };
     }
-    const response = await presentScene({
-      windowId: request.windowId,
-      snapshot: evaluation.snapshot,
-      media: evaluation.media,
-    });
+    let response: NativeOverlayResponse;
+    try {
+      response = await presentScene({
+        windowId: request.windowId,
+        snapshot: toNativeOverlayPlaybackSnapshot(evaluation.snapshot),
+        media: evaluation.media,
+      });
+    } catch {
+      diagnostics.failedFrames += 1;
+      return { active: false, reason: 'presentFailed' };
+    }
     if (!active || generation !== runGeneration) {
       return { active: false, reason: 'presentFailed' };
     }
