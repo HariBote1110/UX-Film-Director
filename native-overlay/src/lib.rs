@@ -2404,6 +2404,29 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    #[test]
+    fn scene_media_payload_preserves_video_source_rate() {
+        let media = scene_media_from_payload(NativeOverlaySceneMediaPayload {
+            id: "video-1".to_string(),
+            kind: "Video".to_string(),
+            source: "/tmp/video.mov".to_string(),
+            width: 1920,
+            height: 1080,
+            source_rate: Some(NativeOverlayFpsPayload {
+                numerator: 30_000,
+                denominator: 1_001,
+            }),
+        });
+
+        assert_eq!(
+            media.source_rate,
+            Some(Fps {
+                numerator: 30_000,
+                denominator: 1_001,
+            })
+        );
+    }
+
     static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     #[test]
