@@ -415,6 +415,45 @@ describe('buildEditableRustScene', () => {
     }));
   });
 
+  it('Wipeを静的effect列から分離してRust時間評価trackへ変換する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-wipe',
+      projectSettings,
+      layers,
+      objects: [shape({
+        filters: [
+          {
+            id: 'colour',
+            type: 'color_correction',
+            enabled: true,
+            params: { brightness: 1, contrast: 0, saturation: 0, hue: 0 },
+          },
+          { id: 'wipe-left', type: 'wipe', enabled: true, params: { edge: 'left', reverse: false } },
+          {
+            id: 'outline',
+            type: 'outline',
+            enabled: true,
+            params: { colour: '#ffffff', thickness: 2, opacity: 0.5 },
+          },
+          { id: 'wipe-right', type: 'wipe', enabled: true, params: { edge: 'right', reverse: true } },
+        ],
+      })],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected Wipe conversion to succeed');
+    expect(result.project.tracks[0].clips[0]).toMatchObject({
+      effects: [
+        expect.objectContaining({ ColourCorrection: expect.any(Object) }),
+        expect.objectContaining({ Outline: expect.any(Object) }),
+      ],
+      wipe_animations: [
+        { effect_index: 1, edge: 'left', reverse: false },
+        { effect_index: 3, edge: 'right', reverse: true },
+      ],
+    });
+  });
+
   it('描画に影響しないgroupIdは編集メタデータとして許可する', () => {
     const grouped = shape({ id: 'group-member' });
     grouped.groupId = 'group-a';
