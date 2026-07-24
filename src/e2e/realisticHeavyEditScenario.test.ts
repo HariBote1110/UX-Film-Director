@@ -33,6 +33,14 @@ describe('現実的な重量編集シナリオ', () => {
     expect(allObjects.length).toBeGreaterThanOrEqual(48);
     expect(types).toContain('shaking_polygon');
     expect(types).toContain('shattered_sphere');
+    expect(types).toContain('hologram');
+    expect(allObjects).toContainEqual(expect.objectContaining({
+      id: 'realistic-main-hologram',
+      type: 'hologram',
+      width: 1920,
+      height: 1080,
+      duration: 24,
+    }));
     expect(types).toEqual(expect.objectContaining(new Set([
       'video',
       'audio',
