@@ -42,11 +42,22 @@ export時にlegacy canvas経路へ落ちうる。
 `hasProjectExportNativeRenderMediaObjects` を手書きOR式のまま個別修正するのではなく、
 Rust/native側の対応object typeを唯一管理している `rustSceneSnapshot.ts` の
 `isSupportedSceneObject` を `export` し、そこから導出する形へ書き換えた
-（`object.type !== 'text'` のみ追加条件。text はPixiの標準テキスト描画がlegacy canvas
-captureでも正しく動作するため意図的に対象外）。これにより `shattered_sphere` に加えて
+（`object.type !== 'text'` のみ追加条件）。これにより `shattered_sphere` に加えて
 同様に漏れていた `plain_effector_line` も一括で解消し、以後同種の判定漏れは
 `isSupportedSceneObject` 側の更新だけで自動的に追従する。契約テストは
 `src/utils/projectExportFrameCanvas.test.ts` にSSOT総当たりの形で追加済み。
+
+### `text` を除外している理由（既知の未解決点）
+
+`text` の除外は**移行が済んでいるからではなく、従来挙動を変えないため**である。
+テキストはRust側に描画実装（`rust-backend/src/generated/text.rs`、`fonts.rs`）を持ち、
+`src/utils/sharedRendererTextOwnership.ts` でも native render frameが用意できれば
+`sharedRenderer` 所有になり得る。しかし `hasProjectExportNativeRenderMediaObjects`
+には最初から `text` が入っておらず、**テキストのみで構成したプロジェクトは
+export時にlegacy canvas経路へ落ちる**。これは経路1（legacy canvas capture）が
+production到達する主要条件そのものであり、`text` をRust frame source必須側へ
+倒すことが経路1縮小の次の一手になる。フォント選択・字形・行送りの
+再現性検証を伴うため、独立した作業として扱う。
 
 ## 制約・注意点
 
