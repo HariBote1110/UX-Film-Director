@@ -19,6 +19,11 @@ use uxfd_sidecar_protocol::{
 };
 use wgpu::util::DeviceExt;
 
+#[cfg(target_os = "macos")]
+mod metal_encode_target;
+#[cfg(not(target_os = "macos"))]
+#[path = "metal_encode_target_stub.rs"]
+mod metal_encode_target;
 mod nv12;
 pub use nv12::{
     Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
@@ -86,6 +91,24 @@ pub enum NativeWgpuRenderError {
     Nv12SurfaceLookupFailed {
         surface_id: u32,
     },
+    BgraImportUnsupportedPlatform,
+    BgraSurfaceLookupFailed {
+        surface_id: u32,
+    },
+    BgraSurfaceSizeMismatch {
+        surface_id: u32,
+        expected_width: u32,
+        expected_height: u32,
+        actual_width: u32,
+        actual_height: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BgraIoSurfaceTarget {
+    pub surface_id: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -195,6 +218,8 @@ pub struct NativeWgpuRenderer {
     /// `set_pipeline` して合成できる）。
     nv12_pipeline: wgpu::RenderPipeline,
     nv12_bind_group_layout: wgpu::BindGroupLayout,
+    bgra_pipeline: wgpu::RenderPipeline,
+    nv12_bgra_pipeline: wgpu::RenderPipeline,
     /// media_id ＋ (surface_id, revision) でキー付けした NV12 Y/CbCr
     /// プレーンテクスチャキャッシュ。`media_texture_cache` と同じ設計。
     nv12_texture_cache: Mutex<nv12::Nv12MediaTextureCache>,
@@ -349,6 +374,16 @@ impl NativeWgpuLiveSurfaceRenderer {
         let bind_group_layout = pipeline.get_bind_group_layout(0);
         let (nv12_bind_group_layout, nv12_pipeline) =
             nv12::create_nv12_pipeline_for_format(&device, surface_format);
+        let bgra_pipeline = create_pipeline_for_format_with_layout(
+            &device,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            &bind_group_layout,
+        );
+        let nv12_bgra_pipeline = nv12::create_nv12_pipeline_for_format_with_layout(
+            &device,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            &nv12_bind_group_layout,
+        );
         let output_texture =
             create_output_texture_for_format(&device, width, height, surface_format);
         let readback_buffer = create_readback_buffer(&device, width, height);
@@ -369,6 +404,8 @@ impl NativeWgpuLiveSurfaceRenderer {
             media_texture_cache_misses: AtomicU64::new(0),
             nv12_pipeline,
             nv12_bind_group_layout,
+            bgra_pipeline,
+            nv12_bgra_pipeline,
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
@@ -765,6 +802,16 @@ impl NativeWgpuRenderer {
         let bind_group_layout = pipeline.get_bind_group_layout(0);
         let (nv12_bind_group_layout, nv12_pipeline) =
             nv12::create_nv12_pipeline_for_format(&device, OUTPUT_FORMAT);
+        let bgra_pipeline = create_pipeline_for_format_with_layout(
+            &device,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            &bind_group_layout,
+        );
+        let nv12_bgra_pipeline = nv12::create_nv12_pipeline_for_format_with_layout(
+            &device,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            &nv12_bind_group_layout,
+        );
         let output_texture = create_output_texture(&device, width, height);
         let readback_buffer = create_readback_buffer(&device, width, height);
 
@@ -785,6 +832,8 @@ impl NativeWgpuRenderer {
             media_texture_cache_misses: AtomicU64::new(0),
             nv12_pipeline,
             nv12_bind_group_layout,
+            bgra_pipeline,
+            nv12_bgra_pipeline,
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
@@ -841,6 +890,66 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
         )
         .await
+    }
+
+    /// IOSurface-backed `kCVPixelFormatType_32BGRA` の外部バッファへ scene を
+    /// 直接描画する。GPU→CPU copy/readback は行わず、submit 完了だけを待つ。
+    pub async fn render_frame_to_bgra_iosurface(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        target: BgraIoSurfaceTarget,
+    ) -> Result<NativeWgpuFrameStageTimings, NativeWgpuRenderError> {
+        if target.width != self.width || target.height != self.height {
+            return Err(NativeWgpuRenderError::BgraSurfaceSizeMismatch {
+                surface_id: target.surface_id,
+                expected_width: self.width,
+                expected_height: self.height,
+                actual_width: target.width,
+                actual_height: target.height,
+            });
+        }
+
+        let total_start = Instant::now();
+        let (prepared_clips, source_upload) = self.prepare_scene_clips_with_upload_fence(
+            snapshot,
+            sources,
+            nv12_sources,
+            true,
+            content_revisions,
+        )?;
+        let target_texture =
+            metal_encode_target::import_bgra_iosurface_render_target(&self.device, target)?;
+        let target_view = target_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("UXFD BGRA IOSurface encoder"),
+            });
+        self.encode_prepared_clips_with_pipelines(
+            &mut encoder,
+            &target_view,
+            &prepared_clips,
+            &self.bgra_pipeline,
+            &self.nv12_bgra_pipeline,
+        );
+
+        let render_start = Instant::now();
+        self.queue.submit(Some(encoder.finish()));
+        wait_for_submitted_work(&self.device, &self.queue)?;
+        let render = render_start.elapsed();
+
+        Ok(NativeWgpuFrameStageTimings {
+            setup: Duration::ZERO,
+            source_upload,
+            acquire: Duration::ZERO,
+            render,
+            readback_encode: Duration::ZERO,
+            steady_state: source_upload + render,
+            total: total_start.elapsed(),
+        })
     }
 
     pub async fn present_frame_stages(
@@ -1377,6 +1486,23 @@ impl NativeWgpuRenderer {
         output_view: &wgpu::TextureView,
         prepared_clips: &[Arc<PreparedClip>],
     ) {
+        self.encode_prepared_clips_with_pipelines(
+            encoder,
+            output_view,
+            prepared_clips,
+            &self.pipeline,
+            &self.nv12_pipeline,
+        );
+    }
+
+    fn encode_prepared_clips_with_pipelines(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+        prepared_clips: &[Arc<PreparedClip>],
+        rgba_pipeline: &wgpu::RenderPipeline,
+        nv12_pipeline: &wgpu::RenderPipeline,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("UXFD native wgpu render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1394,8 +1520,8 @@ impl NativeWgpuRenderer {
 
         for prepared_clip in prepared_clips {
             match prepared_clip.pipeline_kind {
-                ClipPipelineKind::Rgba => pass.set_pipeline(&self.pipeline),
-                ClipPipelineKind::Nv12 => pass.set_pipeline(&self.nv12_pipeline),
+                ClipPipelineKind::Rgba => pass.set_pipeline(rgba_pipeline),
+                ClipPipelineKind::Nv12 => pass.set_pipeline(nv12_pipeline),
             }
             pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
             pass.draw(0..3, 0..1);
@@ -2150,13 +2276,6 @@ fn create_pipeline_for_format(
     device: &wgpu::Device,
     output_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("UXFD native wgpu shader"),
-        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-            "../../shared-renderer/shaders/solid_composite.wgsl"
-        ))),
-    });
-
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("UXFD native wgpu bind group layout"),
         entries: &[
@@ -2181,6 +2300,20 @@ fn create_pipeline_for_format(
                 count: None,
             },
         ],
+    });
+    create_pipeline_for_format_with_layout(device, output_format, &bind_group_layout)
+}
+
+fn create_pipeline_for_format_with_layout(
+    device: &wgpu::Device,
+    output_format: wgpu::TextureFormat,
+    bind_group_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("UXFD native wgpu shader"),
+        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
+            "../../shared-renderer/shaders/solid_composite.wgsl"
+        ))),
     });
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("UXFD native wgpu pipeline layout"),

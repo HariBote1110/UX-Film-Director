@@ -56,13 +56,6 @@ pub(crate) fn create_nv12_pipeline_for_format(
     device: &wgpu::Device,
     output_format: wgpu::TextureFormat,
 ) -> (wgpu::BindGroupLayout, wgpu::RenderPipeline) {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("UXFD native wgpu nv12 shader"),
-        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-            "../../../shared-renderer/shaders/nv12_composite.wgsl"
-        ))),
-    });
-
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("UXFD native wgpu nv12 bind group layout"),
         entries: &[
@@ -108,14 +101,30 @@ pub(crate) fn create_nv12_pipeline_for_format(
             },
         ],
     });
+    let pipeline =
+        create_nv12_pipeline_for_format_with_layout(device, output_format, &bind_group_layout);
 
+    (bind_group_layout, pipeline)
+}
+
+pub(crate) fn create_nv12_pipeline_for_format_with_layout(
+    device: &wgpu::Device,
+    output_format: wgpu::TextureFormat,
+    bind_group_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("UXFD native wgpu nv12 shader"),
+        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
+            "../../../shared-renderer/shaders/nv12_composite.wgsl"
+        ))),
+    });
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("UXFD native wgpu nv12 pipeline layout"),
         bind_group_layouts: &[&bind_group_layout],
         push_constant_ranges: &[],
     });
 
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("UXFD native wgpu nv12 pipeline"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
@@ -149,9 +158,7 @@ pub(crate) fn create_nv12_pipeline_for_format(
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
-    });
-
-    (bind_group_layout, pipeline)
+    })
 }
 
 /// NV12 クリップ 1 枚分の uniform buffer 群と bind group を組み立てる。

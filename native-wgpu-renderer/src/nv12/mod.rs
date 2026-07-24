@@ -31,7 +31,7 @@ mod import;
 mod import_stub;
 mod pipeline;
 #[cfg(target_os = "macos")]
-mod sys;
+pub(crate) mod sys;
 
 #[cfg(target_os = "macos")]
 use import::import_nv12_iosurface_textures;
@@ -40,7 +40,9 @@ use import_stub::import_nv12_iosurface_textures;
 
 pub(crate) use cache::Nv12MediaTextureCache;
 use cache::Nv12MediaTextureCacheEntry;
-pub(crate) use pipeline::create_nv12_pipeline_for_format;
+pub(crate) use pipeline::{
+    create_nv12_pipeline_for_format, create_nv12_pipeline_for_format_with_layout,
+};
 use pipeline::{build_prepared_nv12_clip_bind_group, Nv12Params};
 
 use std::collections::HashSet;
