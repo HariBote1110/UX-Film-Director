@@ -31,6 +31,7 @@ mod metal_encode_target;
 mod nv12;
 mod particle;
 mod shaking_polygon;
+mod shattered_sphere;
 mod simple_tube;
 pub use audio_reactive::NativeAudioReactiveSource;
 pub use focus_lines::NativeFocusLinesSource;
@@ -41,6 +42,7 @@ pub use nv12::{
 };
 pub use particle::NativeParticleSource;
 pub use shaking_polygon::NativeShakingPolygonSource;
+pub use shattered_sphere::NativeShatteredSphereSource;
 pub use simple_tube::NativeSimpleTubeSource;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -100,6 +102,7 @@ pub enum NativeWgpuRenderError {
     SimpleTube(String),
     FocusLines(String),
     ShakingPolygon(String),
+    ShatteredSphere(String),
     BufferMap,
     InvalidFrame(RgbaFrameError),
     /// NV12 IOSurface import は macOS(Metal) 専用。他プラットフォームでは
@@ -252,6 +255,7 @@ pub struct NativeWgpuRenderer {
     simple_tube_renderer: simple_tube::SimpleTubeGpuRenderer,
     focus_lines_renderer: focus_lines::FocusLinesGpuRenderer,
     shaking_polygon_renderer: shaking_polygon::ShakingPolygonGpuRenderer,
+    shattered_sphere_renderer: shattered_sphere::ShatteredSphereGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -420,6 +424,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
         let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
         let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
+        let shattered_sphere_renderer = shattered_sphere::ShatteredSphereGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -449,6 +454,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             simple_tube_renderer,
             focus_lines_renderer,
             shaking_polygon_renderer,
+            shattered_sphere_renderer,
         };
 
         Ok(Self {
@@ -616,6 +622,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
         focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
         shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -632,6 +639,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 simple_tube_sources,
                 focus_lines_sources,
                 shaking_polygon_sources,
+                shattered_sphere_sources,
                 false,
                 content_revisions,
             )?;
@@ -964,6 +972,7 @@ impl NativeWgpuRenderer {
         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
         let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
         let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
+        let shattered_sphere_renderer = shattered_sphere::ShatteredSphereGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -994,6 +1003,7 @@ impl NativeWgpuRenderer {
             simple_tube_renderer,
             focus_lines_renderer,
             shaking_polygon_renderer,
+            shattered_sphere_renderer,
         })
     }
 
@@ -1097,6 +1107,7 @@ impl NativeWgpuRenderer {
             nv12_sources,
             &HashMap::new(),
             audio_reactive_sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1274,6 +1285,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1408,6 +1420,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1422,6 +1435,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1458,6 +1472,7 @@ impl NativeWgpuRenderer {
         simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
         focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
         shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1474,6 +1489,7 @@ impl NativeWgpuRenderer {
         let mut touched_simple_tube_media_ids: HashSet<String> = HashSet::new();
         let mut touched_focus_lines_media_ids: HashSet<String> = HashSet::new();
         let mut touched_shaking_polygon_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_shattered_sphere_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1612,6 +1628,26 @@ impl NativeWgpuRenderer {
                 continue;
             }
 
+            if let Some(shattered_sphere_source) = shattered_sphere_sources.get(&clip.media_id) {
+                touched_shattered_sphere_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .shattered_sphere_renderer
+                    .prepare(
+                        &self.device,
+                        &self.queue,
+                        &clip.media_id,
+                        shattered_sphere_source,
+                    )
+                    .map_err(NativeWgpuRenderError::ShatteredSphere)?;
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
+                continue;
+            }
+
             let source = sources.get(&clip.media_id).ok_or_else(|| {
                 NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
@@ -1653,6 +1689,8 @@ impl NativeWgpuRenderer {
             .finish_frame(&touched_focus_lines_media_ids);
         self.shaking_polygon_renderer
             .finish_frame(&touched_shaking_polygon_media_ids);
+        self.shattered_sphere_renderer
+            .finish_frame(&touched_shattered_sphere_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -3918,6 +3956,7 @@ mod tests {
                         &HashMap::new(),
                         &HashMap::new(),
                         &HashMap::new(),
+                        &HashMap::new(),
                         true,
                         &HashMap::new(),
                     )
@@ -4014,6 +4053,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &audio_sources,
+                    &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
@@ -4116,6 +4156,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4204,6 +4245,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4282,6 +4324,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &hksy_sources,
+                    &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
@@ -4392,6 +4435,7 @@ mod tests {
                     &simple_tube_sources,
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4482,6 +4526,7 @@ mod tests {
                 &simple_tube_sources,
                 &HashMap::new(),
                 &HashMap::new(),
+                &HashMap::new(),
                 true,
                 &HashMap::new(),
             )
@@ -4559,6 +4604,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &focus_lines_sources,
+                    &HashMap::new(),
                     &HashMap::new(),
                     true,
                     &HashMap::new(),
@@ -4640,6 +4686,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &shaking_polygon_sources,
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4673,6 +4720,86 @@ mod tests {
             .any(|pixel| pixel[3] > 80 && pixel[3] < 180));
         assert_eq!(first.pixels, second.pixels);
         assert_eq!(renderer.shaking_polygon_renderer.stats(), (1, 1));
+        assert_eq!(renderer.media_texture_cache_stats(), (0, 0));
+    }
+
+    #[test]
+    fn shattered_sphere_source_updates_on_gpu_without_recreating_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 48)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU ShatteredSphere test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let render = |renderer: &NativeWgpuRenderer, source_frame| {
+            let snapshot = SceneSnapshot {
+                frame_index: source_frame,
+                colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+                clips: vec![uxfd_rust_core::EvaluatedClip {
+                    clip_id: "shattered-sphere-clip".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "shattered-sphere-media".to_string(),
+                    source_frame,
+                    z_index: 0,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            };
+            let shattered_sphere_sources = HashMap::from([(
+                "shattered-sphere-media".to_string(),
+                NativeShatteredSphereSource {
+                    source: r##"{"generator":"shattered-sphere-93","fracture_amount":100,"delay":20,"radius":24,"limit_distance":40,"thickness":10,"fragment_size":8,"random_shape":80,"speed":100,"impact":80,"gravity":[0,100,0],"spin":100,"direction_diffusion":90,"colour":"#80d8ff","seed":93}"##.to_string(),
+                    width: 64,
+                    height: 48,
+                    source_frame,
+                    config_revision: 15,
+                },
+            )]);
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &shattered_sphere_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("ShatteredSphere preparation must succeed without CPU RGBA");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD ShatteredSphere test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("ShatteredSphere output readback must succeed")
+        };
+
+        let first = render(&renderer, 0);
+        let next = render(&renderer, 20);
+        let repeated = render(&renderer, 20);
+        assert!(first.pixels.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(first.pixels.chunks_exact(4).any(|pixel| pixel[3] > 0));
+        assert_ne!(first.pixels, next.pixels);
+        assert_eq!(next.pixels, repeated.pixels);
+        assert_eq!(renderer.shattered_sphere_renderer.stats(), (1, 2));
         assert_eq!(renderer.media_texture_cache_stats(), (0, 0));
     }
 
