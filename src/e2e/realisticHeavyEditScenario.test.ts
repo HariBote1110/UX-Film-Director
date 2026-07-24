@@ -34,6 +34,7 @@ describe('現実的な重量編集シナリオ', () => {
     expect(types).toEqual(expect.objectContaining(new Set([
       'video',
       'audio',
+      'audio_visualization',
       'image',
       'text',
       'shape',
@@ -59,6 +60,10 @@ describe('現実的な重量編集シナリオ', () => {
     expect(allObjects.some((object) => (object.filters?.length ?? 0) >= 3)).toBe(true);
     expect(allObjects.some((object) => typeof object.groupId === 'string')).toBe(true);
     expect(allObjects.some((object) => object.type === 'audio' && object.filePath === paths.audioPath)).toBe(true);
+    expect(allObjects).toContainEqual(expect.objectContaining({
+      type: 'audio_visualization',
+      targetAudioId: 'realistic-main-audio',
+    }));
     expect(allObjects.some((object) => object.type === 'image' && object.filePath === paths.imagePath)).toBe(true);
     expect(
       allObjects
