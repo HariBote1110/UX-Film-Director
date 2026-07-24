@@ -37,4 +37,20 @@ describe('Rust常駐タイムライン生成エフェクトシナリオ', () => 
       'GeneratedSimpleTube',
     ]);
   });
+
+  it('重量検証用に各種類12個・計36個を一意なIDで構築してRust変換できる', () => {
+    const scenario = buildRustTimelineGeneratedScenario(12);
+    const ids = scenario.objects.map((object) => object.id);
+    const result = buildEditableRustScene({
+      sceneId: 'rust-timeline-generated-heavy-e2e',
+      projectSettings: scenario.settings,
+      layers: scenario.layers,
+      objects: scenario.objects,
+    });
+
+    expect(scenario.objects).toHaveLength(36);
+    expect(new Set(ids).size).toBe(36);
+    expect(scenario.layers).toHaveLength(37);
+    expect(result.ok).toBe(true);
+  });
 });
