@@ -4116,6 +4116,63 @@ mod tests {
     }
 
     #[test]
+    fn direct_shattered_sphere_scene_uses_frame_independent_gpu_descriptor() {
+        let build_scene = |source_frame| NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: source_frame,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "shattered-sphere-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "shattered-sphere-media".to_string(),
+                    source_frame,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "shattered-sphere-media".to_string(),
+                kind: "GeneratedShatteredSphere".to_string(),
+                source: r##"{"generator":"shattered-sphere-93","fracture_amount":100,"delay":20,"radius":24,"limit_distance":40,"thickness":10,"fragment_size":8,"random_shape":80,"speed":100,"impact":80,"gravity":[0,100,0],"spin":100,"direction_diffusion":90,"colour":"#80d8ff","seed":93}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 48,
+        };
+        let first_scene = build_scene(0);
+        let next_scene = build_scene(1);
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&first_scene, &mut cache, true)
+                .expect("direct ShatteredSphere source resolution must succeed");
+        assert!(
+            direct_rgba.is_empty(),
+            "direct ShatteredSphere scene must not allocate a completed CPU RGBA source"
+        );
+        assert_eq!(cache.stats(), (0, 0));
+
+        let first = native_overlay_shattered_sphere_sources_for_scene(&first_scene)
+            .expect("first ShatteredSphere descriptor resolution succeeds");
+        let next = native_overlay_shattered_sphere_sources_for_scene(&next_scene)
+            .expect("next ShatteredSphere descriptor resolution succeeds");
+        let first = first
+            .get("shattered-sphere-media")
+            .expect("first descriptor");
+        let next = next.get("shattered-sphere-media").expect("next descriptor");
+        assert_eq!(first.source_frame, 0);
+        assert_eq!(next.source_frame, 1);
+        assert_eq!(
+            first.config_revision, next.config_revision,
+            "source frame changes must reuse the GPU texture and static configuration"
+        );
+    }
+
+    #[test]
     fn direct_particle_scene_uses_gpu_descriptor_instead_of_cpu_rgba_frame() {
         let build_scene = |source_frame| {
             NativeOverlaySceneSource {
