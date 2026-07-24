@@ -561,6 +561,96 @@ impl NativeWgpuLiveSurfaceRenderer {
         })
     }
 
+    /// live surface 専用: RGBA source と、同一プロセスで decode された NV12
+    /// IOSurface source を混在合成し、CPU readback なしで CAMetalLayer drawable
+    /// へ直接 present する。
+    pub async fn present_scene_with_decoration_and_nv12_to_surface_texture<
+        S: RgbaFrameSource,
+    >(
+        &self,
+        base_snapshot: &SceneSnapshot,
+        base_sources: &HashMap<String, S>,
+        content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        decoration_clips: &[uxfd_rust_core::EvaluatedClip],
+        decoration_sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        let (base_prepared_clips, base_source_upload) =
+            self.core.prepare_scene_clips_with_upload_fence(
+                base_snapshot,
+                base_sources,
+                nv12_sources,
+                false,
+                content_revisions,
+            )?;
+        let (decoration_prepared_clips, decoration_source_upload) = self
+            .core
+            .prepare_scene_clips_without_upload_fence(
+                &SceneSnapshot {
+                    frame_index: base_snapshot.frame_index,
+                    colour: base_snapshot.colour.clone(),
+                    clips: decoration_clips.to_vec(),
+                },
+                decoration_sources,
+                &HashMap::new(),
+            )?;
+        let source_upload = base_source_upload + decoration_source_upload;
+
+        let mut base_z_indices: Vec<u32> =
+            base_snapshot.clips.iter().map(|clip| clip.z_index).collect();
+        base_z_indices.sort_unstable();
+        let mut merged: Vec<(u32, Arc<PreparedClip>)> =
+            base_z_indices.into_iter().zip(base_prepared_clips).collect();
+        merged.extend(
+            decoration_clips
+                .iter()
+                .map(|clip| clip.z_index)
+                .zip(decoration_prepared_clips),
+        );
+        merged.sort_by_key(|(z_index, _)| *z_index);
+        let prepared_clip_count = merged.len();
+        let prepared_clips: Vec<Arc<PreparedClip>> =
+            merged.into_iter().map(|(_, prepared)| prepared).collect();
+
+        let acquire_start = Instant::now();
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(NativeWgpuRenderError::Surface)?;
+        let acquire = acquire_start.elapsed();
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu live NV12 decoration encoder"),
+                });
+        self.core
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+        let render_start = Instant::now();
+        self.core.queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        let render = render_start.elapsed();
+
+        Ok(NativeWgpuPresentReport {
+            width: self.surface_config.width,
+            height: self.surface_config.height,
+            prepared_clip_count,
+            timings: NativeWgpuFrameStageTimings {
+                setup: Duration::ZERO,
+                source_upload,
+                acquire,
+                render,
+                readback_encode: Duration::ZERO,
+                steady_state: source_upload + acquire + render,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+
     pub async fn present_scene_to_surface_texture_with_readback(
         &self,
         snapshot: &SceneSnapshot,
