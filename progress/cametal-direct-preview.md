@@ -89,7 +89,7 @@ Effect variantをTS/N-API/Rustで三重定義せず、rust-coreのserde契約を
 今回の変更で最も重い全画面完成RGBAの読戻し・共有・再uploadは除去したが、
 GPUオフロードはまだ完了していない。
 
-- GetColor、HKSY、SimpleTube、テキストなどのsourceは初回またはrevision変更時に
+- テキストなど、まだGPU source passへ移していないsourceは初回またはrevision変更時に
   Rust側CPUでラスタライズしてGPUへuploadする。静的sourceはrevision cacheにより
   毎frameの再生成・再uploadを行わない。
 - ParticleはGPU instance描画済みであり、CPU RGBA source生成・uploadを行わない。
@@ -109,13 +109,18 @@ GPUオフロードはまだ完了していない。
   anchor-lineをGPU line instance passへ移した。完成RGBAのCPUラスタライズとuploadを
   direct previewから除去し、media revision単位の出力textureを再利用する。
   GPU cacheは512 MiB上限と30フレームidle退避を持つ。
+- SimpleTubeはtube/torusの点座標、色、fogをrevision変更時にRustでline instanceへ
+  展開し、ピクセル走査と有限線分のラスタライズをNative WGPUへ移した。CPU正本と同じ
+  線順序、丸端、透明背景を保持し、完成RGBAのCPU生成とuploadをdirect previewから
+  除去した。GPU出力textureはmedia revision単位で再利用し、512 MiB上限と
+  30フレームidle退避を持つ。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. SimpleTubeなどCPUラスタライズの生成sourceをGPU source passへ移し、
-   revision変更時のCPU処理も削減する。
+1. 残るCPUラスタライズ生成sourceを負荷と使用頻度で順位付けし、GPU source passへ
+   段階的に移す。
 2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
 3. Chromium rendererに残る高CPU処理を時系列計測し、scene評価、React更新、

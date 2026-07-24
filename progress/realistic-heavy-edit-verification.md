@@ -137,6 +137,27 @@ requestAnimationFrameは平均16.67 ms、p95 22.00 ms、最大25.71 ms、long ta
 依然として高い。次はSimpleTubeのGPU source化を進める一方、Chromium側の高CPUが
 scene評価、React更新、DOM compositorのどこに由来するかを時系列計測で分離する。
 
+## SimpleTube GPU source移行後の再検証
+
+同日にSimpleTubeのtube/torusをNative WGPUのline instance source passへ移し、
+direct CAMetalLayer経路で完成RGBAをCPU生成しない版を短時間重量検証した。
+60回スクラブ、複製、Undo/Redo、シーン切替、1秒再生、保存復元は総合PASSだった。
+操作後42オブジェクト、Undo後33、Redo後42で整合し、保存前後のフィンガープリントも
+一致した。
+
+- 60回スクラブ: 69.79 ms
+- requestAnimationFrame: 平均16.69 ms、p95 20.49 ms、最大23.69 ms
+- long task: 0件
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: 可視261,332点、有色48,020点
+
+再生中の瞬間値はElectron Renderer約74%、Electron main約66%、Rust backend約35%だった。
+SimpleTubeの画素走査と完成RGBA uploadは除去できたが、Chromium側CPUは依然として高い。
+次は残る生成sourceの負荷順位付けと並行して、Chromium renderer内のscene評価、
+React更新、DOM compositorを時系列計測で分離する。
+
 ## 検証で発見した不具合
 
 初回のシナリオ投入によって次を検出し、修正した。
