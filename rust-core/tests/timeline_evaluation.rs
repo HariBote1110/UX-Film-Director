@@ -81,6 +81,7 @@ fn project_with_single_clip(start_frame: u64, duration_frames: u64) -> Project {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     }
 }
 

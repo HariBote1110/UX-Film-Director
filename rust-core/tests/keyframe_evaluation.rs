@@ -48,6 +48,7 @@ fn project_with_opacity_keyframes() -> Project {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     }
 }
 

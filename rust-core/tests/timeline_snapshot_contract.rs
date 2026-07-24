@@ -82,6 +82,7 @@ fn project_with_transform() -> Project {
                 ],
             }],
         }],
+        group_controls: Vec::new(),
     }
 }
 
@@ -162,6 +163,7 @@ fn project_schema_accepts_solid_colour_media_for_rectangle_shapes() {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     };
 
     let encoded = serde_json::to_value(&project).expect("serialise project");
@@ -210,6 +212,7 @@ fn project_schema_accepts_generated_audio_waveform_media() {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     };
 
     let encoded = serde_json::to_value(&project).expect("serialise project");

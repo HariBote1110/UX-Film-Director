@@ -403,6 +403,20 @@ pub struct Track {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GroupControl {
+    pub id: String,
+    pub start_frame: u64,
+    pub duration_frames: u64,
+    #[serde(default = "Transform::identity")]
+    pub transform: Transform,
+    pub opacity: f32,
+    #[serde(default)]
+    pub position_keyframes: Vec<PositionKeyframe>,
+    #[serde(default)]
+    pub target_track_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Project {
     pub id: String,
     pub version: u32,
@@ -411,4 +425,6 @@ pub struct Project {
     pub colour: ColourPipeline,
     pub media: Vec<MediaReference>,
     pub tracks: Vec<Track>,
+    #[serde(default)]
+    pub group_controls: Vec<GroupControl>,
 }

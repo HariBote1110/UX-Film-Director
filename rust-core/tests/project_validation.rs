@@ -39,6 +39,7 @@ fn valid_project() -> Project {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     }
 }
 

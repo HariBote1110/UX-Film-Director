@@ -40,6 +40,29 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 transform.translation_x,
                 transform.translation_y,
             );
+            let mut opacity =
+                evaluate_scalar_keyframes(&clip.opacity_keyframes, frame_offset, clip.opacity);
+            for control in &project.group_controls {
+                if !group_control_contains_frame(control, frame_index)
+                    || !control.target_track_ids.iter().any(|id| id == &track.id)
+                {
+                    continue;
+                }
+                let control_frame_offset = frame_index - control.start_frame;
+                let (control_x, control_y) = evaluate_position_keyframes(
+                    &control.position_keyframes,
+                    control_frame_offset,
+                    control.transform.translation_x,
+                    control.transform.translation_y,
+                );
+                transform.translation_x += control_x;
+                transform.translation_y += control_y;
+                transform.scale_x *= control.transform.scale_x;
+                transform.scale_y *= control.transform.scale_y;
+                transform.rotation_degrees += control.transform.rotation_degrees;
+                opacity *= control.opacity;
+            }
+            opacity = opacity.clamp(0.0, 1.0);
 
             let mut effects = clip.effects.clone();
             let mut wipe_animations = clip.wipe_animations.iter().collect::<Vec<_>>();
@@ -81,11 +104,7 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 source_frame: clip.source_frame_offset.saturating_add(frame_offset),
                 z_index: clips.len() as u32,
                 transform,
-                opacity: evaluate_scalar_keyframes(
-                    &clip.opacity_keyframes,
-                    frame_offset,
-                    clip.opacity,
-                ),
+                opacity,
                 effects,
             });
         }
@@ -105,4 +124,12 @@ fn clip_contains_frame(clip: &Clip, frame_index: u64) -> bool {
 
     let clip_end = clip.start_frame.saturating_add(clip.duration_frames);
     frame_index >= clip.start_frame && frame_index < clip_end
+}
+
+fn group_control_contains_frame(control: &crate::schema::GroupControl, frame_index: u64) -> bool {
+    if control.duration_frames == 0 {
+        return false;
+    }
+    let end = control.start_frame.saturating_add(control.duration_frames);
+    frame_index >= control.start_frame && frame_index < end
 }

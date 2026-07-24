@@ -40,6 +40,7 @@ fn project_model_round_trip_preserves_identity() {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     };
 
     let encoded = serde_json::to_string_pretty(&project).expect("serialise project");

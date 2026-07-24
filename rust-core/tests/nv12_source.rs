@@ -96,6 +96,7 @@ fn existing_scene_snapshot_shape_is_unaffected_by_the_new_nv12_type() {
                 effects: Vec::new(),
             }],
         }],
+        group_controls: Vec::new(),
     };
 
     let snapshot = evaluate_frame(&project, 0);
