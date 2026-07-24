@@ -3,6 +3,7 @@ import type {
   HksyCheckerGridObject,
   ImageObject,
   LayerState,
+  ParticleObject,
   ProjectSettings,
   PsdObject,
   ShapeObject,
@@ -25,7 +26,7 @@ import {
   type RustTransform,
 } from './rustSceneSnapshot';
 
-type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | GetColorDotFieldObject | HksyCheckerGridObject | SimpleTubeObject;
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | GetColorDotFieldObject | HksyCheckerGridObject | SimpleTubeObject;
 
 export interface EditableRustPositionKeyframe {
   frame_offset: number;
@@ -37,7 +38,7 @@ export interface EditableRustPositionKeyframe {
 export interface EditableRustClip {
   id: string;
   media_id: string;
-  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedSimpleTubePlane';
+  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedSimpleTubePlane';
   start_frame: number;
   duration_frames: number;
   source_frame_offset: number;
@@ -95,6 +96,7 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
   || object.type === 'video'
   || object.type === 'psd'
   || object.type === 'text'
+  || object.type === 'particle'
   || object.type === 'getcolor_dot_field'
   || object.type === 'hksy_checker_grid'
   || object.type === 'simple_tube'
@@ -103,6 +105,7 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
 const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['kind'] => {
   if (object.type === 'video') return 'VideoPlane';
   if (object.type === 'text') return 'TextPlane';
+  if (object.type === 'particle') return 'GeneratedParticlePlane';
   if (object.type === 'getcolor_dot_field') return 'GeneratedGetColorDotsPlane';
   if (object.type === 'hksy_checker_grid') return 'GeneratedHksyCheckerGridPlane';
   if (object.type === 'simple_tube') return 'GeneratedSimpleTubePlane';

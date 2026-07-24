@@ -294,7 +294,6 @@ describe('buildEditableRustScene', () => {
       },
       { ...image({ id: 'mask' }), clipping: true },
       { ...shape({ id: 'group-control' }), type: 'group_control' as const, targetLayerCount: 2 } as TimelineObject,
-      { ...shape({ id: 'particle' }), type: 'particle' as const, particleCount: 5, spread: 1, speed: 1, size: 2, colour: '#ffffff', seed: 1 } as unknown as TimelineObject,
     ];
 
     const result = buildEditableRustScene({ sceneId: 'scene-rejected', projectSettings, layers, objects: unsupported });
@@ -308,7 +307,6 @@ describe('buildEditableRustScene', () => {
       ['animated-crop', 'unsupportedSubjectCrop'],
       ['mask', 'unsupportedMask'],
       ['group-control', 'unsupportedObjectType'],
-      ['particle', 'unsupportedObjectType'],
     ]);
   });
 

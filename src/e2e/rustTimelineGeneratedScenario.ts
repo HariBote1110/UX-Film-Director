@@ -1,8 +1,9 @@
-import type { LayerState, ProjectSettings, TimelineObject } from '../types';
+import type { LayerState, ProjectSettings, ShapeObject, TimelineObject } from '../types';
 import { useStore } from '../store/useStore';
 import { buildGetColorDotFieldObject } from '../utils/objectFactories/getColorDotFieldObjectFactory';
 import { buildHksyCheckerGridObject } from '../utils/objectFactories/hksyCheckerGridObjectFactory';
 import { buildAviUtlSimpleTubeObject } from '../utils/objectFactories/simpleTubeObjectFactory';
+import { buildDefaultStandardParticleObject } from '../utils/objectFactories/particleObjectFactory';
 
 export interface RustTimelineGeneratedScenario {
   settings: ProjectSettings;
@@ -29,7 +30,7 @@ export const buildRustTimelineGeneratedScenario = (
     sampleRate: 48_000,
     editorMode: '2d',
   };
-  const layers: LayerState[] = Array.from({ length: safeCopiesPerKind * 3 + 1 }, (_, layer) => ({
+  const layers: LayerState[] = Array.from({ length: safeCopiesPerKind * 5 + 1 }, (_, layer) => ({
     id: `rust-e2e-layer-${layer}`,
     name: `Rust E2E ${layer}`,
     visible: true,
@@ -41,7 +42,7 @@ export const buildRustTimelineGeneratedScenario = (
     { length: safeCopiesPerKind },
     (_, copyIndex): TimelineObject[] => {
       const idSuffix = copyIndex === 0 ? '' : `-${copyIndex + 1}`;
-      const firstObjectIndex = copyIndex * 3;
+      const firstObjectIndex = copyIndex * 5;
       const positionFor = (objectIndex: number) => ({
         x: 30 + (objectIndex % 6) * 315,
         y: 40 + Math.floor(objectIndex / 6) * 170,
@@ -49,6 +50,8 @@ export const buildRustTimelineGeneratedScenario = (
       const getColorPosition = positionFor(firstObjectIndex);
       const hksyPosition = positionFor(firstObjectIndex + 1);
       const simpleTubePosition = positionFor(firstObjectIndex + 2);
+      const particlePosition = positionFor(firstObjectIndex + 3);
+      const spotLightPosition = positionFor(firstObjectIndex + 4);
       return [{
       ...buildGetColorDotFieldObject({
         id: `rust-e2e-getcolor${idSuffix}`,
@@ -90,7 +93,56 @@ export const buildRustTimelineGeneratedScenario = (
       endY: simpleTubePosition.y,
       width: objectWidth,
       height: objectHeight,
-    }];
+    },
+    {
+      ...buildDefaultStandardParticleObject({
+        id: `rust-e2e-particle${idSuffix}`,
+        projectWidth: settings.width,
+        projectHeight: settings.height,
+        startTime: 0,
+        layer: firstObjectIndex + 4,
+      }),
+      ...particlePosition,
+      endX: particlePosition.x,
+      endY: particlePosition.y,
+      width: objectWidth,
+      height: objectHeight,
+      particleCount: 96,
+      lifetimeSeconds: 2,
+    },
+    {
+      id: `rust-e2e-spotlight${idSuffix}`,
+      type: 'shape',
+      name: 'Rust E2E SpotLight',
+      layer: firstObjectIndex + 5,
+      startTime: 0,
+      duration: 5,
+      ...spotLightPosition,
+      endX: spotLightPosition.x,
+      endY: spotLightPosition.y,
+      width: objectWidth,
+      height: objectHeight,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      easing: 'linear',
+      shapeType: 'rect',
+      fill: '#111111',
+      filters: [{
+        id: `rust-e2e-spotlight-filter${idSuffix}`,
+        type: 'spot_light',
+        enabled: true,
+        params: {
+          centreX: 0.5,
+          centreY: 0.5,
+          radius: 0.75,
+          intensity: 0.9,
+          colour: '#fff4c2',
+        },
+      }],
+    } satisfies ShapeObject];
     },
   ).flat();
   return { settings, layers, objects };
