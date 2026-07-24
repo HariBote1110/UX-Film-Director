@@ -167,6 +167,7 @@ const seed = async (paths: RealisticHeavyEditPaths): Promise<HarnessResult> => {
 const exercise = async (
   options: { scrubIterations?: number; playbackMs?: number } = {},
 ): Promise<HarnessResult> => {
+  window.__UXFD_REACT_PROFILE_TRACE__?.reset();
   const scrubIterations = Math.max(60, Math.min(1_200, options.scrubIterations ?? 360));
   const playbackMs = Math.max(1_000, Math.min(10_000, options.playbackMs ?? 3_000));
   const before = snapshot();
@@ -233,6 +234,7 @@ const exercise = async (
   await waitForPaint();
 
   const after = snapshot();
+  const reactProfile = window.__UXFD_REACT_PROFILE_TRACE__?.snapshot() ?? null;
   const idCount = new Set(useStore.getState().objects.map((object) => object.id)).size;
   const expectedDuplicatedCount = initialObjectCount + editableIds.length * 3;
   const errors = [
@@ -268,6 +270,7 @@ const exercise = async (
     rafMaxMs: Math.max(0, ...rafDeltas),
     longTaskCount: longTaskDurations.length,
     longTaskMaxMs: Math.max(0, ...longTaskDurations),
+    reactProfile,
   };
 };
 

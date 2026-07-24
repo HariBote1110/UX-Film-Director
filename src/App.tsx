@@ -14,6 +14,7 @@ import { buildExportAudioMixWav } from './utils/audioMixdown';
 import { subscribeStoreToPreviewObstructionIpc } from './utils/previewObstructionDetector';
 import { useTranslation } from './i18n';
 import { FolderOpen, Save, Camera } from 'lucide-react';
+import { RendererTraceProfiler } from './components/RendererTraceProfiler';
 import './index.css';
 
 const { ipcRenderer } = window;
@@ -205,15 +206,21 @@ const App: React.FC = () => {
 
       <div className="workspace-main" style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <div className="preview-area" style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minWidth: 0 }}>
-          <Viewport />
+          <RendererTraceProfiler id="Viewport">
+            <Viewport />
+          </RendererTraceProfiler>
         </div>
         <div className="properties-area no-drag" style={{ width: '300px', flexShrink: 0, overflowY: 'auto' }}>
-          <PropertyPanel />
+          <RendererTraceProfiler id="PropertyPanel">
+            <PropertyPanel />
+          </RendererTraceProfiler>
         </div>
       </div>
 
       <div className="timeline-area" style={{ height: '300px', flexShrink: 0, zIndex: 10 }}>
-        <Timeline />
+        <RendererTraceProfiler id="Timeline">
+          <Timeline />
+        </RendererTraceProfiler>
       </div>
 
       <ExportProgressModal />
