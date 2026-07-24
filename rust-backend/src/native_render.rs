@@ -14,14 +14,15 @@ use crate::params::{
 };
 use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::EncodeTransport;
-use crate::state::BackendState;
+use crate::state::{BackendState, SourceFrameCache};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use std::sync::Arc;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeGeneratedGpuSources,
+    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeGeneratedGpuSources, NativeGetColorSource,
     NativeShakingPolygonSource, NativeShatteredSphereSource, NativeWgpuRenderError,
     NativeWgpuRenderer,
 };
@@ -204,6 +205,11 @@ pub(crate) fn handle_encode_write_native_frame(
                 return response_error(id, native_render_source_error_code(&message), &message);
             }
         };
+    let getcolor_sources =
+        match collect_native_render_getcolor_sources(&parsed.media, &mut state.source_frame_cache) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let shattered_sphere_sources =
         match collect_native_render_shattered_sphere_sources(&parsed.snapshot, &parsed.media) {
             Ok(value) => value,
@@ -215,6 +221,7 @@ pub(crate) fn handle_encode_write_native_frame(
             Err(message) => return response_error(id, -32602, &message),
         };
     let generated_gpu_sources = NativeGeneratedGpuSources {
+        getcolor: getcolor_sources,
         shaking_polygons: shaking_polygon_sources,
         shattered_spheres: shattered_sphere_sources,
         ..NativeGeneratedGpuSources::default()
@@ -233,8 +240,7 @@ pub(crate) fn handle_encode_write_native_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
-        generated_gpu_sources.shaking_polygons.len(),
-        generated_gpu_sources.shattered_spheres.len(),
+        !generated_gpu_sources.is_empty(),
     ) {
         return response_error(
             id,
@@ -537,6 +543,11 @@ pub(crate) fn handle_native_render_shared_frame(
                 return response_error(id, native_render_source_error_code(&message), &message);
             }
         };
+    let getcolor_sources =
+        match collect_native_render_getcolor_sources(&parsed.media, &mut state.source_frame_cache) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let shattered_sphere_sources =
         match collect_native_render_shattered_sphere_sources(&parsed.snapshot, &parsed.media) {
             Ok(value) => value,
@@ -548,6 +559,7 @@ pub(crate) fn handle_native_render_shared_frame(
             Err(message) => return response_error(id, -32602, &message),
         };
     let generated_gpu_sources = NativeGeneratedGpuSources {
+        getcolor: getcolor_sources,
         shaking_polygons: shaking_polygon_sources,
         shattered_spheres: shattered_sphere_sources,
         ..NativeGeneratedGpuSources::default()
@@ -573,8 +585,7 @@ pub(crate) fn handle_native_render_shared_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
-        generated_gpu_sources.shaking_polygons.len(),
-        generated_gpu_sources.shattered_spheres.len(),
+        !generated_gpu_sources.is_empty(),
     ) {
         return response_error(
             id,
@@ -856,20 +867,50 @@ fn collect_native_render_shaking_polygon_sources(
     Ok(sources)
 }
 
+fn collect_native_render_getcolor_sources(
+    media_items: &[SceneMediaReference],
+    _source_frame_cache: &mut SourceFrameCache,
+) -> Result<HashMap<String, NativeGetColorSource>, String> {
+    let mut sources = HashMap::new();
+    for media in media_items
+        .iter()
+        .filter(|media| media.kind == MediaKind::GeneratedGetColorDots)
+    {
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        let descriptor = NativeGetColorSource {
+            source: media.source.clone(),
+            sample_frame: uxfd_rust_backend::load_native_getcolor_sample_frame(media)?
+                .map(Arc::new),
+            width: media.width,
+            height: media.height,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native render GetColor mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
 fn native_render_has_valid_input(
     active_clip_count: usize,
     source_count: usize,
     audio_waveform_count: usize,
     nv12_source_count: usize,
-    shaking_polygon_count: usize,
-    shattered_sphere_count: usize,
+    has_generated_gpu_sources: bool,
 ) -> bool {
     active_clip_count == 0
         || source_count > 0
         || audio_waveform_count > 0
         || nv12_source_count > 0
-        || shaking_polygon_count > 0
-        || shattered_sphere_count > 0
+        || has_generated_gpu_sources
 }
 
 #[cfg(target_os = "macos")]
@@ -1018,11 +1059,10 @@ mod tests {
 
     #[test]
     fn native_render_allows_an_empty_snapshot_as_a_transparent_frame() {
-        assert!(native_render_has_valid_input(0, 0, 0, 0, 0, 0));
-        assert!(!native_render_has_valid_input(1, 0, 0, 0, 0, 0));
-        assert!(native_render_has_valid_input(1, 0, 0, 1, 0, 0));
-        assert!(native_render_has_valid_input(1, 0, 0, 0, 1, 0));
-        assert!(native_render_has_valid_input(1, 0, 0, 0, 0, 1));
+        assert!(native_render_has_valid_input(0, 0, 0, 0, false));
+        assert!(!native_render_has_valid_input(1, 0, 0, 0, false));
+        assert!(native_render_has_valid_input(1, 0, 0, 1, false));
+        assert!(native_render_has_valid_input(1, 0, 0, 0, true));
     }
 
     #[test]
