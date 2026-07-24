@@ -19,6 +19,7 @@ use uxfd_sidecar_protocol::{
 };
 use wgpu::util::DeviceExt;
 
+mod audio_reactive;
 #[cfg(target_os = "macos")]
 mod metal_encode_target;
 #[cfg(not(target_os = "macos"))]
@@ -26,6 +27,7 @@ mod metal_encode_target;
 mod metal_encode_target;
 mod nv12;
 mod particle;
+pub use audio_reactive::NativeAudioReactiveSource;
 pub use nv12::{
     Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
 };
@@ -229,6 +231,7 @@ pub struct NativeWgpuRenderer {
     nv12_texture_cache_hits: AtomicU64,
     nv12_texture_cache_misses: AtomicU64,
     particle_renderer: particle::ParticleGpuRenderer,
+    audio_reactive_renderer: audio_reactive::AudioReactiveGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -391,6 +394,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             create_output_texture_for_format(&device, width, height, surface_format);
         let readback_buffer = create_readback_buffer(&device, width, height);
         let particle_renderer = particle::ParticleGpuRenderer::new(&device);
+        let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -414,6 +418,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
             particle_renderer,
+            audio_reactive_renderer,
         };
 
         Ok(Self {
@@ -585,6 +590,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 base_sources,
                 nv12_sources,
                 particle_sources,
+                &HashMap::new(),
                 false,
                 content_revisions,
             )?;
@@ -911,6 +917,7 @@ impl NativeWgpuRenderer {
         let output_texture = create_output_texture(&device, width, height);
         let readback_buffer = create_readback_buffer(&device, width, height);
         let particle_renderer = particle::ParticleGpuRenderer::new(&device);
+        let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -935,6 +942,7 @@ impl NativeWgpuRenderer {
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
             particle_renderer,
+            audio_reactive_renderer,
         })
     }
 
@@ -986,6 +994,7 @@ impl NativeWgpuRenderer {
             total_start,
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
         )
         .await
     }
@@ -998,6 +1007,26 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, RgbaFrame>,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        target: BgraIoSurfaceTarget,
+    ) -> Result<NativeWgpuFrameStageTimings, NativeWgpuRenderError> {
+        self.render_frame_to_bgra_iosurface_with_audio_reactive_sources(
+            snapshot,
+            sources,
+            content_revisions,
+            nv12_sources,
+            &HashMap::new(),
+            target,
+        )
+        .await
+    }
+
+    async fn render_frame_to_bgra_iosurface_with_audio_reactive_sources(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         target: BgraIoSurfaceTarget,
     ) -> Result<NativeWgpuFrameStageTimings, NativeWgpuRenderError> {
         if target.width != self.width || target.height != self.height {
@@ -1016,6 +1045,7 @@ impl NativeWgpuRenderer {
             sources,
             nv12_sources,
             &HashMap::new(),
+            audio_reactive_sources,
             true,
             content_revisions,
         )?;
@@ -1060,12 +1090,14 @@ impl NativeWgpuRenderer {
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         target: BgraIoSurfaceTarget,
     ) -> Result<NativeWgpuFrameStageTimings, NativeWgpuRenderError> {
-        let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
-        self.render_frame_to_bgra_iosurface(
+        let (generated_sources, audio_reactive_sources) =
+            split_audio_waveform_sources(snapshot, sources, waveforms)?;
+        self.render_frame_to_bgra_iosurface_with_audio_reactive_sources(
             snapshot,
             &generated_sources,
             content_revisions,
             nv12_sources,
+            &audio_reactive_sources,
             target,
         )
         .await
@@ -1150,7 +1182,8 @@ impl NativeWgpuRenderer {
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
-        let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
+        let (generated_sources, audio_reactive_sources) =
+            split_audio_waveform_sources(snapshot, sources, waveforms)?;
         let total_start = Instant::now();
         self.render_frame_stages_with_setup(
             snapshot,
@@ -1159,6 +1192,7 @@ impl NativeWgpuRenderer {
             total_start,
             content_revisions,
             nv12_sources,
+            &audio_reactive_sources,
         )
         .await
     }
@@ -1171,12 +1205,14 @@ impl NativeWgpuRenderer {
         total_start: Instant,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let (prepared_clips, source_upload) = self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
             nv12_sources,
             &HashMap::new(),
+            audio_reactive_sources,
             true,
             content_revisions,
         )?;
@@ -1305,6 +1341,7 @@ impl NativeWgpuRenderer {
             sources,
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1319,6 +1356,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             false,
@@ -1343,6 +1381,7 @@ impl NativeWgpuRenderer {
         sources: &HashMap<String, S>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         particle_sources: &HashMap<String, NativeParticleSource>,
+        audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1353,6 +1392,7 @@ impl NativeWgpuRenderer {
         let mut touched_media_ids: HashSet<String> = HashSet::with_capacity(clips.len());
         let mut touched_nv12_media_ids: HashSet<String> = HashSet::new();
         let mut touched_particle_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_audio_reactive_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1378,6 +1418,20 @@ impl NativeWgpuRenderer {
                 let (texture_view, prepared_width, prepared_height) = self
                     .particle_renderer
                     .prepare(&self.device, &self.queue, &clip.media_id, particle_source);
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
+                continue;
+            }
+
+            if let Some(audio_source) = audio_reactive_sources.get(&clip.media_id) {
+                touched_audio_reactive_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .audio_reactive_renderer
+                    .prepare(&self.device, &self.queue, &clip.media_id, audio_source);
                 prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
                     &self.device,
                     &self.bind_group_layout,
@@ -1417,6 +1471,8 @@ impl NativeWgpuRenderer {
         self.evict_stale_nv12_textures(&touched_nv12_media_ids);
         self.particle_renderer
             .finish_frame(&touched_particle_media_ids);
+        self.audio_reactive_renderer
+            .finish_frame(&touched_audio_reactive_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -1736,17 +1792,57 @@ pub async fn render_native_wgpu_frame_with_audio_waveforms(
     width: u32,
     height: u32,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
-    let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
-    render_native_wgpu_frame(snapshot, &generated_sources, width, height).await
+    let renderer = NativeWgpuRenderer::new(width, height).await?;
+    renderer
+        .render_frame_stages_with_audio_waveforms(
+            snapshot,
+            sources,
+            waveforms,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .await
+        .map(|report| report.frame)
 }
 
-fn build_audio_waveform_sources(
+fn split_audio_waveform_sources(
     snapshot: &SceneSnapshot,
     sources: &HashMap<String, RgbaFrame>,
     waveforms: &[NativeAudioWaveformInput],
-) -> Result<HashMap<String, RgbaFrame>, NativeWgpuRenderError> {
+) -> Result<
+    (
+        HashMap<String, RgbaFrame>,
+        HashMap<String, NativeAudioReactiveSource>,
+    ),
+    NativeWgpuRenderError,
+> {
     let mut generated_sources = sources.clone();
+    let mut audio_reactive_sources = HashMap::new();
     for waveform in waveforms {
+        if waveform.source.generator != "audio-sphere-93" {
+            if waveform.sample_rate == 0 {
+                return Err(NativeWgpuRenderError::AudioWaveform(
+                    AudioWaveformSceneError::InvalidSampleRate,
+                ));
+            }
+            if waveform.width == 0 || waveform.height == 0 {
+                return Err(NativeWgpuRenderError::AudioWaveform(
+                    AudioWaveformSceneError::InvalidDimensions,
+                ));
+            }
+            audio_reactive_sources.insert(
+                waveform.media_id.clone(),
+                NativeAudioReactiveSource {
+                    source: waveform.source.clone(),
+                    samples: waveform.samples.clone(),
+                    sample_rate: waveform.sample_rate,
+                    width: waveform.width,
+                    height: waveform.height,
+                    config_revision: 0,
+                },
+            );
+            continue;
+        }
         let source_frame = snapshot
             .clips
             .iter()
@@ -1757,7 +1853,7 @@ fn build_audio_waveform_sources(
         generated_sources.insert(waveform.media_id.clone(), frame);
     }
 
-    Ok(generated_sources)
+    Ok((generated_sources, audio_reactive_sources))
 }
 
 pub async fn render_native_wgpu_frame_to_shared_ring(
@@ -1783,17 +1879,19 @@ pub async fn render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
     slot_count: u32,
     pts_frame: u64,
 ) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
-    let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
-    render_native_wgpu_frame_to_shared_ring(
-        snapshot,
-        &generated_sources,
-        width,
-        height,
-        memory_id,
-        slot_count,
-        pts_frame,
-    )
-    .await
+    let renderer = NativeWgpuRenderer::new(width, height).await?;
+    renderer
+        .render_frame_to_shared_ring_with_audio_waveforms(
+            snapshot,
+            sources,
+            waveforms,
+            &HashMap::new(),
+            &HashMap::new(),
+            memory_id,
+            slot_count,
+            pts_frame,
+        )
+        .await
 }
 
 fn rasterise_audio_waveform_input(
@@ -2030,6 +2128,7 @@ pub async fn measure_native_wgpu_frame_stages(
             sources,
             setup,
             total_start,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
         )
@@ -3826,6 +3925,7 @@ mod tests {
                         &rgba_sources,
                         &HashMap::new(),
                         particle_sources,
+                        &HashMap::new(),
                         true,
                         &HashMap::new(),
                     )
@@ -3874,6 +3974,152 @@ mod tests {
             (0, 0),
             "procedural particles must never enter the CPU RGBA upload cache"
         );
+    }
+
+    #[test]
+    fn audio_waveform_source_is_rasterised_on_gpu_and_reuses_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU audio waveform test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "waveform-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "waveform-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let waveform = NativeAudioReactiveSource {
+            source: AudioWaveformSource::from_json(
+                r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}"##,
+            )
+            .expect("valid waveform source"),
+            samples: vec![-1.0, 1.0, -1.0, 1.0],
+            sample_rate: 4,
+            width: 4,
+            height: 4,
+            config_revision: 7,
+        };
+        let audio_sources = HashMap::from([("waveform-media".to_string(), waveform)]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+
+        let render = |renderer: &NativeWgpuRenderer| {
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &audio_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("waveform preparation must succeed without an RGBA source");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD audio waveform test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("audio waveform output readback must succeed")
+        };
+
+        let first = render(&renderer);
+        let second = render(&renderer);
+        assert!(
+            first
+                .pixels
+                .chunks_exact(4)
+                .any(|pixel| pixel == [0, 255, 0, 255]),
+            "GPU waveform pass must produce visible waveform pixels"
+        );
+        assert_eq!(
+            renderer.audio_reactive_renderer.stats(),
+            (1, 2),
+            "two PCM windows must reuse one GPU texture and run two source passes"
+        );
+        assert_eq!(first.pixels, second.pixels);
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 0),
+            "GPU waveforms must never enter the CPU RGBA upload cache"
+        );
+    }
+
+    #[test]
+    fn audio_waveform_gpu_source_rejects_invalid_dimensions_before_texture_creation() {
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        };
+        let waveform = NativeAudioWaveformInput {
+            media_id: "waveform-media".to_string(),
+            source: AudioWaveformSource::from_json(
+                r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}"##,
+            )
+            .expect("valid waveform source"),
+            samples: vec![0.0],
+            sample_rate: 48_000,
+            width: 0,
+            height: 4,
+        };
+
+        let error = split_audio_waveform_sources(&snapshot, &HashMap::new(), &[waveform])
+            .expect_err("zero-width GPU source must preserve the CPU validation contract");
+        assert!(matches!(
+            error,
+            NativeWgpuRenderError::AudioWaveform(
+                uxfd_rust_core::AudioWaveformSceneError::InvalidDimensions
+            )
+        ));
+    }
+
+    #[test]
+    fn audio_waveform_gpu_source_rejects_invalid_sample_rate_before_buffer_upload() {
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        };
+        let waveform = NativeAudioWaveformInput {
+            media_id: "waveform-media".to_string(),
+            source: AudioWaveformSource::from_json(
+                r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}"##,
+            )
+            .expect("valid waveform source"),
+            samples: vec![0.0],
+            sample_rate: 0,
+            width: 4,
+            height: 4,
+        };
+
+        let error = split_audio_waveform_sources(&snapshot, &HashMap::new(), &[waveform])
+            .expect_err("zero sample rate must preserve the CPU validation contract");
+        assert!(matches!(
+            error,
+            NativeWgpuRenderError::AudioWaveform(
+                uxfd_rust_core::AudioWaveformSceneError::InvalidSampleRate
+            )
+        ));
     }
 
     #[test]
