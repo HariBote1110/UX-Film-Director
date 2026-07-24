@@ -1435,6 +1435,69 @@ mod tests {
     }
 
     #[test]
+    fn focus_lines_is_collected_with_shared_bucket_revision_without_cpu_rgba() {
+        let build_snapshot = |source_frame| uxfd_rust_core::SceneSnapshot {
+            frame_index: source_frame,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "focus-lines-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "focus-lines-media".to_string(),
+                source_frame,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let build_media = |keyframe_interval| {
+            vec![uxfd_rust_core::SceneMediaReference {
+                id: "focus-lines-media".to_string(),
+                kind: uxfd_rust_core::MediaKind::GeneratedFocusLinesPlus,
+                source: format!(
+                    r##"{{"generator":"focus-lines-plus","ray_width":2.5,"gap":6,"centre_radius":8,"rotation_degrees":15,"centre_x":160,"centre_y":90,"centre_jitter_percent":20,"seed":93,"keyframe_interval":{keyframe_interval},"line_colour":"#ff8000"}}"##
+                ),
+                width: 320,
+                height: 180,
+                source_rate: None,
+                active_layer_ids: Vec::new(),
+            }]
+        };
+        let static_media = build_media(0);
+        let mut cache = crate::state::SourceFrameCache::default();
+
+        let rgba_sources =
+            collect_native_render_sources(&build_snapshot(0), &static_media, &[], &mut cache)
+                .expect("FocusLinesPlus CPU source collection must succeed");
+        assert!(
+            rgba_sources.is_empty(),
+            "FocusLinesPlus must not allocate a completed CPU RGBA source"
+        );
+
+        let first = collect_native_render_focus_lines_sources(&build_snapshot(0), &static_media)
+            .expect("first static descriptor collection succeeds");
+        let later = collect_native_render_focus_lines_sources(&build_snapshot(60), &static_media)
+            .expect("later static descriptor collection succeeds");
+        assert_eq!(
+            first["focus-lines-media"].config_revision,
+            later["focus-lines-media"].config_revision
+        );
+        assert_eq!(later["focus-lines-media"].source_frame, 60);
+
+        let bucketed_media = build_media(10);
+        let bucket_nine =
+            collect_native_render_focus_lines_sources(&build_snapshot(9), &bucketed_media)
+                .expect("bucket nine descriptor collection succeeds");
+        let bucket_ten =
+            collect_native_render_focus_lines_sources(&build_snapshot(10), &bucketed_media)
+                .expect("bucket ten descriptor collection succeeds");
+        assert_ne!(
+            bucket_nine["focus-lines-media"].config_revision,
+            bucket_ten["focus-lines-media"].config_revision
+        );
+    }
+
+    #[test]
     fn shaking_polygon_is_collected_as_animated_gpu_descriptor_without_cpu_rgba() {
         let build_snapshot = |source_frame| uxfd_rust_core::SceneSnapshot {
             frame_index: source_frame,
