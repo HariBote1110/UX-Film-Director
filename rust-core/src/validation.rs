@@ -94,6 +94,21 @@ pub fn validate_project(project: &Project) -> Result<(), Vec<ValidationIssue>> {
                     ));
                 }
             }
+            if let Some(subject_crop) = &clip.subject_crop {
+                if !subject_crop.source_width.is_finite()
+                    || subject_crop.source_width <= 0.0
+                    || !subject_crop.source_height.is_finite()
+                    || subject_crop.source_height <= 0.0
+                    || subject_crop.keyframes.iter().any(|keyframe| {
+                        !keyframe.x.is_finite()
+                            || !keyframe.y.is_finite()
+                            || !keyframe.width.is_finite()
+                            || !keyframe.height.is_finite()
+                    })
+                {
+                    issues.push(issue(ValidationCode::NonFiniteNumber, "clip.subject_crop"));
+                }
+            }
             for effect in &clip.effects {
                 if !effect_is_finite(effect) {
                     issues.push(issue(ValidationCode::NonFiniteNumber, "clip.effects"));
@@ -166,9 +181,9 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *radius >= 0.0
                 && intensity.is_finite()
                 && *intensity >= 0.0
-                && colour
-                    .iter()
-                    .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+                && colour.iter().all(|component| {
+                    component.is_finite() && *component >= 0.0 && *component <= 1.0
+                })
         }
         crate::schema::Effect::DisplacementMap {
             amount_x,
@@ -320,12 +335,12 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && stop_b.is_finite()
                 && *stop_b >= 0.0
                 && *stop_b <= 1.0
-                && colour_a
-                    .iter()
-                    .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
-                && colour_b
-                    .iter()
-                    .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+                && colour_a.iter().all(|component| {
+                    component.is_finite() && *component >= 0.0 && *component <= 1.0
+                })
+                && colour_b.iter().all(|component| {
+                    component.is_finite() && *component >= 0.0 && *component <= 1.0
+                })
                 && bounds_width.is_finite()
                 && *bounds_width > 0.0
                 && bounds_height.is_finite()

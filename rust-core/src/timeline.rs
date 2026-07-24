@@ -1,4 +1,6 @@
-use crate::keyframe::{evaluate_position_keyframes, evaluate_scalar_keyframes};
+use crate::keyframe::{
+    evaluate_position_keyframes, evaluate_scalar_keyframes, evaluate_subject_crop_keyframes,
+};
 use crate::schema::{Clip, ColourPipeline, Effect, Project, Transform};
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +41,21 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 transform.translation_y,
             );
 
+            let mut effects = clip.effects.clone();
+            if let Some(subject_crop) = &clip.subject_crop {
+                if let Some((x, y, width, height)) =
+                    evaluate_subject_crop_keyframes(&subject_crop.keyframes, frame_offset)
+                {
+                    effects.push(Effect::Clipping {
+                        top: y * subject_crop.source_height,
+                        bottom: (1.0 - y - height) * subject_crop.source_height,
+                        left: x * subject_crop.source_width,
+                        right: (1.0 - x - width) * subject_crop.source_width,
+                        angle_degrees: 0.0,
+                    });
+                }
+            }
+
             clips.push(EvaluatedClip {
                 clip_id: clip.id.clone(),
                 track_id: track.id.clone(),
@@ -51,7 +68,7 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                     frame_offset,
                     clip.opacity,
                 ),
-                effects: clip.effects.clone(),
+                effects,
             });
         }
     }

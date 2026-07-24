@@ -35,6 +35,7 @@ fn project_model_round_trip_preserves_identity() {
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
+                subject_crop: None,
                 effects: Vec::new(),
             }],
         }],

@@ -8,8 +8,9 @@
 
 use serde_json::json;
 use uxfd_rust_core::{
-    evaluate_frame, Clip, ClipKind, ColourPipeline, Fps, MediaKind, MediaReference, Nv12ColourMatrix,
-    Nv12ColourRange, Nv12IoSurfaceRef, Project, ProjectSize, SamplingMode, Track, Transform,
+    evaluate_frame, Clip, ClipKind, ColourPipeline, Fps, MediaKind, MediaReference,
+    Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef, Project, ProjectSize, SamplingMode, Track,
+    Transform,
 };
 
 fn sample_nv12_ref() -> Nv12IoSurfaceRef {
@@ -90,6 +91,7 @@ fn existing_scene_snapshot_shape_is_unaffected_by_the_new_nv12_type() {
                 opacity: 1.0,
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
+                subject_crop: None,
                 effects: Vec::new(),
             }],
         }],

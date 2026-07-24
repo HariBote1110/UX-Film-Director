@@ -184,6 +184,22 @@ pub struct PositionKeyframe {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubjectCropKeyframe {
+    pub frame_offset: u64,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubjectCropAnimation {
+    pub source_width: f32,
+    pub source_height: f32,
+    pub keyframes: Vec<SubjectCropKeyframe>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transform {
     pub translation_x: f32,
     pub translation_y: f32,
@@ -365,6 +381,8 @@ pub struct Clip {
     pub opacity_keyframes: Vec<ScalarKeyframe>,
     #[serde(default)]
     pub position_keyframes: Vec<PositionKeyframe>,
+    #[serde(default)]
+    pub subject_crop: Option<SubjectCropAnimation>,
     #[serde(default)]
     pub effects: Vec<Effect>,
 }

@@ -1,4 +1,4 @@
-use crate::schema::{Easing, PositionKeyframe, ScalarKeyframe};
+use crate::schema::{Easing, PositionKeyframe, ScalarKeyframe, SubjectCropKeyframe};
 
 pub fn evaluate_scalar_keyframes(
     keyframes: &[ScalarKeyframe],
@@ -65,6 +65,48 @@ pub fn evaluate_position_keyframes(
         .last()
         .expect("position keyframes must not be empty");
     (last.x, last.y)
+}
+
+pub fn evaluate_subject_crop_keyframes(
+    keyframes: &[SubjectCropKeyframe],
+    frame_offset: u64,
+) -> Option<(f32, f32, f32, f32)> {
+    let first = keyframes.first()?;
+    if frame_offset <= first.frame_offset || keyframes.len() == 1 {
+        return Some(clamp_subject_crop(first));
+    }
+
+    for pair in keyframes.windows(2) {
+        let left = &pair[0];
+        let right = &pair[1];
+        if frame_offset <= right.frame_offset {
+            if right.frame_offset == left.frame_offset {
+                return Some(clamp_subject_crop(right));
+            }
+            let span = (right.frame_offset - left.frame_offset) as f32;
+            let progress = (frame_offset - left.frame_offset) as f32 / span;
+            return Some(clamp_subject_crop_values(
+                left.x + (right.x - left.x) * progress,
+                left.y + (right.y - left.y) * progress,
+                left.width + (right.width - left.width) * progress,
+                left.height + (right.height - left.height) * progress,
+            ));
+        }
+    }
+
+    keyframes.last().map(clamp_subject_crop)
+}
+
+fn clamp_subject_crop(keyframe: &SubjectCropKeyframe) -> (f32, f32, f32, f32) {
+    clamp_subject_crop_values(keyframe.x, keyframe.y, keyframe.width, keyframe.height)
+}
+
+fn clamp_subject_crop_values(x: f32, y: f32, width: f32, height: f32) -> (f32, f32, f32, f32) {
+    let x = x.clamp(0.0, 1.0);
+    let y = y.clamp(0.0, 1.0);
+    let width = width.clamp(0.0, 1.0);
+    let height = height.clamp(0.0, 1.0);
+    (x, y, (x + width).min(1.0) - x, (y + height).min(1.0) - y)
 }
 
 fn evaluate_easing(easing: Easing, t: f32) -> f32 {
