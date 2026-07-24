@@ -15,7 +15,7 @@ use uxfd_native_wgpu_renderer::{
 };
 use uxfd_rust_backend::build_native_generated_source_frame;
 use uxfd_rust_core::{
-    ColourPipeline, Effect, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference,
+    ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind, SamplingMode, SceneMediaReference,
     SceneSnapshot, Transform,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
@@ -173,12 +173,19 @@ pub struct NativeOverlayTransformPayload {
 }
 
 #[napi(object)]
+pub struct NativeOverlayFpsPayload {
+    pub numerator: u32,
+    pub denominator: u32,
+}
+
+#[napi(object)]
 pub struct NativeOverlaySceneMediaPayload {
     pub id: String,
     pub kind: String,
     pub source: String,
     pub width: u32,
     pub height: u32,
+    pub source_rate: Option<NativeOverlayFpsPayload>,
 }
 
 #[napi(object)]
@@ -274,6 +281,7 @@ pub struct NativeOverlaySceneMedia {
     pub source: String,
     pub width: u32,
     pub height: u32,
+    pub source_rate: Option<Fps>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2380,6 +2388,10 @@ fn scene_media_from_payload(payload: NativeOverlaySceneMediaPayload) -> NativeOv
         source: payload.source,
         width: payload.width,
         height: payload.height,
+        source_rate: payload.source_rate.map(|rate| Fps {
+            numerator: rate.numerator,
+            denominator: rate.denominator,
+        }),
     }
 }
 
@@ -2752,6 +2764,7 @@ mod tests {
                 // 修正後は PNG の native size をそのまま登録すべき。
                 width: 1,
                 height: 1,
+                source_rate: None,
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -2802,6 +2815,7 @@ mod tests {
                     source: "/tmp/video.mov".to_string(),
                     width: 1920,
                     height: 1080,
+                    source_rate: None,
                 },
                 NativeOverlaySceneMedia {
                     id: "getcolor-media".to_string(),
@@ -2816,6 +2830,7 @@ mod tests {
                     .to_string(),
                     width: 160,
                     height: 90,
+                    source_rate: None,
                 },
             ],
             canvas_width: 1920,
@@ -2870,6 +2885,7 @@ mod tests {
                 .to_string(),
                 width: 64,
                 height: 36,
+                source_rate: None,
             }],
             canvas_width: 64,
             canvas_height: 36,
@@ -2931,6 +2947,7 @@ mod tests {
             ),
             width: 16,
             height: 16,
+            source_rate: None,
         };
         let first = native_overlay_media_content_revision(&media, 0)
             .expect("GetColor source image metadata must produce a revision");
@@ -3394,6 +3411,7 @@ mod tests {
                 // media 宣言サイズ（プロジェクトのシーン座標系での表示基準サイズ）。
                 width: 1920,
                 height: 1080,
+                source_rate: None,
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -3484,6 +3502,7 @@ mod tests {
                 source: "/tmp/example.mp4".to_string(),
                 width: 1920,
                 height: 1080,
+                source_rate: None,
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -3564,6 +3583,7 @@ mod tests {
                 source: "/tmp/example.mp4".to_string(),
                 width: 1920,
                 height: 1080,
+                source_rate: None,
             }],
             canvas_width: 1920,
             canvas_height: 1080,
