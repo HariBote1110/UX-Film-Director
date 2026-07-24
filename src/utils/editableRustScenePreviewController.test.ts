@@ -84,7 +84,17 @@ describe('editableRustScenePreviewController', () => {
     const result = controller.replaceScene({
       projectSettings,
       layers,
-      objects: [shape({ groupId: 'group-1' })],
+      objects: [shape({
+        groupId: 'group-1',
+        groupGradient: {
+          enabled: true,
+          type: 'linear',
+          scope: 'group',
+          colours: ['#000000', '#ffffff'],
+          stops: [0, 1],
+          direction: 0,
+        },
+      })],
     });
 
     expect(result).toMatchObject({

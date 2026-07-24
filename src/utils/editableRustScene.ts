@@ -199,6 +199,18 @@ const getColorSampleIssue = (
   return null;
 };
 
+const hasEnabledGroupGradient = (
+  object: TimelineObject,
+  objects: TimelineObject[]
+): boolean => {
+  const groupId = object.groupId?.trim();
+  if (!groupId) return false;
+  return objects.some((candidate) => (
+    candidate.groupId?.trim() === groupId
+    && candidate.groupGradient?.enabled === true
+  ));
+};
+
 const issueForObject = (
   object: TimelineObject,
   objects: TimelineObject[],
@@ -208,8 +220,8 @@ const issueForObject = (
   if (!isEditableRustSceneObject(object)) {
     return { objectId: object.id, code: 'unsupportedObjectType', detail: `${object.type} はV1対象外です` };
   }
-  if (object.groupId) {
-    return { objectId: object.id, code: 'unsupportedGroup', detail: 'グループ合成はV1対象外です' };
+  if (hasEnabledGroupGradient(object, objects)) {
+    return { objectId: object.id, code: 'unsupportedGroup', detail: '動的なグループグラデーションはV1対象外です' };
   }
   if (object.type === 'video' && object.reversed) {
     return { objectId: object.id, code: 'unsupportedVideoMode', detail: '逆再生はV1対象外です' };

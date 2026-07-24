@@ -352,9 +352,38 @@ describe('buildEditableRustScene', () => {
     ]));
   });
 
-  it('V1外のgroup、逆再生、filter、animated crop、mask、未対応typeを明示拒否する', () => {
+  it('描画に影響しないgroupIdは編集メタデータとして許可する', () => {
+    const grouped = shape({ id: 'group-member' });
+    grouped.groupId = 'group-a';
+
+    const result = buildEditableRustScene({
+      sceneId: 'scene-group-metadata',
+      projectSettings,
+      layers,
+      objects: [grouped],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected metadata-only group conversion to succeed');
+    expect(result.project.tracks.flatMap((track) => track.clips)).toEqual([
+      expect.objectContaining({ id: 'group-member' }),
+    ]);
+  });
+
+  it('V1外のgroup gradient、逆再生、filter、animated crop、mask、未対応typeを明示拒否する', () => {
     const unsupported: TimelineObject[] = [
-      { ...shape({ id: 'group-member' }), groupId: 'group-a' },
+      {
+        ...shape({ id: 'group-member' }),
+        groupId: 'group-a',
+        groupGradient: {
+          enabled: true,
+          type: 'linear',
+          scope: 'group',
+          colours: ['#000000', '#ffffff'],
+          stops: [0, 1],
+          direction: 0,
+        },
+      },
       { ...video({ id: 'reversed' }), reversed: true },
       { ...shape({ id: 'filter' }), filters: [{ id: 'fade', type: 'fade', enabled: true, params: { opacity: 0.5 } }] },
       {
