@@ -425,9 +425,11 @@ impl NativeWgpuLiveSurfaceRenderer {
         sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        let (prepared_clips, source_upload) = self
-            .core
-            .prepare_scene_clips_without_upload_fence(snapshot, sources, &HashMap::new())?;
+        let (prepared_clips, source_upload) = self.core.prepare_scene_clips_without_upload_fence(
+            snapshot,
+            sources,
+            &HashMap::new(),
+        )?;
         let acquire_start = Instant::now();
         let surface_texture = self
             .surface
@@ -487,17 +489,14 @@ impl NativeWgpuLiveSurfaceRenderer {
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        let (base_prepared_clips, base_source_upload) = self
-            .core
-            .prepare_base_scene_clips_cached(
-                base_generation,
-                base_snapshot,
-                base_sources,
-                content_revisions,
-            )?;
-        let (decoration_prepared_clips, decoration_source_upload) = self
-            .core
-            .prepare_scene_clips_without_upload_fence(
+        let (base_prepared_clips, base_source_upload) = self.core.prepare_base_scene_clips_cached(
+            base_generation,
+            base_snapshot,
+            base_sources,
+            content_revisions,
+        )?;
+        let (decoration_prepared_clips, decoration_source_upload) =
+            self.core.prepare_scene_clips_without_upload_fence(
                 &SceneSnapshot {
                     frame_index: base_snapshot.frame_index,
                     colour: base_snapshot.colour.clone(),
@@ -564,9 +563,7 @@ impl NativeWgpuLiveSurfaceRenderer {
     /// live surface 専用: RGBA source と、同一プロセスで decode された NV12
     /// IOSurface source を混在合成し、CPU readback なしで CAMetalLayer drawable
     /// へ直接 present する。
-    pub async fn present_scene_with_decoration_and_nv12_to_surface_texture<
-        S: RgbaFrameSource,
-    >(
+    pub async fn present_scene_with_decoration_and_nv12_to_surface_texture<S: RgbaFrameSource>(
         &self,
         base_snapshot: &SceneSnapshot,
         base_sources: &HashMap<String, S>,
@@ -584,9 +581,8 @@ impl NativeWgpuLiveSurfaceRenderer {
                 false,
                 content_revisions,
             )?;
-        let (decoration_prepared_clips, decoration_source_upload) = self
-            .core
-            .prepare_scene_clips_without_upload_fence(
+        let (decoration_prepared_clips, decoration_source_upload) =
+            self.core.prepare_scene_clips_without_upload_fence(
                 &SceneSnapshot {
                     frame_index: base_snapshot.frame_index,
                     colour: base_snapshot.colour.clone(),
@@ -597,11 +593,16 @@ impl NativeWgpuLiveSurfaceRenderer {
             )?;
         let source_upload = base_source_upload + decoration_source_upload;
 
-        let mut base_z_indices: Vec<u32> =
-            base_snapshot.clips.iter().map(|clip| clip.z_index).collect();
+        let mut base_z_indices: Vec<u32> = base_snapshot
+            .clips
+            .iter()
+            .map(|clip| clip.z_index)
+            .collect();
         base_z_indices.sort_unstable();
-        let mut merged: Vec<(u32, Arc<PreparedClip>)> =
-            base_z_indices.into_iter().zip(base_prepared_clips).collect();
+        let mut merged: Vec<(u32, Arc<PreparedClip>)> = base_z_indices
+            .into_iter()
+            .zip(base_prepared_clips)
+            .collect();
         merged.extend(
             decoration_clips
                 .iter()
@@ -737,17 +738,15 @@ impl NativeWgpuLiveSurfaceRenderer {
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuClearReadbackReport, NativeWgpuRenderError> {
-        let (base_prepared_clips, _base_source_upload) = self
-            .core
-            .prepare_base_scene_clips_cached(
+        let (base_prepared_clips, _base_source_upload) =
+            self.core.prepare_base_scene_clips_cached(
                 base_generation,
                 base_snapshot,
                 base_sources,
                 content_revisions,
             )?;
-        let (decoration_prepared_clips, _decoration_source_upload) = self
-            .core
-            .prepare_scene_clips_without_upload_fence(
+        let (decoration_prepared_clips, _decoration_source_upload) =
+            self.core.prepare_scene_clips_without_upload_fence(
                 &SceneSnapshot {
                     frame_index: base_snapshot.frame_index,
                     colour: base_snapshot.colour.clone(),
@@ -1370,13 +1369,12 @@ impl NativeWgpuRenderer {
             // を一切行わずキャッシュ済みテクスチャの view を返す。downscale
             // （device の max_texture_dimension_2d を超えるソース対策）もキャッシュ
             // hit 時は不要なため、ここでは行わずメソッド内部に委譲する。
-            let (texture_view, prepared_width, prepared_height) = self
-                .get_or_upload_media_texture(
-                    &clip.media_id,
-                    revision,
-                    source.rgba_frame(),
-                    max_source_dimension,
-                );
+            let (texture_view, prepared_width, prepared_height) = self.get_or_upload_media_texture(
+                &clip.media_id,
+                revision,
+                source.rgba_frame(),
+                max_source_dimension,
+            );
             prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
                 &self.device,
                 &self.bind_group_layout,
@@ -1415,13 +1413,10 @@ impl NativeWgpuRenderer {
                 .media_texture_cache
                 .lock()
                 .expect("media texture cache mutex must not be poisoned");
-            let hit = cache
-                .entries
-                .get(media_id)
-                .map(|entry| entry.revision)
-                == Some(revision);
+            let hit = cache.entries.get(media_id).map(|entry| entry.revision) == Some(revision);
             if hit {
-                self.media_texture_cache_hits.fetch_add(1, Ordering::Relaxed);
+                self.media_texture_cache_hits
+                    .fetch_add(1, Ordering::Relaxed);
                 cache.touch(media_id);
                 let entry = cache
                     .entries
@@ -1437,7 +1432,8 @@ impl NativeWgpuRenderer {
             }
         }
 
-        self.media_texture_cache_misses.fetch_add(1, Ordering::Relaxed);
+        self.media_texture_cache_misses
+            .fetch_add(1, Ordering::Relaxed);
         // device の max_texture_dimension_2d を超えるソース（巨大PSD等）を
         // そのまま create_texture へ渡すと wgpu Validation Error で panic する。
         // その場合のみアスペクト比維持でCPU側縮小してから使用し、描画継続する。
@@ -1549,13 +1545,15 @@ impl NativeWgpuRenderer {
                 .expect("prepared scene cache mutex must not be poisoned");
             if let Some(cached) = cache.as_ref() {
                 if cached.generation == generation {
-                    self.prepared_scene_cache_hits.fetch_add(1, Ordering::Relaxed);
+                    self.prepared_scene_cache_hits
+                        .fetch_add(1, Ordering::Relaxed);
                     return Ok((cached.prepared_clips.clone(), Duration::ZERO));
                 }
             }
         }
 
-        self.prepared_scene_cache_misses.fetch_add(1, Ordering::Relaxed);
+        self.prepared_scene_cache_misses
+            .fetch_add(1, Ordering::Relaxed);
         // prepare_scene_clips_with_upload_fence は内部で z_index 昇順にソートした
         // クローンを prepare するため、ソート後の z_index をここで再現し、
         // prepared clip と一対一でペアにしておく。
@@ -2377,8 +2375,18 @@ fn choose_live_surface_present_mode(present_modes: &[wgpu::PresentMode]) -> wgpu
         .iter()
         .copied()
         .find(|mode| *mode == wgpu::PresentMode::Immediate)
-        .or_else(|| present_modes.iter().copied().find(|mode| *mode == wgpu::PresentMode::Mailbox))
-        .or_else(|| present_modes.iter().copied().find(|mode| *mode == wgpu::PresentMode::Fifo))
+        .or_else(|| {
+            present_modes
+                .iter()
+                .copied()
+                .find(|mode| *mode == wgpu::PresentMode::Mailbox)
+        })
+        .or_else(|| {
+            present_modes
+                .iter()
+                .copied()
+                .find(|mode| *mode == wgpu::PresentMode::Fifo)
+        })
         .unwrap_or(wgpu::PresentMode::Fifo)
 }
 
@@ -2529,14 +2537,16 @@ fn downscale_rgba_frame_to_fit(source: &RgbaFrame, max_dimension: u32) -> RgbaFr
 
     for destination_y in 0..target_height {
         // ターゲットの各テクセル中心を元画像空間へ逆写像する。
-        let source_y = ((destination_y as f64 + 0.5) / f64::from(target_height)) * source_height - 0.5;
+        let source_y =
+            ((destination_y as f64 + 0.5) / f64::from(target_height)) * source_height - 0.5;
         let source_y = source_y.clamp(0.0, source_height - 1.0);
         let y0 = source_y.floor() as u32;
         let y1 = (y0 + 1).min(source.height - 1);
         let fy = source_y - f64::from(y0);
 
         for destination_x in 0..target_width {
-            let source_x = ((destination_x as f64 + 0.5) / f64::from(target_width)) * source_width - 0.5;
+            let source_x =
+                ((destination_x as f64 + 0.5) / f64::from(target_width)) * source_width - 0.5;
             let source_x = source_x.clamp(0.0, source_width - 1.0);
             let x0 = source_x.floor() as u32;
             let x1 = (x0 + 1).min(source.width - 1);
@@ -3570,7 +3580,8 @@ mod tests {
         let _texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("intentionally oversized test texture"),
             size: wgpu::Extent3d {
-                width: oversized_dimension.min(wgpu::Limits::downlevel_defaults().max_texture_dimension_2d + 4096),
+                width: oversized_dimension
+                    .min(wgpu::Limits::downlevel_defaults().max_texture_dimension_2d + 4096),
                 height: 4,
                 depth_or_array_layers: 1,
             },
@@ -3618,7 +3629,10 @@ mod tests {
         let original_ratio = width as f64 / height as f64;
         let result_ratio = result.width as f64 / result.height as f64;
         assert!((original_ratio - result_ratio).abs() < 0.01);
-        assert_eq!(result.pixels.len(), (result.width as usize) * (result.height as usize) * 4);
+        assert_eq!(
+            result.pixels.len(),
+            (result.width as usize) * (result.height as usize) * 4
+        );
     }
 
     #[test]
@@ -3698,7 +3712,8 @@ mod tests {
     }
 
     #[test]
-    fn live_surface_alpha_mode_falls_back_to_first_available_when_neither_multiplied_variant_present() {
+    fn live_surface_alpha_mode_falls_back_to_first_available_when_neither_multiplied_variant_present(
+    ) {
         // 実機環境で PreMultiplied / PostMultiplied のどちらも返らないケース
         // （macOS 以外の platform や wgpu backend）では既存動作を維持する。
         let alpha_mode = choose_live_surface_alpha_mode(&[wgpu::CompositeAlphaMode::Auto]);
@@ -3819,7 +3834,11 @@ mod tests {
             (1, 1),
             "same generation re-present must hit the cache exactly once"
         );
-        assert_eq!(second_upload, Duration::ZERO, "cache hit must skip upload entirely");
+        assert_eq!(
+            second_upload,
+            Duration::ZERO,
+            "cache hit must skip upload entirely"
+        );
         assert!(
             first_upload >= Duration::ZERO,
             "first (miss) upload measurement must be recorded"
@@ -3837,7 +3856,9 @@ mod tests {
         let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
             Ok(renderer) => renderer,
             Err(NativeWgpuRenderError::AdapterUnavailable) => {
-                eprintln!("skipping prepared scene cache invalidation test: no GPU adapter available");
+                eprintln!(
+                    "skipping prepared scene cache invalidation test: no GPU adapter available"
+                );
                 return;
             }
             Err(error) => panic!("renderer creation failed: {error:?}"),
@@ -3926,22 +3947,22 @@ mod tests {
 
     /// `media_id` を 2 件持つシーンを作る。`entries` は `(clip_id, media_id)`。
     /// 各 media は 2x2 の単色ソースフレーム（テストごとに内容差は不要）。
-    fn multi_clip_scene(
-        entries: &[(&str, &str)],
-    ) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+    fn multi_clip_scene(entries: &[(&str, &str)]) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
         let clips = entries
             .iter()
             .enumerate()
-            .map(|(index, (clip_id, media_id))| uxfd_rust_core::EvaluatedClip {
-                clip_id: clip_id.to_string(),
-                track_id: "track-1".to_string(),
-                media_id: media_id.to_string(),
-                source_frame: 0,
-                z_index: index as u32,
-                transform: uxfd_rust_core::Transform::identity(),
-                opacity: 1.0,
-                effects: Vec::new(),
-            })
+            .map(
+                |(index, (clip_id, media_id))| uxfd_rust_core::EvaluatedClip {
+                    clip_id: clip_id.to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: media_id.to_string(),
+                    source_frame: 0,
+                    z_index: index as u32,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                },
+            )
             .collect();
         let snapshot = SceneSnapshot {
             frame_index: 0,
@@ -3995,8 +4016,7 @@ mod tests {
             "unchanged revision must hit the media texture cache exactly once"
         );
         assert!(
-            second_upload < Duration::from_millis(1)
-                || renderer.media_texture_cache_stats().0 == 1,
+            second_upload < Duration::from_millis(1) || renderer.media_texture_cache_stats().0 == 1,
             "cache hit path must not repeat the texture upload"
         );
         // bind group 自体は毎フレーム transform 用に作り直すため Arc は別物だが、
@@ -4015,7 +4035,8 @@ mod tests {
         else {
             return;
         };
-        let (snapshot, sources) = multi_clip_scene(&[("clip-video", "video-1"), ("clip-image", "image-1")]);
+        let (snapshot, sources) =
+            multi_clip_scene(&[("clip-video", "video-1"), ("clip-image", "image-1")]);
 
         let mut content_revisions = HashMap::from([
             ("video-1".to_string(), 1u64),
@@ -4248,15 +4269,15 @@ mod tests {
             }
         }
 
-        fn assert_pixels_close(actual: &RgbaFrame, expected: &RgbaFrame, tolerance: i32, context: &str) {
+        fn assert_pixels_close(
+            actual: &RgbaFrame,
+            expected: &RgbaFrame,
+            tolerance: i32,
+            context: &str,
+        ) {
             assert_eq!(actual.width, expected.width, "{context}: width mismatch");
             assert_eq!(actual.height, expected.height, "{context}: height mismatch");
-            for (index, (a, e)) in actual
-                .pixels
-                .iter()
-                .zip(expected.pixels.iter())
-                .enumerate()
-            {
+            for (index, (a, e)) in actual.pixels.iter().zip(expected.pixels.iter()).enumerate() {
                 let diff = (*a as i32 - *e as i32).abs();
                 assert!(
                     diff <= tolerance,
@@ -4559,8 +4580,9 @@ mod tests {
             assert_eq!(renderer.nv12_texture_cache_stats(), (0, 1));
             assert_eq!(renderer.nv12_texture_cache_len(), 1);
 
-            pollster::block_on(renderer.render_layers_to_rgba(&layers))
-                .expect("second nv12 render with unchanged revision must succeed (cache hit expected)");
+            pollster::block_on(renderer.render_layers_to_rgba(&layers)).expect(
+                "second nv12 render with unchanged revision must succeed (cache hit expected)",
+            );
             assert_eq!(
                 renderer.nv12_texture_cache_stats(),
                 (1, 1),
@@ -4726,14 +4748,15 @@ mod tests {
                 ("media-rgba-top".to_string(), top_rgba),
             ]);
 
-            let mixed_report = pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
-                &mixed_snapshot,
-                &mixed_sources,
-                &[],
-                &HashMap::new(),
-                &nv12_sources,
-            ))
-            .expect("production nv12+rgba mixed render must succeed");
+            let mixed_report =
+                pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+                    &mixed_snapshot,
+                    &mixed_sources,
+                    &[],
+                    &HashMap::new(),
+                    &nv12_sources,
+                ))
+                .expect("production nv12+rgba mixed render must succeed");
             let reference_report =
                 pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
                     &reference_snapshot,
@@ -4915,8 +4938,7 @@ mod tests {
                     assert_eq!(lock_status, 0);
 
                     unsafe {
-                        let y_base =
-                            CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 0) as *mut u8;
+                        let y_base = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 0) as *mut u8;
                         let y_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 0);
                         for row in 0..height {
                             for col in 0..width {

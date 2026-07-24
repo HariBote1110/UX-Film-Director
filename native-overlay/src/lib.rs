@@ -16,12 +16,20 @@ use uxfd_native_wgpu_renderer::{
 use uxfd_rust_backend::build_native_generated_source_frame;
 use uxfd_rust_core::{
     build_video_frame_decode_requests, ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind,
-    SamplingMode, SceneMediaReference, SceneSnapshot, Transform, VideoFrameDecodeRequest,
+    Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef, SamplingMode, SceneMediaReference,
+    SceneSnapshot, Transform, VideoFrameDecodeRequest,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
 #[cfg(target_os = "macos")]
 mod macos_overlay;
+#[cfg(target_os = "macos")]
+use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
+use uxfd_macos_video_decode::{
+    ColourMatrix as DecodeColourMatrix, ColourRange as DecodeColourRange, DecodedVideoFrame,
+    VideoDecodeSession,
+};
 
 #[napi(object)]
 pub struct NativeOverlayAttachPayload {
@@ -443,6 +451,128 @@ impl NativeOverlaySourceCache {
     }
 }
 
+#[cfg(target_os = "macos")]
+struct NativeOverlayResidentVideoDecoder {
+    source: String,
+    session: VideoDecodeSession,
+    current_frame: Option<DecodedVideoFrame>,
+    current_source_frame: Option<u64>,
+    revision: u64,
+}
+
+#[cfg(target_os = "macos")]
+impl NativeOverlayResidentVideoDecoder {
+    fn open(source: &str) -> Result<Self, String> {
+        let path = native_video_source_path(source)?;
+        let session = VideoDecodeSession::open(&path).map_err(|error| {
+            format!(
+                "Native overlay VideoToolbox decode open failed for {}: {error}",
+                path.display()
+            )
+        })?;
+        Ok(Self {
+            source: source.to_string(),
+            session,
+            current_frame: None,
+            current_source_frame: None,
+            revision: 0,
+        })
+    }
+
+    fn request_frame(
+        &mut self,
+        request: &VideoFrameDecodeRequest,
+    ) -> Result<Nv12IoSurfaceRef, String> {
+        if self.current_source_frame == Some(request.source_frame) {
+            return self.current_nv12_source();
+        }
+
+        let target_seconds = request.source_frame as f64 * request.source_rate.denominator as f64
+            / request.source_rate.numerator as f64;
+        let sequential = self
+            .current_source_frame
+            .is_some_and(|frame| request.source_frame == frame.saturating_add(1));
+        if !sequential {
+            self.session.seek(target_seconds).map_err(|error| {
+                format!(
+                    "Native overlay VideoToolbox seek failed for {} at {target_seconds:.6}s: {error}",
+                    self.source
+                )
+            })?;
+            self.current_frame = None;
+        }
+
+        let frame_tolerance =
+            request.source_rate.denominator as f64 / request.source_rate.numerator as f64 * 0.5;
+        loop {
+            let frame = self
+                .session
+                .next_frame()
+                .map_err(|error| {
+                    format!(
+                        "Native overlay VideoToolbox decode failed for {}: {error}",
+                        self.source
+                    )
+                })?
+                .ok_or_else(|| {
+                    format!(
+                        "Native overlay video reached end of stream at source frame {} for {}.",
+                        request.source_frame, self.source
+                    )
+                })?;
+            let reached_target = frame.pts_seconds + frame_tolerance >= target_seconds;
+            self.current_frame = Some(frame);
+            if reached_target {
+                break;
+            }
+        }
+
+        self.current_source_frame = Some(request.source_frame);
+        self.revision = self.revision.wrapping_add(1).max(1);
+        self.current_nv12_source()
+    }
+
+    fn current_nv12_source(&self) -> Result<Nv12IoSurfaceRef, String> {
+        let frame = self
+            .current_frame
+            .as_ref()
+            .ok_or_else(|| "Native overlay decoded frame is unavailable.".to_string())?;
+        let surface_id = frame
+            .io_surface_id()
+            .ok_or_else(|| "Native overlay decoded frame is not IOSurface-backed.".to_string())?;
+        Ok(Nv12IoSurfaceRef {
+            surface_id,
+            width: frame.width,
+            height: frame.height,
+            colour_range: match frame.colour.range {
+                DecodeColourRange::Video => Nv12ColourRange::Video,
+                DecodeColourRange::Full => Nv12ColourRange::Full,
+            },
+            colour_matrix: match frame.colour.matrix {
+                DecodeColourMatrix::Bt601 => Nv12ColourMatrix::Bt601,
+                DecodeColourMatrix::Bt709 => Nv12ColourMatrix::Bt709,
+                DecodeColourMatrix::Bt2020 => Nv12ColourMatrix::Bt2020,
+            },
+            revision: self.revision,
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn native_video_source_path(source: &str) -> Result<PathBuf, String> {
+    if source.starts_with("file:") {
+        return url::Url::parse(source)
+            .map_err(|error| format!("Invalid native overlay video file URL: {error}"))?
+            .to_file_path()
+            .map_err(|_| "Native overlay video URL is not a local file URL.".to_string());
+    }
+    let path = Path::new(source);
+    if path.as_os_str().is_empty() {
+        return Err("Native overlay video source path is empty.".to_string());
+    }
+    Ok(path.to_path_buf())
+}
+
 pub struct NativeOverlayLiveSurfaceRenderer {
     window_id: u32,
     drawable_width: u32,
@@ -468,6 +598,12 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// base scene の media revision。prepared clip を新しい scene 世代で作り直す
     /// ときも、内容が不変なsourceのGPU textureを再利用するために保持する。
     last_scene_content_revisions: HashMap<String, u64>,
+    /// addon と同じ Electron main process 内で decode された NV12 IOSurface。
+    /// backend process の IOSurface ID は別プロセスから lookup できないため、
+    /// live present 用 frame はこの renderer が所有する。
+    last_nv12_sources: HashMap<String, Nv12IoSurfaceRef>,
+    #[cfg(target_os = "macos")]
+    video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
     /// CPU でラスタライズし直さないための media revision 単位キャッシュ。
     native_source_cache: NativeOverlaySourceCache,
@@ -500,6 +636,9 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_scene: None,
             scene_generation: 0,
             last_scene_content_revisions: HashMap::new(),
+            last_nv12_sources: HashMap::new(),
+            #[cfg(target_os = "macos")]
+            video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
             view_handle,
             renderer,
@@ -527,6 +666,9 @@ impl NativeOverlayLiveSurfaceRenderer {
                 self.window_id, upload.media_id, upload.width, upload.height,
             );
         }
+        self.last_nv12_sources.clear();
+        #[cfg(target_os = "macos")]
+        self.video_decoders.clear();
         let content_revisions = scene
             .map(native_overlay_source_content_revisions_for_scene)
             .unwrap_or_default();
@@ -571,10 +713,11 @@ impl NativeOverlayLiveSurfaceRenderer {
             merged_snapshot.clips.extend(decoration_clips);
             merged_sources.extend(decoration_sources);
             let report = pollster::block_on(
-                self.renderer.present_scene_to_surface_texture_with_readback(
-                    &merged_snapshot,
-                    &merged_sources,
-                ),
+                self.renderer
+                    .present_scene_to_surface_texture_with_readback(
+                        &merged_snapshot,
+                        &merged_sources,
+                    ),
             )
             .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
             let live_readback_export_max_channel_delta = compare_live_overlay_readback_with_export(
@@ -589,14 +732,15 @@ impl NativeOverlayLiveSurfaceRenderer {
         }
 
         let report = pollster::block_on(
-            self.renderer.present_scene_with_decoration_to_surface_texture(
-                self.scene_generation,
-                base_snapshot,
-                base_sources,
-                &self.last_scene_content_revisions,
-                &decoration_clips,
-                &decoration_sources,
-            ),
+            self.renderer
+                .present_scene_with_decoration_to_surface_texture(
+                    self.scene_generation,
+                    base_snapshot,
+                    base_sources,
+                    &self.last_scene_content_revisions,
+                    &decoration_clips,
+                    &decoration_sources,
+                ),
         )
         .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
         if let Some(start) = trace_start {
@@ -610,16 +754,109 @@ impl NativeOverlayLiveSurfaceRenderer {
         }))
     }
 
+    #[cfg(target_os = "macos")]
+    fn resolve_video_sources(
+        &mut self,
+        requests: &[VideoFrameDecodeRequest],
+    ) -> Result<HashMap<String, Nv12IoSurfaceRef>, String> {
+        let mut touched = HashSet::new();
+        let mut sources = HashMap::new();
+        for request in requests {
+            let must_reopen = self
+                .video_decoders
+                .get(&request.media_id)
+                .is_none_or(|decoder| decoder.source != request.source);
+            if must_reopen {
+                self.video_decoders.insert(
+                    request.media_id.clone(),
+                    NativeOverlayResidentVideoDecoder::open(&request.source)?,
+                );
+            }
+            let source = self
+                .video_decoders
+                .get_mut(&request.media_id)
+                .expect("decoder was inserted above")
+                .request_frame(request)?;
+            touched.insert(request.media_id.clone());
+            sources.insert(request.media_id.clone(), source);
+        }
+        self.video_decoders
+            .retain(|media_id, _| touched.contains(media_id));
+        Ok(sources)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn resolve_video_sources(
+        &mut self,
+        requests: &[VideoFrameDecodeRequest],
+    ) -> Result<HashMap<String, Nv12IoSurfaceRef>, String> {
+        if requests.is_empty() {
+            Ok(HashMap::new())
+        } else {
+            Err("Native overlay VideoToolbox decode is only available on macOS.".to_string())
+        }
+    }
+
     fn present_scene(
         &mut self,
         scene: &NativeOverlaySceneSource,
         decoration: Option<&SelectionDecorationState>,
     ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
-        // `present_upload_frame` already owns the canonical scene fitting,
-        // caching, decoration and CAMetalLayer present path. Supply a single
-        // unreferenced transparent pixel so scene-only callers share that
-        // implementation without a completed-frame readback or shared-memory
-        // transfer. The renderer prepares textures only for referenced clips.
+        let video_requests = native_overlay_video_decode_requests(scene)?;
+        if !video_requests.is_empty() {
+            let content_revisions = native_overlay_source_content_revisions_for_scene(scene);
+            let sources =
+                load_overlay_native_sources_for_scene_cached(scene, &mut self.native_source_cache)?;
+            let snapshot = fit_scene_snapshot_to_drawable(
+                &scene.snapshot,
+                scene.canvas_width,
+                scene.canvas_height,
+                self.drawable_width,
+                self.drawable_height,
+            );
+            let nv12_sources = self.resolve_video_sources(&video_requests)?;
+            self.last_scene = Some(Arc::new((snapshot, sources)));
+            self.last_scene_content_revisions = content_revisions;
+            self.last_nv12_sources = nv12_sources;
+            self.scene_generation = self.scene_generation.wrapping_add(1);
+
+            let (decoration_clips, decoration_sources) = decoration
+                .map(|state| {
+                    build_selection_decoration_clips(
+                        state,
+                        self.drawable_width,
+                        self.drawable_height,
+                        self.contents_scale,
+                    )
+                })
+                .unwrap_or_default();
+            let (base_snapshot, base_sources) = self
+                .last_scene
+                .as_deref()
+                .expect("last_scene was just assigned above");
+            let report = pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_and_nv12_to_surface_texture(
+                        base_snapshot,
+                        base_sources,
+                        &self.last_scene_content_revisions,
+                        &self.last_nv12_sources,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+            .map_err(|error| {
+                format!("Native overlay NV12 live surface present failed: {error:?}")
+            })?;
+            return Ok(Some(OverlayLiveSurfaceDiagnostics {
+                live_prepared_clip_count: report.prepared_clip_count,
+                live_readback_non_transparent_pixels: 0,
+                live_readback_checksum: 0,
+                live_readback_export_max_channel_delta: None,
+            }));
+        }
+
+        // Non-video scenes share the existing RGBA/generated source path.
         let unreferenced = OverlayUploadFrame {
             media_id: "__uxfd_scene_only_unreferenced__".to_string(),
             width: 1,
@@ -683,9 +920,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                         &decoration_sources,
                     ),
             )
-            .map_err(|error| {
-                format!("Native overlay clear-readback present failed: {error:?}")
-            })?;
+            .map_err(|error| format!("Native overlay clear-readback present failed: {error:?}"))?;
             eprintln!(
                 "[uxfd-overlay-trace] clear_readback window_id={} drawable={}x{} \
                  prepared_clips={} pre_clear_non_transparent={} post_clear_non_transparent={}",
@@ -699,16 +934,31 @@ impl NativeOverlayLiveSurfaceRenderer {
             return Ok(());
         }
 
-        let report = pollster::block_on(
-            self.renderer.present_scene_with_decoration_to_surface_texture(
-                self.scene_generation,
-                base_snapshot,
-                base_sources,
-                &self.last_scene_content_revisions,
-                &decoration_clips,
-                &decoration_sources,
-            ),
-        )
+        let report = if self.last_nv12_sources.is_empty() {
+            pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_to_surface_texture(
+                        self.scene_generation,
+                        base_snapshot,
+                        base_sources,
+                        &self.last_scene_content_revisions,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+        } else {
+            pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_and_nv12_to_surface_texture(
+                        base_snapshot,
+                        base_sources,
+                        &self.last_scene_content_revisions,
+                        &self.last_nv12_sources,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+        }
         .map_err(|error| {
             format!("Native overlay selection decoration present failed: {error:?}")
         })?;
@@ -1011,7 +1261,11 @@ fn present_native_overlay_scene_inner(
     let scene = match scene_snapshot_from_payload(payload.snapshot) {
         Ok(snapshot) => NativeOverlaySceneSource {
             snapshot,
-            media: payload.media.into_iter().map(scene_media_from_payload).collect(),
+            media: payload
+                .media
+                .into_iter()
+                .map(scene_media_from_payload)
+                .collect(),
             canvas_width,
             canvas_height,
         },
@@ -1040,9 +1294,11 @@ fn present_native_overlay_scene_inner(
                 .as_ref()
                 .map(|diagnostics| diagnostics.live_readback_checksum as f64),
             live_readback_export_max_channel_delta: live_diagnostics.as_ref().and_then(
-                |diagnostics| diagnostics
-                    .live_readback_export_max_channel_delta
-                    .map(|value| value as f64),
+                |diagnostics| {
+                    diagnostics
+                        .live_readback_export_max_channel_delta
+                        .map(|value| value as f64)
+                },
             ),
         },
         Err(reason) => failure(&reason),
@@ -1556,15 +1812,20 @@ pub fn build_selection_decoration_clips(
         drawable_width,
         drawable_height,
     );
-    let fit = |point: (f64, f64)| (point.0 * fit_scale + offset_x, point.1 * fit_scale + offset_y);
+    let fit = |point: (f64, f64)| {
+        (
+            point.0 * fit_scale + offset_x,
+            point.1 * fit_scale + offset_y,
+        )
+    };
 
     let line_width = SELECTION_DECORATION_LINE_WIDTH_CSS * contents_scale;
-    let handle_frame_size =
-        (SELECTION_DECORATION_HANDLE_SIZE_CSS + SELECTION_DECORATION_HANDLE_STROKE_CSS)
-            * contents_scale;
-    let handle_face_size =
-        (SELECTION_DECORATION_HANDLE_SIZE_CSS - SELECTION_DECORATION_HANDLE_STROKE_CSS)
-            * contents_scale;
+    let handle_frame_size = (SELECTION_DECORATION_HANDLE_SIZE_CSS
+        + SELECTION_DECORATION_HANDLE_STROKE_CSS)
+        * contents_scale;
+    let handle_face_size = (SELECTION_DECORATION_HANDLE_SIZE_CSS
+        - SELECTION_DECORATION_HANDLE_STROKE_CSS)
+        * contents_scale;
 
     for (quad_index, quad) in state.quads.iter().enumerate() {
         let corners = [
@@ -1632,7 +1893,8 @@ pub fn append_selection_decoration_to_scene(
 /// sources を live surface に present し、既存 render pass の
 /// `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable 全 pixel を
 /// alpha=0 で上書きする。専用 clear render logic は追加しない。
-pub fn build_empty_scene_snapshot_for_transparent_clear() -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+pub fn build_empty_scene_snapshot_for_transparent_clear(
+) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
     (
         SceneSnapshot {
             frame_index: 0,
@@ -1667,6 +1929,9 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
     renderer.last_scene = None;
+    renderer.last_nv12_sources.clear();
+    #[cfg(target_os = "macos")]
+    renderer.video_decoders.clear();
     // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
     // None に戻すだけでは native-wgpu-renderer 側 `prepare_base_scene_clips_cached`
     // が「generation 一致のみでキャッシュヒット判定」する契約（変更しない）に
@@ -1765,8 +2030,7 @@ pub fn present_overlay_scene_to_live_surface(
     scene: &NativeOverlaySceneSource,
     selection_decoration: Option<SelectionDecorationState>,
 ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
-    let decoration =
-        resolve_present_selection_decoration(window_id, selection_decoration);
+    let decoration = resolve_present_selection_decoration(window_id, selection_decoration);
     let mut renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -2145,10 +2409,12 @@ pub fn load_overlay_native_sources_for_scene(
     scene: &NativeOverlaySceneSource,
 ) -> Result<HashMap<String, RgbaFrame>, String> {
     let mut cache = NativeOverlaySourceCache::default();
-    Ok(load_overlay_native_sources_for_scene_cached(scene, &mut cache)?
-        .into_iter()
-        .map(|(media_id, frame)| (media_id, frame.as_ref().clone()))
-        .collect())
+    Ok(
+        load_overlay_native_sources_for_scene_cached(scene, &mut cache)?
+            .into_iter()
+            .map(|(media_id, frame)| (media_id, frame.as_ref().clone()))
+            .collect(),
+    )
 }
 
 fn load_overlay_native_sources_for_scene_cached(
@@ -2199,7 +2465,10 @@ fn load_overlay_native_sources_for_scene_cached(
             touched_media_ids.insert(media.id.clone());
         }
         if sources.insert(media.id.clone(), frame).is_some() {
-            return Err(format!("Duplicate native overlay source mediaId '{}'", media.id));
+            return Err(format!(
+                "Duplicate native overlay source mediaId '{}'",
+                media.id
+            ));
         }
     }
     cache.evict_stale(&touched_media_ids);
@@ -2361,7 +2630,12 @@ fn hash_local_file_metadata(source: &str, hasher: &mut DefaultHasher) -> Option<
     let path = source.strip_prefix("file://").unwrap_or(source);
     let metadata = fs::metadata(path).ok()?;
     metadata.len().hash(hasher);
-    metadata.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.hash(hasher);
+    metadata
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .hash(hasher);
     Some(())
 }
 
@@ -2917,8 +3191,9 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let sources = load_overlay_native_sources_for_scene(&scene)
-            .expect("direct CAMetalLayer scene must build GetColor without a completed-frame upload");
+        let sources = load_overlay_native_sources_for_scene(&scene).expect(
+            "direct CAMetalLayer scene must build GetColor without a completed-frame upload",
+        );
 
         assert!(
             !sources.contains_key("video-media"),
@@ -3031,8 +3306,7 @@ mod tests {
         };
         let first = native_overlay_media_content_revision(&media, 0)
             .expect("GetColor source image metadata must produce a revision");
-        std::fs::write(&source_image, [1_u8, 2, 3, 4])
-            .expect("change source image marker size");
+        std::fs::write(&source_image, [1_u8, 2, 3, 4]).expect("change source image marker size");
         let second = native_overlay_media_content_revision(&media, 0)
             .expect("changed GetColor source image metadata must produce a revision");
         let _ = std::fs::remove_file(source_image);
@@ -3345,9 +3619,7 @@ mod tests {
             "the obstructed toggle must lower the child window with NSWindowBelow (not orderOut:), \
              so live surface present keeps running while the child window is simply behind the parent",
         );
-        assert!(
-            source.contains("fn set_overlay_view_obstructed") ,
-        );
+        assert!(source.contains("fn set_overlay_view_obstructed"),);
     }
 
     #[test]
@@ -3402,9 +3674,8 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, _sources) =
-            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
-                .expect("scene upload must fit into the drawable pixel size");
+        let (snapshot, _sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+            .expect("scene upload must fit into the drawable pixel size");
 
         let expected_fit_scale = (1564.0_f32 / 1920.0).min(880.0_f32 / 1080.0);
         assert!(
@@ -3497,9 +3768,8 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, sources) =
-            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
-                .expect("scene upload must compensate decode downscale and fit to drawable");
+        let (snapshot, sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+            .expect("scene upload must compensate decode downscale and fit to drawable");
 
         let source = sources
             .get("video-1")
@@ -3588,9 +3858,8 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, sources) =
-            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
-                .expect("drawable-matched decode edge must present 1:1");
+        let (snapshot, sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+            .expect("drawable-matched decode edge must present 1:1");
 
         let source = sources.get("video-1").expect("video source must exist");
         let clip = &snapshot.clips[0];
@@ -3669,9 +3938,8 @@ mod tests {
             canvas_height: 1080,
         };
 
-        let (snapshot, sources) =
-            upload_frame_to_scene_sources(&upload, Some(&scene), 2000, 880)
-                .expect("scene upload must centre the fitted scene in a wide drawable");
+        let (snapshot, sources) = upload_frame_to_scene_sources(&upload, Some(&scene), 2000, 880)
+            .expect("scene upload must centre the fitted scene in a wide drawable");
 
         let source = sources.get("video-1").expect("video source must exist");
         let clip = &snapshot.clips[0];
@@ -3733,15 +4001,24 @@ mod tests {
         let (fit_scale, offset_x, offset_y) = contain_fit_transform(1920, 1080, 1564, 880);
         assert_approx(fit_scale as f32, 1564.0 / 1920.0, "fit_scale");
         // 1564/1920 ≈ 0.8146 と 880/1080 ≈ 0.8148 のうち小さい方（横基準の letterbox）。
-        assert!(fit_scale < 880.0 / 1080.0, "fit_scale must pick the smaller axis ratio");
-        assert_approx(offset_x as f32, 0.0, "offset_x must be ~0 for a near-matching aspect ratio");
-        assert!(offset_y >= 0.0, "offset_y must be non-negative letterbox padding");
+        assert!(
+            fit_scale < 880.0 / 1080.0,
+            "fit_scale must pick the smaller axis ratio"
+        );
+        assert_approx(
+            offset_x as f32,
+            0.0,
+            "offset_x must be ~0 for a near-matching aspect ratio",
+        );
+        assert!(
+            offset_y >= 0.0,
+            "offset_y must be non-negative letterbox padding"
+        );
 
         // canvas サイズ 0（projectSettings 未到達などの Fail Safe 経路）は
         // 無変換（fit_scale=1, offset=0）でなければならない。scene 本体
         // （fit_scene_snapshot_to_drawable の早期 return）と同じ契約。
-        let (zero_fit_scale, zero_offset_x, zero_offset_y) =
-            contain_fit_transform(0, 0, 1564, 880);
+        let (zero_fit_scale, zero_offset_x, zero_offset_y) = contain_fit_transform(0, 0, 1564, 880);
         assert_approx(zero_fit_scale as f32, 1.0, "zero-canvas fit_scale");
         assert_approx(zero_offset_x as f32, 0.0, "zero-canvas offset_x");
         assert_approx(zero_offset_y as f32, 0.0, "zero-canvas offset_y");
@@ -3776,9 +4053,21 @@ mod tests {
 
         // 右辺: TR(150,50)→BR(150,100)、回転 90 度。
         let right = &clips[1];
-        assert_approx(right.transform.rotation_degrees, 90.0, "right edge rotation");
-        assert_approx(right.transform.translation_x, 151.0, "right edge translation_x");
-        assert_approx(right.transform.translation_y, 49.0, "right edge translation_y");
+        assert_approx(
+            right.transform.rotation_degrees,
+            90.0,
+            "right edge rotation",
+        );
+        assert_approx(
+            right.transform.translation_x,
+            151.0,
+            "right edge translation_x",
+        );
+        assert_approx(
+            right.transform.translation_y,
+            49.0,
+            "right edge translation_y",
+        );
         assert_approx(right.transform.scale_x, 52.0, "right edge scale_x");
         assert_approx(right.transform.scale_y, 2.0, "right edge scale_y");
 
@@ -3786,12 +4075,24 @@ mod tests {
         // の 2 clip で再現する。TL corner (50,50) 中心。
         let gold_handle = &clips[4];
         assert_eq!(gold_handle.media_id, SELECTION_DECORATION_GOLD_MEDIA_ID);
-        assert_approx(gold_handle.transform.translation_x, 50.0 - 5.6, "gold handle tx");
-        assert_approx(gold_handle.transform.translation_y, 50.0 - 5.6, "gold handle ty");
+        assert_approx(
+            gold_handle.transform.translation_x,
+            50.0 - 5.6,
+            "gold handle tx",
+        );
+        assert_approx(
+            gold_handle.transform.translation_y,
+            50.0 - 5.6,
+            "gold handle ty",
+        );
         assert_approx(gold_handle.transform.scale_x, 11.2, "gold handle scale_x");
         let white_handle = &clips[8];
         assert_eq!(white_handle.media_id, SELECTION_DECORATION_WHITE_MEDIA_ID);
-        assert_approx(white_handle.transform.translation_x, 50.0 - 4.4, "white handle tx");
+        assert_approx(
+            white_handle.transform.translation_x,
+            50.0 - 4.4,
+            "white handle tx",
+        );
         assert_approx(white_handle.transform.scale_x, 8.8, "white handle scale_x");
 
         // z-order: 動画・画像 clip より常に上。辺 < ハンドル金 < ハンドル白。
@@ -3846,9 +4147,21 @@ mod tests {
         let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 1.0);
 
         let edge = &clips[0];
-        assert_approx(edge.transform.rotation_degrees, 90.0, "rotated edge rotation");
-        assert_approx(edge.transform.translation_x, 1.0, "rotated edge translation_x");
-        assert_approx(edge.transform.translation_y, -1.0, "rotated edge translation_y");
+        assert_approx(
+            edge.transform.rotation_degrees,
+            90.0,
+            "rotated edge rotation",
+        );
+        assert_approx(
+            edge.transform.translation_x,
+            1.0,
+            "rotated edge translation_x",
+        );
+        assert_approx(
+            edge.transform.translation_y,
+            -1.0,
+            "rotated edge translation_y",
+        );
         assert_approx(edge.transform.scale_x, 102.0, "rotated edge scale_x");
         assert_approx(edge.transform.scale_y, 2.0, "rotated edge scale_y");
     }
@@ -3875,7 +4188,9 @@ mod tests {
         assert_eq!(snapshot.clips.len(), 1 + 12);
         assert_eq!(snapshot.clips[0].clip_id, "existing");
         assert_eq!(snapshot.clips[0].z_index, 5);
-        assert!(snapshot.clips[1..].iter().all(|clip| clip.z_index >= u32::MAX - 2));
+        assert!(snapshot.clips[1..]
+            .iter()
+            .all(|clip| clip.z_index >= u32::MAX - 2));
         assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
         assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
     }
@@ -4087,7 +4402,10 @@ mod tests {
         // 上辺中点 (100, 40): 金（#ffd700 相当。red 高・blue 低・不透明）。
         let border = pixel(100, 40);
         assert!(border[3] > 200, "border must be opaque, got {border:?}");
-        assert!(border[0] > 180 && border[2] < 120, "border must be gold, got {border:?}");
+        assert!(
+            border[0] > 180 && border[2] < 120,
+            "border must be gold, got {border:?}"
+        );
         // TL corner (40, 40): 白ハンドル面。
         let handle = pixel(40, 40);
         assert!(handle[3] > 200, "handle must be opaque, got {handle:?}");
@@ -4097,7 +4415,10 @@ mod tests {
         );
         // quad 中央 (100, 100): 透明のまま（枠の内側は塗らない）。
         let interior = pixel(100, 100);
-        assert_eq!(interior[3], 0, "interior must stay transparent, got {interior:?}");
+        assert_eq!(
+            interior[3], 0,
+            "interior must stay transparent, got {interior:?}"
+        );
     }
 
     #[test]
@@ -4131,10 +4452,26 @@ mod tests {
         // （TL(100,100)→TR(300,100)）を線幅 2 で載せた位置になるはずで、
         // offset_x/y はどちらも 0 でなければならない。
         let top = &clips[0];
-        assert_approx(top.transform.translation_x, 99.0, "top edge translation_x (no offset)");
-        assert_approx(top.transform.translation_y, 99.0, "top edge translation_y (no offset)");
-        assert_approx(top.transform.scale_x, 202.0, "top edge scale_x (no fit scale)");
-        assert_approx(top.transform.scale_y, 2.0, "top edge scale_y (no fit scale)");
+        assert_approx(
+            top.transform.translation_x,
+            99.0,
+            "top edge translation_x (no offset)",
+        );
+        assert_approx(
+            top.transform.translation_y,
+            99.0,
+            "top edge translation_y (no offset)",
+        );
+        assert_approx(
+            top.transform.scale_x,
+            202.0,
+            "top edge scale_x (no fit scale)",
+        );
+        assert_approx(
+            top.transform.scale_y,
+            2.0,
+            "top edge scale_y (no fit scale)",
+        );
     }
 
     #[test]
@@ -4161,7 +4498,11 @@ mod tests {
         let frame = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 100, 100))
             .expect("offscreen render of an out-of-bounds decoration must not panic");
 
-        assert_eq!(frame.pixels.len(), 100 * 100 * 4, "frame must stay drawable-sized");
+        assert_eq!(
+            frame.pixels.len(),
+            100 * 100 * 4,
+            "frame must stay drawable-sized"
+        );
         assert!(
             frame.pixels.iter().all(|byte| *byte == 0),
             "drawable must remain fully transparent when the decoration falls entirely outside it"
