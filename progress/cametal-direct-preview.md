@@ -5,9 +5,12 @@
 - 対応する非動画シーンと、可視動画が1件までの混在シーンは、
   完成済みRGBAフレームをCPUへ読み戻さず、Native Overlay内でsourceを揃えて
   WGPUから`CAMetalLayer`へ直接presentする。
-- `GeneratedGetColorDots`、HKSY、SimpleTubeを含む生成ソース、テキスト、単色、
-  PNG画像は、Rust backendとNative Overlayで共有する生成関数からRGBA sourceを
-  構築する。静的sourceはrevision cacheで再利用する。
+- HKSY、SimpleTubeを含む生成ソース、テキスト、単色、PNG画像は、Rust backendと
+  Native Overlayで共有する生成関数からRGBA sourceを構築する。静的sourceは
+  revision cacheで再利用する。
+- `GeneratedGetColorDots`は例外で、完成RGBA sourceをCPUで構築しない。配置パラメータと
+  必要なサンプル画像だけをNative WGPUへ渡し、ドット形状、画像サンプリング、色相変換、
+  枠線をGPU source passで描画する。
 - `GeneratedParticle`は例外で、RGBA sourceを構築しない。粒子パラメータと
   source frameをNative WGPUのinstance描画へ直接渡し、GPU上で時間変化を描画する。
 - `GeneratedAudioSphere`もRGBA sourceを構築しない。Rust overlayのresident PCM
@@ -92,22 +95,27 @@ GPUオフロードはまだ完了していない。
 - ParticleはGPU instance描画済みであり、CPU RGBA source生成・uploadを行わない。
 - 動画はVideoToolboxのNV12 IOSurfaceをNative Overlayへ直接import済みであり、
   このdirect present経路ではRGBA shared frameを経由しない。
-- 音声波形と音声球はPCM windowをWGPU storage bufferへ送り、GPU上でsource textureを
+- 通常の音声波形と音声球はPCM windowをWGPU storage bufferへ送り、GPU上でsource textureを
   生成する。texture/storage bufferはmedia単位で再利用し、CPU RGBA upload cacheを
   通らない。export/readback/共有リング/BGRA IOSurface経路の同一合成へ接続済みである。
   AudioSphereはresident ProjectからNative Overlayへ接続済みで、対象音源をRust側で
   一度だけ8 kHz PCMへデコードし、frameごとのffmpeg起動やChromium IPCを行わない。
-  通常の音声波形objectのresident Project変換は未対応である。
+- 通常の音声波形objectもresident Projectへ変換され、同じPCM cacheを利用する。
+- GetColorは列・行ごとの配置だけをrevision変更時にCPUで前計算し、ピクセル走査、
+  source画像のnearest sampling、HSV変換、circle/square/diamondと枠線の描画を
+  Native WGPUへ移した。出力textureはmedia revision単位で再利用する。PNG/JPEG/PSDの
+  sample画像はRustで一度だけ読み、resident sample cacheへ保持する。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. 通常の音声波形objectもresident Projectへ追加し、AudioSphereと同じPCM cacheを使う。
-2. GetColor、HKSY、SimpleTubeなどCPUラスタライズの生成sourceをcompute shaderへ
-   移し、revision変更時のCPU処理も削減する。
-3. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
+1. HKSY、SimpleTubeなどCPUラスタライズの生成sourceをGPU source passへ移し、
+   revision変更時のCPU処理も削減する。
+2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
+3. Chromium rendererに残る高CPU処理を時系列計測し、scene評価、React更新、
+   DOM compositorのどれが支配的かを分離する。
 
 ## 採用しなかった案
 

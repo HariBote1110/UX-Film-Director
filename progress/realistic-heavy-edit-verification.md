@@ -105,6 +105,26 @@ Redo後41で整合し、画面検査、保存復元、`MissingSource` 0件、WGP
 error 0件、未処理例外0件を確認した。これにより重量シナリオ内のresident拒否は
 0件になった。
 
+## GetColor GPU source移行後の再検証
+
+2026-07-24にGetColorの完成RGBA生成をCPU経路から外し、Native WGPUのsource passから
+CAMetalLayerへ合成する版で短時間重量検証を再実行した。60回スクラブ、複製、
+Undo/Redo、シーン切替、1秒再生、保存復元は総合PASSだった。操作後42オブジェクト、
+Undo後33、Redo後42で整合し、保存前後のフィンガープリントも一致した。
+
+- 60回スクラブ: 82.24 ms
+- requestAnimationFrame: 平均16.63 ms、p95 20.43 ms、最大21.70 ms
+- long task: 1件（64 ms）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: 可視261,009点、有色45,227点
+
+この実行ではElectron Renderer約75%、Electron main約67%、Rust backend約33%の
+瞬間CPU値が残った。GetColorのrevision変更時ラスタライズ除去は成立したが、
+アプリ全体のCPUオフロード完了を示す値ではない。次はHKSY、SimpleTubeのGPU化と、
+Chromium renderer内のscene評価・React更新・DOM compositorの時系列分離を行う。
+
 ## 検証で発見した不具合
 
 初回のシナリオ投入によって次を検出し、修正した。
