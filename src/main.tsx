@@ -18,6 +18,7 @@ if (
   || urlSearchParams.has('videoExportE2e')
   || urlSearchParams.has('shatteredSpherePreviewE2e')
   || urlSearchParams.has('realisticHeavyEditE2e')
+  || urlSearchParams.has('rustTimelineGeneratedE2e')
 ) {
   useStore.getState().initializeProject({
     width: 1920,
@@ -31,6 +32,12 @@ if (
 if (urlSearchParams.has('realisticHeavyEditE2e')) {
   void import('./e2e/realisticHeavyEditHarness').then(({ installRealisticHeavyEditHarness }) => {
     installRealisticHeavyEditHarness();
+  });
+}
+
+if (urlSearchParams.has('rustTimelineGeneratedE2e')) {
+  void import('./e2e/rustTimelineGeneratedScenario').then(({ installRustTimelineGeneratedHarness }) => {
+    installRustTimelineGeneratedHarness();
   });
 }
 
