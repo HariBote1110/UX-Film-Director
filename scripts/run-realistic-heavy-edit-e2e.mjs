@@ -53,6 +53,9 @@ const USER_DATA_DIR = resolve(
 );
 const MAIN_BUNDLE = resolve(ROOT, 'dist-electron/main.js');
 const PRELOAD_BUNDLE = resolve(ROOT, 'dist-electron/preload.js');
+const NATIVE_OVERLAY_BUILD = resolve(ROOT, 'scripts/build-native-overlay-addon.mjs');
+const SHARED_FRAME_BUILD = resolve(ROOT, 'scripts/build-shared-video-frame-node-addon.mjs');
+const RUST_BACKEND_MANIFEST = resolve(ROOT, 'rust-backend/Cargo.toml');
 
 let vite = null;
 let electron = null;
@@ -301,11 +304,23 @@ const main = async () => {
   mkdirSync(USER_DATA_DIR, { recursive: true });
   writeWaveFixture(AUDIO_PATH);
 
+  log('ネイティブ描画・共有フレーム・Rust backendを再ビルド');
+  execFileSync(process.execPath, [NATIVE_OVERLAY_BUILD], { cwd: ROOT, stdio: 'inherit' });
+  execFileSync(process.execPath, [SHARED_FRAME_BUILD], { cwd: ROOT, stdio: 'inherit' });
+  execFileSync('cargo', ['build', '--manifest-path', RUST_BACKEND_MANIFEST], {
+    cwd: ROOT,
+    stdio: 'inherit',
+  });
+
   const viteStartedAtMs = Date.now();
   log(`Vite起動: ${VITE_PORT}`);
   vite = spawn('npx', ['vite', '--port', String(VITE_PORT), '--strictPort'], {
     cwd: ROOT,
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      VITE_UXFD_RUST_TIMELINE_SCENE_RPC: '1',
+      VITE_UXFD_NATIVE_OVERLAY: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   vite.stdout.on('data', (chunk) => log(chunk.toString().trim()));
@@ -328,6 +343,8 @@ const main = async () => {
       ...process.env,
       VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?realisticHeavyEditE2e=1`,
       UXFD_VIDEO_EXPORT_E2E_SAVE_PATH: EXPORT_PATH,
+      VITE_UXFD_NATIVE_OVERLAY: '1',
+      UXFD_NATIVE_OVERLAY: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -407,6 +424,10 @@ const main = async () => {
   const runtimeErrors = collectRuntimeErrors(client);
   const consoleLines = collectConsoleLines(client);
   const missingSourceLines = consoleLines.filter((line) => line.includes('MissingSource'));
+  const nativeRenderErrorLines = logLines.filter((line) => (
+    line.includes('wgpu uncaptured error')
+    || line.includes('Shader validation error')
+  ));
   const result = {
     passed: seed?.ok === true
       && exercise?.ok === true
@@ -416,6 +437,7 @@ const main = async () => {
       && exportedFile?.ok === true
       && runtimeErrors.length === 0
       && missingSourceLines.length === 0
+      && nativeRenderErrorLines.length === 0
       && finalSnapshot?.ok === true
       && screenshotInspection.ok === true,
     paths: {
@@ -438,6 +460,7 @@ const main = async () => {
     processesDuringPlayback,
     runtimeErrors,
     missingSourceLines,
+    nativeRenderErrorLines,
     dialogs: client.dialogs,
   };
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');

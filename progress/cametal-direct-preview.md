@@ -5,8 +5,13 @@
 - 対応する非動画シーンと、可視動画が1件までの混在シーンは、
   完成済みRGBAフレームをCPUへ読み戻さず、Native Overlay内でsourceを揃えて
   WGPUから`CAMetalLayer`へ直接presentする。
-- `GeneratedGetColorDots`を含む生成ソース、テキスト、単色、PNG画像は、
-  Rust backendとNative Overlayで共有する生成関数からRGBA sourceを構築する。
+- `GeneratedGetColorDots`、HKSY、SimpleTubeを含む生成ソース、テキスト、単色、
+  PNG画像は、Rust backendとNative Overlayで共有する生成関数からRGBA sourceを
+  構築する。静的sourceはrevision cacheで再利用する。
+- `GeneratedParticle`は例外で、RGBA sourceを構築しない。粒子パラメータと
+  source frameをNative WGPUのinstance描画へ直接渡し、GPU上で時間変化を描画する。
+- `SpotLight`はsceneの`effects`としてN-API境界を通過し、Native WGPU compositor
+  のfragment shaderで適用する。ChromiumのCanvas/WebGPUでエフェクトを合成しない。
 - 直描画の適格性はシーン開始前に判定する。Native Overlayがsourceを構築できない
   PSD、音声波形、音声球、PNG以外の画像、可視動画が複数あるシーンは、
   `render.nativeSharedFrame`を使う従来経路へ安全にフォールバックする。
@@ -21,8 +26,9 @@
 
 ### 動画1件を含む混在シーン
 
-VideoToolboxでデコードした動画フレームと、Native Overlay側で構築した生成sourceを
-同じWGPU sceneへ渡し、`CAMetalLayer`へ直接presentする。
+VideoToolboxでデコードした動画フレームをNV12 `IOSurface`としてNative Overlayへ
+直接importし、Native Overlay側で構築した生成sourceと同じWGPU sceneへ渡して
+`CAMetalLayer`へpresentする。動画画素はChromiumやCPU RGBA shared frameを通らない。
 動画1件だけを渡したまま全シーンを合成しようとしていた旧経路と異なり、
 参照される生成sourceも同時に揃うため、`MissingSource`にならない。
 
@@ -78,21 +84,26 @@ Effect variantをTS/N-API/Rustで三重定義せず、rust-coreのserde契約を
 今回の変更で最も重い全画面完成RGBAの読戻し・共有・再uploadは除去したが、
 GPUオフロードはまだ完了していない。
 
-- GetColorなどの生成sourceは現在CPUでラスタライズしてからGPUへuploadする。
-- scene generationが変わるたび、静的な生成sourceも再構築・再uploadされ得る。
-- 動画はVideoToolboxでデコードするが、Native Overlayへの受け渡しではRGBA shared
-  frameを経由する。Rust backend側にあるNV12 IOSurface直接importは、このOverlay
-  present経路にはまだ接続していない。
+- GetColor、HKSY、SimpleTube、テキストなどのsourceは初回またはrevision変更時に
+  Rust側CPUでラスタライズしてGPUへuploadする。静的sourceはrevision cacheにより
+  毎frameの再生成・再uploadを行わない。
+- ParticleはGPU instance描画済みであり、CPU RGBA source生成・uploadを行わない。
+- 動画はVideoToolboxのNV12 IOSurfaceをNative Overlayへ直接import済みであり、
+  このdirect present経路ではRGBA shared frameを経由しない。
+- 音声波形のPCM windowは再生時刻を起点に取得するよう修正済みだが、波形そのものを
+  Native Overlayのresident GPU sourceとして生成・合成する経路は未実装である。
+  そのため音声波形・音声球を含むsceneはdirect presentの適格対象外に保つ。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. media revision単位で生成source textureをキャッシュし、静的sourceの再生成と
-   再uploadを止める。
-2. VideoToolboxのNV12 IOSurfaceをNative Overlayへ直接importし、RGBA shared
-   frameへの変換と複写を除去する。
-3. 時間依存の生成エフェクトをcompute shaderへ移す。
+1. 音声波形・音声球をresident GPU source化し、PCM windowからdirect presentまでを
+   Chromiumを介さずに接続する。
+2. GetColor、HKSY、SimpleTubeなどCPUラスタライズの生成sourceをcompute shaderへ
+   移し、revision変更時のCPU処理も削減する。
+3. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
+   zero-copy/Native source契約で段階的に広げる。
 
 ## 採用しなかった案
 

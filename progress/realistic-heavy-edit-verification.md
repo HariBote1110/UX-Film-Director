@@ -35,12 +35,13 @@ npm run test:realistic-heavy-edit:e2e
 
 CLIは独立したViteポート、Electronプロファイル、CDP接続を用意し、次の順に検証する。
 
-1. 重量プロジェクトを生成する
-2. 360回のスクラブ、複数選択・複製、Undo/Redo、シーン切替、3秒再生を行う
-3. プロジェクトをJSONへ直列化し、復元前後のフィンガープリントとID一意性を比較する
-4. ビューポートを撮影し、可視・有色ピクセル数を検査する
-5. 短い1920×1080動画を書き出し、`ffprobe`で長さとフレーム数を検査する
-6. 未処理例外、コンソール上の`MissingSource`、presenter状態を集計する
+1. Native Overlay、共有フレームbridge、Rust backendを再ビルドし、古いdebugバイナリによる偽陽性を防ぐ
+2. resident scene RPCとNative Overlayを有効にして重量プロジェクトを生成する
+3. 360回のスクラブ、複数選択・複製、Undo/Redo、シーン切替、3秒再生を行う
+4. プロジェクトをJSONへ直列化し、復元前後のフィンガープリントとID一意性を比較する
+5. ビューポートを撮影し、可視・有色ピクセル数を検査する
+6. 短い1920×1080動画を書き出し、`ffprobe`で長さとフレーム数を検査する
+7. 未処理例外、コンソール上の`MissingSource`、resident/presenter状態、WGPU shader validation errorを集計する
 
 主な環境変数は次のとおり。
 
@@ -79,6 +80,28 @@ CLIは独立したViteポート、Electronプロファイル、CDP接続を用�
 - Computer Use: 保存済みプロジェクトを実アプリで開き、黒化せず再生・停止できることを確認
 
 一方、再生中の瞬間サンプルはElectronメイン約70～74%、Renderer約89～95%、Rust backend約99～102%であり、CPU負荷は依然として高い。今回のPASSは正しさと耐壊性を示すもので、十分な性能やGPUオフロード完了を意味しない。
+
+## resident移行後の再検証
+
+2026-07-24にresident scene RPCを強制し、ネイティブ成果物を毎回再ビルドする条件へ
+検証基盤を更新した。旧debugバイナリではParticle WGSLの過去版がvalidation errorを
+出してもE2EがPASSしていたため、現在は`wgpu uncaptured error`または
+`Shader validation error`を1件でも検出すると失敗する。再ビルド後の実行では
+これらは0件、`MissingSource`も0件だった。
+
+対応済み部分では360回スクラブ、複製・Undo/Redo、保存JSONのフィンガープリント一致、
+1920×1080・2.24秒・134フレームの書き出しまで成立した。再生中の瞬間サンプルは
+Electronメイン約25～29%、Renderer約36～37%、Rust backend 0%で、初回測定より
+低下した。ただし現在の総合判定は意図どおりFAILである。resident V1が次を明示拒否
+しており、Chromium旧描画へ黙って戻さないためである。
+
+- SpotLight以外のfilter
+- subject crop
+- 音声、group control、RegionFrame、AudioSphere
+- groupIdを持つオブジェクト
+
+拒否内容は`result.json`の`rustTimelineStatus`と`rustTimelineDetail`へ残る。
+したがって、このシナリオの総合PASSをresident移行完了の出口条件として使える。
 
 ## 検証で発見した不具合
 

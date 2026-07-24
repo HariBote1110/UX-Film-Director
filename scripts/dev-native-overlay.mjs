@@ -48,6 +48,7 @@ const startVite = () => {
       VITE_UXFD_SHARED_RENDERER_EXPORT: '1',
       VITE_UXFD_RUST_EXPORT_ONLY: '1',
       VITE_UXFD_RUST_VIDEO_ONLY: '1',
+      VITE_UXFD_RUST_TIMELINE_SCENE_RPC: process.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC ?? '1',
       UXFD_RUST_BACKEND_BIN: process.env.UXFD_RUST_BACKEND_BIN ?? rustBackendReleaseBin,
     },
   });

@@ -23,6 +23,7 @@ describe('package scripts', () => {
     const script = readFileSync(new URL('../../scripts/dev-native-overlay.mjs', import.meta.url), 'utf8');
     expect(script).toContain("VITE_UXFD_NATIVE_OVERLAY: process.env.VITE_UXFD_NATIVE_OVERLAY ?? '1'");
     expect(script).toContain("UXFD_NATIVE_OVERLAY: process.env.UXFD_NATIVE_OVERLAY ?? process.env.VITE_UXFD_NATIVE_OVERLAY ?? '1'");
+    expect(script).toContain("VITE_UXFD_RUST_TIMELINE_SCENE_RPC: process.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC ?? '1'");
   });
 
   it('provides a Native Overlay opt-in dev command that builds the addon before Vite', () => {
@@ -35,9 +36,27 @@ describe('package scripts', () => {
     expect(script).toContain('UXFD_NATIVE_OVERLAY');
     expect(script).toContain('VITE_UXFD_SHARED_RENDERER_PREVIEW');
     expect(script).toContain('VITE_UXFD_RUST_VIDEO_ONLY');
+    expect(script).toContain('VITE_UXFD_RUST_TIMELINE_SCENE_RPC');
     expect(script).toContain('node_modules/vite/bin/vite.js');
     expect(script.indexOf('scripts/build-native-overlay-addon.mjs'))
       .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
+  });
+
+  it('runs the realistic heavy edit E2E through resident scene RPC and Native Overlay', () => {
+    const script = readFileSync(
+      new URL('../../scripts/run-realistic-heavy-edit-e2e.mjs', import.meta.url),
+      'utf8',
+    );
+
+    expect(script).toContain('scripts/build-native-overlay-addon.mjs');
+    expect(script).toContain('cargo');
+    expect(script).toContain("'build', '--manifest-path'");
+    expect(script).toContain("VITE_UXFD_RUST_TIMELINE_SCENE_RPC: '1'");
+    expect(script).toContain("VITE_UXFD_NATIVE_OVERLAY: '1'");
+    expect(script).toContain("UXFD_NATIVE_OVERLAY: '1'");
+    expect(script).toContain('nativeRenderErrorLines');
+    expect(script).toContain('wgpu uncaptured error');
+    expect(script).toContain('nativeRenderErrorLines.length === 0');
   });
 
   it('re-signs the Native Overlay addon and referenced dylib after macOS debug builds', () => {

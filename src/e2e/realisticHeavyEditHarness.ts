@@ -41,8 +41,13 @@ const waitForPresenterSettled = async (timeoutMs = 15_000) => {
   let lastStatus = document.documentElement.dataset.uxfdSharedRendererPresenterStatus ?? 'unknown';
   while (performance.now() - startedAt < timeoutMs) {
     const status = document.documentElement.dataset.uxfdSharedRendererPresenterStatus;
+    const rustTimelineStatus =
+      document.documentElement.dataset.uxfdRustTimelineSceneRpcStatus;
     if (status) lastStatus = status;
-    if (status === 'ready') return status;
+    if (rustTimelineStatus === 'blocked') return rustTimelineStatus;
+    if (rustTimelineStatus === 'ready' || status === 'ready') {
+      return rustTimelineStatus ?? status;
+    }
     await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
   }
   return lastStatus;
@@ -108,8 +113,13 @@ const snapshot = (): HarnessResult => {
   const timelineItemCount = document.querySelectorAll('[data-timeline-item="true"]').length;
   const bodyText = document.body.innerText;
   const presenterStatus = document.documentElement.dataset.uxfdSharedRendererPresenterStatus ?? null;
+  const rustTimelineStatus =
+    document.documentElement.dataset.uxfdRustTimelineSceneRpcStatus ?? null;
   return {
-    ok: state.isProjectLoaded && state.objects.length > 0 && presenterStatus === 'ready',
+    ok: state.isProjectLoaded
+      && state.objects.length > 0
+      && rustTimelineStatus !== 'blocked'
+      && (rustTimelineStatus === 'ready' || presenterStatus === 'ready'),
     activeSceneId: state.activeSceneId,
     activeObjectCount: state.objects.length,
     totalObjectCount: allObjects.length,
@@ -121,6 +131,9 @@ const snapshot = (): HarnessResult => {
     presenterStatus,
     presenterFailureReason:
       document.documentElement.dataset.uxfdSharedRendererPresenterFailureReason ?? null,
+    rustTimelineStatus,
+    rustTimelineDetail:
+      document.documentElement.dataset.uxfdRustTimelineSceneRpcDetail ?? null,
     planMode: document.documentElement.dataset.uxfdSharedRendererPlanMode ?? null,
     surfaceGate: document.documentElement.dataset.uxfdSharedRendererSurfaceGate ?? null,
     nativeOverlayAttempt: document.documentElement.dataset.uxfdNativeOverlayAttempt ?? null,
