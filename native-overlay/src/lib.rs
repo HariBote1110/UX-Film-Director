@@ -12,10 +12,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, NativeAudioReactiveSource, NativeParticleSource,
-    NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
+    render_native_wgpu_frame, NativeAudioReactiveSource, NativeGetColorSource,
+    NativeParticleSource, NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
 };
-use uxfd_rust_backend::build_native_generated_source_frame;
+use uxfd_rust_backend::{build_native_generated_source_frame, load_native_getcolor_sample_frame};
 use uxfd_rust_core::{
     build_video_frame_decode_requests, parse_generated_particle_source, AudioWaveformSource,
     ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind, Nv12ColourMatrix, Nv12ColourRange,
@@ -724,11 +724,13 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     last_nv12_sources: HashMap<String, Nv12IoSurfaceRef>,
     last_particle_sources: HashMap<String, NativeParticleSource>,
     last_audio_reactive_sources: HashMap<String, NativeAudioReactiveSource>,
+    last_getcolor_sources: HashMap<String, NativeGetColorSource>,
     #[cfg(target_os = "macos")]
     video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
     /// CPU でラスタライズし直さないための media revision 単位キャッシュ。
     native_source_cache: NativeOverlaySourceCache,
+    getcolor_sample_cache: NativeOverlaySourceCache,
     audio_pcm_cache: NativeOverlayAudioPcmCache,
     #[cfg(target_os = "macos")]
     view_handle: usize,
@@ -762,9 +764,11 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_nv12_sources: HashMap::new(),
             last_particle_sources: HashMap::new(),
             last_audio_reactive_sources: HashMap::new(),
+            last_getcolor_sources: HashMap::new(),
             #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
+            getcolor_sample_cache: NativeOverlaySourceCache::default(),
             audio_pcm_cache: NativeOverlayAudioPcmCache::default(),
             view_handle,
             renderer,
@@ -795,6 +799,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         self.last_nv12_sources.clear();
         self.last_particle_sources.clear();
         self.last_audio_reactive_sources.clear();
+        self.last_getcolor_sources.clear();
         #[cfg(target_os = "macos")]
         self.video_decoders.clear();
         let content_revisions = scene
@@ -951,11 +956,16 @@ impl NativeOverlayLiveSurfaceRenderer {
             &mut self.audio_pcm_cache,
             &mut decode_audio_pcm_with_ffmpeg,
         )?;
+        let getcolor_sources = native_overlay_getcolor_sources_for_scene_cached(
+            scene,
+            &mut self.getcolor_sample_cache,
+        )?;
         self.last_scene = Some(Arc::new((snapshot, sources)));
         self.last_scene_content_revisions = content_revisions;
         self.last_nv12_sources = nv12_sources;
         self.last_particle_sources = particle_sources;
         self.last_audio_reactive_sources = audio_reactive_sources;
+        self.last_getcolor_sources = getcolor_sources;
         self.scene_generation = self.scene_generation.wrapping_add(1);
 
         let (decoration_clips, decoration_sources) = decoration
@@ -981,6 +991,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                     &self.last_nv12_sources,
                     &self.last_particle_sources,
                     &self.last_audio_reactive_sources,
+                    &self.last_getcolor_sources,
                     &decoration_clips,
                     &decoration_sources,
                 ),
@@ -1063,6 +1074,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         let report = if self.last_nv12_sources.is_empty()
             && self.last_particle_sources.is_empty()
             && self.last_audio_reactive_sources.is_empty()
+            && self.last_getcolor_sources.is_empty()
         {
             pollster::block_on(
                 self.renderer
@@ -1085,6 +1097,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                         &self.last_nv12_sources,
                         &self.last_particle_sources,
                         &self.last_audio_reactive_sources,
+                        &self.last_getcolor_sources,
                         &decoration_clips,
                         &decoration_sources,
                     ),
@@ -2062,6 +2075,7 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
     renderer.last_scene = None;
     renderer.last_nv12_sources.clear();
     renderer.last_particle_sources.clear();
+    renderer.last_getcolor_sources.clear();
     #[cfg(target_os = "macos")]
     renderer.video_decoders.clear();
     // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
@@ -2573,6 +2587,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
                 MediaKind::GeneratedParticle
                     | MediaKind::GeneratedAudioWaveform
                     | MediaKind::GeneratedAudioSphere
+                    | MediaKind::GeneratedGetColorDots
             )
         {
             continue;
@@ -2617,6 +2632,69 @@ fn load_overlay_native_sources_for_scene_cached_impl(
         if sources.insert(media.id.clone(), frame).is_some() {
             return Err(format!(
                 "Duplicate native overlay source mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    cache.evict_stale(&touched_media_ids);
+    Ok(sources)
+}
+
+#[cfg(test)]
+fn native_overlay_getcolor_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, NativeGetColorSource>, String> {
+    let mut cache = NativeOverlaySourceCache::default();
+    native_overlay_getcolor_sources_for_scene_cached(scene, &mut cache)
+}
+
+fn native_overlay_getcolor_sources_for_scene_cached(
+    scene: &NativeOverlaySceneSource,
+    cache: &mut NativeOverlaySourceCache,
+) -> Result<HashMap<String, NativeGetColorSource>, String> {
+    let mut sources = HashMap::new();
+    let mut touched_media_ids = HashSet::new();
+    for media in scene
+        .media
+        .iter()
+        .filter(|media| media.kind == "GeneratedGetColorDots")
+    {
+        let reference = SceneMediaReference {
+            id: media.id.clone(),
+            kind: MediaKind::GeneratedGetColorDots,
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_rate: media.source_rate.clone(),
+            active_layer_ids: Vec::new(),
+        };
+        let config_revision = native_overlay_media_content_revision(media, 0).ok_or_else(|| {
+            format!(
+                "Native overlay GetColor media '{}' has an unreadable source image.",
+                media.id
+            )
+        })?;
+        let sample_frame = if let Some(frame) = cache.get(&media.id, config_revision) {
+            touched_media_ids.insert(media.id.clone());
+            Some(frame)
+        } else {
+            let frame = load_native_getcolor_sample_frame(&reference)?.map(Arc::new);
+            if let Some(frame) = frame.as_ref() {
+                cache.insert(media.id.clone(), config_revision, Arc::clone(frame));
+                touched_media_ids.insert(media.id.clone());
+            }
+            frame
+        };
+        let descriptor = NativeGetColorSource {
+            source: media.source.clone(),
+            sample_frame,
+            width: media.width,
+            height: media.height,
+            config_revision,
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native overlay GetColor mediaId '{}'",
                 media.id
             ));
         }
@@ -3556,6 +3634,55 @@ mod tests {
                 .expect("empty scene cache sweep must succeed");
         }
         assert_eq!(cache.len(), 0, "idle generated source must be evicted");
+    }
+
+    #[test]
+    fn direct_getcolor_scene_uses_gpu_descriptor_instead_of_cpu_rgba_frame() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "getcolor-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "getcolor-media".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "getcolor-media".to_string(),
+                kind: "GeneratedGetColorDots".to_string(),
+                source: r##"{"generator":"getcolor-v2r-dot-field","columns":4,"rows":3,"dot_size":8,"dot_shape":"circle","stroke_width":1,"size_influence":0.5,"luminance_influence":0.5,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#808080","background_colour":"#000000","source_image":null,"sample_strength":1,"sample_hue_shift_degrees":0,"seed":93}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 48,
+        };
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&scene, &mut cache, true)
+                .expect("direct GetColor source resolution must succeed");
+        assert!(
+            direct_rgba.is_empty(),
+            "direct GetColor scene must not allocate a completed CPU RGBA source"
+        );
+        assert_eq!(cache.stats(), (0, 0));
+
+        let descriptors = native_overlay_getcolor_sources_for_scene(&scene)
+            .expect("GetColor GPU descriptor resolution must succeed");
+        let descriptor = descriptors
+            .get("getcolor-media")
+            .expect("GetColor descriptor exists");
+        assert_eq!(descriptor.width, 64);
+        assert_eq!(descriptor.height, 48);
+        assert!(descriptor.sample_frame.is_none());
     }
 
     #[test]

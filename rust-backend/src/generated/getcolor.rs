@@ -152,6 +152,34 @@ pub(crate) fn build_generated_getcolor_dots_source_frame(
         .map_err(|error| format!("GeneratedGetColorDots media frame is invalid: {error:?}"))
 }
 
+pub(crate) fn load_generated_getcolor_sample_frame(
+    media: &SceneMediaReference,
+) -> Result<Option<RgbaFrame>, String> {
+    let dots: GeneratedGetColorDotsSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedGetColorDots media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_getcolor_dots_source(&dots).map_err(|message| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{}': {message}",
+            media.id
+        )
+    })?;
+    dots.source_image
+        .as_deref()
+        .map(|source_image| {
+            load_getcolor_source_image_frame(
+                source_image,
+                dots.source_active_layer_ids.as_deref().unwrap_or(&[]),
+                &media.id,
+            )
+        })
+        .transpose()
+}
+
 fn load_getcolor_source_image_frame(
     source: &str,
     active_layer_ids: &[String],

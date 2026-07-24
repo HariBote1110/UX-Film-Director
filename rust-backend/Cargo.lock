@@ -1497,6 +1497,8 @@ dependencies = [
  "objc",
  "pollster",
  "raw-window-handle",
+ "serde",
+ "serde_json",
  "uxfd-golden-harness",
  "uxfd-reference-renderer",
  "uxfd-rust-core",

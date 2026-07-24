@@ -70,6 +70,18 @@ pub fn build_native_generated_source_frame(
     Ok(Some(frame))
 }
 
+pub fn load_native_getcolor_sample_frame(
+    media: &SceneMediaReference,
+) -> Result<Option<RgbaFrame>, String> {
+    if media.kind != MediaKind::GeneratedGetColorDots {
+        return Err(format!(
+            "Expected GeneratedGetColorDots media, got {:?}",
+            media.kind
+        ));
+    }
+    load_generated_getcolor_sample_frame(media)
+}
+
 fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
     if media.width == 0 || media.height == 0 {
         return Err(format!(
