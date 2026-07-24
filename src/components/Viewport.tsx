@@ -1753,6 +1753,7 @@ const Viewport: React.FC = () => {
 
   useEffect(() => {
     if (!rustTimelineSceneRpcEnabled || rustTimelineSceneRevision === null) return;
+    if (isExporting) return;
     if (nativePlaybackActive && isPlaying) return;
     const controller = rustTimelineScenePreviewControllerRef.current;
     if (!controller) return;
@@ -1760,6 +1761,7 @@ const Viewport: React.FC = () => {
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
   }, [
     currentTime,
+    isExporting,
     isPlaying,
     nativePlaybackActive,
     projectId,
