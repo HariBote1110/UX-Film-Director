@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeShakingPolygonSource, NativeWgpuRenderError, NativeWgpuRenderer,
+    BgraIoSurfaceTarget, NativeGeneratedGpuSources, NativeShakingPolygonSource,
+    NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
 
@@ -189,6 +190,10 @@ fn renders_shaking_polygon_gpu_source_into_bgra_iosurface_without_cpu_rgba() {
             config_revision: 14,
         },
     )]);
+    let generated_sources = NativeGeneratedGpuSources {
+        shaking_polygons: shaking_polygon_sources,
+        ..NativeGeneratedGpuSources::default()
+    };
     let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
         Ok(renderer) => renderer,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -203,8 +208,7 @@ fn renders_shaking_polygon_gpu_source_into_bgra_iosurface_without_cpu_rgba() {
             &snapshot,
             &HashMap::new(),
             &[],
-            &shaking_polygon_sources,
-            &HashMap::new(),
+            &generated_sources,
             &HashMap::new(),
             &HashMap::new(),
             BgraIoSurfaceTarget {
