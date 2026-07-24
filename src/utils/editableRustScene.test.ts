@@ -9,6 +9,7 @@ import type {
   PsdObject,
   ProjectSettings,
   RegionFrameObject,
+  ShakingPolygonObject,
   ShapeObject,
   SimpleTubeObject,
   TextObject,
@@ -200,6 +201,30 @@ const simpleTube = (patch: Partial<SimpleTubeObject> = {}): SimpleTubeObject => 
   secondaryColour: '#ffffff',
   seed: 93,
   torus: false,
+  ...patch,
+});
+
+const shakingPolygon = (
+  patch: Partial<ShakingPolygonObject> = {}
+): ShakingPolygonObject => ({
+  ...base,
+  id: 'shaking-polygon',
+  type: 'shaking_polygon',
+  layer: 6,
+  width: 320,
+  height: 180,
+  lineWidth: 6,
+  vertexCount: 5,
+  fixedDiameter: 120,
+  verticalDistortionPercent: 20,
+  repeatCount: 3,
+  repeatFrequency: 2,
+  fill: true,
+  jitterRange: 14,
+  jitterInterval: 4,
+  stepped: false,
+  colour: '#ff8800',
+  seed: 93,
   ...patch,
 });
 
@@ -608,6 +633,32 @@ describe('buildEditableRustScene', () => {
       source_active_layer_ids: ['title'],
       sample_strength: 0.8,
     });
+  });
+
+  it('ShakingPolygonを生成mediaと専用clip kindで常駐Rust sceneへ変換する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-shaking-polygon',
+      projectSettings,
+      layers,
+      objects: [shakingPolygon()],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ShakingPolygon conversion to succeed');
+    expect(result.project.tracks.flatMap((track) => track.clips)).toContainEqual(
+      expect.objectContaining({
+        id: 'shaking-polygon',
+        kind: 'GeneratedShakingPolygonPlane',
+      })
+    );
+    expect(result.media).toContainEqual(
+      expect.objectContaining({
+        id: 'shaking-polygon',
+        kind: 'GeneratedShakingPolygon',
+        width: 320,
+        height: 180,
+      })
+    );
   });
 
   it('通常音声波形をresident Projectの生成mediaとclipへ変換する', () => {
