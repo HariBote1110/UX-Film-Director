@@ -237,6 +237,29 @@ previewが`exporting`でblockedのまま残る不具合を検出した。書き�
 短縮実行の0.5秒切り詰めでは別のencode-only media制約によりMP4生成自体は失敗したため、
 書き出し成功と復帰成功はそれぞれ前後2回の実行結果を組み合わせて確認している。
 
+## ShakingPolygon GPU source移行後の再検証
+
+Beta-472aではShakingPolygonの多角形fill、輪郭線、頂点discをNative WGPUへ移し、
+direct previewから完成RGBAのCPUラスタライズとuploadを除去した。repeatごとの
+`fill → outline → vertex`順と上書き合成、source frameごとの揺れをGPU経路の
+契約テストで固定した。
+
+最初の重量E2Eでは常駐Rust sceneの型境界だけが`shaking_polygon`を許可しておらず、
+`unsupportedObjectType`を検出した。snapshot側とnative renderer側は対応済みだったため、
+同じserializerを使う`GeneratedShakingPolygonPlane`を常駐Projectへ接続した。
+
+56オブジェクトを投入する再検証は総合PASSし、操作後43、Undo後34、Redo後43、
+保存復元後65オブジェクトのfingerprint一致を確認した。
+
+- 60回スクラブ: 75.49 ms
+- requestAnimationFrame: 平均17.25 ms、p95 19.06 ms、最大36.78 ms
+- long task: 1件（63 ms）
+- Timeline: 66 commit、合計79.38 ms、平均1.20 ms
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 最終状態: presenter `ready`、Rust timeline `ready`
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない
