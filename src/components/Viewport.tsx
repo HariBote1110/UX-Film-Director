@@ -1752,7 +1752,7 @@ const Viewport: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!rustTimelineSceneRpcEnabled) return;
+    if (!rustTimelineSceneRpcEnabled || rustTimelineSceneRevision === null) return;
     if (nativePlaybackActive && isPlaying) return;
     const controller = rustTimelineScenePreviewControllerRef.current;
     if (!controller) return;
@@ -1764,6 +1764,7 @@ const Viewport: React.FC = () => {
     nativePlaybackActive,
     projectId,
     projectSettings.fps,
+    rustTimelineSceneRevision,
     rustTimelineSceneRpcEnabled,
   ]);
 

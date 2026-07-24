@@ -30,4 +30,15 @@ describe('Rust scene native playback境界', () => {
     expect(viewport).toContain('nativePlaybackActive && isPlaying');
     expect(viewport).toContain('setNativePlaybackActive');
   });
+
+  it('scene変換がblockedの間はframe要求で診断をpendingへ戻さない', () => {
+    const viewport = read('src/components/Viewport.tsx');
+    const requestEffectEnd = viewport.indexOf(
+      'controller.requestTime(currentTime, projectSettings.fps);',
+    );
+    const requestEffectStart = viewport.lastIndexOf('useEffect(() => {', requestEffectEnd);
+    const requestGuard = viewport.slice(requestEffectStart, requestEffectEnd);
+
+    expect(requestGuard).toContain('rustTimelineSceneRevision === null');
+  });
 });
