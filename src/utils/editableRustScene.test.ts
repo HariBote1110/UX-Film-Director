@@ -276,6 +276,38 @@ describe('buildEditableRustScene', () => {
     ]);
   });
 
+  it('subject crop keyframeをclipローカルframeへ変換してRust Projectへ渡す', () => {
+    const tracked = video({
+      subjectCropEnabled: true,
+      subjectCropKeyframes: [
+        { id: 'crop-end', time: 5, x: 0.1, y: 0.12, width: 0.8, height: 0.76 },
+        { id: 'crop-start', time: 1, x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
+        { id: 'crop-middle', time: 3, x: 0.16, y: 0.1, width: 0.7, height: 0.78 },
+      ],
+    });
+
+    const result = buildEditableRustScene({
+      sceneId: 'scene-subject-crop',
+      projectSettings,
+      layers,
+      objects: [tracked],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected subject crop conversion to succeed');
+    expect(result.project.tracks[0].clips[0]).toMatchObject({
+      subject_crop: {
+        source_width: 1280,
+        source_height: 720,
+        keyframes: [
+          { frame_offset: 0, x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
+          { frame_offset: 120, x: 0.16, y: 0.1, width: 0.7, height: 0.78 },
+          { frame_offset: 240, x: 0.1, y: 0.12, width: 0.8, height: 0.76 },
+        ],
+      },
+    });
+  });
+
   it('SpotLightだけは既存Rust effect serializerで常駐Projectへ渡す', () => {
     const result = buildEditableRustScene({
       sceneId: 'scene-spotlight',
