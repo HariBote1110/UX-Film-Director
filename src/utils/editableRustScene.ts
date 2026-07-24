@@ -1,5 +1,6 @@
 import type {
   AudioSphereObject,
+  AudioVisualizationObject,
   GetColorDotFieldObject,
   GroupControlObject,
   HksyCheckerGridObject,
@@ -31,7 +32,7 @@ import {
   type RustTransform,
 } from './rustSceneSnapshot';
 
-type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject;
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject;
 
 export interface EditableRustPositionKeyframe {
   frame_offset: number;
@@ -63,7 +64,7 @@ export interface EditableRustWipeAnimation {
 export interface EditableRustClip {
   id: string;
   media_id: string;
-  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedAudioSpherePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedRegionFramePlane' | 'GeneratedSimpleTubePlane';
+  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedAudioWaveformPlane' | 'GeneratedAudioSpherePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedRegionFramePlane' | 'GeneratedSimpleTubePlane';
   start_frame: number;
   duration_frames: number;
   source_frame_offset: number;
@@ -134,6 +135,7 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
   || object.type === 'psd'
   || object.type === 'text'
   || object.type === 'particle'
+  || object.type === 'audio_visualization'
   || object.type === 'audio_sphere'
   || object.type === 'getcolor_dot_field'
   || object.type === 'hksy_checker_grid'
@@ -145,6 +147,7 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
   if (object.type === 'video') return 'VideoPlane';
   if (object.type === 'text') return 'TextPlane';
   if (object.type === 'particle') return 'GeneratedParticlePlane';
+  if (object.type === 'audio_visualization') return 'GeneratedAudioWaveformPlane';
   if (object.type === 'audio_sphere') return 'GeneratedAudioSpherePlane';
   if (object.type === 'getcolor_dot_field') return 'GeneratedGetColorDotsPlane';
   if (object.type === 'hksy_checker_grid') return 'GeneratedHksyCheckerGridPlane';
