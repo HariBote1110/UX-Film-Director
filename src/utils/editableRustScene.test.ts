@@ -472,7 +472,7 @@ describe('buildEditableRustScene', () => {
     ]);
   });
 
-  it('V1外のgroup gradient、逆再生、filter、mask、未対応typeを明示拒否する', () => {
+  it('V1外のgroup gradient、逆再生、時間依存filter、mask、未対応typeを明示拒否する', () => {
     const unsupported: TimelineObject[] = [
       {
         ...shape({ id: 'group-member' }),
@@ -490,10 +490,10 @@ describe('buildEditableRustScene', () => {
       {
         ...shape({ id: 'filter' }),
         filters: [{
-          id: 'wipe',
-          type: 'wipe',
+          id: 'vibration',
+          type: 'vibration',
           enabled: true,
-          params: { edge: 'left', reverse: false },
+          params: { strength: 5, speed: 2 },
         }],
       },
       { ...image({ id: 'mask' }), clipping: true },

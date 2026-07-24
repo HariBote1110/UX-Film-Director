@@ -3,6 +3,7 @@ import type {
   HksyCheckerGridObject,
   ImageObject,
   LayerState,
+  ObjectFilter,
   ParticleObject,
   ProjectSettings,
   PsdObject,
@@ -51,6 +52,12 @@ export interface EditableRustSubjectCropAnimation {
   keyframes: readonly EditableRustSubjectCropKeyframe[];
 }
 
+export interface EditableRustWipeAnimation {
+  effect_index: number;
+  edge: 'left' | 'right' | 'top' | 'bottom';
+  reverse: boolean;
+}
+
 export interface EditableRustClip {
   id: string;
   media_id: string;
@@ -63,6 +70,7 @@ export interface EditableRustClip {
   opacity_keyframes: readonly [];
   position_keyframes: readonly EditableRustPositionKeyframe[];
   subject_crop?: EditableRustSubjectCropAnimation;
+  wipe_animations: readonly EditableRustWipeAnimation[];
   effects: readonly RustEffect[];
 }
 
@@ -186,6 +194,35 @@ const subjectCropForObject = (
   };
 };
 
+const residentEffectsForObject = (
+  object: EditableRustSceneObject
+): { effects: RustEffect[]; wipeAnimations: EditableRustWipeAnimation[] } => {
+  const allEffects = rustEffectsForObject(object, object.startTime);
+  const wipeFilters = getEnabledObjectFiltersInOrder(object)
+    .filter((filter): filter is Extract<ObjectFilter, { type: 'wipe' }> => filter.type === 'wipe');
+  const effects: RustEffect[] = [];
+  const wipeAnimations: EditableRustWipeAnimation[] = [];
+  let wipeFilterIndex = 0;
+
+  allEffects.forEach((effect, effectIndex) => {
+    if ('Wipe' in effect) {
+      const filter = wipeFilters[wipeFilterIndex];
+      wipeFilterIndex += 1;
+      if (filter) {
+        wipeAnimations.push({
+          effect_index: effectIndex,
+          edge: filter.params.edge,
+          reverse: filter.params.reverse,
+        });
+      }
+      return;
+    }
+    effects.push(effect);
+  });
+
+  return { effects, wipeAnimations };
+};
+
 const transformForObject = (object: EditableRustSceneObject): RustTransform => {
   const position = initialPositionForObject(object);
   const psdScale = object.type === 'psd' && Number.isFinite(object.scale) && object.scale > 0
@@ -266,6 +303,7 @@ const isResidentStaticFilter = (
   || filterType === 'oct_transform'
   || filterType === 'area_expand'
   || filterType === 'smart_clipping'
+  || filterType === 'wipe'
   || (object.type === 'shape' && filterType === 'gradient')
 );
 
@@ -319,6 +357,7 @@ export const buildEditableRustScene = ({
     const track = tracksByLayer.get(object.layer) ?? { id: `layer-${object.layer}`, clips: [] };
     const startFrame = secondsToFrameIndex(object.startTime, projectSettings.fps);
     const subjectCrop = subjectCropForObject(object, projectSettings.fps);
+    const residentEffects = residentEffectsForObject(object);
     track.clips.push({
       id: object.id,
       media_id: object.id,
@@ -333,7 +372,8 @@ export const buildEditableRustScene = ({
       opacity_keyframes: [],
       position_keyframes: positionKeyframesForObject(object, projectSettings.fps),
       ...(subjectCrop ? { subject_crop: subjectCrop } : {}),
-      effects: rustEffectsForObject(object, object.startTime),
+      wipe_animations: residentEffects.wipeAnimations,
+      effects: residentEffects.effects,
     });
     tracksByLayer.set(object.layer, track);
   }
