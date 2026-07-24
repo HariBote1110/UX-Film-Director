@@ -4001,6 +4001,91 @@ mod tests {
     }
 
     #[test]
+    fn hksy_source_is_generated_on_gpu_and_reuses_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(16, 16)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU HKSY test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "hksy-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "hksy-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let source = NativeHksySource {
+            source: r##"{"generator":"hksy-checker-grid","pattern":"checker-grid","cell_size":8,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            width: 16,
+            height: 16,
+            config_revision: 9,
+        };
+        let hksy_sources = HashMap::from([("hksy-media".to_string(), source)]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+
+        let render = |renderer: &NativeWgpuRenderer| {
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &hksy_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("HKSY preparation must succeed without a generated RGBA source");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD HKSY test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("HKSY output readback must succeed")
+        };
+
+        let first = render(&renderer);
+        let second = render(&renderer);
+        assert!(
+            first
+                .pixels
+                .chunks_exact(4)
+                .any(|pixel| pixel[1] > pixel[0] && pixel[1] > pixel[2]),
+            "GPU HKSY pass must produce green grid pixels"
+        );
+        assert_eq!(first.pixels, second.pixels);
+        assert_eq!(
+            renderer.hksy_renderer.stats(),
+            (1, 1),
+            "unchanged HKSY configuration must reuse one GPU texture and one source pass"
+        );
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 0),
+            "GPU HKSY output must never enter the CPU RGBA upload cache"
+        );
+    }
+
+    #[test]
     fn audio_sphere_source_is_rasterised_on_gpu_and_reuses_its_texture() {
         let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 64)) {
             Ok(renderer) => renderer,
