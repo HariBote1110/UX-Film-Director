@@ -1,0 +1,143 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createRustScenePlaybackController } from '../../electron/rustScenePlaybackController';
+
+const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
+  sceneId: 'scene-1',
+  revision: 7,
+  frameIndex,
+  snapshot: {
+    frame_index: frameIndex,
+    canvas_width: 1920,
+    canvas_height: 1080,
+    clips: [],
+  },
+  media: [{
+    id: 'media-1',
+    kind,
+    source: '{}',
+    width: 320,
+    height: 180,
+  }],
+});
+
+describe('RustScenePlaybackController', () => {
+  it('単調時計からframeを求め、Rust評価からnative presentまでrendererを経由せず実行する', async () => {
+    let nowMs = 1_000;
+    let scheduled: (() => void) | null = null;
+    const evaluateScene = vi.fn(async ({ frameIndex }: { frameIndex: number }) =>
+      evaluation(frameIndex));
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene,
+      presentScene,
+      emit,
+      nowMs: () => nowMs,
+      schedule: (callback) => {
+        scheduled = callback;
+        return 1;
+      },
+      cancel: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0.5,
+      durationSeconds: 2,
+    })).resolves.toMatchObject({ active: true, frameIndex: 30 });
+    expect(evaluateScene).toHaveBeenCalledWith({
+      sceneId: 'scene-1',
+      revision: 7,
+      frameIndex: 30,
+    });
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      windowId: 4,
+      snapshot: expect.objectContaining({ frame_index: 30 }),
+    }));
+
+    nowMs = 1_100;
+    const runNext = scheduled as (() => void) | null;
+    expect(runNext).not.toBeNull();
+    runNext?.();
+    await vi.waitFor(() => expect(evaluateScene).toHaveBeenLastCalledWith({
+      sceneId: 'scene-1',
+      revision: 7,
+      frameIndex: 36,
+    }));
+    expect(controller.diagnostics.skippedFrames).toBe(5);
+  });
+
+  it('UI時刻通知を低頻度に制限し、終端ではdurationを一度だけ通知する', async () => {
+    let nowMs = 0;
+    let scheduled: (() => void) | null = null;
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene: async () => ({ success: true, attached: true }),
+      emit,
+      nowMs: () => nowMs,
+      schedule: (callback) => {
+        scheduled = callback;
+        return 1;
+      },
+      cancel: vi.fn(),
+      uiIntervalMs: 200,
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 0.5,
+    });
+    expect(emit).toHaveBeenCalledTimes(1);
+
+    nowMs = 100;
+    scheduled?.();
+    await vi.waitFor(() => expect(controller.diagnostics.presentedFrames).toBe(2));
+    expect(emit).toHaveBeenCalledTimes(1);
+
+    nowMs = 500;
+    scheduled?.();
+    await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'ended',
+      currentTimeSeconds: 0.5,
+      isPlaying: false,
+    })));
+    expect(emit.mock.calls.filter(([payload]) => payload.status === 'ended')).toHaveLength(1);
+  });
+
+  it('Video・PSD・音声生成物・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
+    for (const [kind, source] of [
+      ['Video', '/tmp/video.mov'],
+      ['Psd', '/tmp/design.psd'],
+      ['GeneratedAudioWaveform', '{}'],
+      ['Image', '/tmp/photo.jpg'],
+    ]) {
+      const presentScene = vi.fn();
+      const controller = createRustScenePlaybackController({
+        evaluateScene: async ({ frameIndex }) => ({
+          ...evaluation(frameIndex, kind),
+          media: [{ ...evaluation(frameIndex, kind).media[0], source }],
+        }),
+        presentScene,
+        emit: vi.fn(),
+      });
+
+      await expect(controller.start({
+        windowId: 4,
+        sceneId: 'scene-1',
+        revision: 7,
+        fps: 60,
+        startTimeSeconds: 0,
+        durationSeconds: 1,
+      })).resolves.toMatchObject({ active: false, reason: 'unsupportedDirectMedia' });
+      expect(presentScene).not.toHaveBeenCalled();
+    }
+  });
+});
