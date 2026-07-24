@@ -1359,11 +1359,11 @@ const mediaReferenceForObject = (
 
 /**
  * 編集可能な Rust Project へ変換する際に、snapshot と同一の media
- * serializer を使うための狭い公開入口。常駐Projectが対応済みの Particle と
- * RegionFrame だけは含め、それ以外の未対応生成mediaは型境界で拒否する。
+ * serializer を使うための狭い公開入口。常駐Projectが対応済みの生成media
+ * だけを含め、それ以外は型境界で拒否する。
  */
 export const mediaReferenceForEditableRustScene = (
-  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject,
+  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | ShakingPolygonObject,
   projectFps: number,
   objects: TimelineObject[] = [object]
 ): RustSceneMediaReference => (

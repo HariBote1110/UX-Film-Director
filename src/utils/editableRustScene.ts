@@ -11,6 +11,7 @@ import type {
   ProjectSettings,
   PsdObject,
   RegionFrameObject,
+  ShakingPolygonObject,
   ShapeObject,
   SimpleTubeObject,
   TextObject,
@@ -32,7 +33,7 @@ import {
   type RustTransform,
 } from './rustSceneSnapshot';
 
-type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject;
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | ShakingPolygonObject;
 
 export interface EditableRustPositionKeyframe {
   frame_offset: number;
@@ -64,7 +65,7 @@ export interface EditableRustWipeAnimation {
 export interface EditableRustClip {
   id: string;
   media_id: string;
-  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedAudioWaveformPlane' | 'GeneratedAudioSpherePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedRegionFramePlane' | 'GeneratedSimpleTubePlane';
+  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedAudioWaveformPlane' | 'GeneratedAudioSpherePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedRegionFramePlane' | 'GeneratedSimpleTubePlane' | 'GeneratedShakingPolygonPlane';
   start_frame: number;
   duration_frames: number;
   source_frame_offset: number;
@@ -141,6 +142,7 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
   || object.type === 'hksy_checker_grid'
   || object.type === 'region_frame'
   || object.type === 'simple_tube'
+  || object.type === 'shaking_polygon'
 );
 
 const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['kind'] => {
@@ -153,6 +155,7 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
   if (object.type === 'hksy_checker_grid') return 'GeneratedHksyCheckerGridPlane';
   if (object.type === 'region_frame') return 'GeneratedRegionFramePlane';
   if (object.type === 'simple_tube') return 'GeneratedSimpleTubePlane';
+  if (object.type === 'shaking_polygon') return 'GeneratedShakingPolygonPlane';
   if (object.type === 'shape') {
     return object.shapeType === 'rect' && object.gradient?.enabled !== true
       ? 'SolidColourPlane'
