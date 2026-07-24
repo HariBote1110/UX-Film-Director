@@ -336,13 +336,19 @@ const waitForExport = async () => {
   return { ok: false, reason: 'exportTimeout', durationMs: Date.now() - startedAt };
 };
 
+// export直後はscene再評価が飛行中になり得るため、presenterとRust timelineの
+// 双方がreadyへ戻ることを整定条件とする。10秒で戻らない場合はタイムアウト時点の
+// 状態をそのまま記録して原因を追える形で残す。
 const waitForSettledSnapshot = async () => client.evaluate(`
   new Promise((resolve) => {
     const startedAt = Date.now();
     const tick = () => {
       const snapshot = window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.snapshot();
-      if (snapshot.ok || Date.now() - startedAt > 10000) {
-        resolve(snapshot);
+      const settled = snapshot.ok === true
+        && snapshot.rustTimelineStatus === 'ready'
+        && snapshot.presenterStatus === 'ready';
+      if (settled || Date.now() - startedAt > 10000) {
+        resolve({ ...snapshot, settled, settleWaitMs: Date.now() - startedAt });
         return;
       }
       setTimeout(tick, 100);
