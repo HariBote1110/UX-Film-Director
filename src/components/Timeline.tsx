@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import TimelineItem from './TimelineItem';
+import { TimelineCurrentTimeIndicator } from './TimelineCurrentTimeIndicator';
 import { PX_PER_SEC, ROW_HEIGHT, HEADER_WIDTH, RULER_HEIGHT, MAX_LAYERS } from './timelineConstants';
 
 type LayerTrackMenuState = { x: number; y: number; layer: number };
@@ -20,14 +21,13 @@ import { isPointerInTimelineTrackColumn, timeFromTimelineContentX, timeFromTimel
 
 const Timeline: React.FC = () => {
   const { 
-    currentTime, duration, setTime, addObject,
+    duration, setTime, addObject,
     objects, selectedIds, selectObject, selectObjects, clearSelection, isExporting, projectSettings,
     layers, setLayerName, toggleLayerVisibility, toggleLayerLock,
     swapLayerTracks, insertLayerTrackAt, deleteLayerTrackAt,
     beginProxyGeneration, endProxyGeneration,
     setPreviewObstructed, clearPreviewObstructed
   } = useStore((state) => ({
-    currentTime: state.currentTime,
     duration: state.duration,
     setTime: state.setTime,
     addObject: state.addObject,
@@ -465,13 +465,14 @@ const Timeline: React.FC = () => {
 
   // Action Wrappers for Child Components
   // ControlBar handlers:
-  const cbAddShape = () => addShapeAt(currentTime, 0);
-  const cbAddText = () => addTextAt(currentTime, 1);
-  const cbAddImage = () => triggerImageUpload(currentTime, 2);
-  const cbAddVideo = () => triggerVideoUpload(currentTime, 3);
-  const cbAddAudio = () => triggerAudioUpload(currentTime, 4);
-  const cbAddPsd = () => triggerPsdUpload(currentTime, 0);
-  const cbAddGroup = () => addGroupControlAt(currentTime, 0);
+  const currentTimelineTime = () => useStore.getState().currentTime;
+  const cbAddShape = () => addShapeAt(currentTimelineTime(), 0);
+  const cbAddText = () => addTextAt(currentTimelineTime(), 1);
+  const cbAddImage = () => triggerImageUpload(currentTimelineTime(), 2);
+  const cbAddVideo = () => triggerVideoUpload(currentTimelineTime(), 3);
+  const cbAddAudio = () => triggerAudioUpload(currentTimelineTime(), 4);
+  const cbAddPsd = () => triggerPsdUpload(currentTimelineTime(), 0);
+  const cbAddGroup = () => addGroupControlAt(currentTimelineTime(), 0);
   
   // Context Menu handlers:
   const cmAddShape = () => addShapeAt(contextMenu.time, contextMenu.layer);
@@ -553,7 +554,7 @@ const Timeline: React.FC = () => {
                {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
                   <div key={i} className="timeline-ruler-time" style={{ left: i * 5 * PX_PER_SEC }}>{i * 5}s</div>
                ))}
-               <div className="seek-bar" style={{ left: Math.max(0, currentTime) * PX_PER_SEC }} />
+               <TimelineCurrentTimeIndicator variant="ruler" />
              </div>
           </div>
 
@@ -623,7 +624,7 @@ const Timeline: React.FC = () => {
                  zIndex: 600,
                }}
              >
-               <div style={{ position: 'absolute', left: Math.max(0, currentTime) * PX_PER_SEC, top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)' }} />
+               <TimelineCurrentTimeIndicator variant="track" />
              </div>
              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
                 {objects.map(obj => <TimelineItem key={obj.id} object={obj} pxPerSec={PX_PER_SEC} rowHeight={ROW_HEIGHT} headerWidth={HEADER_WIDTH} onContextMenu={handleObjectContextMenu} />)}
