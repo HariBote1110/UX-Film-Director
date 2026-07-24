@@ -352,6 +352,37 @@ describe('buildEditableRustScene', () => {
     ]));
   });
 
+  it('時間非依存のGPU filterとfade opacityを常駐sceneへ搬送する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-static-filters',
+      projectSettings,
+      layers,
+      objects: [shape({
+        opacity: 0.8,
+        filters: [
+          { id: 'blur', type: 'blur', enabled: true, params: { strength: 2, quality: 2 } },
+          {
+            id: 'outline',
+            type: 'outline',
+            enabled: true,
+            params: { colour: '#ffffff', thickness: 2, opacity: 0.5 },
+          },
+          { id: 'fade', type: 'fade', enabled: true, params: { opacity: 0.5 } },
+        ],
+      })],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected static GPU filter conversion to succeed');
+    expect(result.project.tracks[0].clips[0]).toEqual(expect.objectContaining({
+      opacity: 0.4,
+      effects: [
+        { Blur: { radius: 2, strength: 1 } },
+        { Outline: { colour: [1, 1, 1], thickness: 2, opacity: 0.5 } },
+      ],
+    }));
+  });
+
   it('描画に影響しないgroupIdは編集メタデータとして許可する', () => {
     const grouped = shape({ id: 'group-member' });
     grouped.groupId = 'group-a';
@@ -385,7 +416,15 @@ describe('buildEditableRustScene', () => {
         },
       },
       { ...video({ id: 'reversed' }), reversed: true },
-      { ...shape({ id: 'filter' }), filters: [{ id: 'fade', type: 'fade', enabled: true, params: { opacity: 0.5 } }] },
+      {
+        ...shape({ id: 'filter' }),
+        filters: [{
+          id: 'wipe',
+          type: 'wipe',
+          enabled: true,
+          params: { edge: 'left', reverse: false },
+        }],
+      },
       {
         ...video({ id: 'animated-crop' }),
         subjectCropEnabled: true,

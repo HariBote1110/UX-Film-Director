@@ -13,7 +13,7 @@ import type {
   TimelineObject,
   VideoObject,
 } from '../types';
-import { getEnabledObjectFiltersInOrder } from './filterStack';
+import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { normaliseKeyframesForObject } from './keyframes';
 import {
   fpsToFrameRate,
@@ -211,6 +211,29 @@ const hasEnabledGroupGradient = (
   ));
 };
 
+const isResidentStaticFilter = (
+  object: EditableRustSceneObject,
+  filterType: ReturnType<typeof getEnabledObjectFiltersInOrder>[number]['type']
+): boolean => (
+  filterType === 'fade'
+  || filterType === 'color_correction'
+  || filterType === 'blur'
+  || filterType === 'shadow'
+  || filterType === 'colour_aberration'
+  || filterType === 'outline'
+  || filterType === 'clipping'
+  || filterType === 'spot_light'
+  || filterType === 'displacement_map'
+  || filterType === 'fake_dof'
+  || filterType === 'auto_blur'
+  || filterType === 'stretch'
+  || filterType === 'multi_slicer'
+  || filterType === 'oct_transform'
+  || filterType === 'area_expand'
+  || filterType === 'smart_clipping'
+  || (object.type === 'shape' && filterType === 'gradient')
+);
+
 const issueForObject = (
   object: TimelineObject,
   objects: TimelineObject[],
@@ -232,7 +255,7 @@ const issueForObject = (
   if (object.clipping) {
     return { objectId: object.id, code: 'unsupportedMask', detail: 'クリッピングマスクはV1対象外です' };
   }
-  if (getEnabledObjectFiltersInOrder(object).some((filter) => filter.type !== 'spot_light' && filter.type !== 'color_correction')) {
+  if (getEnabledObjectFiltersInOrder(object).some((filter) => !isResidentStaticFilter(object, filter.type))) {
     return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
   }
   if (object.type === 'getcolor_dot_field') {
@@ -273,7 +296,7 @@ export const buildEditableRustScene = ({
         ? secondsToFrameIndex(object.offset ?? 0, projectSettings.fps)
         : 0,
       transform: transformForObject(object),
-      opacity: object.opacity,
+      opacity: object.opacity * getFadeOpacityMultiplier(object),
       opacity_keyframes: [],
       position_keyframes: positionKeyframesForObject(object, projectSettings.fps),
       effects: rustEffectsForObject(object, object.startTime),
