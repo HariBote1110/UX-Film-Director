@@ -114,6 +114,10 @@ GPUオフロードはまだ完了していない。
   線順序、丸端、透明背景を保持し、完成RGBAのCPU生成とuploadをdirect previewから
   除去した。GPU出力textureはmedia revision単位で再利用し、512 MiB上限と
   30フレームidle退避を持つ。
+- FocusLinesPlusは最大511本のrayをrevision変更時にRustでquad instanceへ展開し、
+  triangle rasteriseをNative WGPUへ移した。`keyframeInterval=0`ではsource frameが
+  進んでも同じGPU textureを再利用し、既定設定で発生していた毎フレームのCPU完成RGBA
+  生成とuploadを除去した。正のintervalではframe bucket境界だけをrevisionに含める。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
@@ -123,8 +127,8 @@ GPUオフロードはまだ完了していない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. 残るCPUラスタライズ生成sourceを負荷と使用頻度で順位付けし、GPU source passへ
-   段階的に移す。
+1. 残る動的CPUラスタライズ生成sourceのShakingPolygon、ShatteredSphereを
+   GPU source passへ段階的に移す。
 2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
 3. Chromium rendererに残る高CPU処理を時系列計測し、scene評価、React更新、

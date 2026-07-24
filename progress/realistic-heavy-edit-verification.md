@@ -184,6 +184,26 @@ FocusLinesPlus、ShakingPolygon、ShatteredSphereの順となる。FocusLinesPlu
 `keyframeInterval=0`で見た目が静的でもsource frameごとにrevisionが変わり、
 CPU生成を繰り返すため、次のGPU source移管対象とする。
 
+## FocusLinesPlus GPU source移行後の再検証
+
+Beta-469aではFocusLinesPlusのrayをGPU quad instanceで描画し、direct previewから
+CPU完成RGBA生成を除去した。`keyframeInterval=0`の静的bucketと正のinterval境界も
+契約テストで固定した。FocusLinesPlusを含む重量シナリオの短時間検証は総合PASSし、
+操作後42オブジェクト、Undo後33、Redo後42、保存復元のfingerprint一致を確認した。
+
+- 60回スクラブ: 80.22 ms
+- requestAnimationFrame: 平均16.74 ms、p95 21.54 ms、最大25.10 ms
+- long task: 1件（71 ms）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+
+CDP traceでは1,189 ms中main thread busy 653 ms（54.9%）、Task 652 ms、Script
+334～347 ms、Rendering 92 ms、GC 30 msだった。最上位は引き続きReact DOMの同期
+callbackで67回・303 msであり、FocusLinesPlusのCPU画素生成を外してもChromium側の
+主要因はReact更新側に残る。次の生成source候補はShakingPolygonだが、これと並行して
+React ProfilerでViewport、Timeline、PropertyPanelのcommit時間を分離する。
+
 ## 検証で発見した不具合
 
 初回のシナリオ投入によって次を検出し、修正した。
