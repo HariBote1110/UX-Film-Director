@@ -6,6 +6,7 @@ import type {
   ParticleObject,
   ProjectSettings,
   PsdObject,
+  RegionFrameObject,
   ShapeObject,
   SimpleTubeObject,
   TextObject,
@@ -26,7 +27,7 @@ import {
   type RustTransform,
 } from './rustSceneSnapshot';
 
-type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | GetColorDotFieldObject | HksyCheckerGridObject | SimpleTubeObject;
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject;
 
 export interface EditableRustPositionKeyframe {
   frame_offset: number;
@@ -38,7 +39,7 @@ export interface EditableRustPositionKeyframe {
 export interface EditableRustClip {
   id: string;
   media_id: string;
-  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedSimpleTubePlane';
+  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedRegionFramePlane' | 'GeneratedSimpleTubePlane';
   start_frame: number;
   duration_frames: number;
   source_frame_offset: number;
@@ -99,6 +100,7 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
   || object.type === 'particle'
   || object.type === 'getcolor_dot_field'
   || object.type === 'hksy_checker_grid'
+  || object.type === 'region_frame'
   || object.type === 'simple_tube'
 );
 
@@ -108,6 +110,7 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
   if (object.type === 'particle') return 'GeneratedParticlePlane';
   if (object.type === 'getcolor_dot_field') return 'GeneratedGetColorDotsPlane';
   if (object.type === 'hksy_checker_grid') return 'GeneratedHksyCheckerGridPlane';
+  if (object.type === 'region_frame') return 'GeneratedRegionFramePlane';
   if (object.type === 'simple_tube') return 'GeneratedSimpleTubePlane';
   if (object.type === 'shape') {
     return object.shapeType === 'rect' && object.gradient?.enabled !== true
@@ -201,6 +204,7 @@ const issueForObject = (
   objects: TimelineObject[],
   fps: number
 ): EditableRustSceneIssue | null => {
+  if (object.type === 'audio') return null;
   if (!isEditableRustSceneObject(object)) {
     return { objectId: object.id, code: 'unsupportedObjectType', detail: `${object.type} はV1対象外です` };
   }
@@ -216,7 +220,7 @@ const issueForObject = (
   if (object.clipping) {
     return { objectId: object.id, code: 'unsupportedMask', detail: 'クリッピングマスクはV1対象外です' };
   }
-  if (getEnabledObjectFiltersInOrder(object).some((filter) => filter.type !== 'spot_light')) {
+  if (getEnabledObjectFiltersInOrder(object).some((filter) => filter.type !== 'spot_light' && filter.type !== 'color_correction')) {
     return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
   }
   if (object.type === 'getcolor_dot_field') {

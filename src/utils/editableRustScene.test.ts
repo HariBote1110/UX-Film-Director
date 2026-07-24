@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  AudioObject,
   ImageObject,
   GetColorDotFieldObject,
   HksyCheckerGridObject,
   LayerState,
   PsdObject,
   ProjectSettings,
+  RegionFrameObject,
   ShapeObject,
   SimpleTubeObject,
   TextObject,
@@ -67,6 +69,18 @@ const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
   proxyFilePath: '/tmp/video.proxy.mp4',
   width: 1280,
   height: 720,
+  volume: 1,
+  muted: false,
+  ...patch,
+});
+
+const audio = (patch: Partial<AudioObject> = {}): AudioObject => ({
+  ...base,
+  id: 'audio',
+  type: 'audio',
+  layer: 2,
+  src: 'blob:audio',
+  filePath: '/tmp/audio.wav',
   volume: 1,
   muted: false,
   ...patch,
@@ -168,6 +182,23 @@ const simpleTube = (patch: Partial<SimpleTubeObject> = {}): SimpleTubeObject => 
   secondaryColour: '#ffffff',
   seed: 93,
   torus: false,
+  ...patch,
+});
+
+const regionFrame = (patch: Partial<RegionFrameObject> = {}): RegionFrameObject => ({
+  ...base,
+  id: 'region-frame',
+  type: 'region_frame',
+  layer: 6,
+  width: 800,
+  height: 450,
+  lineWidth: 10,
+  shape: 'rectangle',
+  extraWidth: 0,
+  extraHeight: 0,
+  backgroundOpacity: 0.2,
+  frameColour: '#ffffff',
+  backgroundColour: '#ccccff',
   ...patch,
 });
 
@@ -277,6 +308,48 @@ describe('buildEditableRustScene', () => {
         colour: [1, 0xf4 / 255, 0xc2 / 255],
       },
     }]);
+  });
+
+  it('RegionFrameとstatic color_correctionを常駐sceneへ渡し、通常audioは非描画として除外する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-region-frame-colour',
+      projectSettings,
+      layers,
+      objects: [
+        audio(),
+        regionFrame(),
+        shape({
+          layer: 1,
+          filters: [{
+            id: 'colour-correction',
+            type: 'color_correction',
+            enabled: true,
+            params: { brightness: 1.2, contrast: 0.5, saturation: -0.4, hue: 120 },
+          }],
+        }),
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected RegionFrame and colour correction scene conversion to succeed');
+    expect(result.project.media.map((media) => media.id)).toEqual(['shape', 'region-frame']);
+    expect(result.project.tracks.flatMap((track) => track.clips)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'region-frame', kind: 'GeneratedRegionFramePlane' }),
+      expect.objectContaining({
+        id: 'shape',
+        effects: [{
+          ColourCorrection: {
+            brightness: 1.2,
+            contrast: 0.5,
+            saturation: -0.4,
+            hue_degrees: 120,
+          },
+        }],
+      }),
+    ]));
+    expect(result.media).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'region-frame', kind: 'GeneratedRegionFrame', width: 800, height: 450 }),
+    ]));
   });
 
   it('V1外のgroup、逆再生、filter、animated crop、mask、未対応typeを明示拒否する', () => {
