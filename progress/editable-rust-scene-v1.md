@@ -11,6 +11,9 @@
 - GetColorの画像サンプリングは、ローカルPNG/JPEG/PSDを参照する場合だけ
   受け入れる。参照不能なURLや未対応object参照は、壊れた見た目を出さず
   `unsupportedGetColorSampleSource`として拒否する。
+- GetColorの`sampleSourceObjectId`/`sampleSourceLayer`は、Project全体の
+  objectから表示開始時点で解決し、PSDの場合は有効layer IDも既存media
+  serializerの出力どおりに引き継ぐ。生成エフェクト用に別serializerは作らない。
 
 ## 検討した代替案
 
