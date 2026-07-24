@@ -94,16 +94,16 @@ CLIは独立したViteポート、Electronプロファイル、CDP接続を用�
 Electronメイン約25～29%、Renderer約36～37%、Rust backend 0%で、初回測定より
 低下した。その後、RegionFrame、通常音声の非描画分離、静的filter、描画へ影響しない
 groupIdをresidentへ移した。GetColorの重量シナリオも、未対応のshape参照ではなく
-実在するローカル画像をサンプル元へ接続した。短時間再検証では初期25件の拒否が
-次の6件まで減り、`MissingSource`、WGPU validation error、未処理例外はすべて0件だった。
+実在するローカル画像をサンプル元へ接続した。さらにSubjectCrop、時刻依存Wipe、
+GroupControlをRust timeline evaluatorへ、AudioSphereをresident PCM cacheと
+Native WGPU source passへ移した。
 
-- subject crop 1件
-- 時刻依存Wipe 1件
-- group control 1件
-- AudioSphere 3件
-
-拒否内容は`result.json`の`rustTimelineStatus`と`rustTimelineDetail`へ残る。
-したがって、このシナリオの総合PASSをresident移行完了の出口条件として使える。
+同日の短時間再検証は総合PASSとなり、最終`rustTimelineStatus`は`ready`だった。
+60回スクラブは74.36 ms、requestAnimationFrameは平均16.68 ms、p95 20.82 ms、
+最大28.22 ms、long taskは1件（59 ms）だった。操作後41オブジェクト、Undo後32、
+Redo後41で整合し、画面検査、保存復元、`MissingSource` 0件、WGPU/native render
+error 0件、未処理例外0件を確認した。これにより重量シナリオ内のresident拒否は
+0件になった。
 
 ## 検証で発見した不具合
 

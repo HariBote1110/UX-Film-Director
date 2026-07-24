@@ -4,7 +4,7 @@
 
 - 編集操作中にRustへ渡すProjectの変換器は、`shape`、`image`、`video`、
   `psd`、`text`、`getcolor_dot_field`、`hksy_checker_grid`、
-  `simple_tube`、`particle`、`region_frame`を対象にする。通常の`audio`は
+  `simple_tube`、`particle`、`region_frame`、`audio_sphere`を対象にする。通常の`audio`は
   別の音声再生経路が所有するため、描画clip/mediaから除外する。
 - trackとclipの順序は既存snapshotと同じく、layer昇順、同一layerではobjects配列への挿入順とする。
 - mediaのserializer、fpsの有理数化、frame換算、colour pipelineはsnapshot実装を公開入口経由で再利用する。編集Projectとframe snapshotのmedia表現を別々に保守しないためである。
@@ -18,9 +18,14 @@
 - `particle`は`GeneratedParticlePlane`として渡す。Native OverlayはRGBA sourceを
   CPUで生成せず、粒子パラメータとsource frameからWGPU instanceを生成する。
   source frameが変わると同じGPU経路で粒子位置も更新される。
+- `audio_sphere`は`GeneratedAudioSpherePlane`として渡す。Native Overlayが対象音源を
+  8 kHz mono PCMへ一度だけデコードしてキャッシュし、各frameは必要なwindowだけを
+  Native WGPUのstorage bufferへ送る。CPU RGBA sourceとChromiumのPCM要求は使わない。
 - 時間非依存のfilterは、既存snapshotと同じ`rustEffectsForObject`の出力を
-  clipの`effects`へ渡す。Fadeはclip opacityへ畳み込む。WipeとVibrationのように
-  frameごとの再評価が必要なfilterは、静的Projectへ固定せず明示拒否を維持する。
+  clipの`effects`へ渡す。Fadeはclip opacityへ畳み込む。WipeはProject内の
+  animation trackとしてRustがframeごとに評価する。Vibrationは引き続き明示拒否する。
+- SubjectCropはclip-local keyframe、GroupControlはProject-level controlとしてRustが
+  frameごとに評価する。control自身は描画clipへ入れない。
 - `groupId`だけのグループは編集メタデータであり描画へ影響しないため許可する。
   enabledな`groupGradient`があるグループだけを動的合成未対応として拒否する。
 
@@ -34,8 +39,7 @@
 - `VITE_UXFD_RUST_TIMELINE_SCENE_RPC=1`のViewportでは、編集時に
   `scene.replace`、時刻更新時に`scene.evaluate`を使ってこのProjectを評価する。
 - 非表示layerのobjectはProjectに含めない。timeline上の時間帯可視性はProject全体を送る編集変換では判定しない。
-- 時刻依存filter、group control、enabledなgroup gradient、逆再生、subject crop、
-  clipping maskは、Rust timeline evaluatorで同じ時間評価を表現できるまで変換を拒否する。
-- resident timelineの音声波形・音声球はV1のProject変換対象外である。PCM window
-  の時刻起点は修正済みで、波形はnative-wgpuのGPU source描画へ移管済みだが、
-  Native Overlayのresident ProjectへPCMを渡す接続と音声球のGPU化は未完である。
+- Vibration、enabledなgroup gradient、逆再生、clipping maskは、Rust timeline
+  evaluatorで同じ時間評価を表現できるまで変換を拒否する。
+- resident timelineのAudioSphereは対応済み。通常の音声波形objectはまだ
+  Project変換対象へ追加していない。

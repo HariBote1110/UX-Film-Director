@@ -10,10 +10,12 @@
   構築する。静的sourceはrevision cacheで再利用する。
 - `GeneratedParticle`は例外で、RGBA sourceを構築しない。粒子パラメータと
   source frameをNative WGPUのinstance描画へ直接渡し、GPU上で時間変化を描画する。
+- `GeneratedAudioSphere`もRGBA sourceを構築しない。Rust overlayのresident PCM
+  cacheから現在windowを切り出し、Native WGPUのstorage bufferからGPU描画する。
 - `SpotLight`はsceneの`effects`としてN-API境界を通過し、Native WGPU compositor
   のfragment shaderで適用する。ChromiumのCanvas/WebGPUでエフェクトを合成しない。
 - 直描画の適格性はシーン開始前に判定する。Native Overlayがsourceを構築できない
-  PSD、音声波形、音声球、PNG以外の画像、可視動画が複数あるシーンは、
+  PSD、通常の音声波形、PNG以外の画像、可視動画が複数あるシーンは、
   `render.nativeSharedFrame`を使う従来経路へ安全にフォールバックする。
 
 ## 描画経路
@@ -90,18 +92,18 @@ GPUオフロードはまだ完了していない。
 - ParticleはGPU instance描画済みであり、CPU RGBA source生成・uploadを行わない。
 - 動画はVideoToolboxのNV12 IOSurfaceをNative Overlayへ直接import済みであり、
   このdirect present経路ではRGBA shared frameを経由しない。
-- 音声波形はPCM windowをWGPU storage bufferへ送り、GPU上でsource textureを
+- 音声波形と音声球はPCM windowをWGPU storage bufferへ送り、GPU上でsource textureを
   生成する。texture/storage bufferはmedia単位で再利用し、CPU RGBA upload cacheを
   通らない。export/readback/共有リング/BGRA IOSurface経路の同一合成へ接続済みである。
-  ただしresident ProjectからNative OverlayへPCM windowを渡す入口は未実装のため、
-  音声波形・音声球を含むsceneはdirect presentの適格対象外に保つ。
+  AudioSphereはresident ProjectからNative Overlayへ接続済みで、対象音源をRust側で
+  一度だけ8 kHz PCMへデコードし、frameごとのffmpeg起動やChromium IPCを行わない。
+  通常の音声波形objectのresident Project変換は未対応である。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. resident Projectの音声波形PCM入口をNative Overlayへ接続し、音声球もGPU
-   source化してdirect presentまでChromiumを介さずに接続する。
+1. 通常の音声波形objectもresident Projectへ追加し、AudioSphereと同じPCM cacheを使う。
 2. GetColor、HKSY、SimpleTubeなどCPUラスタライズの生成sourceをcompute shaderへ
    移し、revision変更時のCPU処理も削減する。
 3. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
