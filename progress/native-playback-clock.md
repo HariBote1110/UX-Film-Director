@@ -43,4 +43,21 @@ Video、PSD、音声生成物、PNG以外の画像を含むシーンは、対応
 - 出力サイズ: 9,972,354 bytes
 - 2.5秒フレームを抽出し、GetColor、HKSY、SimpleTubeの合成を目視確認
 
-動画を含むシーンは、各frameのNV12動的source供給をresident scene契約へ接続するまで既存native encode経路を使う。Chromiumで動画frameを要求する部分と、GPU readback後にFFmpegへRGBAを書き込む部分は引き続き移行対象とする。
+## Resident動画書き出し
+
+resident scene exportが動画のdecode sessionも所有する。VideoToolboxのNV12 IOSurfaceをnative WGPU rendererへ直接渡し、この経路では共有RGBA ringを作らず、CPUの`nv12_to_rgba`とresizeを実行しない。encode終了・abort時に当該sessionのdecoderを解放する。
+
+同じmediaを複数clipが同時参照する場合、同じsource frameなら1枚のNV12 surfaceを共有する。異なるsource frameを要求する場合は、rendererの動画texture keyをmedia idからclip idへ変更するまで明示的に拒否する。暗黙の上書きによる誤フレームは許容しない。
+
+実ElectronでH.264動画を移動、0.8倍、12度回転し、1920×1080、60fps、1秒を書き出した。
+
+- 診断: `uxfdRustExportFrameSourceStatus=residentScene`
+- direct transcode: 未使用
+- H.264、1920×1080、60フレーム、1.000秒
+- 出力サイズ: 1,018,397 bytes
+- 書き出し時間: 1.246秒（約48.2 frame/秒）
+- 0.5秒フレームを抽出し、動画内容と移動・縮小・回転を目視確認
+- Rust backend全テスト成功
+- frontend 213 files / 1,531 tests成功
+
+GPU合成結果からFFmpeg rawvideo入力へのRGBA readbackは残っている。次段階ではencoder入力をIOSurface/VideoToolboxへ接続してこのreadbackを外す。また、プレビューの動画decodeとCAMetalLayer直接提示、GeneratedAudioWaveform・Particle・SpotLightのresident scene対応も未完了である。
