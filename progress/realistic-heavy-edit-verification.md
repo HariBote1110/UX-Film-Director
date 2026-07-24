@@ -415,6 +415,37 @@ direct preview、shared frame、RGBA readback、BGRA IOSurface exportでCPU完�
 Rust backend 42.8%、audio service 11.8%だった。Hologramの4K画素生成はGPUへ移ったが、
 fixture自体も1素材増えており単発sampleなので、CPU削減率の比較値には使わない。
 
+## export直後のpresenter復帰修正後の再検証
+
+Beta-479bでは、export直後にpresenterが`videoTextureViewUnavailable`のまま
+fallback固定される不具合を修正した（原因と設計は
+[post-export-presenter-recovery.md](post-export-presenter-recovery.md)）。
+
+あわせて最終snapshotの整定条件を強化し、`snapshot.ok`だけでなく
+presenterとRust timelineの**双方**が`ready`へ戻るまで待って採取するように
+した。`ok`は片方がreadyなら真になるため、従来の判定ではpresenter側の故障を
+最終地点で検出できていなかった。
+
+45オブジェクト・動画2本の重量E2Eは総合PASSした（scrub 360回、export 2秒の設定）。
+
+- 360回スクラブ: 494.80 ms
+- long task: 1件（56 ms）
+- 保存復元: presenter `ready`、Rust timeline `ready`
+- 出力: 1920×1080、MP4 134フレーム、2.24秒（期待値と一致）
+- export所要時間: 50.10秒（開発ビルド、`ffmpegRawRgba`）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: visible pixel 260,874、colourful pixel 20,192
+- **最終状態: `settled: true`、整定待ち 1 ms、presenter `ready`、Rust timeline `ready`**
+
+修正前の同条件では最終snapshotのpresenterが`fallback`のままだった。
+`rustTimelineStatus: 'pending'`はscene評価が飛行中というだけの正常な過渡状態で、
+整定を待たずに採取した場合のみ観測される。
+
+再生中の瞬間CPU sampleはElectron本体47.0%、Renderer 54.1%、Rust backend 73.7%。
+単発sampleなのでCPU削減率の比較値には使わない。
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない

@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [chromium-render-path-audit.md](chromium-render-path-audit.md) — production到達可能なChromium描画経路（legacy canvas capture、WebGPU presenter、3D Stage、PSD import、measureText）の棚卸しと廃止順序、`shattered_sphere`のexport判定漏れ（2026-07-25）
+- [post-export-presenter-recovery.md](post-export-presenter-recovery.md) — export直後に`videoTextureViewUnavailable`でpresenterがfallback固定される不具合の原因（RPCモードで復帰経路が未配線）と、ready tick再評価・起動時transient扱い・E2E整定条件の強化（2026-07-25）
 - [native-playback-clock.md](native-playback-clock.md) — Electron main所有の単調再生時計、VideoToolbox NV12 resident動画と生成sceneのCAMetalLayer直接提示、Chromium surface分離E2E、CPU測定（2026-07-24）
 - [native-overlay-source-cache.md](native-overlay-source-cache.md) — CAMetalLayer直接描画における静的生成sourceのCPU/GPU revision cache、GetColor参照画像のmetadata invalidation、Arc共有と退避規約（2026-07-24）
 - [editable-rust-scene-v1.md](editable-rust-scene-v1.md) — 編集可能なRust Projectのshape/image/video/PSD/text/GetColor/HKSY/SimpleTube/Particle変換、SpotLight搬送、track順序、snapshot serializer再利用、位置keyframe互換、明示拒否する表現と音声resident GPU化の未完事項（2026-07-24）
