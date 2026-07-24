@@ -11,6 +11,7 @@ import type {
 } from '../types';
 import { buildAviUtlPackPolishRepresentativeScene } from '../utils/aviutl/aviutlPolishRepresentativeScene';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
+import { buildAviUtlHologramObject } from '../utils/objectFactories/hologramObjectFactory';
 import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakingPolygonObjectFactory';
 import { buildAviUtlShatteredSphereObject } from '../utils/objectFactories/shatteredSphereObjectFactory';
 import {
@@ -400,6 +401,28 @@ export const buildRealisticHeavyEditScenario = (
     ...cloneRepresentativeObjects('main-a', 0, 16, 12, 'realistic-main-audio', paths.imagePath),
     ...cloneRepresentativeObjects('main-b', 6, 32, 12, 'realistic-main-audio', paths.imagePath),
     ...cloneRepresentativeObjects('main-c', 12, 48, 12, 'realistic-main-audio', paths.imagePath),
+    {
+      ...buildAviUtlHologramObject({
+        id: 'realistic-main-hologram',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: 91,
+      }),
+      duration: MAIN_DURATION_SECONDS,
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+      endX: 0,
+      endY: 0,
+      tileSize: 96,
+      rotationDegrees: 17,
+      gradientAngleDegrees: -60,
+      colourMode: 2,
+      tintColour: '#80c0ff',
+      opacity: 0.22,
+    },
     {
       ...buildAviUtlShakingPolygonObject({
         id: 'realistic-main-shaking-polygon',
