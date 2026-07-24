@@ -2,6 +2,7 @@ import React from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
+import { TimelineCurrentTimeDisplay } from './TimelineCurrentTimeDisplay';
 import { 
   Play, Pause, 
   Square, Type, Image as ImageIcon, Film, Music, 
@@ -27,8 +28,8 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
   onAddPsd,
   onAddGroup,
 }) => {
-  const { 
-    isPlaying, togglePlay, splitObject, isExporting, duration, setDuration, currentTime,
+  const {
+    isPlaying, togglePlay, splitObject, isExporting, duration, setDuration,
     selectedIds, copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
     groupSelectedObjects, ungroupSelectedObjects, language
   } = useStore((state) => ({
@@ -38,7 +39,6 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
     isExporting: state.isExporting,
     duration: state.duration,
     setDuration: state.setDuration,
-    currentTime: state.currentTime,
     selectedIds: state.selectedIds,
     copySelectedObjects: state.copySelectedObjects,
     cutSelectedObjects: state.cutSelectedObjects,
@@ -114,10 +114,8 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
           </div>
           
           <div className="divider" style={{ margin: '0 4px' }}></div>
-          
-          <span style={{ fontFamily: 'monospace', fontSize: '15px', fontWeight: 700, color: 'var(--accent-blue)', minWidth: '60px', textAlign: 'right' }}>
-            {currentTime.toFixed(2)}s
-          </span>
+
+          <TimelineCurrentTimeDisplay />
       </div>
     </div>
   );
