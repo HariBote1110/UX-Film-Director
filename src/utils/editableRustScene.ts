@@ -1,9 +1,12 @@
 import type {
+  GetColorDotFieldObject,
+  HksyCheckerGridObject,
   ImageObject,
   LayerState,
   ProjectSettings,
   PsdObject,
   ShapeObject,
+  SimpleTubeObject,
   TextObject,
   TimelineObject,
   VideoObject,
@@ -21,7 +24,7 @@ import {
   type RustTransform,
 } from './rustSceneSnapshot';
 
-type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject;
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | GetColorDotFieldObject | HksyCheckerGridObject | SimpleTubeObject;
 
 export interface EditableRustPositionKeyframe {
   frame_offset: number;
@@ -33,7 +36,7 @@ export interface EditableRustPositionKeyframe {
 export interface EditableRustClip {
   id: string;
   media_id: string;
-  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane';
+  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedSimpleTubePlane';
   start_frame: number;
   duration_frames: number;
   source_frame_offset: number;
@@ -65,7 +68,8 @@ export type EditableRustSceneIssueCode =
   | 'unsupportedVideoMode'
   | 'unsupportedSubjectCrop'
   | 'unsupportedMask'
-  | 'unsupportedFilter';
+  | 'unsupportedFilter'
+  | 'unsupportedGetColorSampleSource';
 
 export interface EditableRustSceneIssue {
   objectId: string;
@@ -90,11 +94,17 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
   || object.type === 'video'
   || object.type === 'psd'
   || object.type === 'text'
+  || object.type === 'getcolor_dot_field'
+  || object.type === 'hksy_checker_grid'
+  || object.type === 'simple_tube'
 );
 
 const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['kind'] => {
   if (object.type === 'video') return 'VideoPlane';
   if (object.type === 'text') return 'TextPlane';
+  if (object.type === 'getcolor_dot_field') return 'GeneratedGetColorDotsPlane';
+  if (object.type === 'hksy_checker_grid') return 'GeneratedHksyCheckerGridPlane';
+  if (object.type === 'simple_tube') return 'GeneratedSimpleTubePlane';
   if (object.type === 'shape') {
     return object.shapeType === 'rect' && object.gradient?.enabled !== true
       ? 'SolidColourPlane'
@@ -149,7 +159,44 @@ const transformForObject = (object: EditableRustSceneObject): RustTransform => {
   };
 };
 
-const issueForObject = (object: TimelineObject): EditableRustSceneIssue | null => {
+const hasGetColorSampleReference = (object: GetColorDotFieldObject): boolean => (
+  (typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0)
+  || (typeof object.sampleSourceObjectId === 'string' && object.sampleSourceObjectId.length > 0)
+  || (typeof object.sampleSourceLayer === 'number' && Number.isFinite(object.sampleSourceLayer))
+);
+
+const isNativeReadableGetColorSampleSource = (source: string): boolean => {
+  const withoutQueryOrFragment = source.split(/[?#]/, 1)[0];
+  const isFileUrl = withoutQueryOrFragment.startsWith('file:///')
+    || withoutQueryOrFragment.startsWith('file://localhost/');
+  const hasUnsupportedUrlScheme = /^[a-z][a-z0-9+.-]*:/i.test(withoutQueryOrFragment) && !isFileUrl;
+  if (!withoutQueryOrFragment || hasUnsupportedUrlScheme) return false;
+  return /\.(png|jpe?g|psd)$/i.test(withoutQueryOrFragment);
+};
+
+const getColorSampleIssue = (
+  object: GetColorDotFieldObject,
+  objects: TimelineObject[],
+  fps: number
+): EditableRustSceneIssue | null => {
+  if (!hasGetColorSampleReference(object)) return null;
+  const reference = mediaReferenceForEditableRustScene(object, fps, objects);
+  const sourceImage = JSON.parse(reference.source).source_image;
+  if (typeof sourceImage !== 'string' || !isNativeReadableGetColorSampleSource(sourceImage)) {
+    return {
+      objectId: object.id,
+      code: 'unsupportedGetColorSampleSource',
+      detail: 'GetColorの参照画像/PSDは、表示開始時点で有効なローカルPNG・JPEG・PSDである必要があります',
+    };
+  }
+  return null;
+};
+
+const issueForObject = (
+  object: TimelineObject,
+  objects: TimelineObject[],
+  fps: number
+): EditableRustSceneIssue | null => {
   if (!isEditableRustSceneObject(object)) {
     return { objectId: object.id, code: 'unsupportedObjectType', detail: `${object.type} はV1対象外です` };
   }
@@ -168,6 +215,9 @@ const issueForObject = (object: TimelineObject): EditableRustSceneIssue | null =
   if (getEnabledObjectFiltersInOrder(object).length > 0) {
     return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
   }
+  if (object.type === 'getcolor_dot_field') {
+    return getColorSampleIssue(object, objects, fps);
+  }
   return null;
 };
 
@@ -179,7 +229,7 @@ export const buildEditableRustScene = ({
 }: EditableRustSceneBuildInput): EditableRustSceneBuildResult => {
   const visibleObjects = objects.filter((object) => layers[object.layer]?.visible !== false);
   const issues = visibleObjects
-    .map(issueForObject)
+    .map((object) => issueForObject(object, objects, projectSettings.fps))
     .filter((issue): issue is EditableRustSceneIssue => issue !== null);
   if (issues.length > 0) return { ok: false, issues };
 
@@ -188,7 +238,7 @@ export const buildEditableRustScene = ({
     .map((object, insertionIndex) => ({ object, insertionIndex }))
     .sort((left, right) => left.object.layer - right.object.layer || left.insertionIndex - right.insertionIndex);
 
-  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(object, projectSettings.fps));
+  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(object, projectSettings.fps, objects));
   const tracksByLayer = new Map<number, EditableRustTrack>();
   for (const { object } of orderedObjects) {
     const track = tracksByLayer.get(object.layer) ?? { id: `layer-${object.layer}`, clips: [] };

@@ -1362,10 +1362,11 @@ const mediaReferenceForObject = (
  * serializer を使うための狭い公開入口。時間依存の生成 media は含めない。
  */
 export const mediaReferenceForEditableRustScene = (
-  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject,
-  projectFps: number
+  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | GetColorDotFieldObject | HksyCheckerGridObject | SimpleTubeObject,
+  projectFps: number,
+  objects: TimelineObject[] = [object]
 ): RustSceneMediaReference => (
-  mediaReferenceForObject(object, projectFps, 'previewProxy', [object], object.startTime)
+  mediaReferenceForObject(object, projectFps, 'previewProxy', objects, object.startTime)
 );
 
 const activeLayerIdsForPsd = (object: PsdObject): string[] =>
