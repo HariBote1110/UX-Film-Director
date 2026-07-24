@@ -5,10 +5,12 @@ const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
   sceneId: 'scene-1',
   revision: 7,
   frameIndex,
+  canvas: {
+    width: 1920,
+    height: 1080,
+  },
   snapshot: {
     frame_index: frameIndex,
-    canvas_width: 1920,
-    canvas_height: 1080,
     colour: {
       profile: 'rec709-sdr',
       working_space: 'linear-light',

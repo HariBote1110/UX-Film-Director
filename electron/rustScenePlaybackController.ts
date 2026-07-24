@@ -16,10 +16,12 @@ export interface RustScenePlaybackEvaluation {
   sceneId: string;
   revision: number;
   frameIndex: number;
+  canvas: {
+    width: number;
+    height: number;
+  };
   snapshot: {
     frame_index: number;
-    canvas_width: number;
-    canvas_height: number;
     colour: {
       profile: string;
       working_space: string;
@@ -104,6 +106,7 @@ const copyDiagnostics = (
 
 const toNativeOverlayPlaybackSnapshot = (
   snapshot: RustScenePlaybackEvaluation['snapshot'],
+  canvas: RustScenePlaybackEvaluation['canvas'],
 ) => ({
   frameIndex: snapshot.frame_index,
   colour: {
@@ -128,8 +131,8 @@ const toNativeOverlayPlaybackSnapshot = (
     opacity: clip.opacity,
     effectsJson: JSON.stringify(clip.effects),
   })),
-  canvasWidth: snapshot.canvas_width,
-  canvasHeight: snapshot.canvas_height,
+  canvasWidth: canvas.width,
+  canvasHeight: canvas.height,
 });
 
 export const createRustScenePlaybackController = ({
@@ -259,7 +262,7 @@ export const createRustScenePlaybackController = ({
     try {
       response = await presentScene({
         windowId: request.windowId,
-        snapshot: toNativeOverlayPlaybackSnapshot(evaluation.snapshot),
+        snapshot: toNativeOverlayPlaybackSnapshot(evaluation.snapshot, evaluation.canvas),
         media: evaluation.media,
       });
     } catch (error) {
