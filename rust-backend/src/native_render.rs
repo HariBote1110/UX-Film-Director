@@ -582,6 +582,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn resident_video_sources_reject_one_media_at_conflicting_source_frames() {
+        let requests = [
+            ("clip-a", "media-video", 10_u64),
+            ("clip-b", "media-video", 11_u64),
+        ];
+
+        let error = validate_resident_video_source_frames(&requests)
+            .expect_err("one media id cannot identify two different NV12 frames");
+
+        assert!(error.contains("media-video"), "{error}");
+        assert!(error.contains("clip-a"), "{error}");
+        assert!(error.contains("clip-b"), "{error}");
+    }
+
+    #[test]
+    fn resident_video_sources_allow_reusing_the_same_decoded_frame() {
+        let requests = [
+            ("clip-a", "media-video", 10_u64),
+            ("clip-b", "media-video", 10_u64),
+        ];
+
+        validate_resident_video_source_frames(&requests)
+            .expect("matching source frames may share one resident NV12 surface");
+    }
+
+    #[test]
     fn get_or_create_native_wgpu_renderer_resizes_in_place_and_reports_new_dimensions() {
         // タスク4: 出力サイズが変わっただけならレンダラごと破棄・再構築せず、
         // `resize_output` 経由で出力サイズ依存リソースだけを作り直すこと。
