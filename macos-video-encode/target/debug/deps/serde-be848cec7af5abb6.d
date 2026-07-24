@@ -1,0 +1,14 @@
+/Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/deps/serde-be848cec7af5abb6.d: /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/build/serde-34827f0f788639b2/out/private.rs
+
+/Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/deps/libserde-be848cec7af5abb6.rlib: /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/build/serde-34827f0f788639b2/out/private.rs
+
+/Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/deps/libserde-be848cec7af5abb6.rmeta: /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/build/serde-34827f0f788639b2/out/private.rs
+
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs:
+/Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/build/serde-34827f0f788639b2/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/yuki/GitHub/UX-Film-Director/macos-video-encode/target/debug/build/serde-34827f0f788639b2/out
