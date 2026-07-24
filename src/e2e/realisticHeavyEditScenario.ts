@@ -12,6 +12,7 @@ import type {
 import { buildAviUtlPackPolishRepresentativeScene } from '../utils/aviutl/aviutlPolishRepresentativeScene';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
 import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakingPolygonObjectFactory';
+import { buildAviUtlShatteredSphereObject } from '../utils/objectFactories/shatteredSphereObjectFactory';
 import {
   createDefaultCamera,
   createDefaultLayers,
@@ -416,6 +417,30 @@ export const buildRealisticHeavyEditScenario = (
       jitterRange: 14,
       jitterInterval: 4,
       colour: '#ff9f1c',
+      seed: 93,
+    },
+    {
+      ...buildAviUtlShatteredSphereObject({
+        id: 'realistic-main-shattered-sphere',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: 93,
+      }),
+      duration: MAIN_DURATION_SECONDS,
+      fractureAmount: 100,
+      delay: 18,
+      radius: 160,
+      limitDistance: 180,
+      thickness: 24,
+      fragmentSize: 10,
+      randomShape: 85,
+      speed: 120,
+      impact: 110,
+      gravityY: 130,
+      spin: 120,
+      directionDiffusion: 95,
+      colour: '#80d8ff',
       seed: 93,
     },
   ];
