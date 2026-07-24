@@ -2,7 +2,10 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs;
+use std::hash::{Hash, Hasher};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -316,6 +319,121 @@ pub struct OverlayLayerContract {
 static LIVE_OVERLAY_RENDERERS: OnceLock<Mutex<HashMap<u32, NativeOverlayLiveSurfaceRenderer>>> =
     OnceLock::new();
 
+const NATIVE_OVERLAY_SOURCE_CACHE_MAX_BYTES: usize = 512 * 1024 * 1024;
+const NATIVE_OVERLAY_SOURCE_CACHE_IDLE_FRAME_LIMIT: u64 = 30;
+
+struct NativeOverlaySourceCacheEntry {
+    revision: u64,
+    frame: RgbaFrame,
+    byte_len: usize,
+    idle_frames: u64,
+}
+
+#[derive(Default)]
+struct NativeOverlaySourceCache {
+    entries: HashMap<String, NativeOverlaySourceCacheEntry>,
+    order: VecDeque<String>,
+    total_bytes: usize,
+    #[cfg(test)]
+    hits: u64,
+    #[cfg(test)]
+    misses: u64,
+}
+
+impl NativeOverlaySourceCache {
+    fn get(&mut self, media_id: &str, revision: u64) -> Option<RgbaFrame> {
+        let hit = self
+            .entries
+            .get(media_id)
+            .map(|entry| entry.revision == revision)
+            .unwrap_or(false);
+        if !hit {
+            #[cfg(test)]
+            {
+                self.misses += 1;
+            }
+            return None;
+        }
+        #[cfg(test)]
+        {
+            self.hits += 1;
+        }
+        self.touch(media_id);
+        let entry = self
+            .entries
+            .get_mut(media_id)
+            .expect("cache hit must keep its entry");
+        entry.idle_frames = 0;
+        Some(entry.frame.clone())
+    }
+
+    fn insert(&mut self, media_id: String, revision: u64, frame: RgbaFrame) {
+        let byte_len = frame.pixels.len();
+        if let Some(previous) = self.entries.insert(
+            media_id.clone(),
+            NativeOverlaySourceCacheEntry {
+                revision,
+                frame,
+                byte_len,
+                idle_frames: 0,
+            },
+        ) {
+            self.total_bytes = self.total_bytes.saturating_sub(previous.byte_len);
+            self.order.retain(|existing| existing != &media_id);
+        }
+        self.total_bytes += byte_len;
+        self.order.push_back(media_id);
+    }
+
+    fn touch(&mut self, media_id: &str) {
+        if let Some(position) = self.order.iter().position(|existing| existing == media_id) {
+            if let Some(moved) = self.order.remove(position) {
+                self.order.push_back(moved);
+            }
+        }
+    }
+
+    fn remove(&mut self, media_id: &str) {
+        if let Some(entry) = self.entries.remove(media_id) {
+            self.total_bytes = self.total_bytes.saturating_sub(entry.byte_len);
+        }
+        self.order.retain(|existing| existing != media_id);
+    }
+
+    fn evict_stale(&mut self, touched_media_ids: &HashSet<String>) {
+        let mut stale = Vec::new();
+        for (media_id, entry) in self.entries.iter_mut() {
+            if touched_media_ids.contains(media_id) {
+                entry.idle_frames = 0;
+            } else {
+                entry.idle_frames += 1;
+                if entry.idle_frames > NATIVE_OVERLAY_SOURCE_CACHE_IDLE_FRAME_LIMIT {
+                    stale.push(media_id.clone());
+                }
+            }
+        }
+        for media_id in stale {
+            self.remove(&media_id);
+        }
+        while self.total_bytes > NATIVE_OVERLAY_SOURCE_CACHE_MAX_BYTES {
+            let Some(oldest) = self.order.front().cloned() else {
+                break;
+            };
+            self.remove(&oldest);
+        }
+    }
+
+    #[cfg(test)]
+    fn stats(&self) -> (u64, u64) {
+        (self.hits, self.misses)
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
 pub struct NativeOverlayLiveSurfaceRenderer {
     window_id: u32,
     drawable_width: u32,
@@ -338,6 +456,9 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// 同じ世代の再 present では GPU テクスチャ生成・アップロードを丸ごと
     /// スキップできる。
     scene_generation: u64,
+    /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
+    /// CPU でラスタライズし直さないための media revision 単位キャッシュ。
+    native_source_cache: NativeOverlaySourceCache,
     #[cfg(target_os = "macos")]
     view_handle: usize,
     renderer: NativeWgpuLiveSurfaceRenderer,
@@ -366,6 +487,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             contents_scale: contract.contents_scale,
             last_scene: None,
             scene_generation: 0,
+            native_source_cache: NativeOverlaySourceCache::default(),
             view_handle,
             renderer,
         })
@@ -392,11 +514,12 @@ impl NativeOverlayLiveSurfaceRenderer {
                 self.window_id, upload.media_id, upload.width, upload.height,
             );
         }
-        let (snapshot, sources) = upload_frame_to_scene_sources(
+        let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
             upload,
             scene,
             self.drawable_width,
             self.drawable_height,
+            &mut self.native_source_cache,
         )?;
         // デコレーション上乗せ前の scene をキャッシュし、選択変更のみの
         // 再 present（present_cached_scene_with_decoration）で再利用する。
@@ -1778,10 +1901,27 @@ pub fn upload_frame_to_scene_sources(
     drawable_width: u32,
     drawable_height: u32,
 ) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
+    let mut source_cache = NativeOverlaySourceCache::default();
+    upload_frame_to_scene_sources_with_cache(
+        upload,
+        scene,
+        drawable_width,
+        drawable_height,
+        &mut source_cache,
+    )
+}
+
+fn upload_frame_to_scene_sources_with_cache(
+    upload: &OverlayUploadFrame,
+    scene: Option<&NativeOverlaySceneSource>,
+    drawable_width: u32,
+    drawable_height: u32,
+    source_cache: &mut NativeOverlaySourceCache,
+) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
     let frame = RgbaFrame::from_rgba8(upload.width, upload.height, upload.pixels.clone())
         .map_err(|error| format!("Native overlay upload frame is invalid: {error:?}"))?;
     let mut sources = scene
-        .map(load_overlay_native_sources_for_scene)
+        .map(|scene| load_overlay_native_sources_for_scene_cached(scene, source_cache))
         .transpose()?
         .unwrap_or_default();
     sources.insert(upload.media_id.clone(), frame);
@@ -1973,47 +2113,19 @@ pub fn load_overlay_image_sources_for_scene(
 pub fn load_overlay_native_sources_for_scene(
     scene: &NativeOverlaySceneSource,
 ) -> Result<HashMap<String, RgbaFrame>, String> {
-    let mut sources = load_overlay_image_sources_for_scene(scene)?;
+    let mut cache = NativeOverlaySourceCache::default();
+    load_overlay_native_sources_for_scene_cached(scene, &mut cache)
+}
+
+fn load_overlay_native_sources_for_scene_cached(
+    scene: &NativeOverlaySceneSource,
+    cache: &mut NativeOverlaySourceCache,
+) -> Result<HashMap<String, RgbaFrame>, String> {
+    let mut sources = HashMap::new();
+    let mut touched_media_ids = HashSet::new();
     for media in &scene.media {
-        let kind = match media.kind.as_str() {
-            "SolidColour" => MediaKind::SolidColour,
-            "GeneratedGradient" => MediaKind::GeneratedGradient,
-            "GeneratedParticle" => MediaKind::GeneratedParticle,
-            "GeneratedBarcode" => MediaKind::GeneratedBarcode,
-            "GeneratedPuzzlePiece" => MediaKind::GeneratedPuzzlePiece,
-            "GeneratedColourWheel" => MediaKind::GeneratedColourWheel,
-            "GeneratedGourd" => MediaKind::GeneratedGourd,
-            "GeneratedGear" => MediaKind::GeneratedGear,
-            "GeneratedTrackBar" => MediaKind::GeneratedTrackBar,
-            "GeneratedPieChart" => MediaKind::GeneratedPieChart,
-            "GeneratedHistogram" => MediaKind::GeneratedHistogram,
-            "GeneratedToneCurve" => MediaKind::GeneratedToneCurve,
-            "GeneratedGetColorDots" => MediaKind::GeneratedGetColorDots,
-            "GeneratedHksyCheckerGrid" => MediaKind::GeneratedHksyCheckerGrid,
-            "GeneratedRegionFrame" => MediaKind::GeneratedRegionFrame,
-            "GeneratedSimpleTube" => MediaKind::GeneratedSimpleTube,
-            "GeneratedSphereDots" => MediaKind::GeneratedSphereDots,
-            "GeneratedSphericalField" => MediaKind::GeneratedSphericalField,
-            "GeneratedSunburst" => MediaKind::GeneratedSunburst,
-            "GeneratedCircularArrow" => MediaKind::GeneratedCircularArrow,
-            "GeneratedTriangleBracket" => MediaKind::GeneratedTriangleBracket,
-            "GeneratedTartanCheck" => MediaKind::GeneratedTartanCheck,
-            "GeneratedHoundstooth" => MediaKind::GeneratedHoundstooth,
-            "GeneratedYagasuri" => MediaKind::GeneratedYagasuri,
-            "GeneratedPaperAirplane" => MediaKind::GeneratedPaperAirplane,
-            "GeneratedAsanohaPattern" => MediaKind::GeneratedAsanohaPattern,
-            "GeneratedFocusLinesPlus" => MediaKind::GeneratedFocusLinesPlus,
-            "GeneratedRandomLineEx" => MediaKind::GeneratedRandomLineEx,
-            "GeneratedContourTrace" => MediaKind::GeneratedContourTrace,
-            "GeneratedDisplacementPoly" => MediaKind::GeneratedDisplacementPoly,
-            "GeneratedPlainEffectorLine" => MediaKind::GeneratedPlainEffectorLine,
-            "GeneratedHologram" => MediaKind::GeneratedHologram,
-            "GeneratedProtractor" => MediaKind::GeneratedProtractor,
-            "GeneratedShakingPolygon" => MediaKind::GeneratedShakingPolygon,
-            "GeneratedShatteredSphere" => MediaKind::GeneratedShatteredSphere,
-            "GeneratedShape" => MediaKind::GeneratedShape,
-            "Text" => MediaKind::Text,
-            _ => continue,
+        let Some(kind) = overlay_media_kind(&media.kind) else {
+            continue;
         };
         let source_frame = scene
             .snapshot
@@ -2024,18 +2136,140 @@ pub fn load_overlay_native_sources_for_scene(
             .unwrap_or(scene.snapshot.frame_index);
         let reference = SceneMediaReference {
             id: media.id.clone(),
-            kind,
+            kind: kind.clone(),
             source: media.source.clone(),
             width: media.width,
             height: media.height,
             source_rate: None,
             active_layer_ids: Vec::new(),
         };
-        if let Some(frame) = build_native_generated_source_frame(&reference, source_frame)? {
-            sources.insert(media.id.clone(), frame);
+        let revision = native_overlay_media_content_revision(media, source_frame);
+        if let Some(revision) = revision {
+            if let Some(frame) = cache.get(&media.id, revision) {
+                touched_media_ids.insert(media.id.clone());
+                sources.insert(media.id.clone(), frame);
+                continue;
+            }
+        }
+        let frame = if kind == MediaKind::Image {
+            load_rgba_png(&media.source)
+                .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?
+        } else if let Some(frame) = build_native_generated_source_frame(&reference, source_frame)? {
+            frame
+        } else {
+            continue;
+        };
+        if let Some(revision) = revision {
+            cache.insert(media.id.clone(), revision, frame.clone());
+            touched_media_ids.insert(media.id.clone());
+        }
+        if sources.insert(media.id.clone(), frame).is_some() {
+            return Err(format!("Duplicate native overlay source mediaId '{}'", media.id));
         }
     }
+    cache.evict_stale(&touched_media_ids);
     Ok(sources)
+}
+
+fn overlay_media_kind(kind: &str) -> Option<MediaKind> {
+    Some(match kind {
+        "Video" => MediaKind::Video,
+        "Image" => MediaKind::Image,
+        "SolidColour" => MediaKind::SolidColour,
+        "GeneratedGradient" => MediaKind::GeneratedGradient,
+        "GeneratedAudioWaveform" => MediaKind::GeneratedAudioWaveform,
+        "GeneratedAudioSphere" => MediaKind::GeneratedAudioSphere,
+        "GeneratedParticle" => MediaKind::GeneratedParticle,
+        "GeneratedBarcode" => MediaKind::GeneratedBarcode,
+        "GeneratedPuzzlePiece" => MediaKind::GeneratedPuzzlePiece,
+        "GeneratedColourWheel" => MediaKind::GeneratedColourWheel,
+        "GeneratedGourd" => MediaKind::GeneratedGourd,
+        "GeneratedGear" => MediaKind::GeneratedGear,
+        "GeneratedTrackBar" => MediaKind::GeneratedTrackBar,
+        "GeneratedPieChart" => MediaKind::GeneratedPieChart,
+        "GeneratedHistogram" => MediaKind::GeneratedHistogram,
+        "GeneratedToneCurve" => MediaKind::GeneratedToneCurve,
+        "GeneratedGetColorDots" => MediaKind::GeneratedGetColorDots,
+        "GeneratedHksyCheckerGrid" => MediaKind::GeneratedHksyCheckerGrid,
+        "GeneratedRegionFrame" => MediaKind::GeneratedRegionFrame,
+        "GeneratedSimpleTube" => MediaKind::GeneratedSimpleTube,
+        "GeneratedSphereDots" => MediaKind::GeneratedSphereDots,
+        "GeneratedSphericalField" => MediaKind::GeneratedSphericalField,
+        "GeneratedSunburst" => MediaKind::GeneratedSunburst,
+        "GeneratedCircularArrow" => MediaKind::GeneratedCircularArrow,
+        "GeneratedTriangleBracket" => MediaKind::GeneratedTriangleBracket,
+        "GeneratedTartanCheck" => MediaKind::GeneratedTartanCheck,
+        "GeneratedHoundstooth" => MediaKind::GeneratedHoundstooth,
+        "GeneratedYagasuri" => MediaKind::GeneratedYagasuri,
+        "GeneratedPaperAirplane" => MediaKind::GeneratedPaperAirplane,
+        "GeneratedAsanohaPattern" => MediaKind::GeneratedAsanohaPattern,
+        "GeneratedFocusLinesPlus" => MediaKind::GeneratedFocusLinesPlus,
+        "GeneratedRandomLineEx" => MediaKind::GeneratedRandomLineEx,
+        "GeneratedContourTrace" => MediaKind::GeneratedContourTrace,
+        "GeneratedDisplacementPoly" => MediaKind::GeneratedDisplacementPoly,
+        "GeneratedPlainEffectorLine" => MediaKind::GeneratedPlainEffectorLine,
+        "GeneratedHologram" => MediaKind::GeneratedHologram,
+        "GeneratedProtractor" => MediaKind::GeneratedProtractor,
+        "GeneratedShakingPolygon" => MediaKind::GeneratedShakingPolygon,
+        "GeneratedShatteredSphere" => MediaKind::GeneratedShatteredSphere,
+        "GeneratedShape" => MediaKind::GeneratedShape,
+        "Psd" => MediaKind::Psd,
+        "Text" => MediaKind::Text,
+        _ => return None,
+    })
+}
+
+fn native_overlay_media_content_revision(
+    media: &NativeOverlaySceneMedia,
+    source_frame: u64,
+) -> Option<u64> {
+    let kind = overlay_media_kind(&media.kind)?;
+    if matches!(
+        kind,
+        MediaKind::Video | MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere
+    ) {
+        return None;
+    }
+
+    let mut hasher = DefaultHasher::new();
+    media.id.hash(&mut hasher);
+    media.kind.hash(&mut hasher);
+    media.source.hash(&mut hasher);
+    media.width.hash(&mut hasher);
+    media.height.hash(&mut hasher);
+
+    if matches!(kind, MediaKind::Image | MediaKind::Psd) {
+        hash_local_file_metadata(&media.source, &mut hasher)?;
+    }
+    if kind == MediaKind::GeneratedGetColorDots {
+        hash_getcolor_source_image_metadata(&media.source, &mut hasher)?;
+    }
+    if matches!(
+        kind,
+        MediaKind::GeneratedParticle
+            | MediaKind::GeneratedFocusLinesPlus
+            | MediaKind::GeneratedShakingPolygon
+            | MediaKind::GeneratedShatteredSphere
+    ) {
+        source_frame.hash(&mut hasher);
+    }
+    Some(hasher.finish())
+}
+
+fn hash_getcolor_source_image_metadata(source: &str, hasher: &mut DefaultHasher) -> Option<()> {
+    let parsed: serde_json::Value = serde_json::from_str(source).ok()?;
+    let Some(source_image) = parsed.get("source_image").and_then(|value| value.as_str()) else {
+        return Some(());
+    };
+    hash_local_file_metadata(source_image, hasher)
+}
+
+fn hash_local_file_metadata(source: &str, hasher: &mut DefaultHasher) -> Option<()> {
+    let path = source.strip_prefix("file://").unwrap_or(source);
+    let metadata = fs::metadata(path).ok()?;
+    metadata.len().hash(hasher);
+    metadata.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.hash(hasher);
+    Some(())
 }
 
 fn scene_snapshot_from_payload(
