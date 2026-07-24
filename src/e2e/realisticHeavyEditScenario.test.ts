@@ -31,6 +31,7 @@ describe('現実的な重量編集シナリオ', () => {
     expect(scenario.scenes).toHaveLength(3);
     expect(scenario.scenes[0].objects.length).toBeGreaterThanOrEqual(32);
     expect(allObjects.length).toBeGreaterThanOrEqual(48);
+    expect(types).toContain('shaking_polygon');
     expect(types).toEqual(expect.objectContaining(new Set([
       'video',
       'audio',
