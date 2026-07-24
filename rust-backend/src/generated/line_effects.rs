@@ -182,11 +182,8 @@ pub(crate) fn build_generated_focus_lines_plus_source_frame(
         .max(media.height as f32 - focus_lines.centre_y);
     let outer_radius = (max_x * max_x + max_y * max_y).sqrt() * 1.25;
     let rotation = focus_lines.rotation_degrees.to_radians();
-    let frame_bucket = if focus_lines.keyframe_interval == 0 {
-        0
-    } else {
-        source_frame / focus_lines.keyframe_interval
-    };
+    let frame_bucket =
+        uxfd_rust_core::focus_lines_frame_bucket(focus_lines.keyframe_interval, source_frame);
     let seed =
         (focus_lines.seed as u64).wrapping_add(frame_bucket.wrapping_mul(0x517c_c1b7_2722_0a95));
     let centre_jitter_radius =

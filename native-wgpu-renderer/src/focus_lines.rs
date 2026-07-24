@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use bytemuck::{Pod, Zeroable};
 use serde::Deserialize;
-use uxfd_rust_core::generated_particle_unit;
+use uxfd_rust_core::{focus_lines_frame_bucket, generated_particle_unit};
 use wgpu::util::DeviceExt;
 
 const FOCUS_LINES_CACHE_IDLE_FRAME_LIMIT: u64 = 30;
@@ -346,11 +346,7 @@ fn build_quads(source: &NativeFocusLinesSource, params: &FocusLinesParams) -> Ve
     let max_y = params.centre_y.max(source.height as f32 - params.centre_y);
     let outer_radius = (max_x * max_x + max_y * max_y).sqrt() * 1.25;
     let rotation = params.rotation_degrees.to_radians();
-    let frame_bucket = if params.keyframe_interval == 0 {
-        0
-    } else {
-        source.source_frame / params.keyframe_interval
-    };
+    let frame_bucket = focus_lines_frame_bucket(params.keyframe_interval, source.source_frame);
     let seed = (params.seed as u64).wrapping_add(frame_bucket.wrapping_mul(0x517c_c1b7_2722_0a95));
     let centre_jitter_radius = params.centre_radius * params.centre_jitter_percent / 100.0;
     let jitter_angle = generated_particle_unit(seed, 0, 21) * std::f32::consts::TAU;

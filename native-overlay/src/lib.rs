@@ -19,10 +19,10 @@ use uxfd_native_wgpu_renderer::{
 };
 use uxfd_rust_backend::{build_native_generated_source_frame, load_native_getcolor_sample_frame};
 use uxfd_rust_core::{
-    build_video_frame_decode_requests, parse_generated_particle_source, AudioWaveformSource,
-    ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind, Nv12ColourMatrix, Nv12ColourRange,
-    Nv12IoSurfaceRef, SamplingMode, SceneMediaReference, SceneSnapshot, Transform,
-    VideoFrameDecodeRequest,
+    build_video_frame_decode_requests, focus_lines_frame_bucket_from_source,
+    parse_generated_particle_source, AudioWaveformSource, ColourPipeline, Effect, EvaluatedClip,
+    Fps, MediaKind, Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef, SamplingMode,
+    SceneMediaReference, SceneSnapshot, Transform, VideoFrameDecodeRequest,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -3190,13 +3190,8 @@ fn native_overlay_media_content_revision(
         hash_getcolor_source_image_metadata(&media.source, &mut hasher)?;
     }
     if kind == MediaKind::GeneratedFocusLinesPlus {
-        let parsed: serde_json::Value = serde_json::from_str(&media.source).ok()?;
-        let keyframe_interval = parsed.get("keyframe_interval")?.as_u64()?;
-        let frame_bucket = if keyframe_interval == 0 {
-            0
-        } else {
-            source_frame / keyframe_interval
-        };
+        let frame_bucket =
+            focus_lines_frame_bucket_from_source(&media.source, source_frame).ok()?;
         frame_bucket.hash(&mut hasher);
     } else if matches!(
         kind,
