@@ -472,6 +472,55 @@ describe('buildEditableRustScene', () => {
     ]);
   });
 
+  it('GroupControlを非描画のRust制御データへ変換し対象trackだけを指定する', () => {
+    const control: TimelineObject = {
+      ...base,
+      id: 'group-control',
+      type: 'group_control',
+      layer: 0,
+      targetLayerCount: 2,
+      keyframes: [
+        { id: 'control-start', time: 1, x: 10, y: 20, easing: 'linear' },
+        { id: 'control-end', time: 5, x: 110, y: 220, easing: 'easeInOutCubic' },
+      ],
+    };
+
+    const result = buildEditableRustScene({
+      sceneId: 'scene-group-control',
+      projectSettings,
+      layers,
+      objects: [
+        control,
+        shape({ id: 'target-1', layer: 1 }),
+        image({ id: 'target-2', layer: 2 }),
+        text({ id: 'outside', layer: 3 }),
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected GroupControl conversion to succeed');
+    expect(result.project.media.map((media) => media.id)).toEqual(['target-1', 'target-2', 'outside']);
+    expect(result.project.group_controls).toEqual([{
+      id: 'group-control',
+      start_frame: 60,
+      duration_frames: 240,
+      transform: {
+        translation_x: 10,
+        translation_y: 20,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 15,
+        sampling: 'bilinear',
+      },
+      opacity: 0.75,
+      position_keyframes: [
+        { frame_offset: 0, x: 10, y: 20, easing: 'linear' },
+        { frame_offset: 240, x: 110, y: 220, easing: 'easeInOutCubic' },
+      ],
+      target_track_ids: ['layer-1', 'layer-2'],
+    }]);
+  });
+
   it('V1外のgroup gradient、逆再生、時間依存filter、mask、未対応typeを明示拒否する', () => {
     const unsupported: TimelineObject[] = [
       {
