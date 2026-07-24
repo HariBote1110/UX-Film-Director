@@ -563,7 +563,9 @@ describe('runRustBackendVideoEncodeExport', () => {
       // @ts-expect-error Rust backend encode runner must reject browser ImageBitmap frames at the type boundary.
       frames: frames(),
       encoderBridge,
-    })).rejects.toThrow('Rust backend video encode export requires shared-frame or native encode payloads.');
+    })).rejects.toThrow(
+      'Rust backend video encode export requires shared-frame, native encode, or resident scene payloads.'
+    );
 
     expect(calls).toEqual([
       ['startVideoEncode', {

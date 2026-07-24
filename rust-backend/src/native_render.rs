@@ -8,16 +8,105 @@ use crate::cpu_simple_video::{
 };
 use crate::encode::write_rgba_frame_to_encoder;
 use crate::params::{
-    EncodeWriteNativeFrameParams, NativeRenderAudioWaveformSource, NativeRenderSharedFrameParams,
+    EncodeWriteNativeFrameParams, EncodeWriteResidentSceneFrameParams,
+    NativeRenderAudioWaveformSource, NativeRenderSharedFrameParams,
 };
 use crate::rpc::{response_error, RpcResponse};
 use crate::state::BackendState;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use uxfd_native_wgpu_renderer::{
     NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
 };
-use uxfd_rust_core::AudioWaveformSource;
+use uxfd_rust_core::{evaluate_frame, AudioWaveformSource};
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
+
+#[cfg(unix)]
+pub(crate) fn handle_encode_write_resident_scene_frame(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeWriteResidentSceneFrameParams>(params.clone())
+    {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.writeResidentSceneFrame params: {error}"),
+            );
+        }
+    };
+    let Some(scene_session) = state.scene_sessions.get(&parsed.scene_id) else {
+        return response_error(id, -32060, "No resident scene session for export");
+    };
+    if scene_session.revision != parsed.revision {
+        return response_error(
+            id,
+            -32062,
+            "Resident scene export revision does not match the active scene",
+        );
+    }
+
+    let snapshot = evaluate_frame(&scene_session.project, parsed.frame_index);
+    let referenced_media_ids: HashSet<&str> = snapshot
+        .clips
+        .iter()
+        .map(|clip| clip.media_id.as_str())
+        .collect();
+    let media = scene_session
+        .media
+        .iter()
+        .filter(|reference| referenced_media_ids.contains(reference.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let width = scene_session.project.size.width;
+    let height = scene_session.project.size.height;
+    let fps_numerator = u128::from(scene_session.project.fps.numerator.max(1));
+    let timestamp_us = (
+        u128::from(parsed.frame_index)
+            .saturating_mul(u128::from(scene_session.project.fps.denominator))
+            .saturating_mul(1_000_000)
+            / fps_numerator
+    )
+    .min(u128::from(u64::MAX)) as u64;
+
+    let mut native_params = params;
+    let Value::Object(native_object) = &mut native_params else {
+        return response_error(id, -32602, "Resident scene encode params must be an object");
+    };
+    native_object.insert(
+        "renderId".to_string(),
+        Value::String(format!(
+            "resident-{}-{}-{}-{}",
+            parsed.session_id, parsed.scene_id, parsed.revision, parsed.frame_index
+        )),
+    );
+    native_object.insert("timestampUs".to_string(), Value::from(timestamp_us));
+    native_object.insert("width".to_string(), Value::from(width));
+    native_object.insert("height".to_string(), Value::from(height));
+    native_object.insert("snapshot".to_string(), json!(snapshot));
+    native_object.insert("media".to_string(), json!(media));
+    native_object
+        .entry("sources".to_string())
+        .or_insert_with(|| Value::Array(Vec::new()));
+
+    handle_encode_write_native_frame(id, native_params, state)
+}
+
+#[cfg(not(unix))]
+pub(crate) fn handle_encode_write_resident_scene_frame(
+    id: u64,
+    _params: Value,
+    _state: &mut BackendState,
+) -> RpcResponse {
+    response_error(
+        id,
+        -32070,
+        "encode.writeResidentSceneFrame requires POSIX shared memory support",
+    )
+}
 
 #[cfg(unix)]
 pub(crate) fn handle_encode_write_native_frame(

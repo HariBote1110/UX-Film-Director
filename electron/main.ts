@@ -14,6 +14,7 @@ import {
   transcodeRustVideoViaBackend,
   writeRustVideoEncodeFrameViaBackend,
   writeRustVideoEncodeNativeFrameViaBackend,
+  writeRustVideoEncodeResidentSceneFrameViaBackend,
 } from './rustVideoEncodeBackendBridge';
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
 import { createNativeOverlayMainBridge } from './nativeOverlayMainBridge';
@@ -1004,6 +1005,9 @@ app.whenReady().then(() => {
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.writeNativeFrame, async (_event, payload: unknown) =>
     writeRustVideoEncodeNativeFrameViaBackend(payload, callRustBackend)
+  );
+  ipcMain.handle(rustVideoEncodeIpcChannels.writeResidentSceneFrame, async (_event, payload: unknown) =>
+    writeRustVideoEncodeResidentSceneFrameViaBackend(payload, callRustBackend)
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.transcodeVideo, async (_event, payload: unknown) =>
     transcodeRustVideoViaBackend(payload, callRustBackend)

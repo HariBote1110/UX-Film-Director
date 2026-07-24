@@ -52,6 +52,15 @@ pub(crate) struct EncodeWriteNativeFrameParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct EncodeWriteResidentSceneFrameParams {
+    pub(crate) session_id: String,
+    pub(crate) scene_id: String,
+    pub(crate) revision: u64,
+    pub(crate) frame_index: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct EncodeFinishParams {
     pub(crate) session_id: String,
 }

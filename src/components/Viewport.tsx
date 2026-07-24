@@ -55,6 +55,7 @@ import {
 } from '../utils/sharedRendererViewportVideoUpload';
 import type { ProjectExportRustFrameSourceContext } from '../utils/projectExportFrameCanvas';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
+import { createResidentSceneExportFrameSource } from '../utils/residentSceneExportFrameSource';
 import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
 import {
   SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
@@ -2191,27 +2192,48 @@ const Viewport: React.FC = () => {
     return sharedRendererSurfaceCanvasRef.current;
   }, []);
 
-  const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => buildViewportRustExportFrameSource({
-    exportEnabled: sharedRendererExportEnabled,
-    canvas: sharedRendererSurfaceCanvasRef.current,
-    projectSettings,
-    layers,
+  const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => {
+    const canUseResidentScene = (
+      sharedRendererExportEnabled
+      && rustTimelineSceneRpcEnabled
+      && rustTimelineSceneRevision !== null
+      && editorMode === '2d'
+      && context.preferEncodeOnly === true
+      && !context.hasVideoObjects
+      && window.rustVideoEncoder.nativeDirectEncodeEnabled === true
+      && typeof window.rustVideoEncoder.writeResidentSceneEncodeFrame === 'function'
+    );
+    if (canUseResidentScene) {
+      document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
+      return createResidentSceneExportFrameSource({
+        sceneId: 'viewport-rust-timeline',
+        revision: rustTimelineSceneRevision,
+      });
+    }
+    return buildViewportRustExportFrameSource({
+      exportEnabled: sharedRendererExportEnabled,
+      canvas: sharedRendererSurfaceCanvasRef.current,
+      projectSettings,
+      layers,
+      editorMode,
+      webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+      fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
+      videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
+      hasVideoObjects: context.hasVideoObjects,
+      hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
+      objects: context.objects,
+      time: context.time,
+      preferEncodeOnly: context.preferEncodeOnly,
+      presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
+      onFrameSourceUnavailable: context.onFrameSourceUnavailable,
+      diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
+    });
+  }, [
     editorMode,
-    webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
-    fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
-    videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
-    hasVideoObjects: context.hasVideoObjects,
-    hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
-    objects: context.objects,
-    time: context.time,
-    preferEncodeOnly: context.preferEncodeOnly,
-    presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
-    onFrameSourceUnavailable: context.onFrameSourceUnavailable,
-    diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
-  }), [
-    editorMode,
     layers,
     projectSettings,
+    rustTimelineSceneRevision,
+    rustTimelineSceneRpcEnabled,
     sharedRendererExportEnabled,
     sharedRendererGpuStatus.fallbackAdapter,
     sharedRendererGpuStatus.webGpuAvailable,

@@ -200,6 +200,9 @@ contextBridge.exposeInMainWorld('rustVideoEncoder', {
   writeNativeEncodeFrame(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.writeNativeFrame, payload)
   },
+  writeResidentSceneEncodeFrame(payload: unknown) {
+    return ipcRenderer.invoke(rustVideoEncodeIpcChannels.writeResidentSceneFrame, payload)
+  },
   transcodeVideo(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.transcodeVideo, payload)
   },

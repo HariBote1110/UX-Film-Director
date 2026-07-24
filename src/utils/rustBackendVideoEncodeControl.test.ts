@@ -4,6 +4,7 @@ import {
   startRustBackendVideoEncode,
   writeRustBackendVideoEncodeFrame,
   writeRustBackendVideoEncodeNativeFrame,
+  writeResidentSceneEncodeFrame,
   finishRustBackendVideoEncode,
   abortRustBackendVideoEncode,
   type RustBackendVideoEncodeBridge,
@@ -28,6 +29,10 @@ const bridge = (): {
       writeNativeEncodeFrame: async (payload) => {
         calls.push(['writeNativeEncodeFrame', payload]);
         return { success: true, result: { written: true, writtenNativeFrame: true, frameIndex: payload.frameIndex } };
+      },
+      writeResidentSceneEncodeFrame: async (payload) => {
+        calls.push(['writeResidentSceneEncodeFrame', payload]);
+        return { success: true, result: { written: true, frameIndex: payload.frameIndex } };
       },
       finishVideoEncode: async (payload) => {
         calls.push(['finishVideoEncode', payload]);
@@ -203,6 +208,25 @@ describe('rustBackendVideoEncodeControl', () => {
         sessionId: 'encode-1',
       },
     ]]);
+  });
+
+  it('resident scene識別子だけでnative encode frameを書き込む', async () => {
+    const mocked = bridge();
+    const payload = {
+      sessionId: 'encode-1',
+      sceneId: 'export-scene',
+      revision: 9,
+      frameIndex: 42,
+    } as const;
+
+    await writeResidentSceneEncodeFrame(payload, mocked.bridge);
+
+    expect(mocked.calls).toEqual([[
+      'writeResidentSceneEncodeFrame',
+      payload,
+    ]]);
+    expect(JSON.stringify(mocked.calls)).not.toContain('snapshot');
+    expect(JSON.stringify(mocked.calls)).not.toContain('media');
   });
 
   it('aborts the Rust video encode session by session id', async () => {

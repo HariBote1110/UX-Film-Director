@@ -47,6 +47,15 @@ export interface RustBackendVideoEncodeWriteNativeFramePayload {
   audioWaveforms?: readonly RustBackendNativeRenderAudioWaveform[];
 }
 
+export interface RustBackendVideoEncodeWriteResidentSceneFramePayload {
+  sessionId: string;
+  sceneId: string;
+  revision: number;
+  frameIndex: number;
+  sources?: readonly RustBackendNativeRenderSharedFrameSource[];
+  audioWaveforms?: readonly RustBackendNativeRenderAudioWaveform[];
+}
+
 export interface RustBackendVideoTranscodePayload {
   sessionId?: string;
   inputPath: string;
@@ -100,6 +109,9 @@ export interface RustBackendVideoEncodeBridge {
   writeNativeEncodeFrame?: (
     payload: RustBackendVideoEncodeWriteNativeFramePayload
   ) => Promise<RustBackendVideoEncodeResult>;
+  writeResidentSceneEncodeFrame?: (
+    payload: RustBackendVideoEncodeWriteResidentSceneFramePayload
+  ) => Promise<RustBackendVideoEncodeResult>;
   transcodeVideo?: (
     payload: RustBackendVideoTranscodePayload
   ) => Promise<RustBackendVideoEncodeResult>;
@@ -144,6 +156,19 @@ export const writeRustBackendVideoEncodeNativeFrame = (
     });
   }
   return bridge.writeNativeEncodeFrame(payload);
+};
+
+export const writeResidentSceneEncodeFrame = (
+  payload: RustBackendVideoEncodeWriteResidentSceneFramePayload,
+  bridge: RustBackendVideoEncodeBridge = window.rustVideoEncoder
+): Promise<RustBackendVideoEncodeResult> => {
+  if (typeof bridge.writeResidentSceneEncodeFrame !== 'function') {
+    return Promise.resolve({
+      success: false,
+      error: 'Rust backend resident scene video encode frame bridge is unavailable.',
+    });
+  }
+  return bridge.writeResidentSceneEncodeFrame(payload);
 };
 
 export const transcodeRustBackendVideo = (

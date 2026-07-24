@@ -27,6 +27,7 @@ import { resolveVideoExportEncodeSettings } from '../utils/videoExportEncodeSett
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeNativeFramePayloadFrame,
+  RustBackendVideoEncodeResidentSceneFramePayloadFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
 } from '../utils/rustBackendVideoEncodeExport';
 
@@ -346,14 +347,24 @@ export const useProjectExport = (
 
         }
 
-        async function* renderRustEncodeFrames(): AsyncGenerator<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame> {
+        async function* renderRustEncodeFrames(): AsyncGenerator<
+          RustBackendVideoEncodeSharedFramePayloadFrame
+          | RustBackendVideoEncodeNativeFramePayloadFrame
+          | RustBackendVideoEncodeResidentSceneFramePayloadFrame
+        > {
           for await (const frame of renderFrames(true)) {
-            if ('sharedFramePayload' in frame || 'nativeEncodeFramePayload' in frame) {
+            if (
+              'sharedFramePayload' in frame
+              || 'nativeEncodeFramePayload' in frame
+              || 'residentSceneEncodeFramePayload' in frame
+            ) {
               yield frame;
               continue;
             }
             frame.bitmap.close();
-            throw new Error('Rust backend encoder requires shared-frame or native encode payloads from the export frame source.');
+            throw new Error(
+              'Rust backend encoder requires shared-frame, native encode, or resident scene payloads from the export frame source.'
+            );
           }
         }
 

@@ -176,6 +176,14 @@ interface Window {
       media: readonly unknown[];
       sources: readonly unknown[];
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    writeResidentSceneEncodeFrame?: (payload: {
+      sessionId: string;
+      sceneId: string;
+      revision: number;
+      frameIndex: number;
+      sources?: readonly unknown[];
+      audioWaveforms?: readonly unknown[];
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     transcodeVideo?: (payload: {
       sessionId?: string;
       inputPath: string;

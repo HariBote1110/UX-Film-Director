@@ -55,6 +55,12 @@ export const writeRustVideoEncodeNativeFrameViaBackend = (
 ): Promise<RustVideoEncodeBackendBridgeResult> =>
   callRustVideoEncodeRpc('encode.writeNativeFrame', payload, callRustBackend, WRITE_NATIVE_FRAME_TIMEOUT_MS);
 
+export const writeRustVideoEncodeResidentSceneFrameViaBackend = (
+  payload: unknown,
+  callRustBackend: RustBackendCaller
+): Promise<RustVideoEncodeBackendBridgeResult> =>
+  callRustVideoEncodeRpc('encode.writeResidentSceneFrame', payload, callRustBackend, WRITE_NATIVE_FRAME_TIMEOUT_MS);
+
 export const transcodeRustVideoViaBackend = (
   payload: unknown,
   callRustBackend: RustBackendCaller

@@ -10,7 +10,10 @@ use crate::media::{
     handle_audio_waveform_samples, handle_media_probe, handle_psd_await_blob, handle_psd_parse,
     handle_psd_render_composite,
 };
-use crate::native_render::{handle_encode_write_native_frame, handle_native_render_shared_frame};
+use crate::native_render::{
+    handle_encode_write_native_frame, handle_encode_write_resident_scene_frame,
+    handle_native_render_shared_frame,
+};
 use crate::native_shared::handle_release_native_render_shared_frame;
 use crate::proxy::handle_proxy_generate;
 use crate::rpc::{HealthResult, RpcError, RpcRequest, RpcResponse};
@@ -62,6 +65,9 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
         "encode.writeNativeFrame" => {
             handle_encode_write_native_frame(request.id, request.params, state)
+        }
+        "encode.writeResidentSceneFrame" => {
+            handle_encode_write_resident_scene_frame(request.id, request.params, state)
         }
         "encode.transcodeVideo" => handle_encode_transcode_video(request.id, request.params, state),
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
@@ -178,6 +184,38 @@ mod tests {
         assert_eq!(result["canvas"]["height"], 1080);
         assert_eq!(result["snapshot"]["clips"][0]["clip_id"], "clip-1");
         assert_eq!(result["media"][0]["source"], "#112233");
+    }
+
+    #[test]
+    fn resident_scene_encode_evaluates_without_receiving_a_snapshot() {
+        let mut state = BackendState::default();
+        assert!(
+            handle_request(
+                request(1, "scene.replace", replace_params("export-scene", 4, "#112233")),
+                &mut state,
+            )
+            .ok
+        );
+
+        let response = handle_request(
+            request(
+                2,
+                "encode.writeResidentSceneFrame",
+                json!({
+                    "sessionId": "missing-encode-session",
+                    "sceneId": "export-scene",
+                    "revision": 4,
+                    "frameIndex": 12
+                }),
+            ),
+            &mut state,
+        );
+
+        assert!(!response.ok);
+        assert_eq!(
+            response.error.expect("missing encode session error").code,
+            -32052
+        );
     }
 
     #[test]
