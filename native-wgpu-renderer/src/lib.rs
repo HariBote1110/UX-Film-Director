@@ -29,6 +29,7 @@ mod metal_encode_target;
 mod metal_encode_target;
 mod nv12;
 mod particle;
+mod simple_tube;
 pub use audio_reactive::NativeAudioReactiveSource;
 pub use getcolor::NativeGetColorSource;
 pub use hksy::NativeHksySource;
@@ -36,6 +37,7 @@ pub use nv12::{
     Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
 };
 pub use particle::NativeParticleSource;
+pub use simple_tube::NativeSimpleTubeSource;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const OUTPUT_BYTES_PER_PIXEL: u32 = 4;
@@ -91,6 +93,7 @@ pub enum NativeWgpuRenderError {
     AudioWaveform(AudioWaveformSceneError),
     GetColor(String),
     Hksy(String),
+    SimpleTube(String),
     BufferMap,
     InvalidFrame(RgbaFrameError),
     /// NV12 IOSurface import は macOS(Metal) 専用。他プラットフォームでは
@@ -240,6 +243,7 @@ pub struct NativeWgpuRenderer {
     audio_reactive_renderer: audio_reactive::AudioReactiveGpuRenderer,
     getcolor_renderer: getcolor::GetColorGpuRenderer,
     hksy_renderer: hksy::HksyGpuRenderer,
+    simple_tube_renderer: simple_tube::SimpleTubeGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -405,6 +409,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
+        let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -431,6 +436,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             audio_reactive_renderer,
             getcolor_renderer,
             hksy_renderer,
+            simple_tube_renderer,
         };
 
         Ok(Self {
@@ -595,6 +601,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         getcolor_sources: &HashMap<String, NativeGetColorSource>,
         hksy_sources: &HashMap<String, NativeHksySource>,
+        simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -608,6 +615,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 audio_reactive_sources,
                 getcolor_sources,
                 hksy_sources,
+                simple_tube_sources,
                 false,
                 content_revisions,
             )?;
@@ -937,6 +945,7 @@ impl NativeWgpuRenderer {
         let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
+        let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -964,6 +973,7 @@ impl NativeWgpuRenderer {
             audio_reactive_renderer,
             getcolor_renderer,
             hksy_renderer,
+            simple_tube_renderer,
         })
     }
 
@@ -1067,6 +1077,7 @@ impl NativeWgpuRenderer {
             nv12_sources,
             &HashMap::new(),
             audio_reactive_sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             true,
@@ -1238,6 +1249,7 @@ impl NativeWgpuRenderer {
             audio_reactive_sources,
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1369,6 +1381,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1383,6 +1396,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1413,6 +1427,7 @@ impl NativeWgpuRenderer {
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         getcolor_sources: &HashMap<String, NativeGetColorSource>,
         hksy_sources: &HashMap<String, NativeHksySource>,
+        simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1426,6 +1441,7 @@ impl NativeWgpuRenderer {
         let mut touched_audio_reactive_media_ids: HashSet<String> = HashSet::new();
         let mut touched_getcolor_media_ids: HashSet<String> = HashSet::new();
         let mut touched_hksy_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_simple_tube_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1504,6 +1520,26 @@ impl NativeWgpuRenderer {
                 continue;
             }
 
+            if let Some(simple_tube_source) = simple_tube_sources.get(&clip.media_id) {
+                touched_simple_tube_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .simple_tube_renderer
+                    .prepare(
+                        &self.device,
+                        &self.queue,
+                        &clip.media_id,
+                        simple_tube_source,
+                    )
+                    .map_err(NativeWgpuRenderError::SimpleTube)?;
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
+                continue;
+            }
+
             let source = sources.get(&clip.media_id).ok_or_else(|| {
                 NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
@@ -1539,6 +1575,8 @@ impl NativeWgpuRenderer {
         self.getcolor_renderer
             .finish_frame(&touched_getcolor_media_ids);
         self.hksy_renderer.finish_frame(&touched_hksy_media_ids);
+        self.simple_tube_renderer
+            .finish_frame(&touched_simple_tube_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -3801,6 +3839,7 @@ mod tests {
                         &HashMap::new(),
                         &HashMap::new(),
                         &HashMap::new(),
+                        &HashMap::new(),
                         true,
                         &HashMap::new(),
                     )
@@ -3899,6 +3938,7 @@ mod tests {
                     &audio_sources,
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -3969,8 +4009,7 @@ mod tests {
             2,
             2,
             vec![
-                255, 0, 0, 255, 0, 255, 0, 255,
-                0, 0, 255, 255, 255, 255, 255, 255,
+                255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
             ],
         )
         .expect("valid GetColor sample frame");
@@ -3993,6 +4032,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &getcolor_sources,
+                    &HashMap::new(),
                     &HashMap::new(),
                     true,
                     &HashMap::new(),
@@ -4017,9 +4057,10 @@ mod tests {
         let first = render(&renderer);
         let second = render(&renderer);
         assert!(
-            first.pixels.chunks_exact(4).any(|pixel| {
-                pixel[3] > 0 && (pixel[0] > 0 || pixel[1] > 0 || pixel[2] > 0)
-            }),
+            first
+                .pixels
+                .chunks_exact(4)
+                .any(|pixel| { pixel[3] > 0 && (pixel[0] > 0 || pixel[1] > 0 || pixel[2] > 0) }),
             "GPU GetColor pass must produce sampled coloured dots"
         );
         assert_eq!(first.pixels, second.pixels);
@@ -4078,6 +4119,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &hksy_sources,
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4146,8 +4188,7 @@ mod tests {
         };
         let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
         let render = |source: NativeHksySource| {
-            let hksy_sources =
-                HashMap::from([("hksy-specialised-media".to_string(), source)]);
+            let hksy_sources = HashMap::from([("hksy-specialised-media".to_string(), source)]);
             let (prepared, _) = renderer
                 .prepare_scene_clips_with_upload_fence(
                     &snapshot,
@@ -4157,6 +4198,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &hksy_sources,
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4248,8 +4290,7 @@ mod tests {
             height: 48,
             config_revision: 11,
         };
-        let simple_tube_sources =
-            HashMap::from([("simple-tube-media".to_string(), source)]);
+        let simple_tube_sources = HashMap::from([("simple-tube-media".to_string(), source)]);
         let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
 
         let render = |renderer: &NativeWgpuRenderer| {
@@ -4305,6 +4346,80 @@ mod tests {
             (0, 0),
             "GPU SimpleTube output must never enter the CPU RGBA upload cache"
         );
+    }
+
+    #[test]
+    fn simple_tube_gpu_source_supports_torus_mode() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 48)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU SimpleTube torus test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "simple-torus-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "simple-torus-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let simple_tube_sources = HashMap::from([(
+            "simple-torus-media".to_string(),
+            NativeSimpleTubeSource {
+                source: r##"{"generator":"simple-tube-93","radius":28,"depth":32,"segments":16,"rings":8,"twist_degrees":30,"random_amount":0,"stroke_width":2,"colour":"#ff0000","secondary_colour":"#00ff00","colour_pattern":"ring","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":true}"##.to_string(),
+                width: 64,
+                height: 48,
+                config_revision: 12,
+            },
+        )]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let (prepared, _) = renderer
+            .prepare_scene_clips_with_upload_fence(
+                &snapshot,
+                &rgba_sources,
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+                &HashMap::new(),
+                &simple_tube_sources,
+                true,
+                &HashMap::new(),
+            )
+            .expect("SimpleTube torus preparation must succeed");
+        let mut encoder = renderer
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("UXFD SimpleTube torus test composite encoder"),
+            });
+        let output_view = renderer
+            .output_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+        renderer.queue.submit(Some(encoder.finish()));
+        let frame = renderer
+            .read_output_texture_to_rgba8()
+            .expect("SimpleTube torus output readback must succeed");
+
+        assert!(frame.pixels.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(frame
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[0] > 200 && pixel[3] > 0));
+        assert!(frame
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[1] > 200 && pixel[3] > 0));
+        assert_eq!(renderer.simple_tube_renderer.stats(), (1, 1));
     }
 
     #[test]
