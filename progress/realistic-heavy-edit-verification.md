@@ -92,13 +92,15 @@ CLIは独立したViteポート、Electronプロファイル、CDP接続を用�
 対応済み部分では360回スクラブ、複製・Undo/Redo、保存JSONのフィンガープリント一致、
 1920×1080・2.24秒・134フレームの書き出しまで成立した。再生中の瞬間サンプルは
 Electronメイン約25～29%、Renderer約36～37%、Rust backend 0%で、初回測定より
-低下した。ただし現在の総合判定は意図どおりFAILである。resident V1が次を明示拒否
-しており、Chromium旧描画へ黙って戻さないためである。
+低下した。その後、RegionFrame、通常音声の非描画分離、静的filter、描画へ影響しない
+groupIdをresidentへ移した。GetColorの重量シナリオも、未対応のshape参照ではなく
+実在するローカル画像をサンプル元へ接続した。短時間再検証では初期25件の拒否が
+次の6件まで減り、`MissingSource`、WGPU validation error、未処理例外はすべて0件だった。
 
-- SpotLight以外のfilter
-- subject crop
-- 音声、group control、RegionFrame、AudioSphere
-- groupIdを持つオブジェクト
+- subject crop 1件
+- 時刻依存Wipe 1件
+- group control 1件
+- AudioSphere 3件
 
 拒否内容は`result.json`の`rustTimelineStatus`と`rustTimelineDetail`へ残る。
 したがって、このシナリオの総合PASSをresident移行完了の出口条件として使える。

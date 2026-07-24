@@ -90,16 +90,18 @@ GPUオフロードはまだ完了していない。
 - ParticleはGPU instance描画済みであり、CPU RGBA source生成・uploadを行わない。
 - 動画はVideoToolboxのNV12 IOSurfaceをNative Overlayへ直接import済みであり、
   このdirect present経路ではRGBA shared frameを経由しない。
-- 音声波形のPCM windowは再生時刻を起点に取得するよう修正済みだが、波形そのものを
-  Native Overlayのresident GPU sourceとして生成・合成する経路は未実装である。
-  そのため音声波形・音声球を含むsceneはdirect presentの適格対象外に保つ。
+- 音声波形はPCM windowをWGPU storage bufferへ送り、GPU上でsource textureを
+  生成する。texture/storage bufferはmedia単位で再利用し、CPU RGBA upload cacheを
+  通らない。export/readback/共有リング/BGRA IOSurface経路の同一合成へ接続済みである。
+  ただしresident ProjectからNative OverlayへPCM windowを渡す入口は未実装のため、
+  音声波形・音声球を含むsceneはdirect presentの適格対象外に保つ。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. 音声波形・音声球をresident GPU source化し、PCM windowからdirect presentまでを
-   Chromiumを介さずに接続する。
+1. resident Projectの音声波形PCM入口をNative Overlayへ接続し、音声球もGPU
+   source化してdirect presentまでChromiumを介さずに接続する。
 2. GetColor、HKSY、SimpleTubeなどCPUラスタライズの生成sourceをcompute shaderへ
    移し、revision変更時のCPU処理も削減する。
 3. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
