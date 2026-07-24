@@ -1657,6 +1657,154 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset.uxfdSharedRendererPresenterFailureReason).toBe('videoTextureViewUnavailable');
   });
 
+  // export完了直後に作り直された外部動画要素はreadyState=0で起動時のpresent対象に
+  // 渡ってくることがある。これはreuse tick経路で扱っている一時的な未readyと同じ
+  // videoTextureViewUnavailableであり、presenterを破棄せず維持して復帰を待つべき、
+  // という起動時経路の契約を確認する3ケース。
+  it('非厳格モードでは起動時の一時的な外部動画未readyでもpresenterを破棄せず維持する', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      // 'video-1' 用のソースは登録されているが値がまだ無い
+      // (= export直後に作り直された動画要素がreadyState=0の一時的な未ready状態)。
+      // これにより起動時の presentExternalVideoFrameScene 呼び出しが
+      // videoTextureViewUnavailable を返す。
+      sharedRendererExternalVideoSourcesByClipId: new Map([['video-1', undefined]]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({}),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    // presenterは破棄されず、通常どおりready状態のpresenter controlが返る。
+    expect(control).toMatchObject({ ok: true });
+    // fallback確定(uxfdSharedRendererPresenterFailureReasonの書き込み)はされず、
+    // reuse経路と同じtransient skipカウンタのみが記録される。
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('ready');
+    expect(dataset.uxfdSharedRendererPresenterFailureReason).toBeUndefined();
+    expect(dataset.uxfdSharedRendererPresenterTransientSkips).toBe('1');
+    expect(dataset.uxfdSharedRendererPresenterLastTransientSkipReason).toBe('videoTextureViewUnavailable');
+  });
+
+  it('厳格モード(requireSharedRendererOutput)では起動時のvideoTextureViewUnavailableで従来どおりblockする', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      requireSharedRendererOutput: true,
+      sharedRendererExternalVideoSourcesByClipId: new Map([['video-1', undefined]]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({}),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({ ok: false, reason: 'videoTextureViewUnavailable' });
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('blocked');
+    expect(dataset.uxfdSharedRendererPresenterFailureReason).toBe('videoTextureViewUnavailable');
+  });
+
+  it('非厳格モードでもtransientでない起動時失敗(webGpuDrawUnavailable)は従来どおりfallbackにする', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererExternalVideoSourcesByClipId: new Map([['video-1', { tagName: 'VIDEO' }]]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          // createSamplerを露出しないWebGPUデバイスを模擬し、
+          // transientではないwebGpuDrawUnavailableを起動時に発生させる。
+          device: fakeDevice({ exposeCreateSampler: false }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({ ok: false, reason: 'webGpuDrawUnavailable' });
+    expect(dataset.uxfdSharedRendererPresenterStatus).toBe('fallback');
+    expect(dataset.uxfdSharedRendererPresenterFailureReason).toBe('webGpuDrawUnavailable');
+  });
+
   it('does not claim multi-video ownership from a legacy single decoded upload without clip scope', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
