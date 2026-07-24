@@ -4065,6 +4065,76 @@ mod tests {
     }
 
     #[test]
+    fn audio_sphere_source_is_rasterised_on_gpu_and_reuses_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 64)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU audio sphere test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "audio-sphere-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "audio-sphere-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let waveform = NativeAudioWaveformInput {
+            media_id: "audio-sphere-media".to_string(),
+            source: AudioWaveformSource::from_json(
+                r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"colour":"#36c2ff","columns":8,"rows":6,"base_radius":22,"audio_influence":0.6,"point_size":2,"polygon_size":0.35,"random_amount":0.05,"seed":93}"##,
+            )
+            .expect("valid audio sphere source"),
+            samples: vec![0.8; 64],
+            sample_rate: 64,
+            width: 64,
+            height: 64,
+        };
+
+        let first = pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+            &snapshot,
+            &HashMap::new(),
+            std::slice::from_ref(&waveform),
+            &HashMap::new(),
+            &HashMap::new(),
+        ))
+        .expect("first audio sphere frame must render");
+        let second = pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+            &snapshot,
+            &HashMap::new(),
+            &[waveform],
+            &HashMap::new(),
+            &HashMap::new(),
+        ))
+        .expect("second audio sphere frame must render");
+
+        assert!(
+            first.frame.pixels.chunks_exact(4).any(|pixel| pixel[3] > 0),
+            "GPU audio sphere pass must produce visible pixels"
+        );
+        assert_eq!(first.frame.pixels, second.frame.pixels);
+        assert_eq!(
+            renderer.audio_reactive_renderer.stats(),
+            (1, 2),
+            "two PCM windows must reuse one GPU texture and run two source passes"
+        );
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 0),
+            "GPU audio spheres must never enter the CPU RGBA upload cache"
+        );
+    }
+
+    #[test]
     fn audio_waveform_gpu_source_rejects_invalid_dimensions_before_texture_creation() {
         let snapshot = SceneSnapshot {
             frame_index: 0,
