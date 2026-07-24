@@ -4003,6 +4003,65 @@ mod tests {
     }
 
     #[test]
+    fn direct_shaking_polygon_scene_uses_gpu_descriptor_for_each_source_frame() {
+        let build_scene = |source_frame| NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: source_frame,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "shaking-polygon-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "shaking-polygon-media".to_string(),
+                    source_frame,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "shaking-polygon-media".to_string(),
+                kind: "GeneratedShakingPolygon".to_string(),
+                source: r##"{"generator":"shaking-polygon","line_width":3,"vertex_count":5,"fixed_diameter":36,"vertical_distortion_percent":10,"repeat_count":3,"repeat_frequency":2,"fill":true,"jitter_range":4,"jitter_interval":2,"stepped":false,"colour":"#ff8000","seed":93}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 48,
+        };
+        let first_scene = build_scene(0);
+        let next_scene = build_scene(1);
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&first_scene, &mut cache, true)
+                .expect("direct ShakingPolygon source resolution must succeed");
+        assert!(
+            direct_rgba.is_empty(),
+            "direct ShakingPolygon scene must not allocate a completed CPU RGBA source"
+        );
+        assert_eq!(cache.stats(), (0, 0));
+
+        let first = native_overlay_shaking_polygon_sources_for_scene(&first_scene)
+            .expect("first ShakingPolygon descriptor resolution succeeds");
+        let next = native_overlay_shaking_polygon_sources_for_scene(&next_scene)
+            .expect("next ShakingPolygon descriptor resolution succeeds");
+        let first = first
+            .get("shaking-polygon-media")
+            .expect("first descriptor");
+        let next = next
+            .get("shaking-polygon-media")
+            .expect("next descriptor");
+        assert_eq!(first.source_frame, 0);
+        assert_eq!(next.source_frame, 1);
+        assert_ne!(
+            first.config_revision, next.config_revision,
+            "animated source frames must regenerate the GPU source texture"
+        );
+    }
+
+    #[test]
     fn direct_particle_scene_uses_gpu_descriptor_instead_of_cpu_rgba_frame() {
         let build_scene = |source_frame| {
             NativeOverlaySceneSource {
