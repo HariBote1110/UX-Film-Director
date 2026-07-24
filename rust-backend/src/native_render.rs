@@ -747,6 +747,13 @@ mod tests {
     }
 
     #[test]
+    fn native_render_allows_an_empty_snapshot_as_a_transparent_frame() {
+        assert!(native_render_has_valid_input(0, 0, 0, 0));
+        assert!(!native_render_has_valid_input(1, 0, 0, 0));
+        assert!(native_render_has_valid_input(1, 0, 0, 1));
+    }
+
+    #[test]
     fn get_or_create_native_wgpu_renderer_resizes_in_place_and_reports_new_dimensions() {
         // タスク4: 出力サイズが変わっただけならレンダラごと破棄・再構築せず、
         // `resize_output` 経由で出力サイズ依存リソースだけを作り直すこと。
