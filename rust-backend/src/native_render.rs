@@ -208,7 +208,12 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.sources,
         &state.decode_sessions,
     ));
-    if sources.is_empty() && audio_waveforms.is_empty() && nv12_sources.is_empty() {
+    if !native_render_has_valid_input(
+        parsed.snapshot.clips.len(),
+        sources.len(),
+        audio_waveforms.len(),
+        nv12_sources.len(),
+    ) {
         return response_error(
             id,
             -32602,
@@ -399,14 +404,6 @@ pub(crate) fn handle_native_render_shared_frame(
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
     };
-    if sources.is_empty() && audio_waveforms.is_empty() {
-        return response_error(
-            id,
-            -32602,
-            "sources, Image media, SolidColour media, or audioWaveforms must include at least one render source",
-        );
-    }
-
     // Phase 4c Stage 2: computed up front (before the CPU fast path below)
     // because that fast path must be skipped whenever a zero-copy NV12
     // source is available -- it operates purely on the CPU RGBA bridge
@@ -419,6 +416,18 @@ pub(crate) fn handle_native_render_shared_frame(
     // there instead is a strict improvement, not a regression for the CPU
     // fast path's original purpose.
     let nv12_sources = collect_native_render_nv12_sources(&parsed.sources, &state.decode_sessions);
+    if !native_render_has_valid_input(
+        parsed.snapshot.clips.len(),
+        sources.len(),
+        audio_waveforms.len(),
+        nv12_sources.len(),
+    ) {
+        return response_error(
+            id,
+            -32602,
+            "sources, media, audioWaveforms, or NV12 decode sessions must include every active clip",
+        );
+    }
 
     if audio_waveforms.is_empty() && nv12_sources.is_empty() {
         match try_render_simple_video_frame_to_shared_ring(
@@ -600,6 +609,18 @@ fn validate_resident_video_source_frames(
         }
     }
     Ok(())
+}
+
+fn native_render_has_valid_input(
+    active_clip_count: usize,
+    source_count: usize,
+    audio_waveform_count: usize,
+    nv12_source_count: usize,
+) -> bool {
+    active_clip_count == 0
+        || source_count > 0
+        || audio_waveform_count > 0
+        || nv12_source_count > 0
 }
 
 #[cfg(target_os = "macos")]
