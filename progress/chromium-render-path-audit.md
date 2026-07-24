@@ -37,6 +37,17 @@
 GPU source化済み（Beta-473a）にもかかわらず、これだけで構成されたプロジェクトは
 export時にlegacy canvas経路へ落ちうる。
 
+### 対応（Beta-480a）
+
+`hasProjectExportNativeRenderMediaObjects` を手書きOR式のまま個別修正するのではなく、
+Rust/native側の対応object typeを唯一管理している `rustSceneSnapshot.ts` の
+`isSupportedSceneObject` を `export` し、そこから導出する形へ書き換えた
+（`object.type !== 'text'` のみ追加条件。text はPixiの標準テキスト描画がlegacy canvas
+captureでも正しく動作するため意図的に対象外）。これにより `shattered_sphere` に加えて
+同様に漏れていた `plain_effector_line` も一括で解消し、以後同種の判定漏れは
+`isSupportedSceneObject` 側の更新だけで自動的に追従する。契約テストは
+`src/utils/projectExportFrameCanvas.test.ts` にSSOT総当たりの形で追加済み。
+
 ## 制約・注意点
 
 - 監査5項目の外に、ユーザー操作によるフレームスナップショット保存
