@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use std::process::Command;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_macos_video_encode::VideoEncodeSession;
-use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
+use uxfd_native_wgpu_renderer::{
+    BgraIoSurfaceTarget, NativeWgpuRenderError, NativeWgpuRenderer,
+};
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
 
 #[test]
@@ -58,7 +60,11 @@ fn encodes_gpu_rendered_iosurface_frames_as_h264_without_rgba_readback() {
             &sources,
             &HashMap::new(),
             &HashMap::new(),
-            frame.iosurface_target(),
+            BgraIoSurfaceTarget {
+                surface_id: frame.surface_id(),
+                width: frame.width(),
+                height: frame.height(),
+            },
         ))
         .expect("GPU renders into encoder frame");
         assert_eq!(timings.readback_encode, std::time::Duration::ZERO);
