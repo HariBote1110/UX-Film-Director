@@ -27,7 +27,16 @@ struct AudioReactiveUniform {
     sample_step: u32,
     amplitude: f32,
     thickness: f32,
-    _padding: [f32; 2],
+    mode: u32,
+    columns: u32,
+    rows: u32,
+    sample_window_len: u32,
+    audio_influence: f32,
+    point_size: f32,
+    random_amount: f32,
+    _padding: f32,
+    seed: u32,
+    _seed_padding: [u32; 5],
     colour: [f32; 4],
 }
 
@@ -197,17 +206,28 @@ impl AudioReactiveGpuRenderer {
         entry.idle_frames = 0;
         let samples = padded_samples(&source.samples, entry.sample_capacity);
         queue.write_buffer(&entry.sample_buffer, 0, bytemuck::cast_slice(&samples));
+        let is_audio_sphere = source.source.generator == "audio-sphere-93";
+        let columns = source.source.columns.unwrap_or(16).clamp(2, 64);
+        let rows = source.source.rows.unwrap_or(12).clamp(2, 64);
+        let sample_window_len = (source.source.sample_window_seconds * source.sample_rate as f32)
+            .floor()
+            .max(1.0) as u32;
         let uniform = AudioReactiveUniform {
             dimensions: [source.width as f32, source.height as f32],
             sample_len: source.samples.len().max(1) as u32,
-            sample_step: ((source.source.sample_window_seconds * source.sample_rate as f32)
-                .floor()
-                .max(1.0) as u32
-                / source.width.max(1))
-            .max(1),
+            sample_step: (sample_window_len / source.width.max(1)).max(1),
             amplitude: source.source.amplitude.unwrap_or(1.0),
             thickness: source.source.thickness.unwrap_or(1.0),
-            _padding: [0.0; 2],
+            mode: u32::from(is_audio_sphere),
+            columns,
+            rows,
+            sample_window_len,
+            audio_influence: source.source.audio_influence.unwrap_or(0.6).max(0.0),
+            point_size: source.source.point_size.unwrap_or(5.0).max(0.0),
+            random_amount: source.source.random_amount.unwrap_or(0.05).max(0.0),
+            _padding: 0.0,
+            seed: source.source.seed.unwrap_or(93) as u32,
+            _seed_padding: [0; 5],
             colour: parse_colour(&source.source.colour),
         };
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -252,7 +272,12 @@ impl AudioReactiveGpuRenderer {
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &bind_group, &[]);
-            pass.draw(0..6, 0..source.width.max(1));
+            let instance_count = if is_audio_sphere {
+                columns.saturating_mul(rows)
+            } else {
+                source.width.max(1)
+            };
+            pass.draw(0..6, 0..instance_count);
         }
         queue.submit(Some(encoder.finish()));
         #[cfg(test)]
