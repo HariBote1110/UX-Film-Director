@@ -50,5 +50,6 @@ CDP診断を併用して次を確認した。
 この段階でChromiumから除去できたのは、対応V1シーンの毎tick可視判定・
 位置keyframe評価・clip snapshot再構築・media JSON再構築である。GPU描画後の
 全画面転送除去は既存CAMetalLayer直描画が担う。GetColor、HKSY、
-SimpleTubeのCPUラスタライズもRust側で行う。一方、静的生成結果のrevision
-キャッシュと複数動画/NV12の直結は引き続き次段階の対象である。
+SimpleTubeのCPUラスタライズもRust側で行い、静的生成結果はCPU/GPU双方で
+revisionキャッシュする。一方、Chromiumの60 fps時刻更新・IPC要求発行と、
+複数動画/NV12の直結は引き続き次段階の対象である。
