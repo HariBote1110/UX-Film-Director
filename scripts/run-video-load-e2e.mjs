@@ -17,6 +17,8 @@ const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
 const RESULT_SCREENSHOT = resolve(OUTPUT_DIR, 'shared-renderer-surface.png');
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS ?? 90_000);
 const EXPECT_EXTERNAL_TEXTURE = process.env.UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE === '1';
+const EXPECT_RUST_NATIVE_PLAYBACK =
+  process.env.UXFD_VIDEO_LOAD_E2E_EXPECT_RUST_NATIVE_PLAYBACK === '1';
 
 let vite = null;
 let electron = null;
@@ -496,9 +498,23 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         externalVideoMaxAbsDriftMs: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoMaxAbsDriftMs ?? NaN),
         presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
         presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
+        rustPlaybackStatus: document.documentElement.dataset.uxfdRustPlaybackStatus,
+        rustPlaybackDetail: document.documentElement.dataset.uxfdRustPlaybackDetail,
+        rustPlaybackClockOwner: document.documentElement.dataset.uxfdRustPlaybackClockOwner,
+        rustPlaybackFrame: Number(document.documentElement.dataset.uxfdRustPlaybackFrame ?? NaN),
+        rustPlaybackPresented: Number(document.documentElement.dataset.uxfdRustPlaybackPresented ?? NaN),
+        rustPlaybackFailed: Number(document.documentElement.dataset.uxfdRustPlaybackFailed ?? NaN),
       };
-      if (
-        state.ok
+      const nativePlaybackReady = ${JSON.stringify(EXPECT_RUST_NATIVE_PLAYBACK)}
+        && state.rustPlaybackStatus === 'playing'
+        && state.rustPlaybackClockOwner === 'main'
+        && Number.isFinite(state.rustPlaybackFrame)
+        && typeof initialSourceFrame === 'number'
+        && state.rustPlaybackFrame > initialSourceFrame + 180
+        && state.rustPlaybackPresented > 180
+        && state.rustPlaybackFailed === 0;
+      const legacyPlaybackReady = !${JSON.stringify(EXPECT_RUST_NATIVE_PLAYBACK)}
+        && state.ok
         && Number.isFinite(state.presentedSourceFrame)
         && typeof initialSourceFrame === 'number'
         && state.presentedSourceFrame > initialSourceFrame + 180
@@ -509,7 +525,9 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
           ${JSON.stringify(EXPECT_EXTERNAL_TEXTURE)}
           ? state.videoPresentationSource === 'external-video-source'
           : true
-        )
+        );
+      if (
+        nativePlaybackReady || legacyPlaybackReady
       ) {
         resolve({ ok: true, state });
         return;
@@ -541,16 +559,28 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
         externalVideoMaxAbsDriftMs: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoMaxAbsDriftMs ?? NaN),
         presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
         presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
+        rustPlaybackStatus: document.documentElement.dataset.uxfdRustPlaybackStatus,
+        rustPlaybackClockOwner: document.documentElement.dataset.uxfdRustPlaybackClockOwner,
+        rustPlaybackFrame: Number(document.documentElement.dataset.uxfdRustPlaybackFrame ?? NaN),
+        rustPlaybackPresented: Number(document.documentElement.dataset.uxfdRustPlaybackPresented ?? NaN),
+        rustPlaybackFailed: Number(document.documentElement.dataset.uxfdRustPlaybackFailed ?? NaN),
       };
       samples.push(sample);
       if (Date.now() - started >= 5000) {
         const presentedFrames = samples
-          .map((entry) => entry.presentedSourceFrame)
+          .map((entry) => (
+            ${JSON.stringify(EXPECT_RUST_NATIVE_PLAYBACK)}
+              ? entry.rustPlaybackFrame
+              : entry.presentedSourceFrame
+          ))
           .filter((value) => Number.isFinite(value));
         const uniquePresentedFrames = [...new Set(presentedFrames)];
         const firstPresentedFrame = uniquePresentedFrames[0] ?? null;
         const lastPresentedFrame = uniquePresentedFrames[uniquePresentedFrames.length - 1] ?? null;
         const blockedSampleCount = samples.filter((entry) => entry.presenterStatus === 'blocked').length;
+        const nativeFailureSampleCount = samples.filter((entry) => (
+          Number.isFinite(entry.rustPlaybackFailed) && entry.rustPlaybackFailed > 0
+        )).length;
         const externalTextureSampleCount = samples.filter((entry) => (
           entry.videoPresentationSource === 'external-video-source'
         )).length;
@@ -562,6 +592,13 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
           ok: uniquePresentedFrames.length >= 8
             && span >= 60
             && blockedSampleCount <= 1
+            && nativeFailureSampleCount === 0
+            && (
+              ${JSON.stringify(EXPECT_RUST_NATIVE_PLAYBACK)}
+              ? samples.filter((entry) => entry.rustPlaybackClockOwner === 'main').length
+                >= Math.max(1, samples.length - 1)
+              : true
+            )
             && (
               ${JSON.stringify(EXPECT_EXTERNAL_TEXTURE)}
               ? externalTextureSampleCount >= Math.max(1, samples.length - 1)
@@ -573,6 +610,7 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
           lastPresentedFrame,
           presentedFrameSpan: span,
           blockedSampleCount,
+          nativeFailureSampleCount,
           externalTextureSampleCount,
           presenterStartCount: Number.isFinite(lastSample.presenterStartCount)
             ? lastSample.presenterStartCount
@@ -759,6 +797,12 @@ const main = async () => {
   const playbackVisualDelta = visualResult?.frame && playbackVisualResult?.frame
     ? compareRgbaFrames(visualResult.frame, playbackVisualResult.frame)
     : undefined;
+  // CAMetalLayer child NSWindow は Chromium の Page.captureScreenshot 対象外。
+  // native playback 中は Chromium surface が不変であることを、renderer 側で
+  // per-frame描画を続けていない負の証拠として扱う。
+  const playbackSurfaceIsolationOk = EXPECT_RUST_NATIVE_PLAYBACK
+    ? playbackVisualDelta?.meanAbsoluteDelta === 0
+    : playbackVisualDelta?.ok;
   const playbackSmoothnessResult = playbackAdvanceResult?.ok
     ? await samplePlaybackPresentationSmoothness(client)
     : undefined;
@@ -777,7 +821,7 @@ const main = async () => {
       && visualResult?.ok
       && playbackAdvanceResult?.ok
       && playbackVisualResult?.ok
-      && playbackVisualDelta?.ok
+      && playbackSurfaceIsolationOk
       && playbackSmoothnessResult?.ok
       && blockingDiagnostics.length === 0
     ),
@@ -789,6 +833,7 @@ const main = async () => {
     playbackAdvanceResult,
     playbackVisualResult: serialiseSurfaceResult(playbackVisualResult),
     playbackVisualDelta,
+    playbackSurfaceIsolationOk,
     playbackSmoothnessResult,
     consoleLines,
     runtimeErrors,
