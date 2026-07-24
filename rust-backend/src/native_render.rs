@@ -984,6 +984,50 @@ mod tests {
     }
 
     #[test]
+    fn shaking_polygon_is_collected_as_animated_gpu_descriptor_without_cpu_rgba() {
+        let build_snapshot = |source_frame| uxfd_rust_core::SceneSnapshot {
+            frame_index: source_frame,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "shaking-polygon-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "shaking-polygon-media".to_string(),
+                source_frame,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let media = vec![uxfd_rust_core::SceneMediaReference {
+            id: "shaking-polygon-media".to_string(),
+            kind: uxfd_rust_core::MediaKind::GeneratedShakingPolygon,
+            source: r##"{"generator":"shaking-polygon","line_width":3,"vertex_count":5,"fixed_diameter":36,"vertical_distortion_percent":10,"repeat_count":3,"repeat_frequency":2,"fill":true,"jitter_range":4,"jitter_interval":2,"stepped":false,"colour":"#ff8000","seed":93}"##.to_string(),
+            width: 64,
+            height: 48,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }];
+
+        let first = collect_native_render_shaking_polygon_sources(&build_snapshot(0), &media)
+            .expect("first ShakingPolygon GPU descriptor collection must succeed");
+        let next = collect_native_render_shaking_polygon_sources(&build_snapshot(1), &media)
+            .expect("next ShakingPolygon GPU descriptor collection must succeed");
+        let first = first
+            .get("shaking-polygon-media")
+            .expect("first descriptor must be collected");
+        let next = next
+            .get("shaking-polygon-media")
+            .expect("next descriptor must be collected");
+        assert_eq!(first.source_frame, 0);
+        assert_eq!(next.source_frame, 1);
+        assert_ne!(
+            first.config_revision, next.config_revision,
+            "animated source frames must invalidate the ShakingPolygon GPU texture"
+        );
+    }
+
+    #[test]
     fn get_or_create_native_wgpu_renderer_resizes_in_place_and_reports_new_dimensions() {
         // タスク4: 出力サイズが変わっただけならレンダラごと破棄・再構築せず、
         // `resize_output` 経由で出力サイズ依存リソースだけを作り直すこと。
