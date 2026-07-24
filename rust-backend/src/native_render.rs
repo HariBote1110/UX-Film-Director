@@ -1309,6 +1309,68 @@ mod tests {
     }
 
     #[test]
+    fn particle_is_collected_as_animated_gpu_descriptor_without_cpu_rgba() {
+        let build_snapshot = |source_frames: &[u64]| uxfd_rust_core::SceneSnapshot {
+            frame_index: source_frames.first().copied().unwrap_or(0),
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: source_frames
+                .iter()
+                .enumerate()
+                .map(|(index, source_frame)| uxfd_rust_core::EvaluatedClip {
+                    clip_id: format!("particle-clip-{index}"),
+                    track_id: "track".to_string(),
+                    media_id: "particle-media".to_string(),
+                    source_frame: *source_frame,
+                    z_index: index as u32,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                })
+                .collect(),
+        };
+        let media = vec![uxfd_rust_core::SceneMediaReference {
+            id: "particle-media".to_string(),
+            kind: uxfd_rust_core::MediaKind::GeneratedParticle,
+            source: r##"{"generator":"standard-particle","seed":93,"particle_count":16,"spread":180,"speed":120,"size":6,"colour":"#80d8ff","lifetime_seconds":1.5}"##.to_string(),
+            width: 320,
+            height: 180,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }];
+        let first_snapshot = build_snapshot(&[0]);
+        let later_snapshot = build_snapshot(&[30]);
+        let mut cache = crate::state::SourceFrameCache::default();
+
+        let rgba_sources =
+            collect_native_render_sources(&first_snapshot, &media, &[], &mut cache)
+                .expect("Particle CPU source collection must succeed");
+        assert!(
+            rgba_sources.is_empty(),
+            "Particle must not allocate a completed CPU RGBA source"
+        );
+
+        let first = collect_native_render_particle_sources(&first_snapshot, &media)
+            .expect("first Particle descriptor collection succeeds");
+        let later = collect_native_render_particle_sources(&later_snapshot, &media)
+            .expect("later Particle descriptor collection succeeds");
+        let first = first
+            .get("particle-media")
+            .expect("first descriptor must be collected");
+        let later = later
+            .get("particle-media")
+            .expect("later descriptor must be collected");
+        assert_eq!(first.source_frame, 0);
+        assert_eq!(later.source_frame, 30);
+        assert_eq!(first.config_revision, later.config_revision);
+        assert_eq!(first.width, 320);
+        assert_eq!(first.height, 180);
+
+        let error = collect_native_render_particle_sources(&build_snapshot(&[0, 30]), &media)
+            .expect_err("one particle media at conflicting frames must be rejected");
+        assert!(error.contains("multiple source frames"));
+    }
+
+    #[test]
     fn shaking_polygon_is_collected_as_animated_gpu_descriptor_without_cpu_rgba() {
         let build_snapshot = |source_frame| uxfd_rust_core::SceneSnapshot {
             frame_index: source_frame,
