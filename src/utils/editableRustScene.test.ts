@@ -18,6 +18,7 @@ import type {
   VideoObject,
 } from '../types';
 import { buildEditableRustScene } from './editableRustScene';
+import { buildAviUtlHologramObject } from './objectFactories/hologramObjectFactory';
 
 const projectSettings: ProjectSettings = {
   width: 1920,
@@ -686,6 +687,44 @@ describe('buildEditableRustScene', () => {
         kind: 'GeneratedShakingPolygon',
         width: 320,
         height: 180,
+      })
+    );
+  });
+
+  it('Hologramを生成mediaと専用clip kindで常駐Rust sceneへ変換する', () => {
+    const hologram = {
+      ...buildAviUtlHologramObject({
+        id: 'hologram',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: 2,
+      }),
+      width: 1920,
+      height: 1080,
+      duration: 24,
+    };
+    const result = buildEditableRustScene({
+      sceneId: 'scene-hologram',
+      projectSettings,
+      layers,
+      objects: [hologram],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected Hologram conversion to succeed');
+    expect(result.project.tracks.flatMap((track) => track.clips)).toContainEqual(
+      expect.objectContaining({
+        id: 'hologram',
+        kind: 'GeneratedHologramPlane',
+      })
+    );
+    expect(result.media).toContainEqual(
+      expect.objectContaining({
+        id: 'hologram',
+        kind: 'GeneratedHologram',
+        width: 1920,
+        height: 1080,
       })
     );
   });
