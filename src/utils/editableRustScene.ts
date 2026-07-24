@@ -1,5 +1,6 @@
 import type {
   GetColorDotFieldObject,
+  GroupControlObject,
   HksyCheckerGridObject,
   ImageObject,
   LayerState,
@@ -79,6 +80,16 @@ export interface EditableRustTrack {
   clips: EditableRustClip[];
 }
 
+export interface EditableRustGroupControl {
+  id: string;
+  start_frame: number;
+  duration_frames: number;
+  transform: RustTransform;
+  opacity: number;
+  position_keyframes: readonly EditableRustPositionKeyframe[];
+  target_track_ids: readonly string[];
+}
+
 export interface EditableRustProject {
   id: string;
   version: 1;
@@ -87,6 +98,7 @@ export interface EditableRustProject {
   colour: ReturnType<typeof rustColourPipeline>;
   media: RustSceneMediaReference[];
   tracks: EditableRustTrack[];
+  group_controls: EditableRustGroupControl[];
 }
 
 export type EditableRustSceneIssueCode =
@@ -144,7 +156,7 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
 };
 
 const positionKeyframesForObject = (
-  object: EditableRustSceneObject,
+  object: EditableRustSceneObject | GroupControlObject,
   fps: number
 ): EditableRustPositionKeyframe[] => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
@@ -169,7 +181,9 @@ const positionKeyframesForObject = (
   ];
 };
 
-const initialPositionForObject = (object: EditableRustSceneObject): { x: number; y: number } => {
+const initialPositionForObject = (
+  object: EditableRustSceneObject | GroupControlObject
+): { x: number; y: number } => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
   return keyframes.length >= 2 ? { x: keyframes[0].x, y: keyframes[0].y } : { x: object.x, y: object.y };
 };
@@ -235,6 +249,18 @@ const transformForObject = (object: EditableRustSceneObject): RustTransform => {
     scale_y: object.scaleY * psdScale,
     rotation_degrees: object.rotation,
     sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
+  };
+};
+
+const transformForGroupControl = (object: GroupControlObject): RustTransform => {
+  const position = initialPositionForObject(object);
+  return {
+    translation_x: position.x,
+    translation_y: position.y,
+    scale_x: object.scaleX,
+    scale_y: object.scaleY,
+    rotation_degrees: object.rotation,
+    sampling: 'bilinear',
   };
 };
 
@@ -313,6 +339,7 @@ const issueForObject = (
   fps: number
 ): EditableRustSceneIssue | null => {
   if (object.type === 'audio') return null;
+  if (object.type === 'group_control') return null;
   if (!isEditableRustSceneObject(object)) {
     return { objectId: object.id, code: 'unsupportedObjectType', detail: `${object.type} はV1対象外です` };
   }
@@ -378,6 +405,31 @@ export const buildEditableRustScene = ({
     tracksByLayer.set(object.layer, track);
   }
 
+  const groupControls: EditableRustGroupControl[] = objects
+    .filter((object): object is GroupControlObject => object.type === 'group_control')
+    .map((control) => {
+      const targetTrackIds = [...new Set(
+        orderedObjects
+          .filter(({ object }) => (
+            object.layer > control.layer
+            && (
+              control.targetLayerCount === 0
+              || object.layer <= control.layer + control.targetLayerCount
+            )
+          ))
+          .map(({ object }) => `layer-${object.layer}`)
+      )];
+      return {
+        id: control.id,
+        start_frame: secondsToFrameIndex(control.startTime, projectSettings.fps),
+        duration_frames: Math.max(1, secondsToFrameIndex(control.duration, projectSettings.fps)),
+        transform: transformForGroupControl(control),
+        opacity: control.opacity,
+        position_keyframes: positionKeyframesForObject(control, projectSettings.fps),
+        target_track_ids: targetTrackIds,
+      };
+    });
+
   const project: EditableRustProject = {
     id: sceneId,
     version: 1,
@@ -386,6 +438,7 @@ export const buildEditableRustScene = ({
     colour: rustColourPipeline(),
     media,
     tracks: [...tracksByLayer.entries()].sort(([left], [right]) => left - right).map(([, track]) => track),
+    group_controls: groupControls,
   };
   return { ok: true, project, media };
 };
