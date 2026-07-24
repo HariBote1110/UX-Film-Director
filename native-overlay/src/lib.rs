@@ -3419,6 +3419,65 @@ mod tests {
     }
 
     #[test]
+    fn direct_audio_sphere_scene_reuses_resident_pcm_and_skips_cpu_rgba() {
+        let build_scene = |source_frame| NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: source_frame,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "audio-sphere-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "audio-sphere-media".to_string(),
+                    source_frame,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "audio-sphere-media".to_string(),
+                kind: "GeneratedAudioSphere".to_string(),
+                source: r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"colour":"#36c2ff","columns":8,"rows":6,"base_radius":22,"audio_influence":0.6,"point_size":2,"polygon_size":0.35,"random_amount":0.05,"seed":93}"##.to_string(),
+                width: 64,
+                height: 64,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 64,
+        };
+        let mut cache = NativeOverlayAudioPcmCache::default();
+        let mut decode_count = 0;
+        let mut decode = |_source: &str, sample_rate: u32| {
+            decode_count += 1;
+            Ok(vec![0.25; sample_rate as usize])
+        };
+
+        let first = native_overlay_audio_reactive_sources_for_scene(
+            &build_scene(0),
+            &mut cache,
+            &mut decode,
+        )
+        .expect("first resident PCM window must resolve");
+        let second = native_overlay_audio_reactive_sources_for_scene(
+            &build_scene(30),
+            &mut cache,
+            &mut decode,
+        )
+        .expect("second resident PCM window must resolve");
+
+        assert_eq!(decode_count, 1, "the source audio must be decoded only once");
+        assert_eq!(cache.len(), 1);
+        assert_eq!(first["audio-sphere-media"].samples.len(), 800);
+        assert_eq!(second["audio-sphere-media"].samples.len(), 800);
+        assert_ne!(
+            first["audio-sphere-media"].samples.as_ptr(),
+            second["audio-sphere-media"].samples.as_ptr(),
+            "each frame receives only its current PCM window"
+        );
+    }
+
+    #[test]
     fn getcolor_source_image_metadata_changes_native_overlay_media_revision() {
         let unique = format!(
             "uxfd-getcolor-cache-revision-{}-{}",
