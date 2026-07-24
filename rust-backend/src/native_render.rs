@@ -13,12 +13,13 @@ use crate::params::{
     NativeRenderAudioWaveformSource, NativeRenderSharedFrameParams,
 };
 use crate::rpc::{response_error, RpcResponse};
+use crate::sessions::EncodeTransport;
 use crate::state::BackendState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use uxfd_native_wgpu_renderer::{
-    NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
+    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{
     build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource,
@@ -221,7 +222,22 @@ pub(crate) fn handle_encode_write_native_frame(
         );
     }
 
-    if audio_waveforms.is_empty() && nv12_sources.is_empty() {
+    let uses_iosurface_encoder = state
+        .encode_sessions
+        .get(&parsed.session_id)
+        .is_some_and(|session| {
+            #[cfg(target_os = "macos")]
+            {
+                matches!(session.transport, EncodeTransport::VideoToolbox(_))
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = session;
+                false
+            }
+        });
+
+    if !uses_iosurface_encoder && audio_waveforms.is_empty() && nv12_sources.is_empty() {
         if let Some(frame) = match try_render_simple_video_frame(
             &parsed.snapshot,
             &parsed.media,
@@ -268,6 +284,28 @@ pub(crate) fn handle_encode_write_native_frame(
         }
     }
 
+    #[cfg(target_os = "macos")]
+    let iosurface_frame = if uses_iosurface_encoder {
+        let Some(session) = state.encode_sessions.get(&parsed.session_id) else {
+            return response_error(id, -32052, "No active encode session");
+        };
+        let EncodeTransport::VideoToolbox(encoder) = &session.transport else {
+            unreachable!("uses_iosurface_encoder guarantees VideoToolbox transport");
+        };
+        match encoder.acquire_frame() {
+            Ok(frame) => Some(frame),
+            Err(error) => {
+                return response_error(
+                    id,
+                    -32053,
+                    &format!("Failed to acquire IOSurface encode frame: {error}"),
+                );
+            }
+        }
+    } else {
+        None
+    };
+
     let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -290,6 +328,78 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.media,
         &parsed.sources,
     );
+
+    #[cfg(target_os = "macos")]
+    if let Some(iosurface_frame) = iosurface_frame {
+        let timings = match pollster::block_on(
+            renderer.render_frame_to_bgra_iosurface_with_audio_waveforms(
+                &parsed.snapshot,
+                &sources,
+                &audio_waveforms,
+                &content_revisions,
+                &nv12_sources,
+                BgraIoSurfaceTarget {
+                    surface_id: iosurface_frame.surface_id(),
+                    width: iosurface_frame.width(),
+                    height: iosurface_frame.height(),
+                },
+            ),
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                return response_error(
+                    id,
+                    -32071,
+                    &format!("Native WebGPU IOSurface render failed: {error:?}"),
+                );
+            }
+        };
+        let (session_id, frame_count) = {
+            let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+                return response_error(id, -32052, "No active encode session");
+            };
+            let EncodeTransport::VideoToolbox(encoder) = &mut session.transport else {
+                return response_error(id, -32053, "Encode transport changed during frame render");
+            };
+            if let Err(error) = encoder.append_frame(iosurface_frame, parsed.frame_index) {
+                return response_error(
+                    id,
+                    -32053,
+                    &format!("Failed to append IOSurface encode frame: {error}"),
+                );
+            }
+            session.frame_count += 1;
+            (session.session_id.clone(), session.frame_count)
+        };
+        let nv12_zero_copy_media_ids: Vec<&str> =
+            nv12_sources.keys().map(String::as_str).collect();
+        return RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({
+                "written": true,
+                "writtenNativeFrame": true,
+                "sessionId": session_id,
+                "renderId": parsed.render_id,
+                "renderPath": "iosurfaceVideoToolbox",
+                "nv12ZeroCopyMediaIds": nv12_zero_copy_media_ids,
+                "frameIndex": parsed.frame_index,
+                "timestampUs": parsed.timestamp_us,
+                "encodedFrameByteLen": 0,
+                "frameCount": frame_count,
+                "timings": {
+                    "setupMs": timings.setup.as_secs_f64() * 1000.0,
+                    "sourceUploadMs": timings.source_upload.as_secs_f64() * 1000.0,
+                    "renderMs": timings.render.as_secs_f64() * 1000.0,
+                    "readbackEncodeMs": 0.0,
+                    "steadyStateMs": timings.steady_state.as_secs_f64() * 1000.0,
+                    "totalMs": timings.total.as_secs_f64() * 1000.0,
+                },
+            })),
+            error: None,
+        };
+    }
+
     let render = match pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
         &parsed.snapshot,
         &sources,

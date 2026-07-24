@@ -6,7 +6,7 @@ use crate::params::{
     EncodeAbortParams, EncodeFinishParams, EncodeStartParams, EncodeWriteFrameParams,
 };
 use crate::rpc::{response_error, RpcResponse};
-use crate::sessions::{EncodeAbortSummary, EncodeSession};
+use crate::sessions::{EncodeAbortSummary, EncodeSession, EncodeTransport};
 use crate::state::BackendState;
 use serde_json::{json, Value};
 use uxfd_golden_harness::RgbaFrame;
@@ -57,7 +57,7 @@ pub(crate) fn handle_encode_start(id: u64, params: Value, state: &mut BackendSta
         return response_error(id, -32051, "Encode session already active for sessionId");
     }
 
-    let (child, stdin, stderr) = match start_encode_ffmpeg(&parsed) {
+    let transport = match start_encode_transport(&parsed) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32054, &message),
     };
@@ -65,9 +65,7 @@ pub(crate) fn handle_encode_start(id: u64, params: Value, state: &mut BackendSta
     state.encode_sessions.insert(
         parsed.session_id.clone(),
         EncodeSession {
-            child,
-            stdin,
-            stderr,
+            transport,
             session_id: parsed.session_id.clone(),
             file_path: parsed.file_path.clone(),
             audio_path: audio_path.clone(),
@@ -92,6 +90,11 @@ pub(crate) fn handle_encode_start(id: u64, params: Value, state: &mut BackendSta
             "fps": parsed.fps,
             "pixelFormat": "rgba8Srgb",
             "audioPath": audio_path,
+            "encoderPath": if parsed.iosurface_encode {
+                "iosurfaceVideoToolbox"
+            } else {
+                "ffmpegRawRgba"
+            },
         })),
         error: None,
     }
@@ -177,51 +180,31 @@ pub(crate) fn handle_encode_finish(
         return response_error(id, -32052, "No active encode session");
     };
     state.release_resident_video_decoders_for_encode_session(&parsed.session_id);
-    let mut session = session;
-
-    let _ = session.stdin.flush();
-    drop(session.stdin);
-
-    let status = match session.child.wait() {
+    let EncodeSession {
+        transport,
+        session_id,
+        file_path,
+        audio_path,
+        fps,
+        frame_count,
+        ..
+    } = session;
+    let encoder_path = match finish_encode_transport(transport) {
         Ok(value) => value,
-        Err(error) => {
-            return response_error(
-                id,
-                -32056,
-                &format!("Failed to wait Rust encode ffmpeg process: {error}"),
-            );
-        }
+        Err(message) => return response_error(id, -32057, &message),
     };
-    let mut ffmpeg_stderr = String::new();
-    let _ = session.stderr.read_to_string(&mut ffmpeg_stderr);
-
-    if !status.success() {
-        let stderr_detail = ffmpeg_stderr.trim();
-        let stderr_suffix = if stderr_detail.is_empty() {
-            String::new()
-        } else {
-            format!(" stderr: {stderr_detail}")
-        };
-        return response_error(
-            id,
-            -32057,
-            &format!(
-                "Rust encode ffmpeg exited with failure status: code={:?}.{stderr_suffix}",
-                status.code(),
-            ),
-        );
-    }
 
     RpcResponse {
         id,
         ok: true,
         result: Some(json!({
             "finished": true,
-            "sessionId": session.session_id,
-            "filePath": session.file_path,
-            "audioPath": session.audio_path,
-            "fps": session.fps,
-            "frameCount": session.frame_count,
+            "sessionId": session_id,
+            "filePath": file_path,
+            "audioPath": audio_path,
+            "fps": fps,
+            "frameCount": frame_count,
+            "encoderPath": encoder_path,
         })),
         error: None,
     }
@@ -267,31 +250,13 @@ pub(crate) fn handle_encode_abort(id: u64, params: Value, state: &mut BackendSta
 
 pub(crate) fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary {
     let EncodeSession {
-        mut child,
-        mut stdin,
-        mut stderr,
+        transport,
         session_id,
         file_path,
         frame_count,
         ..
     } = session;
-
-    let _ = stdin.flush();
-    drop(stdin);
-
-    let ffmpeg_status = match child.try_wait() {
-        Ok(Some(status)) => format!("alreadyExited:{:?}", status.code()),
-        Ok(None) => {
-            let _ = child.kill();
-            match child.wait() {
-                Ok(status) => format!("killed:{:?}", status.code()),
-                Err(error) => format!("waitFailed:{error}"),
-            }
-        }
-        Err(error) => format!("statusFailed:{error}"),
-    };
-    let mut stderr_text = String::new();
-    let _ = stderr.read_to_string(&mut stderr_text);
+    let (ffmpeg_status, stderr_text) = abort_encode_transport(transport);
 
     EncodeAbortSummary {
         session_id,
@@ -299,6 +264,107 @@ pub(crate) fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary
         frame_count,
         ffmpeg_status,
         stderr: stderr_text.trim().to_string(),
+    }
+}
+
+fn start_encode_transport(parsed: &EncodeStartParams) -> Result<EncodeTransport, String> {
+    if parsed.iosurface_encode {
+        if parsed.audio_path.as_deref().is_some_and(|path| !path.trim().is_empty()) {
+            return Err("IOSurface VideoToolbox encode does not yet accept an audioPath".to_string());
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let encoder = uxfd_macos_video_encode::VideoEncodeSession::start(
+                std::path::Path::new(&parsed.file_path),
+                parsed.width,
+                parsed.height,
+                parsed.fps,
+            )
+            .map_err(|error| format!("Failed to start IOSurface VideoToolbox encoder: {error}"))?;
+            return Ok(EncodeTransport::VideoToolbox(encoder));
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            return Err("IOSurface VideoToolbox encode is only available on macOS".to_string());
+        }
+    }
+
+    let (child, stdin, stderr) = start_encode_ffmpeg(parsed)?;
+    Ok(EncodeTransport::Ffmpeg {
+        child,
+        stdin,
+        stderr,
+    })
+}
+
+fn finish_encode_transport(transport: EncodeTransport) -> Result<&'static str, String> {
+    match transport {
+        EncodeTransport::Ffmpeg {
+            mut child,
+            mut stdin,
+            mut stderr,
+        } => {
+            let _ = stdin.flush();
+            drop(stdin);
+            let status = child
+                .wait()
+                .map_err(|error| format!("Failed to wait Rust encode ffmpeg process: {error}"))?;
+            let mut stderr_text = String::new();
+            let _ = stderr.read_to_string(&mut stderr_text);
+            if !status.success() {
+                return Err(format!(
+                    "Rust encode ffmpeg exited with failure status: code={:?}. stderr: {}",
+                    status.code(),
+                    stderr_text.trim()
+                ));
+            }
+            Ok("ffmpegRawRgba")
+        }
+        #[cfg(target_os = "macos")]
+        EncodeTransport::VideoToolbox(encoder) => {
+            std::thread::Builder::new()
+                .name("uxfd-videotoolbox-finish".to_string())
+                .spawn(move || encoder.finish())
+                .map_err(|error| {
+                    format!("Failed to start IOSurface VideoToolbox finish thread: {error}")
+                })?
+                .join()
+                .map_err(|_| "IOSurface VideoToolbox finish thread panicked".to_string())?
+                .map_err(|error| format!("IOSurface VideoToolbox finish failed: {error}"))?;
+            Ok("iosurfaceVideoToolbox")
+        }
+    }
+}
+
+fn abort_encode_transport(transport: EncodeTransport) -> (String, String) {
+    match transport {
+        EncodeTransport::Ffmpeg {
+            mut child,
+            mut stdin,
+            mut stderr,
+        } => {
+            let _ = stdin.flush();
+            drop(stdin);
+            let status = match child.try_wait() {
+                Ok(Some(status)) => format!("alreadyExited:{:?}", status.code()),
+                Ok(None) => {
+                    let _ = child.kill();
+                    match child.wait() {
+                        Ok(status) => format!("killed:{:?}", status.code()),
+                        Err(error) => format!("waitFailed:{error}"),
+                    }
+                }
+                Err(error) => format!("statusFailed:{error}"),
+            };
+            let mut stderr_text = String::new();
+            let _ = stderr.read_to_string(&mut stderr_text);
+            (status, stderr_text)
+        }
+        #[cfg(target_os = "macos")]
+        EncodeTransport::VideoToolbox(encoder) => {
+            drop(encoder);
+            ("cancelled:videoToolbox".to_string(), String::new())
+        }
     }
 }
 
@@ -514,8 +580,7 @@ fn write_tight_rgba_frame_to_encoder(
         // Fast path: the shared buffer is already tight (no row padding), so
         // it can be handed to the encoder directly without an intermediate
         // per-frame allocation + copy.
-        session
-            .stdin
+        ffmpeg_stdin(session)?
             .write_all(shared_frame)
             .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
         return Ok(shared_frame.len());
@@ -529,8 +594,7 @@ fn write_tight_rgba_frame_to_encoder(
         let source_start = row
             .checked_mul(stride_bytes)
             .ok_or_else(|| "Encode source row offset overflows".to_string())?;
-        session
-            .stdin
+        ffmpeg_stdin(session)?
             .write_all(&shared_frame[source_start..source_start + row_bytes])
             .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
     }
@@ -545,12 +609,22 @@ pub(crate) fn write_rgba_frame_to_encoder(
     if frame.width != session.width || frame.height != session.height {
         return Err("Native rendered frame dimensions do not match active session".to_string());
     }
-    session
-        .stdin
+    ffmpeg_stdin(session)?
         .write_all(&frame.pixels)
         .map_err(|error| format!("Failed to write native RGBA frame to Rust encoder: {error}"))?;
 
     Ok(frame.pixels.len())
+}
+
+fn ffmpeg_stdin(session: &mut EncodeSession) -> Result<&mut ChildStdin, String> {
+    match &mut session.transport {
+        EncodeTransport::Ffmpeg { stdin, .. } => Ok(stdin),
+        #[cfg(target_os = "macos")]
+        EncodeTransport::VideoToolbox(_) => Err(
+            "RGBA/shared-frame writes are incompatible with IOSurface VideoToolbox encode"
+                .to_string(),
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -579,9 +653,11 @@ mod tests {
     fn make_test_session(out_path: &std::path::Path, width: u32, height: u32) -> EncodeSession {
         let (child, stdin, stderr) = spawn_stdin_sink(out_path);
         EncodeSession {
-            child,
-            stdin,
-            stderr,
+            transport: EncodeTransport::Ffmpeg {
+                child,
+                stdin,
+                stderr,
+            },
             session_id: "test-session".to_string(),
             file_path: "unused.mp4".to_string(),
             audio_path: None,
@@ -640,9 +716,14 @@ mod tests {
             .expect("write should succeed");
         assert_eq!(written, shared_frame.len());
 
-        let stdin = session.stdin;
+        let EncodeTransport::Ffmpeg {
+            mut child, stdin, ..
+        } = session.transport
+        else {
+            panic!("test session must use ffmpeg transport");
+        };
         drop(stdin);
-        session.child.wait().expect("sink process should exit");
+        child.wait().expect("sink process should exit");
         let bytes = std::fs::read(&out_path).expect("sink output file should exist");
         let _ = std::fs::remove_file(&out_path);
 
@@ -681,9 +762,14 @@ mod tests {
             .expect("write should succeed");
         assert_eq!(written, expected_tight.len());
 
-        let stdin = session.stdin;
+        let EncodeTransport::Ffmpeg {
+            mut child, stdin, ..
+        } = session.transport
+        else {
+            panic!("test session must use ffmpeg transport");
+        };
         drop(stdin);
-        session.child.wait().expect("sink process should exit");
+        child.wait().expect("sink process should exit");
         let bytes = std::fs::read(&out_path).expect("sink output file should exist");
         let _ = std::fs::remove_file(&out_path);
 

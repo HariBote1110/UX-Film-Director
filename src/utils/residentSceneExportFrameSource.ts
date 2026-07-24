@@ -48,6 +48,7 @@ export const createResidentSceneExportFrameSource = ({
   revision,
   prepareDynamicSources,
 }: CreateResidentSceneExportFrameSourceInput): ProjectExportRustFrameSource => ({
+  encodeTarget: 'iosurfaceVideoToolbox',
   async renderEncodeFrame(request) {
     const dynamicSources = await prepareDynamicSources?.(request) ?? {};
     return {

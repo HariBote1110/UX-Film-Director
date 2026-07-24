@@ -29,6 +29,7 @@ export interface ProjectExportRustEncodeFrameRequest extends ProjectExportRustFr
 }
 
 export interface ProjectExportRustFrameSource {
+  encodeTarget?: 'iosurfaceVideoToolbox';
   renderFrame?: (request: ProjectExportRustFrameRequest) => Promise<ImageBitmap>;
   renderEncodeFrame?: (request: ProjectExportRustEncodeFrameRequest) => Promise<RustBackendVideoEncodeFrame>;
   close?: () => Promise<void> | void;

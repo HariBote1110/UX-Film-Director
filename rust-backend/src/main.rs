@@ -76,11 +76,8 @@ fn main() {
             break;
         }
     }
-    for (_, mut session) in state.encode_sessions.drain() {
-        let _ = session.stdin.flush();
-        drop(session.stdin);
-        let _ = session.child.kill();
-        let _ = session.child.wait();
+    for (_, session) in state.encode_sessions.drain() {
+        let _ = encode::abort_encode_session(session);
     }
 }
 

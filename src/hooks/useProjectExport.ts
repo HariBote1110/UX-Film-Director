@@ -399,6 +399,10 @@ export const useProjectExport = (
               width: encWidth,
               height: encHeight,
               fps,
+              iosurfaceEncode: (
+                audioPath === null
+                && exportFrameSourcePlan.frameSource?.encodeTarget === 'iosurfaceVideoToolbox'
+              ),
               frames: renderRustEncodeFrames(),
               renderAheadFrameCount: rustExportRenderAheadFrameCount,
               onNativeRenderOutputRelease: (event) => {
@@ -420,7 +424,7 @@ export const useProjectExport = (
               totalFrames,
               stepDetail: 'Rust export: finishing encoder',
             }));
-            alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
+            alert(`エクスポート完了！\nコーデック: ${result.encoderPath}\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
           } finally {
             if (audioPath) {
               await ipcRenderer.invoke('delete-temp-file', { filePath: audioPath }).catch(() => {});

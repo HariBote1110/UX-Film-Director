@@ -24,6 +24,7 @@ const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS ?
 const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS ?? 1);
 const REPEAT_EXPORTS = Math.max(1, Math.min(3, Number(process.env.UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS ?? 1)));
 const EXPECT_REPEAT_SPEEDUP = process.env.UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP === '1';
+const EXPECT_ENCODER_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_EXPECT_ENCODER_PATH?.trim() || null;
 const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
   ? JSON.parse(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON)
   : null;
@@ -236,6 +237,11 @@ const collectRuntimeErrors = (client) => client.events
 const parseExportedFrameCount = (dialogMessage) => {
   const match = String(dialogMessage ?? '').match(/フレーム:\s*(\d+)/);
   return match ? Number(match[1]) : null;
+};
+
+const parseEncoderPath = (dialogMessage) => {
+  const match = String(dialogMessage ?? '').match(/コーデック:\s*([^\n]+)/);
+  return match ? match[1].trim() : null;
 };
 
 const calculateExpectedFrameCount = () => Math.round(EXPORT_DURATION_SECONDS * PROJECT_FPS);
@@ -713,6 +719,7 @@ const runVideoExportAttempt = async (client, attemptIndex) => {
   };
   const exportDurationMs = Date.now() - exportStartTimeMs;
   const exportedFrameCount = parseExportedFrameCount(exportResult.dialog?.message);
+  const encoderPath = parseEncoderPath(exportResult.dialog?.message);
   const expectedFrameCount = calculateExpectedFrameCount();
   const frameCountMatchesDuration = typeof exportedFrameCount === 'number'
     && Math.abs(exportedFrameCount - expectedFrameCount) <= 1;
@@ -737,6 +744,7 @@ const runVideoExportAttempt = async (client, attemptIndex) => {
     outputStat,
     exportDurationMs,
     exportedFrameCount,
+    encoderPath,
     expectedFrameCount,
     frameCountMatchesDuration,
     exportFramesPerSecond,
@@ -944,6 +952,7 @@ const main = async () => {
         && attempt.outputStat.size > 0
         && attempt.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
         && attempt.frameCountMatchesDuration
+        && (!EXPECT_ENCODER_PATH || attempt.encoderPath === EXPECT_ENCODER_PATH)
       ))
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
       && (!ADD_PSD || psdMediaResult?.ok)
@@ -960,6 +969,7 @@ const main = async () => {
     exportDurationSeconds: EXPORT_DURATION_SECONDS,
     repeatExports: REPEAT_EXPORTS,
     expectRepeatSpeedup: EXPECT_REPEAT_SPEEDUP,
+    expectEncoderPath: EXPECT_ENCODER_PATH,
     videoPatch: VIDEO_PATCH,
     videoObject,
     mixedMediaResult,

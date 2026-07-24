@@ -182,6 +182,13 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(encodeExportBlock).toContain('renderAheadFrameCount: rustExportRenderAheadFrameCount');
   });
 
+  it('reports the encoder path selected by the Rust backend', () => {
+    const code = source();
+
+    expect(code).toContain('コーデック: ${result.encoderPath}');
+    expect(code).not.toContain('Rust backend rawvideo/ffmpeg');
+  });
+
   it('subscribes to direct transcode progress events and updates percentage counters', () => {
     const code = source();
 

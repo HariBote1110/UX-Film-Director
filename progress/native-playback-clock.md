@@ -60,4 +60,17 @@ resident scene exportが動画のdecode sessionも所有する。VideoToolboxの
 - Rust backend全テスト成功
 - frontend 213 files / 1,531 tests成功
 
-GPU合成結果からFFmpeg rawvideo入力へのRGBA readbackは残っている。次段階ではencoder入力をIOSurface/VideoToolboxへ接続してこのreadbackを外す。また、プレビューの動画decodeとCAMetalLayer直接提示、GeneratedAudioWaveform・Particle・SpotLightのresident scene対応も未完了である。
+## IOSurface VideoToolbox書き出し
+
+音声を含まないresident scene書き出しは、AVAssetWriterのpixel buffer poolからBGRA IOSurfaceを取得し、native WGPU rendererのrender targetとして直接使用する。GPU合成後のCPU readbackとFFmpeg rawvideo stdinは通らず、同じCVPixelBufferをVideoToolboxへ渡す。完了結果の`encoderPath`は`iosurfaceVideoToolbox`、各フレームの`readbackEncodeMs`は0となる。
+
+実ElectronでH.264動画を移動、0.8倍、12度回転し、1920×1080、60fps、1秒を書き出した。
+
+- E2E期待経路: `iosurfaceVideoToolbox`
+- H.264、yuv420p、1920×1080、60fps、60フレーム
+- 出力サイズ: 1,247,606 bytes
+- 書き出し時間: 1.277秒（約47.0 frame/秒）
+- frontend 213 files / 1,533 tests成功
+- Rust backend、native WGPU renderer、IOSurface H.264統合テスト成功
+
+音声付き書き出しは一時WAVのmuxが必要なため、現時点ではFFmpeg raw RGBA経路を維持する。次段階は映像をIOSurfaceで作成した後に音声をstream copyでmuxする。また、プレビューの動画decodeとCAMetalLayer直接提示、GeneratedAudioWaveform・Particle・SpotLightのresident scene対応も未完了である。

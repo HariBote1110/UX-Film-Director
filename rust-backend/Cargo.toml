@@ -20,6 +20,7 @@ uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 uxfd-macos-video-decode = { path = "../macos-video-decode" }
+uxfd-macos-video-encode = { path = "../macos-video-encode" }
 
 [dev-dependencies]
 uxfd-shared-memory-spike = { path = "../shared-memory-spike" }

@@ -22,6 +22,7 @@ export interface RustBackendVideoEncodeStartPayload {
   width: number;
   height: number;
   fps: number;
+  iosurfaceEncode?: boolean;
   pixelFormat: RustBackendDecodedVideoFrameFormat;
   colour: RustBackendVideoDecodeColour;
 }

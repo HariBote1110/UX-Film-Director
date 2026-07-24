@@ -71,7 +71,13 @@ describe('runRustBackendVideoEncodeExport', () => {
     const encoderBridge: RustBackendVideoEncodeBridge = {
       startVideoEncode: async (payload) => {
         startPayload = payload;
-        return { success: true, result: { accepted: true } };
+        return {
+          success: true,
+          result: {
+            accepted: true,
+            encoderPath: 'iosurfaceVideoToolbox',
+          },
+        };
       },
       writeVideoEncodeFrame: async () => ({ success: true }),
       finishVideoEncode: async () => ({
@@ -81,6 +87,7 @@ describe('runRustBackendVideoEncodeExport', () => {
           sessionId: 'session-iosurface',
           filePath: '/tmp/iosurface.mp4',
           frameCount: 0,
+          encoderPath: 'iosurfaceVideoToolbox',
         },
       }),
       abortVideoEncode: async () => ({ success: true }),
@@ -90,7 +97,7 @@ describe('runRustBackendVideoEncodeExport', () => {
       yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0) };
     }
 
-    await runRustBackendVideoEncodeExport({
+    const result = await runRustBackendVideoEncodeExport({
       sessionId: 'session-iosurface',
       filePath: '/tmp/iosurface.mp4',
       width: 4,
@@ -102,6 +109,7 @@ describe('runRustBackendVideoEncodeExport', () => {
     });
 
     expect(startPayload).toMatchObject({ iosurfaceEncode: true });
+    expect(result.encoderPath).toBe('iosurfaceVideoToolbox');
   });
 
   it('prefetches the next shared frame while the current frame is being written', async () => {
@@ -733,6 +741,7 @@ describe('runRustBackendVideoEncodeExport', () => {
       frameCount: 2,
       sessionId: 'session-shared',
       filePath: '/tmp/direct-shared.mp4',
+      encoderPath: 'ffmpegRawRgba',
     });
 
     expect(calls).toEqual([
@@ -795,6 +804,7 @@ describe('runRustBackendVideoEncodeExport', () => {
       frameCount: 7,
       sessionId: 'session-authoritative',
       filePath: '/tmp/backend-authoritative.mp4',
+      encoderPath: 'ffmpegRawRgba',
     });
   });
 

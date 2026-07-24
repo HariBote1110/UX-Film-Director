@@ -20,6 +20,8 @@ pub(crate) struct EncodeStartParams {
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) fps: u32,
+    #[serde(default)]
+    pub(crate) iosurface_encode: bool,
     pub(crate) pixel_format: FrameFormat,
     pub(crate) colour: ColourMetadata,
 }

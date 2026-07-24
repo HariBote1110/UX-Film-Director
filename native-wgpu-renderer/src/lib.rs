@@ -952,6 +952,26 @@ impl NativeWgpuRenderer {
         })
     }
 
+    pub async fn render_frame_to_bgra_iosurface_with_audio_waveforms(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        waveforms: &[NativeAudioWaveformInput],
+        content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        target: BgraIoSurfaceTarget,
+    ) -> Result<NativeWgpuFrameStageTimings, NativeWgpuRenderError> {
+        let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
+        self.render_frame_to_bgra_iosurface(
+            snapshot,
+            &generated_sources,
+            content_revisions,
+            nv12_sources,
+            target,
+        )
+        .await
+    }
+
     pub async fn present_frame_stages(
         &self,
         snapshot: &SceneSnapshot,

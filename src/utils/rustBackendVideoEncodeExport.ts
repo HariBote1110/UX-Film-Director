@@ -87,6 +87,7 @@ export interface RunRustBackendVideoEncodeExportInput {
   width: number;
   height: number;
   fps: number;
+  iosurfaceEncode?: boolean;
   frames: AsyncIterable<RustBackendVideoEncodePayloadFrame>;
   renderAheadFrameCount?: number;
   sessionId?: string;
@@ -107,12 +108,14 @@ export interface RunRustBackendVideoEncodeExportResult {
   frameCount: number;
   sessionId: string;
   filePath: string;
+  encoderPath: string;
 }
 
 interface RustBackendVideoEncodeFinishSummary {
   frameCount: number;
   sessionId: string;
   filePath: string;
+  encoderPath?: string;
 }
 
 const createDefaultSessionId = (): string =>
@@ -141,6 +144,7 @@ export const runRustBackendVideoEncodeExport = async ({
   width,
   height,
   fps,
+  iosurfaceEncode = false,
   frames,
   renderAheadFrameCount,
   sessionId = createDefaultSessionId(),
@@ -155,6 +159,7 @@ export const runRustBackendVideoEncodeExport = async ({
     width,
     height,
     fps,
+    ...(iosurfaceEncode ? { iosurfaceEncode: true } : {}),
     pixelFormat: 'rgba8Srgb',
     colour: {
       primaries: 'bt709',
@@ -164,6 +169,8 @@ export const runRustBackendVideoEncodeExport = async ({
     },
   }, encoderBridge);
   assertBridgeSuccess(startResponse.success, startResponse.error, 'Rust backend video encode start failed.');
+  const startedEncoderPath = parseOptionalEncoderPath(startResponse.result)
+    ?? (iosurfaceEncode ? 'iosurfaceVideoToolbox' : 'ffmpegRawRgba');
 
   let finished = false;
   try {
@@ -223,6 +230,7 @@ export const runRustBackendVideoEncodeExport = async ({
       frameCount: finishSummary.frameCount,
       sessionId: finishSummary.sessionId,
       filePath: finishSummary.filePath,
+      encoderPath: finishSummary.encoderPath ?? startedEncoderPath,
     };
   } finally {
     if (!finished) {
@@ -399,6 +407,7 @@ const parseRustBackendVideoEncodeFinishSummary = (
     frameCount?: unknown;
     sessionId?: unknown;
     filePath?: unknown;
+    encoderPath?: unknown;
   };
   if (
     typeof result.frameCount !== 'number'
@@ -412,7 +421,16 @@ const parseRustBackendVideoEncodeFinishSummary = (
     frameCount: result.frameCount,
     sessionId: result.sessionId,
     filePath: result.filePath,
+    encoderPath: typeof result.encoderPath === 'string'
+      ? result.encoderPath
+      : undefined,
   };
+};
+
+const parseOptionalEncoderPath = (value: unknown): string | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const encoderPath = (value as { encoderPath?: unknown }).encoderPath;
+  return typeof encoderPath === 'string' ? encoderPath : undefined;
 };
 
 const isSharedFramePayloadFrame = (

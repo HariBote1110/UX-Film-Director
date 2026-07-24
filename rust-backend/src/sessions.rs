@@ -81,9 +81,7 @@ pub(crate) struct CachedDecodedRgbaFrame {
 }
 
 pub(crate) struct EncodeSession {
-    pub(crate) child: Child,
-    pub(crate) stdin: ChildStdin,
-    pub(crate) stderr: ChildStderr,
+    pub(crate) transport: EncodeTransport,
     pub(crate) session_id: String,
     pub(crate) file_path: String,
     pub(crate) audio_path: Option<String>,
@@ -93,6 +91,16 @@ pub(crate) struct EncodeSession {
     pub(crate) pixel_format: FrameFormat,
     pub(crate) colour: ColourMetadata,
     pub(crate) frame_count: u64,
+}
+
+pub(crate) enum EncodeTransport {
+    Ffmpeg {
+        child: Child,
+        stdin: ChildStdin,
+        stderr: ChildStderr,
+    },
+    #[cfg(target_os = "macos")]
+    VideoToolbox(uxfd_macos_video_encode::VideoEncodeSession),
 }
 
 pub(crate) struct EncodeAbortSummary {
