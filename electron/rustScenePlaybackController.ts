@@ -51,6 +51,10 @@ export interface RustScenePlaybackEvaluation {
     source: string;
     width: number;
     height: number;
+    source_rate?: {
+      numerator: number;
+      denominator: number;
+    };
   }>;
 }
 
@@ -90,8 +94,7 @@ type TimerHandle = ReturnType<typeof setTimeout>;
 
 const isDirectOverlayMediaSupported = (kind: string, source: string): boolean => {
   if (
-    kind === 'Video'
-    || kind === 'Psd'
+    kind === 'Psd'
     || kind === 'GeneratedAudioWaveform'
     || kind === 'GeneratedAudioSphere'
   ) {
@@ -263,7 +266,21 @@ export const createRustScenePlaybackController = ({
       response = await presentScene({
         windowId: request.windowId,
         snapshot: toNativeOverlayPlaybackSnapshot(evaluation.snapshot, evaluation.canvas),
-        media: evaluation.media,
+        media: evaluation.media.map((media) => ({
+          id: media.id,
+          kind: media.kind,
+          source: media.source,
+          width: media.width,
+          height: media.height,
+          ...(media.source_rate
+            ? {
+                sourceRate: {
+                  numerator: media.source_rate.numerator,
+                  denominator: media.source_rate.denominator,
+                },
+              }
+            : {}),
+        })),
       });
     } catch (error) {
       diagnostics.failedFrames += 1;

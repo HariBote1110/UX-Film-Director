@@ -40,6 +40,9 @@ const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
     source: '{}',
     width: 320,
     height: 180,
+    ...(kind === 'Video'
+      ? { source_rate: { numerator: 60, denominator: 1 } }
+      : {}),
   }],
 });
 
@@ -150,9 +153,43 @@ describe('RustScenePlaybackController', () => {
     expect(emit.mock.calls.filter(([payload]) => payload.status === 'ended')).toHaveLength(1);
   });
 
-  it('Video・PSD・音声生成物・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
+  it('resident Videoをmain所有のnative scene presentへ渡す', async () => {
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => ({
+        ...evaluation(frameIndex, 'Video'),
+        media: [{
+          ...evaluation(frameIndex, 'Video').media[0],
+          source: '/tmp/video.mov',
+        }],
+      }),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      media: [expect.objectContaining({
+        id: 'media-1',
+        kind: 'Video',
+        source: '/tmp/video.mov',
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      })],
+    }));
+  });
+
+  it('PSD・音声生成物・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
     for (const [kind, source] of [
-      ['Video', '/tmp/video.mov'],
       ['Psd', '/tmp/design.psd'],
       ['GeneratedAudioWaveform', '{}'],
       ['Image', '/tmp/photo.jpg'],
