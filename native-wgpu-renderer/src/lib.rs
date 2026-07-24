@@ -30,6 +30,7 @@ mod metal_encode_target;
 mod metal_encode_target;
 mod nv12;
 mod particle;
+mod shaking_polygon;
 mod simple_tube;
 pub use audio_reactive::NativeAudioReactiveSource;
 pub use focus_lines::NativeFocusLinesSource;
@@ -39,6 +40,7 @@ pub use nv12::{
     Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
 };
 pub use particle::NativeParticleSource;
+pub use shaking_polygon::NativeShakingPolygonSource;
 pub use simple_tube::NativeSimpleTubeSource;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -97,6 +99,7 @@ pub enum NativeWgpuRenderError {
     Hksy(String),
     SimpleTube(String),
     FocusLines(String),
+    ShakingPolygon(String),
     BufferMap,
     InvalidFrame(RgbaFrameError),
     /// NV12 IOSurface import は macOS(Metal) 専用。他プラットフォームでは
@@ -248,6 +251,7 @@ pub struct NativeWgpuRenderer {
     hksy_renderer: hksy::HksyGpuRenderer,
     simple_tube_renderer: simple_tube::SimpleTubeGpuRenderer,
     focus_lines_renderer: focus_lines::FocusLinesGpuRenderer,
+    shaking_polygon_renderer: shaking_polygon::ShakingPolygonGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -415,6 +419,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
         let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
+        let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -443,6 +448,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             hksy_renderer,
             simple_tube_renderer,
             focus_lines_renderer,
+            shaking_polygon_renderer,
         };
 
         Ok(Self {
@@ -609,6 +615,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         hksy_sources: &HashMap<String, NativeHksySource>,
         simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
         focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
+        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -624,6 +631,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 hksy_sources,
                 simple_tube_sources,
                 focus_lines_sources,
+                shaking_polygon_sources,
                 false,
                 content_revisions,
             )?;
@@ -955,6 +963,7 @@ impl NativeWgpuRenderer {
         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
         let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
+        let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -984,6 +993,7 @@ impl NativeWgpuRenderer {
             hksy_renderer,
             simple_tube_renderer,
             focus_lines_renderer,
+            shaking_polygon_renderer,
         })
     }
 
@@ -1087,6 +1097,7 @@ impl NativeWgpuRenderer {
             nv12_sources,
             &HashMap::new(),
             audio_reactive_sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1262,6 +1273,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1395,6 +1407,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1409,6 +1422,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1443,6 +1457,7 @@ impl NativeWgpuRenderer {
         hksy_sources: &HashMap<String, NativeHksySource>,
         simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
         focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
+        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1458,6 +1473,7 @@ impl NativeWgpuRenderer {
         let mut touched_hksy_media_ids: HashSet<String> = HashSet::new();
         let mut touched_simple_tube_media_ids: HashSet<String> = HashSet::new();
         let mut touched_focus_lines_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_shaking_polygon_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1576,6 +1592,26 @@ impl NativeWgpuRenderer {
                 continue;
             }
 
+            if let Some(shaking_polygon_source) = shaking_polygon_sources.get(&clip.media_id) {
+                touched_shaking_polygon_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .shaking_polygon_renderer
+                    .prepare(
+                        &self.device,
+                        &self.queue,
+                        &clip.media_id,
+                        shaking_polygon_source,
+                    )
+                    .map_err(NativeWgpuRenderError::ShakingPolygon)?;
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
+                continue;
+            }
+
             let source = sources.get(&clip.media_id).ok_or_else(|| {
                 NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
@@ -1615,6 +1651,8 @@ impl NativeWgpuRenderer {
             .finish_frame(&touched_simple_tube_media_ids);
         self.focus_lines_renderer
             .finish_frame(&touched_focus_lines_media_ids);
+        self.shaking_polygon_renderer
+            .finish_frame(&touched_shaking_polygon_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -3879,6 +3917,7 @@ mod tests {
                         &HashMap::new(),
                         &HashMap::new(),
                         &HashMap::new(),
+                        &HashMap::new(),
                         true,
                         &HashMap::new(),
                     )
@@ -3979,6 +4018,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4075,6 +4115,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4162,6 +4203,7 @@ mod tests {
                     &hksy_sources,
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4240,6 +4282,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &hksy_sources,
+                    &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
                     true,
@@ -4348,6 +4391,7 @@ mod tests {
                     &HashMap::new(),
                     &simple_tube_sources,
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4437,6 +4481,7 @@ mod tests {
                 &HashMap::new(),
                 &simple_tube_sources,
                 &HashMap::new(),
+                &HashMap::new(),
                 true,
                 &HashMap::new(),
             )
@@ -4514,6 +4559,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &focus_lines_sources,
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4543,6 +4589,90 @@ mod tests {
             .any(|pixel| pixel[0] > 200 && pixel[1] > 70 && pixel[3] > 0));
         assert_eq!(first.pixels, second.pixels);
         assert_eq!(renderer.focus_lines_renderer.stats(), (1, 1));
+        assert_eq!(renderer.media_texture_cache_stats(), (0, 0));
+    }
+
+    #[test]
+    fn shaking_polygon_source_is_generated_on_gpu_and_reuses_its_texture() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 48)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU ShakingPolygon test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 1,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "shaking-polygon-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "shaking-polygon-media".to_string(),
+                source_frame: 1,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let shaking_polygon_sources = HashMap::from([(
+            "shaking-polygon-media".to_string(),
+            NativeShakingPolygonSource {
+                source: r##"{"generator":"shaking-polygon","line_width":3,"vertex_count":5,"fixed_diameter":36,"vertical_distortion_percent":10,"repeat_count":3,"repeat_frequency":2,"fill":true,"jitter_range":4,"jitter_interval":2,"stepped":false,"colour":"#ff8000","seed":93}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_frame: 1,
+                config_revision: 14,
+            },
+        )]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let render = |renderer: &NativeWgpuRenderer| {
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &shaking_polygon_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("ShakingPolygon preparation must succeed without CPU RGBA");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD ShakingPolygon test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("ShakingPolygon output readback must succeed")
+        };
+
+        let first = render(&renderer);
+        let second = render(&renderer);
+        assert!(first.pixels.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(first
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[0] > 200 && pixel[1] > 70 && pixel[3] > 0));
+        assert!(first
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[3] > 80 && pixel[3] < 180));
+        assert_eq!(first.pixels, second.pixels);
+        assert_eq!(renderer.shaking_polygon_renderer.stats(), (1, 1));
         assert_eq!(renderer.media_texture_cache_stats(), (0, 0));
     }
 

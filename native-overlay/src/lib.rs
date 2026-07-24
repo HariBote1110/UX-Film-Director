@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
     render_native_wgpu_frame, NativeAudioReactiveSource, NativeFocusLinesSource,
-    NativeGetColorSource, NativeHksySource, NativeParticleSource, NativeSimpleTubeSource,
-    NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
+    NativeGetColorSource, NativeHksySource, NativeParticleSource, NativeShakingPolygonSource,
+    NativeSimpleTubeSource, NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
 };
 use uxfd_rust_backend::{build_native_generated_source_frame, load_native_getcolor_sample_frame};
 use uxfd_rust_core::{
@@ -729,6 +729,7 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     last_hksy_sources: HashMap<String, NativeHksySource>,
     last_simple_tube_sources: HashMap<String, NativeSimpleTubeSource>,
     last_focus_lines_sources: HashMap<String, NativeFocusLinesSource>,
+    last_shaking_polygon_sources: HashMap<String, NativeShakingPolygonSource>,
     #[cfg(target_os = "macos")]
     video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
@@ -772,6 +773,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_hksy_sources: HashMap::new(),
             last_simple_tube_sources: HashMap::new(),
             last_focus_lines_sources: HashMap::new(),
+            last_shaking_polygon_sources: HashMap::new(),
             #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
@@ -810,6 +812,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         self.last_hksy_sources.clear();
         self.last_simple_tube_sources.clear();
         self.last_focus_lines_sources.clear();
+        self.last_shaking_polygon_sources.clear();
         #[cfg(target_os = "macos")]
         self.video_decoders.clear();
         let content_revisions = scene
@@ -973,6 +976,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         let hksy_sources = native_overlay_hksy_sources_for_scene(scene)?;
         let simple_tube_sources = native_overlay_simple_tube_sources_for_scene(scene)?;
         let focus_lines_sources = native_overlay_focus_lines_sources_for_scene(scene)?;
+        let shaking_polygon_sources = native_overlay_shaking_polygon_sources_for_scene(scene)?;
         self.last_scene = Some(Arc::new((snapshot, sources)));
         self.last_scene_content_revisions = content_revisions;
         self.last_nv12_sources = nv12_sources;
@@ -982,6 +986,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         self.last_hksy_sources = hksy_sources;
         self.last_simple_tube_sources = simple_tube_sources;
         self.last_focus_lines_sources = focus_lines_sources;
+        self.last_shaking_polygon_sources = shaking_polygon_sources;
         self.scene_generation = self.scene_generation.wrapping_add(1);
 
         let (decoration_clips, decoration_sources) = decoration
@@ -1011,6 +1016,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                     &self.last_hksy_sources,
                     &self.last_simple_tube_sources,
                     &self.last_focus_lines_sources,
+                    &self.last_shaking_polygon_sources,
                     &decoration_clips,
                     &decoration_sources,
                 ),
@@ -1097,6 +1103,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             && self.last_hksy_sources.is_empty()
             && self.last_simple_tube_sources.is_empty()
             && self.last_focus_lines_sources.is_empty()
+            && self.last_shaking_polygon_sources.is_empty()
         {
             pollster::block_on(
                 self.renderer
@@ -1123,6 +1130,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                         &self.last_hksy_sources,
                         &self.last_simple_tube_sources,
                         &self.last_focus_lines_sources,
+                        &self.last_shaking_polygon_sources,
                         &decoration_clips,
                         &decoration_sources,
                     ),
@@ -2104,6 +2112,7 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
     renderer.last_hksy_sources.clear();
     renderer.last_simple_tube_sources.clear();
     renderer.last_focus_lines_sources.clear();
+    renderer.last_shaking_polygon_sources.clear();
     #[cfg(target_os = "macos")]
     renderer.video_decoders.clear();
     // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
@@ -2619,6 +2628,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
                     | MediaKind::GeneratedHksyCheckerGrid
                     | MediaKind::GeneratedSimpleTube
                     | MediaKind::GeneratedFocusLinesPlus
+                    | MediaKind::GeneratedShakingPolygon
             )
         {
             continue;
@@ -2888,6 +2898,52 @@ fn native_overlay_focus_lines_sources_for_scene(
         if sources.insert(media.id.clone(), descriptor).is_some() {
             return Err(format!(
                 "Duplicate native overlay FocusLinesPlus mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn native_overlay_shaking_polygon_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, NativeShakingPolygonSource>, String> {
+    let mut sources = HashMap::new();
+    for media in scene
+        .media
+        .iter()
+        .filter(|media| media.kind == "GeneratedShakingPolygon")
+    {
+        let mut source_frames = scene
+            .snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(scene.snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native overlay cannot render ShakingPolygon media {} at multiple source frames in one scene.",
+                media.id
+            ));
+        }
+        let config_revision = native_overlay_media_content_revision(media, source_frame)
+            .ok_or_else(|| {
+                format!(
+                    "Native overlay ShakingPolygon media '{}' has no stable content revision.",
+                    media.id
+                )
+            })?;
+        let descriptor = NativeShakingPolygonSource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_frame,
+            config_revision,
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native overlay ShakingPolygon mediaId '{}'",
                 media.id
             ));
         }
@@ -4050,9 +4106,7 @@ mod tests {
         let first = first
             .get("shaking-polygon-media")
             .expect("first descriptor");
-        let next = next
-            .get("shaking-polygon-media")
-            .expect("next descriptor");
+        let next = next.get("shaking-polygon-media").expect("next descriptor");
         assert_eq!(first.source_frame, 0);
         assert_eq!(next.source_frame, 1);
         assert_ne!(
