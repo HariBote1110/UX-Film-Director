@@ -10,6 +10,7 @@ import type {
   ProjectSettings,
   RegionFrameObject,
   ShakingPolygonObject,
+  ShatteredSphereObject,
   ShapeObject,
   SimpleTubeObject,
   TextObject,
@@ -224,6 +225,34 @@ const shakingPolygon = (
   jitterInterval: 4,
   stepped: false,
   colour: '#ff8800',
+  seed: 93,
+  ...patch,
+});
+
+const shatteredSphere = (
+  patch: Partial<ShatteredSphereObject> = {}
+): ShatteredSphereObject => ({
+  ...base,
+  id: 'shattered-sphere',
+  type: 'shattered_sphere',
+  layer: 6,
+  width: 320,
+  height: 180,
+  fractureAmount: 100,
+  delay: 20,
+  radius: 72,
+  limitDistance: 120,
+  thickness: 20,
+  fragmentSize: 12,
+  randomShape: 80,
+  speed: 100,
+  impact: 80,
+  gravityX: 0,
+  gravityY: 100,
+  gravityZ: 0,
+  spin: 100,
+  directionDiffusion: 90,
+  colour: '#80d8ff',
   seed: 93,
   ...patch,
 });
@@ -655,6 +684,32 @@ describe('buildEditableRustScene', () => {
       expect.objectContaining({
         id: 'shaking-polygon',
         kind: 'GeneratedShakingPolygon',
+        width: 320,
+        height: 180,
+      })
+    );
+  });
+
+  it('ShatteredSphereを生成mediaと専用clip kindで常駐Rust sceneへ変換する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-shattered-sphere',
+      projectSettings,
+      layers,
+      objects: [shatteredSphere()],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ShatteredSphere conversion to succeed');
+    expect(result.project.tracks.flatMap((track) => track.clips)).toContainEqual(
+      expect.objectContaining({
+        id: 'shattered-sphere',
+        kind: 'GeneratedShatteredSpherePlane',
+      })
+    );
+    expect(result.media).toContainEqual(
+      expect.objectContaining({
+        id: 'shattered-sphere',
+        kind: 'GeneratedShatteredSphere',
         width: 320,
         height: 180,
       })
