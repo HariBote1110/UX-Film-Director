@@ -3581,6 +3581,37 @@ mod tests {
     }
 
     #[test]
+    fn live_scene_generation_change_reuses_media_texture_when_revision_is_unchanged() {
+        let Some(renderer) = create_test_renderer("live scene revision cache test") else {
+            return;
+        };
+        let (mut snapshot, sources) = solid_scene("clip-1", "generated-hksy");
+        let revisions = HashMap::from([("generated-hksy".to_string(), 42_u64)]);
+
+        renderer
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources, &revisions)
+            .expect("first live scene prepare must succeed");
+        assert_eq!(renderer.prepared_scene_cache_stats(), (0, 1));
+        assert_eq!(renderer.media_texture_cache_stats(), (0, 1));
+
+        snapshot.clips[0].transform.translation_x = 32.0;
+        renderer
+            .prepare_base_scene_clips_cached(2, &snapshot, &sources, &revisions)
+            .expect("changed live scene generation must re-prepare safely");
+
+        assert_eq!(
+            renderer.prepared_scene_cache_stats(),
+            (0, 2),
+            "transform change must rebuild the prepared clip for the new live scene generation"
+        );
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (1, 1),
+            "unchanged media revision must reuse the GPU texture across live scene generations"
+        );
+    }
+
+    #[test]
     fn prepared_clip_is_shared_via_arc_without_deep_cloning_gpu_resource() {
         // タスク2: last_scene の deep clone 廃止に伴い、prepared clip は
         // Arc で共有できる（cheap clone）ことを型レベルで固定する。
