@@ -1,6 +1,7 @@
 import type { TimelineObject } from '../types';
 import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
+import { isSupportedSceneObject } from './rustSceneSnapshot';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 
 export type ProjectExportFrameCanvasSource =
@@ -314,48 +315,16 @@ export const resolveProjectExportFrameSourcePolicyForEncode = ({
   };
 };
 
+// Rust/native側が実際にサポートするobject typeの単一情報源(SSOT)は
+// rustSceneSnapshot.tsのisSupportedSceneObjectであり、ここでは手書きのOR式で
+// 二重管理しない。二重管理はどちらかの更新漏れ(実際にshattered_sphereと
+// plain_effector_lineが export 判定側から漏れていた)を必ず生むため、SSOTから導出する。
+// ただしtextはPixiの標準テキスト描画がlegacy canvas captureでも正しく動作するため、
+// Rust frame sourceを強制する対象から意図的に除外する。
 export const hasProjectExportNativeRenderMediaObjects = (
   objects: readonly TimelineObject[]
 ): boolean =>
-  objects.some((object) =>
-    object.type === 'shape'
-    || object.type === 'image'
-    || object.type === 'psd'
-    || object.type === 'video'
-    || object.type === 'audio_sphere'
-    || object.type === 'particle'
-    || object.type === 'barcode'
-    || object.type === 'puzzle_piece'
-    || object.type === 'colour_wheel'
-    || object.type === 'gourd'
-    || object.type === 'gear'
-    || object.type === 'track_bar'
-    || object.type === 'pie_chart'
-    || object.type === 'histogram'
-    || object.type === 'tone_curve'
-    || object.type === 'getcolor_dot_field'
-    || object.type === 'hksy_checker_grid'
-    || object.type === 'region_frame'
-    || object.type === 'simple_tube'
-    || object.type === 'sphere_dots'
-    || object.type === 'spherical_field'
-    || object.type === 'sunburst'
-    || object.type === 'circular_arrow'
-    || object.type === 'triangle_bracket'
-    || object.type === 'tartan_check'
-    || object.type === 'houndstooth'
-    || object.type === 'yagasuri'
-    || object.type === 'paper_airplane'
-    || object.type === 'asanoha_pattern'
-    || object.type === 'focus_lines_plus'
-    || object.type === 'random_line_ex'
-    || object.type === 'contour_trace'
-    || object.type === 'displacement_poly'
-    || object.type === 'hologram'
-    || object.type === 'protractor'
-    || object.type === 'shaking_polygon'
-    || object.type === 'audio_visualization'
-  );
+  objects.some((object) => isSupportedSceneObject(object) && object.type !== 'text');
 
 export const resolveProjectExportRustFrameSourceContext = ({
   objects,

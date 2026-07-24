@@ -890,7 +890,7 @@ const parseHexColourToLinearTriplet = (value: string): [number, number, number] 
 const isSupportedMediaObject = (object: TimelineObject): object is SupportedMediaObject =>
   object.type === 'image' || object.type === 'video' || object.type === 'psd';
 
-const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
+export const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
   isSupportedMediaObject(object)
   || object.type === 'shape'
   || object.type === 'text'
