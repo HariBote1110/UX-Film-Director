@@ -452,7 +452,6 @@ const PropertyPanel: React.FC = () => {
   const aviUtlCoordinateStoreSnapshot = useStore((state) => state.aviUtlCoordinateStoreSnapshot);
   const captureSelectedCoordinatesWithAviUtlStore = useStore((state) => state.captureSelectedCoordinatesWithAviUtlStore);
   const applyAviUtlStoredCoordinatesToSelection = useStore((state) => state.applyAviUtlStoredCoordinatesToSelection);
-  const currentTime = useStore((state) => state.currentTime);
   const visionDetectionPreviewEnabled = useStore((state) => state.visionDetectionPreviewEnabled);
   const setVisionDetectionPreviewEnabled = useStore((state) => state.setVisionDetectionPreviewEnabled);
   const visionDetectionRealtimeEnabled = useStore((state) => state.visionDetectionRealtimeEnabled);
@@ -949,7 +948,7 @@ const PropertyPanel: React.FC = () => {
 
   const mediaTimeForSelectedVideo = (video: VideoObject): number => {
     const offset = video.offset ?? 0;
-    const local = currentTime - video.startTime;
+    const local = useStore.getState().currentTime - video.startTime;
     if (local < 0 || local > video.duration) {
       return offset;
     }
