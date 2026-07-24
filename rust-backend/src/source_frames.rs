@@ -30,6 +30,7 @@ pub(crate) fn collect_native_render_sources(
             MediaKind::GeneratedAudioWaveform
             | MediaKind::GeneratedAudioSphere
             | MediaKind::GeneratedGetColorDots
+            | MediaKind::GeneratedHksyCheckerGrid
             | MediaKind::GeneratedShakingPolygon
             | MediaKind::GeneratedShatteredSphere => continue,
             MediaKind::Video => continue,

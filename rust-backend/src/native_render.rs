@@ -22,8 +22,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use uxfd_native_wgpu_renderer::{
     BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeGeneratedGpuSources, NativeGetColorSource,
-    NativeShakingPolygonSource, NativeShatteredSphereSource, NativeWgpuRenderError,
-    NativeWgpuRenderer,
+    NativeHksySource, NativeShakingPolygonSource, NativeShatteredSphereSource,
+    NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{
     build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource, MediaKind,
@@ -209,6 +209,10 @@ pub(crate) fn handle_encode_write_native_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let hksy_sources = match collect_native_render_hksy_sources(&parsed.media) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
     let shattered_sphere_sources =
         match collect_native_render_shattered_sphere_sources(&parsed.snapshot, &parsed.media) {
             Ok(value) => value,
@@ -221,6 +225,7 @@ pub(crate) fn handle_encode_write_native_frame(
         };
     let generated_gpu_sources = NativeGeneratedGpuSources {
         getcolor: getcolor_sources,
+        hksy: hksy_sources,
         shaking_polygons: shaking_polygon_sources,
         shattered_spheres: shattered_sphere_sources,
         ..NativeGeneratedGpuSources::default()
@@ -547,6 +552,10 @@ pub(crate) fn handle_native_render_shared_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let hksy_sources = match collect_native_render_hksy_sources(&parsed.media) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
     let shattered_sphere_sources =
         match collect_native_render_shattered_sphere_sources(&parsed.snapshot, &parsed.media) {
             Ok(value) => value,
@@ -559,6 +568,7 @@ pub(crate) fn handle_native_render_shared_frame(
         };
     let generated_gpu_sources = NativeGeneratedGpuSources {
         getcolor: getcolor_sources,
+        hksy: hksy_sources,
         shaking_polygons: shaking_polygon_sources,
         shattered_spheres: shattered_sphere_sources,
         ..NativeGeneratedGpuSources::default()
@@ -887,6 +897,35 @@ fn collect_native_render_getcolor_sources(
         if sources.insert(media.id.clone(), descriptor).is_some() {
             return Err(format!(
                 "Duplicate native render GetColor mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn collect_native_render_hksy_sources(
+    media_items: &[SceneMediaReference],
+) -> Result<HashMap<String, NativeHksySource>, String> {
+    let mut sources = HashMap::new();
+    for media in media_items
+        .iter()
+        .filter(|media| media.kind == MediaKind::GeneratedHksyCheckerGrid)
+    {
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        let descriptor = NativeHksySource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native render HKSY mediaId '{}'",
                 media.id
             ));
         }
