@@ -202,6 +202,55 @@ fn media_content_revision(media: &SceneMediaReference, time_seed: Option<u64>) -
     hasher.finish()
 }
 
+#[cfg(unix)]
+#[derive(serde::Deserialize)]
+struct GetColorSampleReference {
+    source_image: Option<String>,
+    #[serde(default)]
+    source_active_layer_ids: Option<Vec<String>>,
+}
+
+#[cfg(unix)]
+pub(crate) fn load_cached_getcolor_sample_frame(
+    media: &SceneMediaReference,
+    source_frame_cache: &mut SourceFrameCache,
+) -> Result<(Option<Arc<RgbaFrame>>, u64), String> {
+    let sample: GetColorSampleReference = serde_json::from_str(&media.source).map_err(|error| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{}': {error}",
+            media.id
+        )
+    })?;
+    let base_revision = media_content_revision(media, None);
+    let Some(source_image) = sample.source_image.as_deref() else {
+        let frame = uxfd_rust_backend::load_native_getcolor_sample_frame(media)?;
+        return Ok((frame.map(Arc::new), base_revision));
+    };
+
+    let source_path = local_media_source_path(source_image, "GeneratedGetColorDots source_image")?;
+    let active_layer_ids = sample.source_active_layer_ids.as_deref().unwrap_or(&[]);
+    let cache_key = build_source_frame_cache_key(&source_path, active_layer_ids, 0, 0)?;
+    let mut revision_hasher = DefaultHasher::new();
+    base_revision.hash(&mut revision_hasher);
+    cache_key.hash(&mut revision_hasher);
+    let config_revision = revision_hasher.finish();
+
+    if let Some(frame) = source_frame_cache.get(&cache_key) {
+        return Ok((Some(frame), config_revision));
+    }
+
+    let frame = uxfd_rust_backend::load_native_getcolor_sample_frame(media)?
+        .ok_or_else(|| {
+            format!(
+                "Invalid GeneratedGetColorDots media '{}': source_image did not produce a frame",
+                media.id
+            )
+        })
+        .map(Arc::new)?;
+    source_frame_cache.insert(cache_key, Arc::clone(&frame));
+    Ok((Some(frame), config_revision))
+}
+
 fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
     snapshot
         .clips

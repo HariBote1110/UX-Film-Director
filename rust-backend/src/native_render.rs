@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use crate::{
     collect_native_render_nv12_sources, collect_native_render_source_content_revisions,
-    collect_native_render_sources,
+    collect_native_render_sources, load_cached_getcolor_sample_frame,
 };
 use crate::cpu_simple_video::{
     try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
@@ -20,7 +20,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::sync::Arc;
 use uxfd_native_wgpu_renderer::{
     BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeGeneratedGpuSources, NativeGetColorSource,
     NativeShakingPolygonSource, NativeShatteredSphereSource, NativeWgpuRenderError,
@@ -869,25 +868,21 @@ fn collect_native_render_shaking_polygon_sources(
 
 fn collect_native_render_getcolor_sources(
     media_items: &[SceneMediaReference],
-    _source_frame_cache: &mut SourceFrameCache,
+    source_frame_cache: &mut SourceFrameCache,
 ) -> Result<HashMap<String, NativeGetColorSource>, String> {
     let mut sources = HashMap::new();
     for media in media_items
         .iter()
         .filter(|media| media.kind == MediaKind::GeneratedGetColorDots)
     {
-        let mut hasher = DefaultHasher::new();
-        media.id.hash(&mut hasher);
-        media.source.hash(&mut hasher);
-        media.width.hash(&mut hasher);
-        media.height.hash(&mut hasher);
+        let (sample_frame, config_revision) =
+            load_cached_getcolor_sample_frame(media, source_frame_cache)?;
         let descriptor = NativeGetColorSource {
             source: media.source.clone(),
-            sample_frame: uxfd_rust_backend::load_native_getcolor_sample_frame(media)?
-                .map(Arc::new),
+            sample_frame,
             width: media.width,
             height: media.height,
-            config_revision: hasher.finish(),
+            config_revision,
         };
         if sources.insert(media.id.clone(), descriptor).is_some() {
             return Err(format!(
