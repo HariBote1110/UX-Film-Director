@@ -8,6 +8,7 @@ use uxfd_rust_core::{Project, SceneMediaReference};
 use uxfd_shared_memory_spike::PosixSharedRing;
 
 use crate::sessions::{DecodeSession, EncodeSession};
+use crate::inprocess_decode::InProcessDecodeSession;
 
 pub(crate) struct SceneSession {
     pub(crate) scene_id: String,
@@ -25,6 +26,10 @@ pub(crate) struct BackendState {
     pub(crate) decode_sessions: HashMap<String, DecodeSession>,
     pub(crate) encode_sessions: HashMap<String, EncodeSession>,
     pub(crate) scene_sessions: HashMap<String, SceneSession>,
+    /// Export-owned hardware decoders. These sessions produce retained NV12
+    /// IOSurfaces directly for resident scene rendering, without creating a
+    /// shared RGBA ring for Chromium.
+    pub(crate) resident_video_decoders: HashMap<String, InProcessDecodeSession>,
     pub(crate) psd_overlay_cache: HashMap<String, PsdOverlayCacheEntry>,
     #[cfg(unix)]
     pub(crate) native_render_outputs: HashMap<String, PosixSharedRing>,
@@ -35,6 +40,17 @@ pub(crate) struct BackendState {
     /// layers for Psd), so repeated frames of a still image/PSD do not pay
     /// for a full re-decode every call.
     pub(crate) source_frame_cache: SourceFrameCache,
+}
+
+impl BackendState {
+    pub(crate) fn release_resident_video_decoders_for_encode_session(
+        &mut self,
+        encode_session_id: &str,
+    ) {
+        let prefix = format!("{encode_session_id}\0");
+        self.resident_video_decoders
+            .retain(|key, _decoder| !key.starts_with(&prefix));
+    }
 }
 
 pub(crate) struct PsdOverlayCacheEntry {

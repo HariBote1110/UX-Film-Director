@@ -7,6 +7,7 @@ use crate::cpu_simple_video::{
     try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
 };
 use crate::encode::write_rgba_frame_to_encoder;
+use crate::inprocess_decode::InProcessDecodeSession;
 use crate::params::{
     EncodeWriteNativeFrameParams, EncodeWriteResidentSceneFrameParams,
     NativeRenderAudioWaveformSource, NativeRenderSharedFrameParams,
@@ -14,11 +15,15 @@ use crate::params::{
 use crate::rpc::{response_error, RpcResponse};
 use crate::state::BackendState;
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use uxfd_native_wgpu_renderer::{
     NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
 };
-use uxfd_rust_core::{evaluate_frame, AudioWaveformSource};
+use uxfd_rust_core::{
+    build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource,
+    VideoFrameDecodeRequest,
+};
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
 
 #[cfg(unix)]
@@ -72,6 +77,40 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
     )
     .min(u128::from(u64::MAX)) as u64;
 
+    let video_requests = match build_video_frame_decode_requests(&snapshot, &media) {
+        Ok(value) => value.requests,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid resident video decode request: {error:?}"),
+            );
+        }
+    };
+    let video_source_frames = video_requests
+        .iter()
+        .map(|request| {
+            (
+                request.clip_id.as_str(),
+                request.media_id.as_str(),
+                request.source_frame,
+            )
+        })
+        .collect::<Vec<_>>();
+    if let Err(message) = validate_resident_video_source_frames(&video_source_frames) {
+        return response_error(id, -32602, &message);
+    }
+    let nv12_sources = match collect_resident_video_nv12_sources(
+        &parsed.session_id,
+        &parsed.scene_id,
+        parsed.revision,
+        &video_requests,
+        state,
+    ) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32071, &message),
+    };
+
     let mut native_params = params;
     let Value::Object(native_object) = &mut native_params else {
         return response_error(id, -32602, "Resident scene encode params must be an object");
@@ -88,6 +127,7 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
     native_object.insert("height".to_string(), Value::from(height));
     native_object.insert("snapshot".to_string(), json!(snapshot));
     native_object.insert("media".to_string(), json!(media));
+    native_object.insert("nv12Sources".to_string(), json!(nv12_sources));
     native_object
         .entry("sources".to_string())
         .or_insert_with(|| Value::Array(Vec::new()));
@@ -163,15 +203,18 @@ pub(crate) fn handle_encode_write_native_frame(
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
     };
-    if sources.is_empty() && audio_waveforms.is_empty() {
+    let mut nv12_sources = parsed.nv12_sources;
+    nv12_sources.extend(collect_native_render_nv12_sources(
+        &parsed.sources,
+        &state.decode_sessions,
+    ));
+    if sources.is_empty() && audio_waveforms.is_empty() && nv12_sources.is_empty() {
         return response_error(
             id,
             -32602,
-            "sources, Image media, SolidColour media, or audioWaveforms must include at least one render source",
+            "sources, media, audioWaveforms, or nv12Sources must include at least one render source",
         );
     }
-
-    let nv12_sources = collect_native_render_nv12_sources(&parsed.sources, &state.decode_sessions);
 
     if audio_waveforms.is_empty() && nv12_sources.is_empty() {
         if let Some(frame) = match try_render_simple_video_frame(
@@ -537,6 +580,102 @@ fn collect_native_render_audio_waveforms(
             })
         })
         .collect()
+}
+
+fn validate_resident_video_source_frames(
+    requests: &[(&str, &str, u64)],
+) -> Result<(), String> {
+    let mut frames_by_media: HashMap<&str, (&str, u64)> = HashMap::new();
+    for &(clip_id, media_id, source_frame) in requests {
+        if let Some(&(existing_clip_id, existing_source_frame)) = frames_by_media.get(media_id) {
+            if existing_source_frame != source_frame {
+                return Err(format!(
+                    "Resident NV12 source {media_id} is requested by {existing_clip_id} at frame \
+                     {existing_source_frame} and by {clip_id} at frame {source_frame}; the native \
+                     renderer must key video textures by clip id before this overlap is supported",
+                ));
+            }
+        } else {
+            frames_by_media.insert(media_id, (clip_id, source_frame));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn collect_resident_video_nv12_sources(
+    encode_session_id: &str,
+    scene_id: &str,
+    revision: u64,
+    requests: &[VideoFrameDecodeRequest],
+    state: &mut BackendState,
+) -> Result<HashMap<String, uxfd_rust_core::Nv12IoSurfaceRef>, String> {
+    let mut sources = HashMap::new();
+    for request in requests {
+        if sources.contains_key(&request.media_id) {
+            continue;
+        }
+        let decoder_key = resident_video_decoder_key(
+            encode_session_id,
+            scene_id,
+            revision,
+            &request.media_id,
+        );
+        if !state.resident_video_decoders.contains_key(&decoder_key) {
+            let decoder = InProcessDecodeSession::open_nv12_only(
+                Path::new(&request.source),
+                request.width,
+                request.height,
+            )
+            .map_err(|error| {
+                format!(
+                    "Failed to open resident NV12 decoder for {}: {error}",
+                    request.media_id
+                )
+            })?;
+            state.resident_video_decoders.insert(decoder_key.clone(), decoder);
+        }
+        let target_pts_seconds = request.source_frame as f64
+            * request.source_rate.denominator as f64
+            / request.source_rate.numerator as f64;
+        let frame = state
+            .resident_video_decoders
+            .get(&decoder_key)
+            .expect("resident decoder must exist after insertion")
+            .request_nv12_frame(target_pts_seconds)
+            .map_err(|error| {
+                format!(
+                    "Failed to decode resident NV12 frame for {}: {error}",
+                    request.media_id
+                )
+            })?;
+        sources.insert(request.media_id.clone(), frame.source);
+    }
+    Ok(sources)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn collect_resident_video_nv12_sources(
+    _encode_session_id: &str,
+    _scene_id: &str,
+    _revision: u64,
+    requests: &[VideoFrameDecodeRequest],
+    _state: &mut BackendState,
+) -> Result<HashMap<String, uxfd_rust_core::Nv12IoSurfaceRef>, String> {
+    if requests.is_empty() {
+        Ok(HashMap::new())
+    } else {
+        Err("Resident NV12 decode is only available on macOS".to_string())
+    }
+}
+
+fn resident_video_decoder_key(
+    encode_session_id: &str,
+    scene_id: &str,
+    revision: u64,
+    media_id: &str,
+) -> String {
+    format!("{encode_session_id}\0{scene_id}\0{revision}\0{media_id}")
 }
 
 pub(crate) fn native_render_source_error_code(message: &str) -> i64 {

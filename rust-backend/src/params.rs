@@ -1,6 +1,7 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use uxfd_rust_core::{SceneMediaReference, SceneSnapshot};
+use uxfd_rust_core::{Nv12IoSurfaceRef, SceneMediaReference, SceneSnapshot};
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat, SharedFrame};
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +49,8 @@ pub(crate) struct EncodeWriteNativeFrameParams {
     pub(crate) sources: Vec<NativeRenderSharedFrameSource>,
     #[serde(default)]
     pub(crate) audio_waveforms: Vec<NativeRenderAudioWaveformSource>,
+    #[serde(default)]
+    pub(crate) nv12_sources: HashMap<String, Nv12IoSurfaceRef>,
 }
 
 #[derive(Debug, Deserialize)]

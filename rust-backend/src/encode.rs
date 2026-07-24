@@ -176,6 +176,7 @@ pub(crate) fn handle_encode_finish(
     let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
         return response_error(id, -32052, "No active encode session");
     };
+    state.release_resident_video_decoders_for_encode_session(&parsed.session_id);
     let mut session = session;
 
     let _ = session.stdin.flush();
@@ -234,6 +235,7 @@ pub(crate) fn handle_encode_abort(id: u64, params: Value, state: &mut BackendSta
         }
     };
 
+    state.release_resident_video_decoders_for_encode_session(&parsed.session_id);
     let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
         return RpcResponse {
             id,
