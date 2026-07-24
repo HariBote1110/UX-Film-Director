@@ -21,8 +21,8 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeShatteredSphereSource,
-    NativeWgpuRenderError, NativeWgpuRenderer,
+    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeShakingPolygonSource,
+    NativeShatteredSphereSource, NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{
     build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource, MediaKind,
@@ -208,6 +208,11 @@ pub(crate) fn handle_encode_write_native_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let shaking_polygon_sources =
+        match collect_native_render_shaking_polygon_sources(&parsed.snapshot, &parsed.media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -222,6 +227,7 @@ pub(crate) fn handle_encode_write_native_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
+        shaking_polygon_sources.len(),
         shattered_sphere_sources.len(),
     ) {
         return response_error(
@@ -246,7 +252,12 @@ pub(crate) fn handle_encode_write_native_frame(
             }
         });
 
-    if !uses_iosurface_encoder && audio_waveforms.is_empty() && nv12_sources.is_empty() {
+    if !uses_iosurface_encoder
+        && audio_waveforms.is_empty()
+        && nv12_sources.is_empty()
+        && shaking_polygon_sources.is_empty()
+        && shattered_sphere_sources.is_empty()
+    {
         if let Some(frame) = match try_render_simple_video_frame(
             &parsed.snapshot,
             &parsed.media,
@@ -345,6 +356,8 @@ pub(crate) fn handle_encode_write_native_frame(
                 &parsed.snapshot,
                 &sources,
                 &audio_waveforms,
+                &shaking_polygon_sources,
+                &shattered_sphere_sources,
                 &content_revisions,
                 &nv12_sources,
                 BgraIoSurfaceTarget {
@@ -413,6 +426,7 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.snapshot,
         &sources,
         &audio_waveforms,
+        &shaking_polygon_sources,
         &shattered_sphere_sources,
         &content_revisions,
         &nv12_sources,
@@ -525,6 +539,11 @@ pub(crate) fn handle_native_render_shared_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let shaking_polygon_sources =
+        match collect_native_render_shaking_polygon_sources(&parsed.snapshot, &parsed.media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -546,6 +565,7 @@ pub(crate) fn handle_native_render_shared_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
+        shaking_polygon_sources.len(),
         shattered_sphere_sources.len(),
     ) {
         return response_error(
@@ -555,7 +575,11 @@ pub(crate) fn handle_native_render_shared_frame(
         );
     }
 
-    if audio_waveforms.is_empty() && nv12_sources.is_empty() {
+    if audio_waveforms.is_empty()
+        && nv12_sources.is_empty()
+        && shaking_polygon_sources.is_empty()
+        && shattered_sphere_sources.is_empty()
+    {
         match try_render_simple_video_frame_to_shared_ring(
             &parsed.snapshot,
             &parsed.media,
@@ -633,6 +657,7 @@ pub(crate) fn handle_native_render_shared_frame(
             &parsed.snapshot,
             &sources,
             &audio_waveforms,
+            &shaking_polygon_sources,
             &shattered_sphere_sources,
             &content_revisions,
             &nv12_sources,
@@ -781,17 +806,63 @@ fn collect_native_render_shattered_sphere_sources(
     Ok(sources)
 }
 
+fn collect_native_render_shaking_polygon_sources(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+) -> Result<HashMap<String, NativeShakingPolygonSource>, String> {
+    let mut sources = HashMap::new();
+    for media in media_items
+        .iter()
+        .filter(|media| media.kind == MediaKind::GeneratedShakingPolygon)
+    {
+        let mut source_frames = snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native render cannot use ShakingPolygon media {} at multiple source frames in one scene",
+                media.id
+            ));
+        }
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        source_frame.hash(&mut hasher);
+        let descriptor = NativeShakingPolygonSource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_frame,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native render ShakingPolygon mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
 fn native_render_has_valid_input(
     active_clip_count: usize,
     source_count: usize,
     audio_waveform_count: usize,
     nv12_source_count: usize,
+    shaking_polygon_count: usize,
     shattered_sphere_count: usize,
 ) -> bool {
     active_clip_count == 0
         || source_count > 0
         || audio_waveform_count > 0
         || nv12_source_count > 0
+        || shaking_polygon_count > 0
         || shattered_sphere_count > 0
 }
 
@@ -941,10 +1012,11 @@ mod tests {
 
     #[test]
     fn native_render_allows_an_empty_snapshot_as_a_transparent_frame() {
-        assert!(native_render_has_valid_input(0, 0, 0, 0, 0));
-        assert!(!native_render_has_valid_input(1, 0, 0, 0, 0));
-        assert!(native_render_has_valid_input(1, 0, 0, 1, 0));
-        assert!(native_render_has_valid_input(1, 0, 0, 0, 1));
+        assert!(native_render_has_valid_input(0, 0, 0, 0, 0, 0));
+        assert!(!native_render_has_valid_input(1, 0, 0, 0, 0, 0));
+        assert!(native_render_has_valid_input(1, 0, 0, 1, 0, 0));
+        assert!(native_render_has_valid_input(1, 0, 0, 0, 1, 0));
+        assert!(native_render_has_valid_input(1, 0, 0, 0, 0, 1));
     }
 
     #[test]
