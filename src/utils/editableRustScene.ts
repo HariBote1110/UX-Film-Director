@@ -15,6 +15,7 @@ import type {
 } from '../types';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { normaliseKeyframesForObject } from './keyframes';
+import { normaliseSubjectCropKeyframesForVideo } from './subjectCropKeyframes';
 import {
   fpsToFrameRate,
   mediaReferenceForEditableRustScene,
@@ -36,6 +37,20 @@ export interface EditableRustPositionKeyframe {
   easing: TimelineObject['easing'];
 }
 
+export interface EditableRustSubjectCropKeyframe {
+  frame_offset: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface EditableRustSubjectCropAnimation {
+  source_width: number;
+  source_height: number;
+  keyframes: readonly EditableRustSubjectCropKeyframe[];
+}
+
 export interface EditableRustClip {
   id: string;
   media_id: string;
@@ -47,6 +62,7 @@ export interface EditableRustClip {
   opacity: number;
   opacity_keyframes: readonly [];
   position_keyframes: readonly EditableRustPositionKeyframe[];
+  subject_crop?: EditableRustSubjectCropAnimation;
   effects: readonly RustEffect[];
 }
 
@@ -69,7 +85,6 @@ export type EditableRustSceneIssueCode =
   | 'unsupportedObjectType'
   | 'unsupportedGroup'
   | 'unsupportedVideoMode'
-  | 'unsupportedSubjectCrop'
   | 'unsupportedMask'
   | 'unsupportedFilter'
   | 'unsupportedGetColorSampleSource';
@@ -149,6 +164,26 @@ const positionKeyframesForObject = (
 const initialPositionForObject = (object: EditableRustSceneObject): { x: number; y: number } => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
   return keyframes.length >= 2 ? { x: keyframes[0].x, y: keyframes[0].y } : { x: object.x, y: object.y };
+};
+
+const subjectCropForObject = (
+  object: EditableRustSceneObject,
+  fps: number
+): EditableRustSubjectCropAnimation | undefined => {
+  if (object.type !== 'video' || object.subjectCropEnabled !== true) return undefined;
+  const keyframes = normaliseSubjectCropKeyframesForVideo(object, object.subjectCropKeyframes);
+  if (keyframes.length === 0) return undefined;
+  return {
+    source_width: object.width,
+    source_height: object.height,
+    keyframes: keyframes.map((keyframe) => ({
+      frame_offset: secondsToFrameIndex(keyframe.time - object.startTime, fps),
+      x: keyframe.x,
+      y: keyframe.y,
+      width: keyframe.width,
+      height: keyframe.height,
+    })),
+  };
 };
 
 const transformForObject = (object: EditableRustSceneObject): RustTransform => {
@@ -249,9 +284,6 @@ const issueForObject = (
   if (object.type === 'video' && object.reversed) {
     return { objectId: object.id, code: 'unsupportedVideoMode', detail: '逆再生はV1対象外です' };
   }
-  if (object.type === 'video' && (object.subjectCropEnabled || (object.subjectCropKeyframes?.length ?? 0) > 0)) {
-    return { objectId: object.id, code: 'unsupportedSubjectCrop', detail: 'subject cropはV1対象外です' };
-  }
   if (object.clipping) {
     return { objectId: object.id, code: 'unsupportedMask', detail: 'クリッピングマスクはV1対象外です' };
   }
@@ -286,6 +318,7 @@ export const buildEditableRustScene = ({
   for (const { object } of orderedObjects) {
     const track = tracksByLayer.get(object.layer) ?? { id: `layer-${object.layer}`, clips: [] };
     const startFrame = secondsToFrameIndex(object.startTime, projectSettings.fps);
+    const subjectCrop = subjectCropForObject(object, projectSettings.fps);
     track.clips.push({
       id: object.id,
       media_id: object.id,
@@ -299,6 +332,7 @@ export const buildEditableRustScene = ({
       opacity: object.opacity * getFadeOpacityMultiplier(object),
       opacity_keyframes: [],
       position_keyframes: positionKeyframesForObject(object, projectSettings.fps),
+      ...(subjectCrop ? { subject_crop: subjectCrop } : {}),
       effects: rustEffectsForObject(object, object.startTime),
     });
     tracksByLayer.set(object.layer, track);

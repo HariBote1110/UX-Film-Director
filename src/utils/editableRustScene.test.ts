@@ -433,7 +433,7 @@ describe('buildEditableRustScene', () => {
     ]);
   });
 
-  it('V1外のgroup gradient、逆再生、filter、animated crop、mask、未対応typeを明示拒否する', () => {
+  it('V1外のgroup gradient、逆再生、filter、mask、未対応typeを明示拒否する', () => {
     const unsupported: TimelineObject[] = [
       {
         ...shape({ id: 'group-member' }),
@@ -457,14 +457,6 @@ describe('buildEditableRustScene', () => {
           params: { edge: 'left', reverse: false },
         }],
       },
-      {
-        ...video({ id: 'animated-crop' }),
-        subjectCropEnabled: true,
-        subjectCropKeyframes: [
-          { id: 'crop-0', time: 1, x: 0, y: 0, width: 1, height: 1 },
-          { id: 'crop-1', time: 3, x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
-        ],
-      },
       { ...image({ id: 'mask' }), clipping: true },
       { ...shape({ id: 'group-control' }), type: 'group_control' as const, targetLayerCount: 2 } as TimelineObject,
     ];
@@ -477,7 +469,6 @@ describe('buildEditableRustScene', () => {
       ['group-member', 'unsupportedGroup'],
       ['reversed', 'unsupportedVideoMode'],
       ['filter', 'unsupportedFilter'],
-      ['animated-crop', 'unsupportedSubjectCrop'],
       ['mask', 'unsupportedMask'],
       ['group-control', 'unsupportedObjectType'],
     ]);
