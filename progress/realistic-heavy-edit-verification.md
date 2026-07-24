@@ -380,6 +380,41 @@ PSD import時の一時canvas、文字boxの`measureText`がproduction到達可�
 前二者を2D renderer移行の対象とし、3D Stageは独立した移行、PSD importと文字計測は
 per-frame compositor外の後段課題として扱う。
 
+## Hologram GPU移管と4K fixture追加後の再検証
+
+Beta-478aではGeneratedHologramの全画素CPUループをfullscreen fragment passへ移し、
+direct preview、shared frame、RGBA readback、BGRA IOSurface exportでCPU完成RGBAを
+生成しないようにした。設定が同じ限り1920×1080のGPU textureを再利用する。
+
+重量fixtureには24秒、1920×1080、prism gradient modeのHologramを追加した。初回実行で
+常駐Rust ProjectのTS型境界だけが`hologram`を拒否し、`rustTimelineStatus: blocked`、
+`realistic-main-hologram:unsupportedObjectType`になる不具合を検出した。Rust schemaには
+`GeneratedHologramPlane`が既に存在したため、resident scene変換へ接続して契約テストを
+追加した。
+
+67素材・45同時クリップの再検証は総合PASSした。
+
+- 120回スクラブ: 153.65 ms
+- requestAnimationFrame: 平均16.68 ms、p95 21.61 ms、最大23.91 ms
+- long task: 1件（53 ms）
+- Timeline: 73 commit、合計57.07 ms、平均0.78 ms
+- 保存復元: 67オブジェクト、fingerprint一致
+- 出力: 1920×1080、75フレーム投入、MP4 74フレーム、1.24秒
+- export所要時間: 23.56秒（開発ビルド、`ffmpegRawRgba`）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: visible pixel 261,043、colourful pixel 35,043
+
+通常操作後と保存復元後はpresenter、Rust timelineとも`ready`だった。export完了直後の
+最終snapshotだけは`videoTextureViewUnavailable`でbrowser presenterが`fallback`に
+なったが、Rust timelineは`ready`、exportと画面検査は成功している。CAMetalLayer direct
+経路の完了条件としては、このpost-export動画texture復帰を別途追跡する。
+
+再生中の瞬間CPU sampleはElectron browser/main 61.5%、Electron Renderer 57.4%、
+Rust backend 42.8%、audio service 11.8%だった。Hologramの4K画素生成はGPUへ移ったが、
+fixture自体も1素材増えており単発sampleなので、CPU削減率の比較値には使わない。
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない

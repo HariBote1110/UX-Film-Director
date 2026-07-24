@@ -150,6 +150,11 @@ GPUオフロードはまだ完了していない。
   使う。Particleは時間で変わる`source_frame`と設定revisionを分離し、instance設定を
   再利用する。FocusLinesPlusは`keyframeInterval`から求めるframe bucketだけを
   revisionへ含め、その計算をCPU参照描画、direct overlay、WGPU、exportで共通化した。
+- Beta-478aでGeneratedHologramの回転、prism band、stripe、tint、HSV gradientを
+  fullscreen fragment passへ移した。1920×1080の重量fixtureを追加し、CPU完成RGBA mapを
+  空にしたdirect preview、shared frame、exportで同じ静的GPU textureを再利用する。
+  初回E2Eで常駐Rust Projectだけが`hologram`を`unsupportedObjectType`として拒否する
+  型境界漏れを検出し、`GeneratedHologramPlane`へ接続した。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
@@ -169,9 +174,11 @@ GPUオフロードはまだ完了していない。
 2. CAMetalLayer direct presentが利用可能な場面ではChromium WebGPU presenterと
    browser側GPU capability probeを起動しない契約を固定する。presenter自体は
    native direct非対応環境のfallbackとして隔離する。
-3. 残るCPU完成RGBA生成sourceを、画素数、時間依存性、重量fixtureでの利用頻度から
-   順にGPU descriptorへ移す。特にText・GeneratedShapeを単発effectとは別の共通
-   vector/text source境界として設計する。
+3. 残る29種類のCPU完成RGBA生成sourceを、画素数、時間依存性、重量fixtureでの
+   利用頻度から順にGPU descriptorへ移す。次はTartanCheck、Houndstooth、Yagasuri、
+   AsanohaPatternを共通procedural pattern passへまとめ、その後に
+   PlainEffectorLineをline instance基盤へ載せる。Text・GeneratedShapeは単発effect
+   とは別の共通vector/text source境界として設計する。
 4. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
 5. ShakingPolygonのsource frame更新で行うtexture再生成を、同一textureへの
