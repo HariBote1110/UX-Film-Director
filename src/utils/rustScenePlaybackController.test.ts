@@ -9,7 +9,28 @@ const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
     frame_index: frameIndex,
     canvas_width: 1920,
     canvas_height: 1080,
-    clips: [],
+    colour: {
+      profile: 'rec709-sdr',
+      working_space: 'linear-light',
+      alpha: 'premultiplied',
+    },
+    clips: [{
+      clip_id: 'clip-1',
+      track_id: 'track-1',
+      media_id: 'media-1',
+      source_frame: frameIndex,
+      z_index: 0,
+      transform: {
+        translation_x: 10,
+        translation_y: 20,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'linear',
+      },
+      opacity: 1,
+      effects: [],
+    }],
   },
   media: [{
     id: 'media-1',
@@ -55,7 +76,22 @@ describe('RustScenePlaybackController', () => {
     });
     expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
       windowId: 4,
-      snapshot: expect.objectContaining({ frame_index: 30 }),
+      snapshot: expect.objectContaining({
+        frameIndex: 30,
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        colour: {
+          profile: 'rec709-sdr',
+          workingSpace: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [expect.objectContaining({
+          clipId: 'clip-1',
+          mediaId: 'media-1',
+          sourceFrame: 30,
+          effectsJson: '[]',
+        })],
+      }),
     }));
 
     nowMs = 1_100;
