@@ -188,6 +188,38 @@ describe('RustScenePlaybackController', () => {
     }));
   });
 
+  it('sourceRateが欠落または0のVideoはnative decoderへ渡さない', async () => {
+    for (const source_rate of [
+      undefined,
+      { numerator: 0, denominator: 1 },
+      { numerator: 60, denominator: 0 },
+    ]) {
+      const presentScene = vi.fn();
+      const controller = createRustScenePlaybackController({
+        evaluateScene: async ({ frameIndex }) => ({
+          ...evaluation(frameIndex, 'Video'),
+          media: [{
+            ...evaluation(frameIndex, 'Video').media[0],
+            source: '/tmp/video.mov',
+            source_rate,
+          }],
+        }),
+        presentScene,
+        emit: vi.fn(),
+      });
+
+      await expect(controller.start({
+        windowId: 4,
+        sceneId: 'scene-1',
+        revision: 7,
+        fps: 60,
+        startTimeSeconds: 0,
+        durationSeconds: 1,
+      })).resolves.toMatchObject({ active: false, reason: 'unsupportedDirectMedia' });
+      expect(presentScene).not.toHaveBeenCalled();
+    }
+  });
+
   it('PSD・音声生成物・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
     for (const [kind, source] of [
       ['Psd', '/tmp/design.psd'],
