@@ -7,18 +7,20 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, NativeParticleSource, NativeWgpuFrameStageTimings,
-    NativeWgpuLiveSurfaceRenderer,
+    render_native_wgpu_frame, NativeAudioReactiveSource, NativeParticleSource,
+    NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
 };
 use uxfd_rust_backend::build_native_generated_source_frame;
 use uxfd_rust_core::{
-    build_video_frame_decode_requests, parse_generated_particle_source, ColourPipeline, Effect,
-    EvaluatedClip, Fps, MediaKind, Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef,
-    SamplingMode, SceneMediaReference, SceneSnapshot, Transform, VideoFrameDecodeRequest,
+    build_video_frame_decode_requests, parse_generated_particle_source, AudioWaveformSource,
+    ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind, Nv12ColourMatrix, Nv12ColourRange,
+    Nv12IoSurfaceRef, SamplingMode, SceneMediaReference, SceneSnapshot, Transform,
+    VideoFrameDecodeRequest,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -338,6 +340,8 @@ static LIVE_OVERLAY_RENDERERS: OnceLock<Mutex<HashMap<u32, NativeOverlayLiveSurf
 
 const NATIVE_OVERLAY_SOURCE_CACHE_MAX_BYTES: usize = 512 * 1024 * 1024;
 const NATIVE_OVERLAY_SOURCE_CACHE_IDLE_FRAME_LIMIT: u64 = 30;
+const NATIVE_OVERLAY_AUDIO_SAMPLE_RATE: u32 = 8_000;
+const NATIVE_OVERLAY_AUDIO_PCM_CACHE_MAX_BYTES: usize = 256 * 1024 * 1024;
 type NativeOverlaySharedSources = HashMap<String, Arc<RgbaFrame>>;
 
 struct NativeOverlaySourceCacheEntry {
@@ -450,6 +454,121 @@ impl NativeOverlaySourceCache {
     fn len(&self) -> usize {
         self.entries.len()
     }
+}
+
+#[derive(Default)]
+struct NativeOverlayAudioPcmCache {
+    entries: HashMap<String, Arc<Vec<f32>>>,
+    order: VecDeque<String>,
+    total_bytes: usize,
+}
+
+impl NativeOverlayAudioPcmCache {
+    fn get_or_decode<F>(
+        &mut self,
+        source: &str,
+        sample_rate: u32,
+        decode: &mut F,
+    ) -> Result<Arc<Vec<f32>>, String>
+    where
+        F: FnMut(&str, u32) -> Result<Vec<f32>, String>,
+    {
+        let key = audio_pcm_cache_key(source, sample_rate);
+        if let Some(samples) = self.entries.get(&key).cloned() {
+            self.order.retain(|existing| existing != &key);
+            self.order.push_back(key);
+            return Ok(samples);
+        }
+        let samples = Arc::new(decode(source, sample_rate)?);
+        let byte_len = samples.len().saturating_mul(std::mem::size_of::<f32>());
+        if byte_len > NATIVE_OVERLAY_AUDIO_PCM_CACHE_MAX_BYTES {
+            return Err(format!(
+                "Native overlay audio PCM exceeds the {} byte cache limit.",
+                NATIVE_OVERLAY_AUDIO_PCM_CACHE_MAX_BYTES
+            ));
+        }
+        self.entries.insert(key.clone(), Arc::clone(&samples));
+        self.order.push_back(key);
+        self.total_bytes += byte_len;
+        while self.total_bytes > NATIVE_OVERLAY_AUDIO_PCM_CACHE_MAX_BYTES {
+            let Some(oldest) = self.order.pop_front() else {
+                break;
+            };
+            if let Some(removed) = self.entries.remove(&oldest) {
+                self.total_bytes = self
+                    .total_bytes
+                    .saturating_sub(removed.len().saturating_mul(std::mem::size_of::<f32>()));
+            }
+        }
+        Ok(samples)
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+fn audio_pcm_cache_key(source: &str, sample_rate: u32) -> String {
+    let mut key = format!("{source}\0{sample_rate}");
+    if let Ok(metadata) = fs::metadata(source) {
+        key.push_str(&format!("\0{}", metadata.len()));
+        if let Ok(modified) = metadata.modified() {
+            if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
+                key.push_str(&format!("\0{}", duration.as_nanos()));
+            }
+        }
+    }
+    key
+}
+
+fn decode_audio_pcm_with_ffmpeg(source: &str, sample_rate: u32) -> Result<Vec<f32>, String> {
+    let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+    let output = Command::new(&ffmpeg_path)
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-i")
+        .arg(source)
+        .arg("-vn")
+        .arg("-ac")
+        .arg("1")
+        .arg("-ar")
+        .arg(sample_rate.to_string())
+        .arg("-f")
+        .arg("f32le")
+        .arg("pipe:1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| {
+            format!("Failed to start resident audio ffmpeg ({ffmpeg_path}): {error}")
+        })?;
+    if !output.status.success() {
+        return Err(format!(
+            "Resident audio ffmpeg exited with code {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if output.stdout.len() > NATIVE_OVERLAY_AUDIO_PCM_CACHE_MAX_BYTES {
+        return Err(format!(
+            "Resident audio PCM exceeds the {} byte cache limit.",
+            NATIVE_OVERLAY_AUDIO_PCM_CACHE_MAX_BYTES
+        ));
+    }
+    Ok(output
+        .stdout
+        .chunks_exact(4)
+        .map(|bytes| {
+            let sample = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+            if sample.is_finite() {
+                sample
+            } else {
+                0.0
+            }
+        })
+        .collect())
 }
 
 #[cfg(target_os = "macos")]
@@ -604,11 +723,13 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// live present 用 frame はこの renderer が所有する。
     last_nv12_sources: HashMap<String, Nv12IoSurfaceRef>,
     last_particle_sources: HashMap<String, NativeParticleSource>,
+    last_audio_reactive_sources: HashMap<String, NativeAudioReactiveSource>,
     #[cfg(target_os = "macos")]
     video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
     /// CPU でラスタライズし直さないための media revision 単位キャッシュ。
     native_source_cache: NativeOverlaySourceCache,
+    audio_pcm_cache: NativeOverlayAudioPcmCache,
     #[cfg(target_os = "macos")]
     view_handle: usize,
     renderer: NativeWgpuLiveSurfaceRenderer,
@@ -640,9 +761,11 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_scene_content_revisions: HashMap::new(),
             last_nv12_sources: HashMap::new(),
             last_particle_sources: HashMap::new(),
+            last_audio_reactive_sources: HashMap::new(),
             #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
+            audio_pcm_cache: NativeOverlayAudioPcmCache::default(),
             view_handle,
             renderer,
         })
@@ -671,6 +794,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         }
         self.last_nv12_sources.clear();
         self.last_particle_sources.clear();
+        self.last_audio_reactive_sources.clear();
         #[cfg(target_os = "macos")]
         self.video_decoders.clear();
         let content_revisions = scene
@@ -822,10 +946,16 @@ impl NativeOverlayLiveSurfaceRenderer {
         );
         let nv12_sources = self.resolve_video_sources(&video_requests)?;
         let particle_sources = native_overlay_particle_sources_for_scene(scene)?;
+        let audio_reactive_sources = native_overlay_audio_reactive_sources_for_scene(
+            scene,
+            &mut self.audio_pcm_cache,
+            &mut decode_audio_pcm_with_ffmpeg,
+        )?;
         self.last_scene = Some(Arc::new((snapshot, sources)));
         self.last_scene_content_revisions = content_revisions;
         self.last_nv12_sources = nv12_sources;
         self.last_particle_sources = particle_sources;
+        self.last_audio_reactive_sources = audio_reactive_sources;
         self.scene_generation = self.scene_generation.wrapping_add(1);
 
         let (decoration_clips, decoration_sources) = decoration
@@ -850,6 +980,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                     &self.last_scene_content_revisions,
                     &self.last_nv12_sources,
                     &self.last_particle_sources,
+                    &self.last_audio_reactive_sources,
                     &decoration_clips,
                     &decoration_sources,
                 ),
@@ -929,36 +1060,39 @@ impl NativeOverlayLiveSurfaceRenderer {
             return Ok(());
         }
 
-        let report =
-            if self.last_nv12_sources.is_empty() && self.last_particle_sources.is_empty() {
-                pollster::block_on(
-                    self.renderer
-                        .present_scene_with_decoration_to_surface_texture(
-                            self.scene_generation,
-                            base_snapshot,
-                            base_sources,
-                            &self.last_scene_content_revisions,
-                            &decoration_clips,
-                            &decoration_sources,
-                        ),
-                )
-            } else {
-                pollster::block_on(
-                    self.renderer
-                        .present_scene_with_decoration_and_nv12_to_surface_texture(
-                            base_snapshot,
-                            base_sources,
-                            &self.last_scene_content_revisions,
-                            &self.last_nv12_sources,
-                            &self.last_particle_sources,
-                            &decoration_clips,
-                            &decoration_sources,
-                        ),
-                )
-            }
-            .map_err(|error| {
-                format!("Native overlay selection decoration present failed: {error:?}")
-            })?;
+        let report = if self.last_nv12_sources.is_empty()
+            && self.last_particle_sources.is_empty()
+            && self.last_audio_reactive_sources.is_empty()
+        {
+            pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_to_surface_texture(
+                        self.scene_generation,
+                        base_snapshot,
+                        base_sources,
+                        &self.last_scene_content_revisions,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+        } else {
+            pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_and_nv12_to_surface_texture(
+                        base_snapshot,
+                        base_sources,
+                        &self.last_scene_content_revisions,
+                        &self.last_nv12_sources,
+                        &self.last_particle_sources,
+                        &self.last_audio_reactive_sources,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+        }
+        .map_err(|error| {
+            format!("Native overlay selection decoration present failed: {error:?}")
+        })?;
         if let Some(start) = trace_start {
             trace_present_stage_timings(
                 "present_cached_scene_with_decoration",
@@ -2433,7 +2567,14 @@ fn load_overlay_native_sources_for_scene_cached_impl(
         let Some(kind) = overlay_media_kind(&media.kind) else {
             continue;
         };
-        if skip_gpu_particles && kind == MediaKind::GeneratedParticle {
+        if skip_gpu_particles
+            && matches!(
+                &kind,
+                MediaKind::GeneratedParticle
+                    | MediaKind::GeneratedAudioWaveform
+                    | MediaKind::GeneratedAudioSphere
+            )
+        {
             continue;
         }
         let source_frame = scene
@@ -2530,6 +2671,77 @@ fn native_overlay_particle_sources_for_scene(
         if sources.insert(media.id.clone(), source).is_some() {
             return Err(format!(
                 "Duplicate native overlay particle mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn native_overlay_audio_reactive_sources_for_scene<F>(
+    scene: &NativeOverlaySceneSource,
+    cache: &mut NativeOverlayAudioPcmCache,
+    decode: &mut F,
+) -> Result<HashMap<String, NativeAudioReactiveSource>, String>
+where
+    F: FnMut(&str, u32) -> Result<Vec<f32>, String>,
+{
+    let mut sources = HashMap::new();
+    for media in scene.media.iter().filter(|media| {
+        media.kind == "GeneratedAudioWaveform" || media.kind == "GeneratedAudioSphere"
+    }) {
+        let source = AudioWaveformSource::from_json(&media.source).map_err(|error| {
+            format!(
+                "Invalid native overlay audio reactive media '{}': {error:?}",
+                media.id
+            )
+        })?;
+        let mut source_frames = scene
+            .snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(scene.snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native overlay cannot render audio reactive media {} at multiple source frames in one scene.",
+                media.id
+            ));
+        }
+        let resident_pcm = cache.get_or_decode(
+            &source.target_source,
+            NATIVE_OVERLAY_AUDIO_SAMPLE_RATE,
+            decode,
+        )?;
+        let window_len = (source.sample_window_seconds * NATIVE_OVERLAY_AUDIO_SAMPLE_RATE as f32)
+            .floor()
+            .max(1.0) as usize;
+        let start_sample =
+            (source_frame as usize).saturating_mul(NATIVE_OVERLAY_AUDIO_SAMPLE_RATE as usize) / 60;
+        let mut samples = vec![0.0; window_len];
+        if start_sample < resident_pcm.len() {
+            let available = resident_pcm.len() - start_sample;
+            let copy_len = available.min(window_len);
+            samples[..copy_len]
+                .copy_from_slice(&resident_pcm[start_sample..start_sample + copy_len]);
+        }
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        let descriptor = NativeAudioReactiveSource {
+            source,
+            samples,
+            sample_rate: NATIVE_OVERLAY_AUDIO_SAMPLE_RATE,
+            width: media.width,
+            height: media.height,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native overlay audio reactive mediaId '{}'",
                 media.id
             ));
         }
@@ -3420,7 +3632,8 @@ mod tests {
 
     #[test]
     fn direct_audio_sphere_scene_reuses_resident_pcm_and_skips_cpu_rgba() {
-        let build_scene = |source_frame| NativeOverlaySceneSource {
+        let build_scene = |source_frame| {
+            NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
                 frame_index: source_frame,
                 colour: ColourPipeline::rec709_sdr_linear(),
@@ -3445,6 +3658,7 @@ mod tests {
             }],
             canvas_width: 64,
             canvas_height: 64,
+        }
         };
         let mut cache = NativeOverlayAudioPcmCache::default();
         let mut decode_count = 0;
@@ -3466,7 +3680,10 @@ mod tests {
         )
         .expect("second resident PCM window must resolve");
 
-        assert_eq!(decode_count, 1, "the source audio must be decoded only once");
+        assert_eq!(
+            decode_count, 1,
+            "the source audio must be decoded only once"
+        );
         assert_eq!(cache.len(), 1);
         assert_eq!(first["audio-sphere-media"].samples.len(), 800);
         assert_eq!(second["audio-sphere-media"].samples.len(), 800);

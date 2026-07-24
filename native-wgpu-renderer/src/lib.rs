@@ -580,6 +580,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         particle_sources: &HashMap<String, NativeParticleSource>,
+        audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -590,7 +591,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 base_sources,
                 nv12_sources,
                 particle_sources,
-                &HashMap::new(),
+                audio_reactive_sources,
                 false,
                 content_revisions,
             )?;

@@ -1363,7 +1363,7 @@ const mediaReferenceForObject = (
  * RegionFrame だけは含め、それ以外の未対応生成mediaは型境界で拒否する。
  */
 export const mediaReferenceForEditableRustScene = (
-  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject,
+  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject,
   projectFps: number,
   objects: TimelineObject[] = [object]
 ): RustSceneMediaReference => (
