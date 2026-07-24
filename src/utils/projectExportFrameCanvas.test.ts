@@ -13,6 +13,7 @@ import {
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import { isSupportedSceneObject } from './rustSceneSnapshot';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -1577,5 +1578,69 @@ describe('createSingleUseProjectExportFrameSourceCloser', () => {
     await closeFrameSource();
 
     expect(calls).toEqual(['close']);
+  });
+});
+
+// TimelineObjectが取りうる全type。ここへ追加した新typeは下のcontract testで
+// 自動的に検証対象へ入るため、hasProjectExportNativeRenderMediaObjects側の対応漏れを検知できる。
+const ALL_TIMELINE_OBJECT_TYPES: TimelineObject['type'][] = [
+  'text', 'shape', 'image', 'video', 'audio', 'psd', 'group_control',
+  'audio_visualization', 'audio_sphere', 'particle', 'barcode', 'puzzle_piece',
+  'colour_wheel', 'gourd', 'gear', 'track_bar', 'pie_chart', 'histogram',
+  'tone_curve', 'getcolor_dot_field', 'hksy_checker_grid', 'region_frame',
+  'simple_tube', 'sphere_dots', 'spherical_field', 'sunburst', 'circular_arrow',
+  'triangle_bracket', 'tartan_check', 'houndstooth', 'yagasuri', 'paper_airplane',
+  'asanoha_pattern', 'focus_lines_plus', 'random_line_ex', 'contour_trace',
+  'displacement_poly', 'plain_effector_line', 'hologram', 'protractor',
+  'shaking_polygon', 'shattered_sphere',
+];
+
+// hasProjectExportNativeRenderMediaObjects / isSupportedSceneObject はどちらも
+// object.type しか見ないため、typeとレイアウトの共通フィールドだけで契約検証には十分。
+const contractObjectOfType = (type: TimelineObject['type']): TimelineObject => ({
+  id: `contract-${type}`,
+  type,
+  name: type,
+  layer: 1,
+  startTime: 0,
+  duration: 1,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+} as unknown as TimelineObject);
+
+describe('hasProjectExportNativeRenderMediaObjects: native対応objectの網羅契約', () => {
+  // 【なぜこの契約が必要か】
+  // hasProjectExportNativeRenderMediaObjectsは「どのobject typeがRust/GPU frame source
+  // 経路を要求するか」を手書きのOR式で判定している。一方でRust/native側が実際にサポートする
+  // object typeの単一情報源はrustSceneSnapshot.tsのisSupportedSceneObjectであり、両者は
+  // 別々に手書き管理されている。二重管理は必ずどちらかの更新漏れを生む
+  // (実際にshattered_sphereとplain_effector_lineがexport判定側から漏れていた)。
+  // このテストはSSOT (isSupportedSceneObject) がtrueを返す全typeを総当たりし、
+  // textを除いてhasProjectExportNativeRenderMediaObjectsもtrueを返すことを固定する。
+  // これにより将来また新typeがネイティブ対応されてもexport判定側の追従漏れを自動検知できる。
+  it('rustSceneSnapshotのSSOTがサポートする全object type (text除く) がnative render media扱いになる', () => {
+    const objectsRequiringSsotSupport = ALL_TIMELINE_OBJECT_TYPES
+      .map((type) => contractObjectOfType(type))
+      .filter((object) => isSupportedSceneObject(object) && object.type !== 'text');
+
+    // textはPixiの標準テキスト描画がlegacy canvas captureでも正しく動作するため、
+    // Rust frame sourceを強制する対象から意図的に除外している。
+    objectsRequiringSsotSupport.forEach((object) => {
+      expect(hasProjectExportNativeRenderMediaObjects([object])).toBe(true);
+    });
+  });
+
+  it('shattered_sphere単体のobjectでnative render media扱いになる', () => {
+    expect(hasProjectExportNativeRenderMediaObjects([
+      contractObjectOfType('shattered_sphere'),
+    ])).toBe(true);
   });
 });
