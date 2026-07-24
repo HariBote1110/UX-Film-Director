@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeWgpuRenderError, NativeWgpuRenderer,
+    BgraIoSurfaceTarget, NativeShakingPolygonSource, NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
 
@@ -158,4 +158,72 @@ fn renders_scene_directly_into_bgra_iosurface_without_readback() {
 
     assert_eq!(report.readback_encode, std::time::Duration::ZERO);
     assert_eq!(target.centre_bgra(), [0, 0, 255, 255]);
+}
+
+#[test]
+fn renders_shaking_polygon_gpu_source_into_bgra_iosurface_without_cpu_rgba() {
+    let width = 64;
+    let height = 48;
+    let target = SyntheticBgraBuffer::new(width, height);
+    let snapshot = SceneSnapshot {
+        frame_index: 1,
+        colour: ColourPipeline::rec709_sdr_linear(),
+        clips: vec![EvaluatedClip {
+            clip_id: "shaking-polygon-clip".to_string(),
+            track_id: "track-1".to_string(),
+            media_id: "shaking-polygon-media".to_string(),
+            source_frame: 1,
+            z_index: 0,
+            transform: Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
+        }],
+    };
+    let shaking_polygon_sources = HashMap::from([(
+        "shaking-polygon-media".to_string(),
+        NativeShakingPolygonSource {
+            source: r##"{"generator":"shaking-polygon","line_width":3,"vertex_count":5,"fixed_diameter":36,"vertical_distortion_percent":10,"repeat_count":3,"repeat_frequency":2,"fill":true,"jitter_range":4,"jitter_interval":2,"stepped":false,"colour":"#ff8000","seed":93}"##.to_string(),
+            width,
+            height,
+            source_frame: 1,
+            config_revision: 14,
+        },
+    )]);
+    let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
+        Ok(renderer) => renderer,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping GPU source BGRA IOSurface test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native renderer setup failed: {error:?}"),
+    };
+
+    let report = pollster::block_on(
+        renderer.render_frame_to_bgra_iosurface_with_audio_waveforms(
+            &snapshot,
+            &HashMap::new(),
+            &[],
+            &shaking_polygon_sources,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+            BgraIoSurfaceTarget {
+                surface_id: target.surface_id,
+                width,
+                height,
+            },
+        ),
+    )
+    .expect("GPU ShakingPolygon must render directly into the BGRA IOSurface");
+
+    assert_eq!(report.readback_encode, std::time::Duration::ZERO);
+    let [blue, green, red, alpha] = target.centre_bgra();
+    assert!(red > 140, "centre red channel must be visible: {red}");
+    assert!(green > 60, "centre green channel must be visible: {green}");
+    assert!(
+        red > green.saturating_add(50),
+        "centre must preserve the orange source colour: red={red}, green={green}"
+    );
+    assert!(blue < 80, "centre blue channel must stay low: {blue}");
+    assert!(alpha > 0, "centre alpha must be visible");
 }
