@@ -67,7 +67,7 @@ describe('RustScenePlaybackController', () => {
       revision: 7,
       frameIndex: 36,
     }));
-    expect(controller.diagnostics.skippedFrames).toBe(5);
+    await vi.waitFor(() => expect(controller.diagnostics.skippedFrames).toBe(5));
   });
 
   it('UI時刻通知を低頻度に制限し、終端ではdurationを一度だけ通知する', async () => {
@@ -98,12 +98,12 @@ describe('RustScenePlaybackController', () => {
     expect(emit).toHaveBeenCalledTimes(1);
 
     nowMs = 100;
-    scheduled?.();
+    (scheduled as unknown as (() => void))();
     await vi.waitFor(() => expect(controller.diagnostics.presentedFrames).toBe(2));
     expect(emit).toHaveBeenCalledTimes(1);
 
     nowMs = 500;
-    scheduled?.();
+    (scheduled as unknown as (() => void))();
     await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({
       status: 'ended',
       currentTimeSeconds: 0.5,
