@@ -42,6 +42,7 @@ describe('現実的な重量編集シナリオ', () => {
       'getcolor_dot_field',
       'hksy_checker_grid',
       'simple_tube',
+      'focus_lines_plus',
     ])));
   });
 
