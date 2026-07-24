@@ -327,6 +327,26 @@ GetColorの完成RGBAはCPU側で生成しない。参照PNG/JPEG/PSDだけをRu
 GetColorの画素生成・sample再デコードはChromiumから外れたが、React/UI更新や
 未接続の生成source、開発ビルドの処理が残るため、GPU/Rust移管完了とは扱わない。
 
+## HKSY／SimpleTube export GPU接続後の再検証
+
+Beta-476aではHKSYとSimpleTubeをbackendのCPU完成RGBA収集から外し、
+`NativeGeneratedGpuSources`経由でshared frame、RGBA readback、BGRA IOSurface
+exportへ接続した。両sourceは時間非依存の静的revisionを使い、設定が変わらない限り
+GPU textureを再利用する。
+
+同じ66素材・44同時クリップの重量E2Eは総合PASSした。
+
+- 120回スクラブ: 165.56 ms
+- requestAnimationFrame: 平均16.75 ms、p95 21.56 ms、最大24.97 ms
+- long task: 1件（51 ms）
+- 保存復元: 66オブジェクト、fingerprint一致
+- 出力: 1920×1080、MP4 74フレーム、1.24秒
+- export所要時間: 27.75秒（開発ビルド、`ffmpegRawRgba`）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: visible pixel 261,124、colourful pixel 48,558
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない

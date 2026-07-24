@@ -141,6 +141,9 @@ GPUオフロードはまだ完了していない。
   解消した。GetColorはexport/shared frameでもCPU完成RGBAを生成せず、sample画像だけを
   RustのLRU cacheに常駐させる。cache keyとGPU revisionには画像パス、mtime、サイズ、
   PSD active layerを含め、外部編集時だけ再デコード・再uploadする。
+- Beta-476aでHKSYとSimpleTubeも同じbundleへ接続し、shared frameとexportの
+  CPU完成RGBA生成を除去した。両sourceは時間非依存の設定revisionを使うため、
+  source frameが進んでも同じGPU textureを再利用する。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
@@ -155,7 +158,7 @@ GPUオフロードはまだ完了していない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. HKSY、SimpleTube、FocusLinesPlus、Particleのdescriptor収集を
+1. FocusLinesPlus、Particleのdescriptor収集を
    `NativeGeneratedGpuSources`へ接続し、previewだけでなくshared frameとexportでも
    CPU完成RGBA生成を除去する。
 2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
