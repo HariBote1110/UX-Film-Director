@@ -1393,6 +1393,51 @@ mod tests {
     }
 
     #[test]
+    fn hologram_is_collected_as_gpu_descriptor_without_cpu_rgba() {
+        let snapshot = uxfd_rust_core::SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "hologram-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "hologram-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let media = vec![uxfd_rust_core::SceneMediaReference {
+            id: "hologram-media".to_string(),
+            kind: uxfd_rust_core::MediaKind::GeneratedHologram,
+            source: r##"{"generator":"hologram","tile_size":80,"rotation_degrees":0,"gradient_angle_degrees":-60,"colour_mode":1,"tint_colour":"#ffffff"}"##.to_string(),
+            width: 320,
+            height: 180,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }];
+        let mut cache = crate::state::SourceFrameCache::default();
+
+        let rgba_sources =
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+                .expect("Hologram CPU source collection must succeed");
+        assert!(
+            rgba_sources.is_empty(),
+            "Hologram must not allocate a completed CPU RGBA source"
+        );
+
+        let sources = collect_native_render_hologram_sources(&media)
+            .expect("Hologram descriptor collection succeeds");
+        let source = sources
+            .get("hologram-media")
+            .expect("descriptor must be collected");
+        assert_eq!(source.width, 320);
+        assert_eq!(source.height, 180);
+        assert_ne!(source.config_revision, 0);
+    }
+
+    #[test]
     fn simple_tube_is_collected_as_gpu_descriptor_without_cpu_rgba() {
         let snapshot = uxfd_rust_core::SceneSnapshot {
             frame_index: 0,
