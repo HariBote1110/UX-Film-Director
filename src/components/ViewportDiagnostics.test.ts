@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSharedRendererPreviewDiagnostic,
   isTransientExternalVideoPresentationFailure,
+  shouldBuildSharedRendererPreviewSessionForTick,
   shouldDeferSharedRendererPreviewSessionPublish,
   shouldReuseExternalVideoPresenterSession,
+  shouldRequestRustTimelineSceneEvaluationForTick,
 } from './Viewport';
 import type { SharedRendererPreviewPresenterControl } from '../utils/sharedRendererPreviewPresenterController';
 import type { SharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
@@ -157,5 +159,78 @@ describe('shouldDeferSharedRendererPreviewSessionPublish', () => {
 
   it('does not defer publish while the presenter is not starting, regardless of playback state', () => {
     expect(shouldDeferSharedRendererPreviewSessionPublish(false)).toBe(false);
+  });
+});
+
+describe('shouldRequestRustTimelineSceneEvaluationForTick', () => {
+  // export完了直後は rustTimelineSceneRpcEnabled: true / revisionAvailable: true /
+  // isExporting: false / nativePlaybackActive: false / isPlaying: false という状態になる。
+  // このとき true を返すことが、外部動画要素が notifyOnNextPresentableFrame 経由で
+  // present可能になった通知（sharedRendererExternalVideoFrameReadyTick の bump）を
+  // 受けてRust常駐sceneを再評価できる唯一の復帰契機である。
+  it('export完了直後の状態では true を返し、frame ready通知によるRust常駐scene再評価を許可する（唯一の復帰契機）', () => {
+    expect(shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled: true,
+      rustTimelineSceneRevisionAvailable: true,
+      isExporting: false,
+      nativePlaybackActive: false,
+      isPlaying: false,
+    })).toBe(true);
+  });
+
+  it('rustTimelineSceneRpcEnabled が false のとき false を返す', () => {
+    expect(shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled: false,
+      rustTimelineSceneRevisionAvailable: true,
+      isExporting: false,
+      nativePlaybackActive: false,
+      isPlaying: false,
+    })).toBe(false);
+  });
+
+  it('rustTimelineSceneRevisionAvailable が false のとき false を返す', () => {
+    expect(shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled: true,
+      rustTimelineSceneRevisionAvailable: false,
+      isExporting: false,
+      nativePlaybackActive: false,
+      isPlaying: false,
+    })).toBe(false);
+  });
+
+  it('isExporting が true のとき false を返す', () => {
+    expect(shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled: true,
+      rustTimelineSceneRevisionAvailable: true,
+      isExporting: true,
+      nativePlaybackActive: false,
+      isPlaying: false,
+    })).toBe(false);
+  });
+
+  it('nativePlaybackActive && isPlaying のとき false を返す', () => {
+    expect(shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled: true,
+      rustTimelineSceneRevisionAvailable: true,
+      isExporting: false,
+      nativePlaybackActive: true,
+      isPlaying: true,
+    })).toBe(false);
+  });
+
+  // RPCモードでは shouldBuildSharedRendererPreviewSessionForTick が false を返すため
+  // Chromium側のscene再構築は起きない。この新関数が true を返すことで、
+  // RPCモード下でのRust常駐scene再評価はこちらが担う、という役割分担を対比で示す。
+  it('RPCモードでは shouldBuildSharedRendererPreviewSessionForTick が false、代わりに shouldRequestRustTimelineSceneEvaluationForTick が true を返す（復帰契機の担当を対比）', () => {
+    const rustTimelineSceneRpcEnabled = true;
+
+    expect(shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)).toBe(false);
+    expect(shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled,
+      rustTimelineSceneRevisionAvailable: true,
+      isExporting: false,
+      nativePlaybackActive: false,
+      isPlaying: false,
+    })).toBe(true);
   });
 });
