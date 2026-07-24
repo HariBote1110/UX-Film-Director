@@ -2439,6 +2439,48 @@ mod tests {
         );
     }
 
+    #[test]
+    fn native_video_decode_requests_use_scene_source_frame_and_rate() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 42,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-1".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 15,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "video-1".to_string(),
+                kind: "Video".to_string(),
+                source: "/tmp/video.mov".to_string(),
+                width: 1920,
+                height: 1080,
+                source_rate: Some(Fps {
+                    numerator: 30,
+                    denominator: 1,
+                }),
+            }],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let requests =
+            native_overlay_video_decode_requests(&scene).expect("valid video decode request");
+
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].media_id, "video-1");
+        assert_eq!(requests[0].source_frame, 15);
+        assert_eq!(requests[0].source_rate.numerator, 30);
+        assert_eq!(requests[0].source_rate.denominator, 1);
+    }
+
     static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     #[test]
