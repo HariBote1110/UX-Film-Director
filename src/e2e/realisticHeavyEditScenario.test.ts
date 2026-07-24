@@ -60,6 +60,14 @@ describe('現実的な重量編集シナリオ', () => {
     expect(allObjects.some((object) => typeof object.groupId === 'string')).toBe(true);
     expect(allObjects.some((object) => object.type === 'audio' && object.filePath === paths.audioPath)).toBe(true);
     expect(allObjects.some((object) => object.type === 'image' && object.filePath === paths.imagePath)).toBe(true);
+    expect(
+      allObjects
+        .filter((object) => object.type === 'getcolor_dot_field')
+        .every((object) => (
+          object.sampleSourcePath === paths.imagePath
+          && object.sampleSourceObjectId === undefined
+        )),
+    ).toBe(true);
     expect(allObjects.find((object) => object.type === 'image')).toMatchObject({
       width: 1024,
       height: 768,

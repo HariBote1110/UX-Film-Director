@@ -287,6 +287,7 @@ const cloneRepresentativeObjects = (
   layerOffset: number,
   duration: number,
   audioTargetId: string,
+  sampleImagePath: string,
 ): TimelineObject[] => {
   const representative = buildAviUtlPackPolishRepresentativeScene();
   const idMap = new Map(
@@ -311,7 +312,9 @@ const cloneRepresentativeObjects = (
       object.targetLayer = 2;
     }
     if ('sampleSourceObjectId' in object && typeof object.sampleSourceObjectId === 'string') {
-      object.sampleSourceObjectId = idMap.get(object.sampleSourceObjectId);
+      object.sampleSourcePath = sampleImagePath;
+      object.sampleSourceObjectId = undefined;
+      object.sampleSourceLayer = undefined;
     }
       return object;
     });
@@ -363,9 +366,9 @@ export const buildRealisticHeavyEditScenario = (
     ...Array.from({ length: 5 }, (_, index) => (
       buildShape(`realistic-main-shape-${index}`, 6 + index, index, 'realistic-main-cards')
     )),
-    ...cloneRepresentativeObjects('main-a', 0, 16, 12, 'realistic-main-audio'),
-    ...cloneRepresentativeObjects('main-b', 6, 32, 12, 'realistic-main-audio'),
-    ...cloneRepresentativeObjects('main-c', 12, 48, 12, 'realistic-main-audio'),
+    ...cloneRepresentativeObjects('main-a', 0, 16, 12, 'realistic-main-audio', paths.imagePath),
+    ...cloneRepresentativeObjects('main-b', 6, 32, 12, 'realistic-main-audio', paths.imagePath),
+    ...cloneRepresentativeObjects('main-c', 12, 48, 12, 'realistic-main-audio', paths.imagePath),
   ];
 
   const cutawayObjects: TimelineObject[] = [
@@ -382,7 +385,7 @@ export const buildRealisticHeavyEditScenario = (
     ...Array.from({ length: 6 }, (_, index) => (
       buildShape(`realistic-cutaway-shape-${index}`, 5 + index, index)
     )),
-    ...cloneRepresentativeObjects('cutaway-a', 2, 20, 10, 'realistic-main-audio')
+    ...cloneRepresentativeObjects('cutaway-a', 2, 20, 10, 'realistic-main-audio', paths.imagePath)
       .filter((object) => !('targetAudioId' in object)),
   ];
 
