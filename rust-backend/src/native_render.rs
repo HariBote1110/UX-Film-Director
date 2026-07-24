@@ -16,14 +16,17 @@ use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::EncodeTransport;
 use crate::state::BackendState;
 use serde_json::{json, Value};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
+    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeShatteredSphereSource,
+    NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{
-    build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource,
-    VideoFrameDecodeRequest,
+    build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource, MediaKind,
+    SceneMediaReference, SceneSnapshot, VideoFrameDecodeRequest,
 };
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
 
@@ -200,6 +203,11 @@ pub(crate) fn handle_encode_write_native_frame(
                 return response_error(id, native_render_source_error_code(&message), &message);
             }
         };
+    let shattered_sphere_sources =
+        match collect_native_render_shattered_sphere_sources(&parsed.snapshot, &parsed.media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -214,6 +222,7 @@ pub(crate) fn handle_encode_write_native_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
+        shattered_sphere_sources.len(),
     ) {
         return response_error(
             id,
@@ -404,6 +413,7 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.snapshot,
         &sources,
         &audio_waveforms,
+        &shattered_sphere_sources,
         &content_revisions,
         &nv12_sources,
     )) {
@@ -510,6 +520,11 @@ pub(crate) fn handle_native_render_shared_frame(
                 return response_error(id, native_render_source_error_code(&message), &message);
             }
         };
+    let shattered_sphere_sources =
+        match collect_native_render_shattered_sphere_sources(&parsed.snapshot, &parsed.media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -531,6 +546,7 @@ pub(crate) fn handle_native_render_shared_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
+        shattered_sphere_sources.len(),
     ) {
         return response_error(
             id,
@@ -617,6 +633,7 @@ pub(crate) fn handle_native_render_shared_frame(
             &parsed.snapshot,
             &sources,
             &audio_waveforms,
+            &shattered_sphere_sources,
             &content_revisions,
             &nv12_sources,
             &parsed.memory_id,
@@ -721,16 +738,61 @@ fn validate_resident_video_source_frames(
     Ok(())
 }
 
+fn collect_native_render_shattered_sphere_sources(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+) -> Result<HashMap<String, NativeShatteredSphereSource>, String> {
+    let mut sources = HashMap::new();
+    for media in media_items
+        .iter()
+        .filter(|media| media.kind == MediaKind::GeneratedShatteredSphere)
+    {
+        let mut source_frames = snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native render cannot use ShatteredSphere media {} at multiple source frames in one scene",
+                media.id
+            ));
+        }
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        let descriptor = NativeShatteredSphereSource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_frame,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native render ShatteredSphere mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
 fn native_render_has_valid_input(
     active_clip_count: usize,
     source_count: usize,
     audio_waveform_count: usize,
     nv12_source_count: usize,
+    shattered_sphere_count: usize,
 ) -> bool {
     active_clip_count == 0
         || source_count > 0
         || audio_waveform_count > 0
         || nv12_source_count > 0
+        || shattered_sphere_count > 0
 }
 
 #[cfg(target_os = "macos")]
@@ -879,9 +941,10 @@ mod tests {
 
     #[test]
     fn native_render_allows_an_empty_snapshot_as_a_transparent_frame() {
-        assert!(native_render_has_valid_input(0, 0, 0, 0));
-        assert!(!native_render_has_valid_input(1, 0, 0, 0));
-        assert!(native_render_has_valid_input(1, 0, 0, 1));
+        assert!(native_render_has_valid_input(0, 0, 0, 0, 0));
+        assert!(!native_render_has_valid_input(1, 0, 0, 0, 0));
+        assert!(native_render_has_valid_input(1, 0, 0, 1, 0));
+        assert!(native_render_has_valid_input(1, 0, 0, 0, 1));
     }
 
     #[test]

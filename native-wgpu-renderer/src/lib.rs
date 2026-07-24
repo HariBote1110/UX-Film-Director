@@ -1056,6 +1056,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
         )
         .await
     }
@@ -1221,6 +1222,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         memory_id: &str,
@@ -1232,6 +1234,7 @@ impl NativeWgpuRenderer {
                 snapshot,
                 sources,
                 waveforms,
+                shattered_sphere_sources,
                 content_revisions,
                 nv12_sources,
             )
@@ -1246,6 +1249,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
@@ -1260,6 +1264,7 @@ impl NativeWgpuRenderer {
             content_revisions,
             nv12_sources,
             &audio_reactive_sources,
+            shattered_sphere_sources,
         )
         .await
     }
@@ -1273,6 +1278,7 @@ impl NativeWgpuRenderer {
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let (prepared_clips, source_upload) = self.prepare_scene_clips_with_upload_fence(
             snapshot,
@@ -1285,7 +1291,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
-            &HashMap::new(),
+            shattered_sphere_sources,
             true,
             content_revisions,
         )?;
@@ -2018,6 +2024,7 @@ pub async fn render_native_wgpu_frame_with_audio_waveforms(
             waveforms,
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
         )
         .await
         .map(|report| report.frame)
@@ -2094,6 +2101,7 @@ pub async fn render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
             waveforms,
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             memory_id,
             slot_count,
             pts_frame,
@@ -2153,6 +2161,7 @@ pub async fn measure_native_wgpu_frame_stages(
             sources,
             setup,
             total_start,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -4845,12 +4854,14 @@ mod tests {
             std::slice::from_ref(&waveform),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
         ))
         .expect("first audio sphere frame must render");
         let second = pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
             &snapshot,
             &HashMap::new(),
             &[waveform],
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
         ))
@@ -5846,6 +5857,7 @@ mod tests {
                 &HashMap::new(),
                 &[],
                 &HashMap::new(),
+                &HashMap::new(),
                 &nv12_sources,
             ))
             .expect("production path must render an nv12-only clip without an RGBA sources entry");
@@ -5942,6 +5954,7 @@ mod tests {
                     &mixed_sources,
                     &[],
                     &HashMap::new(),
+                    &HashMap::new(),
                     &nv12_sources,
                 ))
                 .expect("production nv12+rgba mixed render must succeed");
@@ -5950,6 +5963,7 @@ mod tests {
                     &reference_snapshot,
                     &reference_sources,
                     &[],
+                    &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
                 ))
@@ -5993,6 +6007,7 @@ mod tests {
                 &HashMap::new(),
                 &[],
                 &HashMap::new(),
+                &HashMap::new(),
                 &nv12_sources,
             ))
             .expect("first production nv12 render must succeed (cache miss expected)");
@@ -6002,6 +6017,7 @@ mod tests {
                 &snapshot,
                 &HashMap::new(),
                 &[],
+                &HashMap::new(),
                 &HashMap::new(),
                 &nv12_sources,
             ))

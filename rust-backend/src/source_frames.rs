@@ -27,7 +27,9 @@ pub(crate) fn collect_native_render_sources(
         let frame = match media.kind {
             MediaKind::Image => build_image_source_frame(media, source_frame_cache)?,
             MediaKind::Psd => build_psd_source_frame(media, source_frame_cache)?,
-            MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => continue,
+            MediaKind::GeneratedAudioWaveform
+            | MediaKind::GeneratedAudioSphere
+            | MediaKind::GeneratedShatteredSphere => continue,
             MediaKind::Video => continue,
             _ => uxfd_rust_backend::build_native_generated_source_frame(
                 media,
