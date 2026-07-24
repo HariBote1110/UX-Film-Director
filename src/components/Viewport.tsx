@@ -116,6 +116,14 @@ export const shouldBuildSharedRendererPreviewSessionForTick = (
   rustTimelineSceneRpcEnabled: boolean,
 ): boolean => !rustTimelineSceneRpcEnabled;
 
+/**
+ * native reuse のfinallyは同期sceneを再構築するため、Rust常駐sceneの最新評価を
+ * 追い越す可能性がある。flag中は次のscene.evaluate結果を待つ。
+ */
+export const shouldReplaySharedRendererNativeReusePending = (
+  rustTimelineSceneRpcEnabled: boolean,
+): boolean => !rustTimelineSceneRpcEnabled;
+
 const writeRustTimelineSceneRpcDiagnostics = (diagnostics: RustTimelineSceneRpcDiagnostics) => {
   if (typeof document === 'undefined') return;
   const dataset = document.documentElement.dataset as Record<string, string | undefined>;
@@ -1442,7 +1450,7 @@ const Viewport: React.FC = () => {
             sharedRendererNativeReusePreparingRef.current = false;
             const pending = sharedRendererNativeReusePendingRef.current;
             sharedRendererNativeReusePendingRef.current = null;
-            if (pending) {
+            if (pending && shouldReplaySharedRendererNativeReusePending(rustTimelineSceneRpcEnabled)) {
               publishSharedRendererPreviewSessionRef.current?.(
                 resolveSharedRendererNativeReuseReplayTime({
                   requestedTime: session.surfaceGate.ok
