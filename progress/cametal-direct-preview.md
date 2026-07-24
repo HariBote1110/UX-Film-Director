@@ -116,6 +116,10 @@ GPUオフロードはまだ完了していない。
   30フレームidle退避を持つ。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
+- CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
+  約403～415 ms、Layoutが約28 ms、Style再計算が約9 msだった。上位処理は
+  React DOM開発ビルドの同期callbackであり、scene評価よりReact commit側が
+  支配的である可能性が高い。次はReact Profilerでcomponent別に確定する。
 
 次のGPU化候補は、優先順に以下とする。
 

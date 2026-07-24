@@ -54,6 +54,7 @@ CLIは独立したViteポート、Electronプロファイル、CDP接続を用�
 | `UXFD_REALISTIC_HEAVY_EDIT_PLAYBACK_MS` | 再生時間 | `3000` |
 | `UXFD_REALISTIC_HEAVY_EDIT_EXPORT_SECONDS` | 書き出し対象長 | `2` |
 | `UXFD_REALISTIC_HEAVY_EDIT_SKIP_EXPORT` | `1`で書き出しを省略 | 未設定 |
+| `UXFD_REALISTIC_HEAVY_EDIT_CHROMIUM_TRACE` | `0`でChromium Renderer traceを無効化 | 有効 |
 | `UXFD_REALISTIC_HEAVY_EDIT_TIMEOUT_MS` | 全体タイムアウト | `300000` |
 
 成果物は `.codex/realistic-heavy-edit-e2e/` に出力する。
@@ -63,6 +64,7 @@ CLIは独立したViteポート、Electronプロファイル、CDP接続を用�
 - `realistic-heavy-edit.uxfd.json`: 実アプリでも開ける保存済みプロジェクト
 - `realistic-heavy-edit-preview.mp4`: 短い書き出し結果
 - `result.log`: 実行ログ
+- `chromium-renderer-trace.json`: CDPで収集したRenderer main threadのChrome trace
 
 ## 初回の検証結果
 
@@ -157,6 +159,30 @@ direct CAMetalLayer経路で完成RGBAをCPU生成しない版を短時間重量
 SimpleTubeの画素走査と完成RGBA uploadは除去できたが、Chromium側CPUは依然として高い。
 次は残る生成sourceの負荷順位付けと並行して、Chromium renderer内のscene評価、
 React更新、DOM compositorを時系列計測で分離する。
+
+## Chromium Renderer CPU trace基盤
+
+Beta-468aでは重量E2Eの操作区間をCDP `Tracing`と`Performance.getMetrics`で囲み、
+Renderer main threadのTask、Script、Layout/Style/Paint、GC、上位`FunctionCall`を
+同じ時間軸で集計するようにした。生traceも保存するため、集計後にChrome trace viewerで
+再解析できる。計測は正しさのgateとは分離し、初期段階では性能閾値によってE2Eを
+失敗させない。
+
+1秒再生を含む代表実行では、1,211 msの観測区間に対してmain thread busyは718 ms
+（59.2%）だった。CDP Performance差分はTask 759 ms、Script 403 ms、Layout 28 ms、
+Style再計算9 msで、trace区分はScripting 415 ms、Rendering 117 ms、GC 38 msだった。
+Layout 67回、Style再計算70回が発生した。
+
+最上位の`FunctionCall`はReact DOM開発ビルド内のsync callbackで、66回・合計374 ms、
+最大20.34 msだった。アプリ側の`useAppLogic.animate`は58回・合計14.31 msだったため、
+現時点ではscene評価やlayout単体より、毎フレームのReact同期更新がRenderer CPUの
+主要因である可能性が高い。ただし1回の開発ビルド測定なので、React Profilerによる
+Viewport/Timeline/PropertyPanel別commit時間を追加して確定する。
+
+残るCPU完成RGBA生成sourceは30種で、毎フレーム変化するものを優先すると
+FocusLinesPlus、ShakingPolygon、ShatteredSphereの順となる。FocusLinesPlusは既定の
+`keyframeInterval=0`で見た目が静的でもsource frameごとにrevisionが変わり、
+CPU生成を繰り返すため、次のGPU source移管対象とする。
 
 ## 検証で発見した不具合
 
