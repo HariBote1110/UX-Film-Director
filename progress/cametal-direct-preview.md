@@ -5,7 +5,7 @@
 - 対応する非動画シーンと、可視動画が1件までの混在シーンは、
   完成済みRGBAフレームをCPUへ読み戻さず、Native Overlay内でsourceを揃えて
   WGPUから`CAMetalLayer`へ直接presentする。
-- HKSY、SimpleTubeを含む生成ソース、テキスト、単色、PNG画像は、Rust backendと
+- SimpleTubeを含む生成ソース、テキスト、単色、PNG画像は、Rust backendと
   Native Overlayで共有する生成関数からRGBA sourceを構築する。静的sourceは
   revision cacheで再利用する。
 - `GeneratedGetColorDots`は例外で、完成RGBA sourceをCPUで構築しない。配置パラメータと
@@ -105,12 +105,16 @@ GPUオフロードはまだ完了していない。
   source画像のnearest sampling、HSV変換、circle/square/diamondと枠線の描画を
   Native WGPUへ移した。出力textureはmedia revision単位で再利用する。PNG/JPEG/PSDの
   sample画像はRustで一度だけ読み、resident sample cacheへ保持する。
+- HKSYはchecker-gridとdiamondをfullscreen fragment pass、measured-gridと
+  anchor-lineをGPU line instance passへ移した。完成RGBAのCPUラスタライズとuploadを
+  direct previewから除去し、media revision単位の出力textureを再利用する。
+  GPU cacheは512 MiB上限と30フレームidle退避を持つ。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. HKSY、SimpleTubeなどCPUラスタライズの生成sourceをGPU source passへ移し、
+1. SimpleTubeなどCPUラスタライズの生成sourceをGPU source passへ移し、
    revision変更時のCPU処理も削減する。
 2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。

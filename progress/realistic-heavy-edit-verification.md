@@ -125,6 +125,18 @@ Undo後33、Redo後42で整合し、保存前後のフィンガープリント�
 アプリ全体のCPUオフロード完了を示す値ではない。次はHKSY、SimpleTubeのGPU化と、
 Chromium renderer内のscene評価・React更新・DOM compositorの時系列分離を行う。
 
+## HKSY GPU source移行後の再検証
+
+同日にHKSYのchecker-grid、diamond、measured-grid、anchor-lineをNative WGPUへ
+移した版でも短時間重量検証は総合PASSした。60回スクラブは82.46 ms、
+requestAnimationFrameは平均16.67 ms、p95 22.00 ms、最大25.71 ms、long taskは
+1件（68 ms）だった。操作後42オブジェクト、Undo後33、Redo後42で整合し、
+`MissingSource`、WGPU/native render error、未処理例外はすべて0件だった。
+
+再生中の瞬間値はElectron Renderer約74%、Electron main約65%、Rust backend約30%で、
+依然として高い。次はSimpleTubeのGPU source化を進める一方、Chromium側の高CPUが
+scene評価、React更新、DOM compositorのどこに由来するかを時系列計測で分離する。
+
 ## 検証で発見した不具合
 
 初回のシナリオ投入によって次を検出し、修正した。
