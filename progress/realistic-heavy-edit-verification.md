@@ -280,6 +280,27 @@ instance描画へ移した。各fragmentはCPU正本と同じ4 triangle fan、60
 - 未処理例外: 0件
 - 最終状態: presenter `ready`、Rust timeline `ready`
 
+## ShakingPolygon／ShatteredSphere export GPU接続後の再検証
+
+Beta-474aでは両生成sourceをCPU完成RGBA収集から除外し、shared frame、
+RGBA readback export、VideoToolboxのBGRA IOSurface exportへGPU descriptorを渡す。
+ShakingPolygonはsource frameをrevisionに含めて揺れの更新を保持し、
+ShatteredSphereは設定revisionとsource frameを分離して同一textureを再利用する。
+
+重量fixtureの1秒exportを含む短時間E2Eは総合PASSした。操作後44、保存復元後
+66オブジェクトのfingerprint一致を確認した。
+
+- 出力: 1920×1080、75フレーム投入、MP4 74フレーム、1.24秒
+- export所要時間: 64.82秒（開発ビルド、`ffmpegRawRgba`）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: visible pixel 261,009、colourful pixel 44,340
+- 最終状態: presenter `ready`、Rust timeline `ready`
+
+macOSのBGRA IOSurface統合テストでも、CPU RGBA sourceを空にした
+ShakingPolygonを直接描画し、GPU readbackなしで橙色ピクセルが得られることを確認した。
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない

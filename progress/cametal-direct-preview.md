@@ -128,6 +128,11 @@ GPUオフロードはまだ完了していない。
   `blend: None`による後描き優先を保持する。同一設定ではsource frameが進んでも
   textureを再生成せず、uniform更新と同じtextureへのrenderだけを行う。direct previewの
   CPU完成RGBA生成とuploadを除去し、GPU cacheは512 MiB上限と30フレームidle退避を持つ。
+- Beta-474aでShakingPolygonとShatteredSphereのGPU descriptorをshared frame、
+  RGBA readback export、VideoToolboxのBGRA IOSurface exportへ接続した。両sourceを
+  CPU RGBA収集から除外し、GPU sourceがあるsceneではCPU simple compositorを選ばない。
+  macOS統合テストでは空のCPU RGBA mapからShakingPolygonをBGRA IOSurfaceへ直接描画し、
+  readback時間0と有色ピクセルを確認した。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
@@ -142,10 +147,10 @@ GPUオフロードはまだ完了していない。
 
 次のGPU化候補は、優先順に以下とする。
 
-1. ShakingPolygonとShatteredSphereのGPU descriptorをshared frame・exportにも渡し、
-   direct preview以外に残るCPU完成RGBA生成を除去する。
-2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
+1. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
+2. ShakingPolygonのsource frame更新で行うtexture再生成を、同一textureへの
+   geometry buffer更新とrenderへ変え、Metal resource churnを減らす。
 3. Timeline分離後のCDP traceを基準に、PropertyPanel、Viewport、DOM compositorへ
    残る更新をさらに局所化する。
 
