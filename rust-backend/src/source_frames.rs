@@ -30,6 +30,7 @@ pub(crate) fn collect_native_render_sources(
             MediaKind::GeneratedAudioWaveform
             | MediaKind::GeneratedAudioSphere
             | MediaKind::GeneratedParticle
+            | MediaKind::GeneratedFocusLinesPlus
             | MediaKind::GeneratedGetColorDots
             | MediaKind::GeneratedHksyCheckerGrid
             | MediaKind::GeneratedSimpleTube

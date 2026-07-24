@@ -21,13 +21,15 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeGeneratedGpuSources, NativeGetColorSource,
-    NativeHksySource, NativeParticleSource, NativeShakingPolygonSource,
+    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeFocusLinesSource,
+    NativeGeneratedGpuSources, NativeGetColorSource, NativeHksySource, NativeParticleSource,
+    NativeShakingPolygonSource,
     NativeShatteredSphereSource, NativeSimpleTubeSource, NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_rust_core::{
-    build_video_frame_decode_requests, evaluate_frame, parse_generated_particle_source,
-    AudioWaveformSource, MediaKind, SceneMediaReference, SceneSnapshot, VideoFrameDecodeRequest,
+    build_video_frame_decode_requests, evaluate_frame, focus_lines_frame_bucket_from_source,
+    parse_generated_particle_source, AudioWaveformSource, MediaKind, SceneMediaReference,
+    SceneSnapshot, VideoFrameDecodeRequest,
 };
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
 
@@ -209,6 +211,11 @@ pub(crate) fn handle_encode_write_native_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let focus_lines_sources =
+        match collect_native_render_focus_lines_sources(&parsed.snapshot, &parsed.media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let getcolor_sources =
         match collect_native_render_getcolor_sources(&parsed.media, &mut state.source_frame_cache) {
             Ok(value) => value,
@@ -234,6 +241,7 @@ pub(crate) fn handle_encode_write_native_frame(
         };
     let generated_gpu_sources = NativeGeneratedGpuSources {
         particles: particle_sources,
+        focus_lines: focus_lines_sources,
         getcolor: getcolor_sources,
         hksy: hksy_sources,
         simple_tubes: simple_tube_sources,
@@ -563,6 +571,11 @@ pub(crate) fn handle_native_render_shared_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let focus_lines_sources =
+        match collect_native_render_focus_lines_sources(&parsed.snapshot, &parsed.media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
     let getcolor_sources =
         match collect_native_render_getcolor_sources(&parsed.media, &mut state.source_frame_cache) {
             Ok(value) => value,
@@ -588,6 +601,7 @@ pub(crate) fn handle_native_render_shared_frame(
         };
     let generated_gpu_sources = NativeGeneratedGpuSources {
         particles: particle_sources,
+        focus_lines: focus_lines_sources,
         getcolor: getcolor_sources,
         hksy: hksy_sources,
         simple_tubes: simple_tube_sources,
@@ -899,6 +913,57 @@ fn collect_native_render_particle_sources(
         if sources.insert(media.id.clone(), descriptor).is_some() {
             return Err(format!(
                 "Duplicate native render Particle mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
+fn collect_native_render_focus_lines_sources(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+) -> Result<HashMap<String, NativeFocusLinesSource>, String> {
+    let mut sources = HashMap::new();
+    for media in media_items
+        .iter()
+        .filter(|media| media.kind == MediaKind::GeneratedFocusLinesPlus)
+    {
+        let mut source_frames = snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native render cannot use FocusLinesPlus media {} at multiple source frames in one scene",
+                media.id
+            ));
+        }
+        let frame_bucket = focus_lines_frame_bucket_from_source(&media.source, source_frame)
+            .map_err(|message| {
+                format!(
+                    "Invalid GeneratedFocusLinesPlus media '{}': {message}",
+                    media.id
+                )
+            })?;
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        frame_bucket.hash(&mut hasher);
+        let descriptor = NativeFocusLinesSource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_frame,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native render FocusLinesPlus mediaId '{}'",
                 media.id
             ));
         }
