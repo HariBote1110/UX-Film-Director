@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type {
   AudioObject,
+  AudioVisualizationObject,
   ImageObject,
   GetColorDotFieldObject,
   HksyCheckerGridObject,
@@ -83,6 +84,23 @@ const audio = (patch: Partial<AudioObject> = {}): AudioObject => ({
   filePath: '/tmp/audio.wav',
   volume: 1,
   muted: false,
+  ...patch,
+});
+
+const audioVisualization = (
+  patch: Partial<AudioVisualizationObject> = {}
+): AudioVisualizationObject => ({
+  ...base,
+  id: 'audio-waveform',
+  type: 'audio_visualization',
+  layer: 4,
+  targetAudioId: 'audio',
+  visualizationType: 'waveform',
+  color: '#00ff00',
+  thickness: 2,
+  width: 640,
+  height: 180,
+  amplitude: 0.75,
   ...patch,
 });
 
@@ -589,6 +607,41 @@ describe('buildEditableRustScene', () => {
       source_image: '/tmp/design.psd',
       source_active_layer_ids: ['title'],
       sample_strength: 0.8,
+    });
+  });
+
+  it('通常音声波形をresident Projectの生成mediaとclipへ変換する', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-audio-waveform',
+      projectSettings,
+      layers,
+      objects: [audio(), audioVisualization()],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected audio waveform scene conversion to succeed');
+    expect(result.project.tracks.flatMap((track) => track.clips)).toContainEqual(
+      expect.objectContaining({
+        id: 'audio-waveform',
+        kind: 'GeneratedAudioWaveformPlane',
+      })
+    );
+    expect(result.media).toContainEqual(
+      expect.objectContaining({
+        id: 'audio-waveform',
+        kind: 'GeneratedAudioWaveform',
+        width: 640,
+        height: 180,
+      })
+    );
+    const media = result.media.find((candidate) => candidate.id === 'audio-waveform');
+    expect(JSON.parse(media?.source ?? '{}')).toMatchObject({
+      generator: 'audio-waveform-r',
+      target_audio_id: 'audio',
+      target_source: '/tmp/audio.wav',
+      colour: '#00ff00',
+      thickness: 2,
+      amplitude: 0.75,
     });
   });
 
