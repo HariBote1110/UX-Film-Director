@@ -666,6 +666,18 @@ mod platform {
     mod tests {
         use super::*;
 
+        #[test]
+        fn nv12_only_decode_does_not_materialise_rgba() {
+            assert!(
+                DecodeOutputMode::RgbaCompatibility.materialises_rgba(),
+                "the existing shared-RGBA decode contract must stay compatible"
+            );
+            assert!(
+                !DecodeOutputMode::Nv12Only.materialises_rgba(),
+                "a resident native consumer must not pay for CPU NV12-to-RGBA conversion"
+            );
+        }
+
         fn colour(range: ColourRange, matrix: ColourMatrix) -> ColourMetadata {
             ColourMetadata { range, matrix }
         }
