@@ -365,6 +365,13 @@ pub enum WipeEdge {
     Bottom,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WipeAnimation {
+    pub effect_index: u32,
+    pub edge: WipeEdge,
+    pub reverse: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Clip {
     pub id: String,
@@ -383,6 +390,8 @@ pub struct Clip {
     pub position_keyframes: Vec<PositionKeyframe>,
     #[serde(default)]
     pub subject_crop: Option<SubjectCropAnimation>,
+    #[serde(default)]
+    pub wipe_animations: Vec<WipeAnimation>,
     #[serde(default)]
     pub effects: Vec<Effect>,
 }

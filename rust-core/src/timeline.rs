@@ -42,6 +42,24 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
             );
 
             let mut effects = clip.effects.clone();
+            let mut wipe_animations = clip.wipe_animations.iter().collect::<Vec<_>>();
+            wipe_animations.sort_by_key(|animation| animation.effect_index);
+            for animation in wipe_animations {
+                let linear_progress =
+                    (frame_offset as f32 / clip.duration_frames as f32).clamp(0.0, 1.0);
+                let progress = if animation.reverse {
+                    1.0 - linear_progress
+                } else {
+                    linear_progress
+                };
+                effects.insert(
+                    (animation.effect_index as usize).min(effects.len()),
+                    Effect::Wipe {
+                        edge: animation.edge,
+                        progress,
+                    },
+                );
+            }
             if let Some(subject_crop) = &clip.subject_crop {
                 if let Some((x, y, width, height)) =
                     evaluate_subject_crop_keyframes(&subject_crop.keyframes, frame_offset)

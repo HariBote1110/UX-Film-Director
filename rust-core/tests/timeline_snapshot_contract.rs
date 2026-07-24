@@ -43,6 +43,7 @@ fn project_with_transform() -> Project {
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
                 subject_crop: None,
+                wipe_animations: Vec::new(),
                 effects: vec![
                     Effect::LinearGain { gain: 1.25 },
                     Effect::ColourAberration {
@@ -157,6 +158,7 @@ fn project_schema_accepts_solid_colour_media_for_rectangle_shapes() {
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
                 subject_crop: None,
+                wipe_animations: Vec::new(),
                 effects: Vec::new(),
             }],
         }],
@@ -204,6 +206,7 @@ fn project_schema_accepts_generated_audio_waveform_media() {
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
                 subject_crop: None,
+                wipe_animations: Vec::new(),
                 effects: Vec::new(),
             }],
         }],

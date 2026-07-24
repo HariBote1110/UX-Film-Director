@@ -77,6 +77,7 @@ fn project_with_single_clip(start_frame: u64, duration_frames: u64) -> Project {
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
                 subject_crop: None,
+                wipe_animations: Vec::new(),
                 effects: Vec::new(),
             }],
         }],

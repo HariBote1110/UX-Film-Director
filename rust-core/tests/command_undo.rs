@@ -35,6 +35,7 @@ fn valid_project() -> Project {
                 opacity_keyframes: Vec::new(),
                 position_keyframes: Vec::new(),
                 subject_crop: None,
+                wipe_animations: Vec::new(),
                 effects: Vec::new(),
             }],
         }],
