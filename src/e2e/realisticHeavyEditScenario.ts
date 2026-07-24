@@ -1,5 +1,6 @@
 import type {
   AudioObject,
+  AudioVisualizationObject,
   GroupControlObject,
   ImageObject,
   SceneData,
@@ -139,6 +140,33 @@ const buildAudio = (paths: RealisticHeavyEditPaths): AudioObject => ({
   filePath: paths.audioPath,
   volume: 0.82,
   muted: false,
+});
+
+const buildAudioVisualization = (): AudioVisualizationObject => ({
+  id: 'realistic-main-audio-waveform',
+  type: 'audio_visualization',
+  name: 'Resident GPU audio waveform',
+  layer: 14,
+  startTime: 0,
+  duration: MAIN_DURATION_SECONDS,
+  x: 120,
+  y: 870,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 120,
+  endY: 870,
+  easing: 'linear',
+  targetAudioId: 'realistic-main-audio',
+  targetLayer: 2,
+  visualizationType: 'waveform',
+  color: '#35f29a',
+  thickness: 3,
+  width: 720,
+  height: 140,
+  amplitude: 0.8,
 });
 
 const buildImage = (paths: RealisticHeavyEditPaths): ImageObject => ({
@@ -360,6 +388,7 @@ export const buildRealisticHeavyEditScenario = (
       ],
     }),
     buildAudio(paths),
+    buildAudioVisualization(),
     buildImage(paths),
     buildTitle('realistic-main-title', 'Animated lower third', 4, 1),
     buildGroupControl(),
