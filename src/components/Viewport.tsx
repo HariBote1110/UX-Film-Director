@@ -2199,7 +2199,6 @@ const Viewport: React.FC = () => {
       && rustTimelineSceneRevision !== null
       && editorMode === '2d'
       && context.preferEncodeOnly === true
-      && !context.hasVideoObjects
       && window.rustVideoEncoder.nativeDirectEncodeEnabled === true
       && typeof window.rustVideoEncoder.writeResidentSceneEncodeFrame === 'function'
     );
