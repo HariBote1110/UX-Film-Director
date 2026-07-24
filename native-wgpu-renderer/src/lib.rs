@@ -45,6 +45,29 @@ pub use shaking_polygon::NativeShakingPolygonSource;
 pub use shattered_sphere::NativeShatteredSphereSource;
 pub use simple_tube::NativeSimpleTubeSource;
 
+#[derive(Debug, Default)]
+pub struct NativeGeneratedGpuSources {
+    pub particles: HashMap<String, NativeParticleSource>,
+    pub getcolor: HashMap<String, NativeGetColorSource>,
+    pub hksy: HashMap<String, NativeHksySource>,
+    pub simple_tubes: HashMap<String, NativeSimpleTubeSource>,
+    pub focus_lines: HashMap<String, NativeFocusLinesSource>,
+    pub shaking_polygons: HashMap<String, NativeShakingPolygonSource>,
+    pub shattered_spheres: HashMap<String, NativeShatteredSphereSource>,
+}
+
+impl NativeGeneratedGpuSources {
+    pub fn is_empty(&self) -> bool {
+        self.particles.is_empty()
+            && self.getcolor.is_empty()
+            && self.hksy.is_empty()
+            && self.simple_tubes.is_empty()
+            && self.focus_lines.is_empty()
+            && self.shaking_polygons.is_empty()
+            && self.shattered_spheres.is_empty()
+    }
+}
+
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const OUTPUT_BYTES_PER_PIXEL: u32 = 4;
 const SOURCE_BYTES_PER_PIXEL: u32 = 4;
@@ -1056,8 +1079,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
         )
         .await
     }
@@ -1078,8 +1100,7 @@ impl NativeWgpuRenderer {
             content_revisions,
             nv12_sources,
             &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
             target,
         )
         .await
@@ -1092,8 +1113,7 @@ impl NativeWgpuRenderer {
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
-        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
-        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        generated_gpu_sources: &NativeGeneratedGpuSources,
         target: BgraIoSurfaceTarget,
     ) -> Result<NativeWgpuFrameStageTimings, NativeWgpuRenderError> {
         if target.width != self.width || target.height != self.height {
@@ -1111,14 +1131,14 @@ impl NativeWgpuRenderer {
             snapshot,
             sources,
             nv12_sources,
-            &HashMap::new(),
+            &generated_gpu_sources.particles,
             audio_reactive_sources,
-            &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
-            shaking_polygon_sources,
-            shattered_sphere_sources,
+            &generated_gpu_sources.getcolor,
+            &generated_gpu_sources.hksy,
+            &generated_gpu_sources.simple_tubes,
+            &generated_gpu_sources.focus_lines,
+            &generated_gpu_sources.shaking_polygons,
+            &generated_gpu_sources.shattered_spheres,
             true,
             content_revisions,
         )?;
@@ -1159,8 +1179,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
-        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
-        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        generated_gpu_sources: &NativeGeneratedGpuSources,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         target: BgraIoSurfaceTarget,
@@ -1173,8 +1192,7 @@ impl NativeWgpuRenderer {
             content_revisions,
             nv12_sources,
             &audio_reactive_sources,
-            shaking_polygon_sources,
-            shattered_sphere_sources,
+            generated_gpu_sources,
             target,
         )
         .await
@@ -1231,8 +1249,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
-        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
-        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        generated_gpu_sources: &NativeGeneratedGpuSources,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         memory_id: &str,
@@ -1244,8 +1261,7 @@ impl NativeWgpuRenderer {
                 snapshot,
                 sources,
                 waveforms,
-                shaking_polygon_sources,
-                shattered_sphere_sources,
+                generated_gpu_sources,
                 content_revisions,
                 nv12_sources,
             )
@@ -1260,8 +1276,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
         waveforms: &[NativeAudioWaveformInput],
-        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
-        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        generated_gpu_sources: &NativeGeneratedGpuSources,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
@@ -1276,8 +1291,7 @@ impl NativeWgpuRenderer {
             content_revisions,
             nv12_sources,
             &audio_reactive_sources,
-            shaking_polygon_sources,
-            shattered_sphere_sources,
+            generated_gpu_sources,
         )
         .await
     }
@@ -1291,21 +1305,20 @@ impl NativeWgpuRenderer {
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
-        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
-        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        generated_gpu_sources: &NativeGeneratedGpuSources,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let (prepared_clips, source_upload) = self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
             nv12_sources,
-            &HashMap::new(),
+            &generated_gpu_sources.particles,
             audio_reactive_sources,
-            &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
-            shaking_polygon_sources,
-            shattered_sphere_sources,
+            &generated_gpu_sources.getcolor,
+            &generated_gpu_sources.hksy,
+            &generated_gpu_sources.simple_tubes,
+            &generated_gpu_sources.focus_lines,
+            &generated_gpu_sources.shaking_polygons,
+            &generated_gpu_sources.shattered_spheres,
             true,
             content_revisions,
         )?;
@@ -2036,8 +2049,7 @@ pub async fn render_native_wgpu_frame_with_audio_waveforms(
             snapshot,
             sources,
             waveforms,
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
             &HashMap::new(),
             &HashMap::new(),
         )
@@ -2114,8 +2126,7 @@ pub async fn render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
             snapshot,
             sources,
             waveforms,
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
             &HashMap::new(),
             &HashMap::new(),
             memory_id,
@@ -2180,8 +2191,7 @@ pub async fn measure_native_wgpu_frame_stages(
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
         )
         .await
 }
@@ -4869,8 +4879,7 @@ mod tests {
             &snapshot,
             &HashMap::new(),
             std::slice::from_ref(&waveform),
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
             &HashMap::new(),
             &HashMap::new(),
         ))
@@ -4879,8 +4888,7 @@ mod tests {
             &snapshot,
             &HashMap::new(),
             &[waveform],
-            &HashMap::new(),
-            &HashMap::new(),
+            &NativeGeneratedGpuSources::default(),
             &HashMap::new(),
             &HashMap::new(),
         ))
@@ -5875,8 +5883,7 @@ mod tests {
                 &snapshot,
                 &HashMap::new(),
                 &[],
-                &HashMap::new(),
-                &HashMap::new(),
+                &NativeGeneratedGpuSources::default(),
                 &HashMap::new(),
                 &nv12_sources,
             ))
@@ -5973,8 +5980,7 @@ mod tests {
                     &mixed_snapshot,
                     &mixed_sources,
                     &[],
-                    &HashMap::new(),
-                    &HashMap::new(),
+                    &NativeGeneratedGpuSources::default(),
                     &HashMap::new(),
                     &nv12_sources,
                 ))
@@ -5984,8 +5990,7 @@ mod tests {
                     &reference_snapshot,
                     &reference_sources,
                     &[],
-                    &HashMap::new(),
-                    &HashMap::new(),
+                    &NativeGeneratedGpuSources::default(),
                     &HashMap::new(),
                     &HashMap::new(),
                 ))
@@ -6028,8 +6033,7 @@ mod tests {
                 &snapshot,
                 &HashMap::new(),
                 &[],
-                &HashMap::new(),
-                &HashMap::new(),
+                &NativeGeneratedGpuSources::default(),
                 &HashMap::new(),
                 &nv12_sources,
             ))
@@ -6040,8 +6044,7 @@ mod tests {
                 &snapshot,
                 &HashMap::new(),
                 &[],
-                &HashMap::new(),
-                &HashMap::new(),
+                &NativeGeneratedGpuSources::default(),
                 &HashMap::new(),
                 &nv12_sources,
             ))

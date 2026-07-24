@@ -21,8 +21,9 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use uxfd_native_wgpu_renderer::{
-    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeShakingPolygonSource,
-    NativeShatteredSphereSource, NativeWgpuRenderError, NativeWgpuRenderer,
+    BgraIoSurfaceTarget, NativeAudioWaveformInput, NativeGeneratedGpuSources,
+    NativeShakingPolygonSource, NativeShatteredSphereSource, NativeWgpuRenderError,
+    NativeWgpuRenderer,
 };
 use uxfd_rust_core::{
     build_video_frame_decode_requests, evaluate_frame, AudioWaveformSource, MediaKind,
@@ -213,6 +214,11 @@ pub(crate) fn handle_encode_write_native_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let generated_gpu_sources = NativeGeneratedGpuSources {
+        shaking_polygons: shaking_polygon_sources,
+        shattered_spheres: shattered_sphere_sources,
+        ..NativeGeneratedGpuSources::default()
+    };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -227,8 +233,8 @@ pub(crate) fn handle_encode_write_native_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
-        shaking_polygon_sources.len(),
-        shattered_sphere_sources.len(),
+        generated_gpu_sources.shaking_polygons.len(),
+        generated_gpu_sources.shattered_spheres.len(),
     ) {
         return response_error(
             id,
@@ -255,8 +261,7 @@ pub(crate) fn handle_encode_write_native_frame(
     if !uses_iosurface_encoder
         && audio_waveforms.is_empty()
         && nv12_sources.is_empty()
-        && shaking_polygon_sources.is_empty()
-        && shattered_sphere_sources.is_empty()
+        && generated_gpu_sources.is_empty()
     {
         if let Some(frame) = match try_render_simple_video_frame(
             &parsed.snapshot,
@@ -356,8 +361,7 @@ pub(crate) fn handle_encode_write_native_frame(
                 &parsed.snapshot,
                 &sources,
                 &audio_waveforms,
-                &shaking_polygon_sources,
-                &shattered_sphere_sources,
+                &generated_gpu_sources,
                 &content_revisions,
                 &nv12_sources,
                 BgraIoSurfaceTarget {
@@ -426,8 +430,7 @@ pub(crate) fn handle_encode_write_native_frame(
         &parsed.snapshot,
         &sources,
         &audio_waveforms,
-        &shaking_polygon_sources,
-        &shattered_sphere_sources,
+        &generated_gpu_sources,
         &content_revisions,
         &nv12_sources,
     )) {
@@ -544,6 +547,11 @@ pub(crate) fn handle_native_render_shared_frame(
             Ok(value) => value,
             Err(message) => return response_error(id, -32602, &message),
         };
+    let generated_gpu_sources = NativeGeneratedGpuSources {
+        shaking_polygons: shaking_polygon_sources,
+        shattered_spheres: shattered_sphere_sources,
+        ..NativeGeneratedGpuSources::default()
+    };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -565,8 +573,8 @@ pub(crate) fn handle_native_render_shared_frame(
         sources.len(),
         audio_waveforms.len(),
         nv12_sources.len(),
-        shaking_polygon_sources.len(),
-        shattered_sphere_sources.len(),
+        generated_gpu_sources.shaking_polygons.len(),
+        generated_gpu_sources.shattered_spheres.len(),
     ) {
         return response_error(
             id,
@@ -577,8 +585,7 @@ pub(crate) fn handle_native_render_shared_frame(
 
     if audio_waveforms.is_empty()
         && nv12_sources.is_empty()
-        && shaking_polygon_sources.is_empty()
-        && shattered_sphere_sources.is_empty()
+        && generated_gpu_sources.is_empty()
     {
         match try_render_simple_video_frame_to_shared_ring(
             &parsed.snapshot,
@@ -657,8 +664,7 @@ pub(crate) fn handle_native_render_shared_frame(
             &parsed.snapshot,
             &sources,
             &audio_waveforms,
-            &shaking_polygon_sources,
-            &shattered_sphere_sources,
+            &generated_gpu_sources,
             &content_revisions,
             &nv12_sources,
             &parsed.memory_id,
