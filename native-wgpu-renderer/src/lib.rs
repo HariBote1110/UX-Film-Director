@@ -29,6 +29,22 @@ const OUTPUT_BYTES_PER_PIXEL: u32 = 4;
 const SOURCE_BYTES_PER_PIXEL: u32 = 4;
 const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
 
+pub trait RgbaFrameSource {
+    fn rgba_frame(&self) -> &RgbaFrame;
+}
+
+impl RgbaFrameSource for RgbaFrame {
+    fn rgba_frame(&self) -> &RgbaFrame {
+        self
+    }
+}
+
+impl RgbaFrameSource for Arc<RgbaFrame> {
+    fn rgba_frame(&self) -> &RgbaFrame {
+        self.as_ref()
+    }
+}
+
 pub fn native_wgpu_readback_frame_format() -> FrameFormat {
     FrameFormat::Rgba8Srgb
 }
@@ -424,18 +440,24 @@ impl NativeWgpuLiveSurfaceRenderer {
     /// 契約を守る前提。export / readback / offscreen render の既存経路
     /// （`prepare_scene_clips` / `prepare_scene_clips_without_upload_fence`）は
     /// このキャッシュを一切参照しないため、既存の挙動には影響しない。
-    pub async fn present_scene_with_decoration_to_surface_texture(
+    pub async fn present_scene_with_decoration_to_surface_texture<S: RgbaFrameSource>(
         &self,
         base_generation: u64,
         base_snapshot: &SceneSnapshot,
-        base_sources: &HashMap<String, RgbaFrame>,
+        base_sources: &HashMap<String, S>,
+        content_revisions: &HashMap<String, u64>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (base_prepared_clips, base_source_upload) = self
             .core
-            .prepare_base_scene_clips_cached(base_generation, base_snapshot, base_sources)?;
+            .prepare_base_scene_clips_cached(
+                base_generation,
+                base_snapshot,
+                base_sources,
+                content_revisions,
+            )?;
         let (decoration_prepared_clips, decoration_source_upload) = self
             .core
             .prepare_scene_clips_without_upload_fence(
@@ -577,17 +599,25 @@ impl NativeWgpuLiveSurfaceRenderer {
     /// ぶん重いので、既定では呼ばれない。per-frame upload fence を跨がない軽量な
     /// video present 経路（`present_scene_to_surface_texture`）とは別物で、この
     /// readback 経路のみ `wait_for_submitted_work` を用いる。
-    pub async fn present_scene_with_decoration_to_surface_texture_with_clear_readback(
+    pub async fn present_scene_with_decoration_to_surface_texture_with_clear_readback<
+        S: RgbaFrameSource,
+    >(
         &self,
         base_generation: u64,
         base_snapshot: &SceneSnapshot,
-        base_sources: &HashMap<String, RgbaFrame>,
+        base_sources: &HashMap<String, S>,
+        content_revisions: &HashMap<String, u64>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuClearReadbackReport, NativeWgpuRenderError> {
         let (base_prepared_clips, _base_source_upload) = self
             .core
-            .prepare_base_scene_clips_cached(base_generation, base_snapshot, base_sources)?;
+            .prepare_base_scene_clips_cached(
+                base_generation,
+                base_snapshot,
+                base_sources,
+                content_revisions,
+            )?;
         let (decoration_prepared_clips, _decoration_source_upload) = self
             .core
             .prepare_scene_clips_without_upload_fence(
@@ -1035,10 +1065,10 @@ impl NativeWgpuRenderer {
         })
     }
 
-    fn prepare_scene_clips(
+    fn prepare_scene_clips<S: RgbaFrameSource>(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, S>,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         self.prepare_scene_clips_with_upload_fence(
@@ -1050,10 +1080,10 @@ impl NativeWgpuRenderer {
         )
     }
 
-    fn prepare_scene_clips_without_upload_fence(
+    fn prepare_scene_clips_without_upload_fence<S: RgbaFrameSource>(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, S>,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         self.prepare_scene_clips_with_upload_fence(
@@ -1076,10 +1106,10 @@ impl NativeWgpuRenderer {
     /// 準備する。RGBA クリップと NV12 クリップは同一シーン内で混在でき、
     /// `encode_prepared_clips` が `PreparedClip::pipeline_kind` を見て
     /// クリップごとに正しいパイプラインへ切り替える。
-    fn prepare_scene_clips_with_upload_fence(
+    fn prepare_scene_clips_with_upload_fence<S: RgbaFrameSource>(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, S>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
@@ -1122,7 +1152,12 @@ impl NativeWgpuRenderer {
             // （device の max_texture_dimension_2d を超えるソース対策）もキャッシュ
             // hit 時は不要なため、ここでは行わずメソッド内部に委譲する。
             let (texture_view, prepared_width, prepared_height) = self
-                .get_or_upload_media_texture(&clip.media_id, revision, source, max_source_dimension);
+                .get_or_upload_media_texture(
+                    &clip.media_id,
+                    revision,
+                    source.rgba_frame(),
+                    max_source_dimension,
+                );
             prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
                 &self.device,
                 &self.bind_group_layout,
@@ -1281,11 +1316,12 @@ impl NativeWgpuRenderer {
     /// prepare し直し、結果をこの世代としてキャッシュへ保存する（キャッシュ
     /// miss）。upload fence は待たない（`prepare_scene_clips_without_upload_fence`
     /// と同じ扱い。live surface は次の submit/present が実質的な fence になる）。
-    fn prepare_base_scene_clips_cached(
+    fn prepare_base_scene_clips_cached<S: RgbaFrameSource>(
         &self,
         generation: u64,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, S>,
+        content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<(u32, Arc<PreparedClip>)>, Duration), NativeWgpuRenderError> {
         {
             let cache = self
@@ -1307,12 +1343,8 @@ impl NativeWgpuRenderer {
         let mut sorted_z_indices: Vec<u32> =
             snapshot.clips.iter().map(|clip| clip.z_index).collect();
         sorted_z_indices.sort_unstable();
-        // live surface（native-overlay）は media 内容世代を渡さないため、per-clip
-        // テクスチャキャッシュは常にミス扱い（既存の毎フレーム再生成のまま）。
-        // ここでの「再生成回避」は generation ベースの `prepared_scene_cache`
-        // （このメソッド自体）が担う。
         let (prepared_clips, source_upload) =
-            self.prepare_scene_clips_without_upload_fence(snapshot, sources, &HashMap::new())?;
+            self.prepare_scene_clips_without_upload_fence(snapshot, sources, content_revisions)?;
         let prepared_clips: Vec<(u32, Arc<PreparedClip>)> = sorted_z_indices
             .into_iter()
             .zip(prepared_clips.into_iter())
@@ -3491,7 +3523,7 @@ mod tests {
         let sources = HashMap::from([("source-1".to_string(), source)]);
 
         let (prepared, _) = renderer
-            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources, &HashMap::new())
             .expect("prepare must succeed even with unsorted z_index input");
 
         let z_indices: Vec<u32> = prepared.iter().map(|(z, _)| *z).collect();
@@ -3523,13 +3555,13 @@ mod tests {
         let (snapshot, sources) = solid_scene("clip-1", "source-1");
 
         let (first_clips, first_upload) = renderer
-            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources, &HashMap::new())
             .expect("first prepare (miss) must succeed");
         assert_eq!(renderer.prepared_scene_cache_stats(), (0, 1));
         assert_eq!(first_clips.len(), 1);
 
         let (second_clips, second_upload) = renderer
-            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources, &HashMap::new())
             .expect("second prepare with same generation (hit) must succeed");
         assert_eq!(
             renderer.prepared_scene_cache_stats(),
@@ -3562,12 +3594,12 @@ mod tests {
         let (snapshot, sources) = solid_scene("clip-1", "source-1");
 
         let (first_clips, _) = renderer
-            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources, &HashMap::new())
             .expect("first prepare must succeed");
         assert_eq!(renderer.prepared_scene_cache_stats(), (0, 1));
 
         let (second_clips, _) = renderer
-            .prepare_base_scene_clips_cached(2, &snapshot, &sources)
+            .prepare_base_scene_clips_cached(2, &snapshot, &sources, &HashMap::new())
             .expect("prepare with new generation must succeed");
         assert_eq!(
             renderer.prepared_scene_cache_stats(),
@@ -3628,7 +3660,7 @@ mod tests {
         };
         let (snapshot, sources) = solid_scene("clip-1", "source-1");
         let (prepared_clips, _) = renderer
-            .prepare_base_scene_clips_cached(1, &snapshot, &sources)
+            .prepare_base_scene_clips_cached(1, &snapshot, &sources, &HashMap::new())
             .expect("prepare must succeed");
 
         let cloned = prepared_clips.clone();
@@ -3785,7 +3817,11 @@ mod tests {
         };
         for _ in 0..=MEDIA_TEXTURE_CACHE_IDLE_FRAME_LIMIT {
             renderer
-                .prepare_scene_clips(&empty_snapshot, &HashMap::new(), &HashMap::new())
+                .prepare_scene_clips(
+                    &empty_snapshot,
+                    &HashMap::<String, RgbaFrame>::new(),
+                    &HashMap::new(),
+                )
                 .expect("prepare of empty scene must succeed");
         }
 

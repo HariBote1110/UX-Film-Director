@@ -321,10 +321,11 @@ static LIVE_OVERLAY_RENDERERS: OnceLock<Mutex<HashMap<u32, NativeOverlayLiveSurf
 
 const NATIVE_OVERLAY_SOURCE_CACHE_MAX_BYTES: usize = 512 * 1024 * 1024;
 const NATIVE_OVERLAY_SOURCE_CACHE_IDLE_FRAME_LIMIT: u64 = 30;
+type NativeOverlaySharedSources = HashMap<String, Arc<RgbaFrame>>;
 
 struct NativeOverlaySourceCacheEntry {
     revision: u64,
-    frame: RgbaFrame,
+    frame: Arc<RgbaFrame>,
     byte_len: usize,
     idle_frames: u64,
 }
@@ -341,7 +342,7 @@ struct NativeOverlaySourceCache {
 }
 
 impl NativeOverlaySourceCache {
-    fn get(&mut self, media_id: &str, revision: u64) -> Option<RgbaFrame> {
+    fn get(&mut self, media_id: &str, revision: u64) -> Option<Arc<RgbaFrame>> {
         let hit = self
             .entries
             .get(media_id)
@@ -364,10 +365,10 @@ impl NativeOverlaySourceCache {
             .get_mut(media_id)
             .expect("cache hit must keep its entry");
         entry.idle_frames = 0;
-        Some(entry.frame.clone())
+        Some(Arc::clone(&entry.frame))
     }
 
-    fn insert(&mut self, media_id: String, revision: u64, frame: RgbaFrame) {
+    fn insert(&mut self, media_id: String, revision: u64, frame: Arc<RgbaFrame>) {
         let byte_len = frame.pixels.len();
         if let Some(previous) = self.entries.insert(
             media_id.clone(),
@@ -449,13 +450,16 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// `Arc` で共有することで、選択変更のみの再 present（`present_cached_scene_with_decoration`）
     /// が `RgbaFrame`（フルHDで約8MBのピクセルバッファ）を含む `HashMap` の
     /// deep clone を一切発生させない（参照カウントのコピーのみ）。
-    last_scene: Option<Arc<(SceneSnapshot, HashMap<String, RgbaFrame>)>>,
+    last_scene: Option<Arc<(SceneSnapshot, NativeOverlaySharedSources)>>,
     /// `last_scene` の世代カウンタ。`present_upload_frame` で新しい scene が
     /// 来るたびにインクリメントし、native-wgpu-renderer 側の prepared clip
     /// キャッシュ（`prepare_base_scene_clips_cached`）のキーとして渡す。
     /// 同じ世代の再 present では GPU テクスチャ生成・アップロードを丸ごと
     /// スキップできる。
     scene_generation: u64,
+    /// base scene の media revision。prepared clip を新しい scene 世代で作り直す
+    /// ときも、内容が不変なsourceのGPU textureを再利用するために保持する。
+    last_scene_content_revisions: HashMap<String, u64>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
     /// CPU でラスタライズし直さないための media revision 単位キャッシュ。
     native_source_cache: NativeOverlaySourceCache,
@@ -487,6 +491,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             contents_scale: contract.contents_scale,
             last_scene: None,
             scene_generation: 0,
+            last_scene_content_revisions: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
             view_handle,
             renderer,
@@ -514,6 +519,9 @@ impl NativeOverlayLiveSurfaceRenderer {
                 self.window_id, upload.media_id, upload.width, upload.height,
             );
         }
+        let content_revisions = scene
+            .map(native_overlay_source_content_revisions_for_scene)
+            .unwrap_or_default();
         let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
             upload,
             scene,
@@ -526,6 +534,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         // Arc に包むことで、この代入自体は参照カウントのコピーのみで
         // RgbaFrame ピクセルバッファの deep clone を伴わない。
         self.last_scene = Some(Arc::new((snapshot, sources)));
+        self.last_scene_content_revisions = content_revisions;
         self.scene_generation += 1;
         let (base_snapshot, base_sources) = self
             .last_scene
@@ -547,7 +556,10 @@ impl NativeOverlayLiveSurfaceRenderer {
             // 診断専用の readback 経路。base + decoration を 1 つの snapshot に
             // 合成してから渡す（この経路は既定無効・deep clone を許容する）。
             let mut merged_snapshot = base_snapshot.clone();
-            let mut merged_sources = base_sources.clone();
+            let mut merged_sources: HashMap<String, RgbaFrame> = base_sources
+                .iter()
+                .map(|(media_id, frame)| (media_id.clone(), frame.as_ref().clone()))
+                .collect();
             merged_snapshot.clips.extend(decoration_clips);
             merged_sources.extend(decoration_sources);
             let report = pollster::block_on(
@@ -573,6 +585,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                 self.scene_generation,
                 base_snapshot,
                 base_sources,
+                &self.last_scene_content_revisions,
                 &decoration_clips,
                 &decoration_sources,
             ),
@@ -625,11 +638,12 @@ impl NativeOverlayLiveSurfaceRenderer {
     ) -> Result<(), String> {
         let trace_start = overlay_trace_enabled().then(Instant::now);
         let cached = self.last_scene.clone();
-        let owned_empty;
+        let owned_empty: (SceneSnapshot, NativeOverlaySharedSources);
         let (base_snapshot, base_sources) = match cached.as_deref() {
             Some((snapshot, sources)) => (snapshot, sources),
             None => {
-                owned_empty = build_empty_scene_snapshot_for_transparent_clear();
+                let (snapshot, _) = build_empty_scene_snapshot_for_transparent_clear();
+                owned_empty = (snapshot, HashMap::new());
                 (&owned_empty.0, &owned_empty.1)
             }
         };
@@ -656,6 +670,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                         self.scene_generation,
                         base_snapshot,
                         base_sources,
+                        &self.last_scene_content_revisions,
                         &decoration_clips,
                         &decoration_sources,
                     ),
@@ -681,6 +696,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                 self.scene_generation,
                 base_snapshot,
                 base_sources,
+                &self.last_scene_content_revisions,
                 &decoration_clips,
                 &decoration_sources,
             ),
@@ -1902,13 +1918,20 @@ pub fn upload_frame_to_scene_sources(
     drawable_height: u32,
 ) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
     let mut source_cache = NativeOverlaySourceCache::default();
-    upload_frame_to_scene_sources_with_cache(
+    let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
         upload,
         scene,
         drawable_width,
         drawable_height,
         &mut source_cache,
-    )
+    )?;
+    Ok((
+        snapshot,
+        sources
+            .into_iter()
+            .map(|(media_id, frame)| (media_id, frame.as_ref().clone()))
+            .collect(),
+    ))
 }
 
 fn upload_frame_to_scene_sources_with_cache(
@@ -1917,14 +1940,14 @@ fn upload_frame_to_scene_sources_with_cache(
     drawable_width: u32,
     drawable_height: u32,
     source_cache: &mut NativeOverlaySourceCache,
-) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
+) -> Result<(SceneSnapshot, NativeOverlaySharedSources), String> {
     let frame = RgbaFrame::from_rgba8(upload.width, upload.height, upload.pixels.clone())
         .map_err(|error| format!("Native overlay upload frame is invalid: {error:?}"))?;
     let mut sources = scene
         .map(|scene| load_overlay_native_sources_for_scene_cached(scene, source_cache))
         .transpose()?
         .unwrap_or_default();
-    sources.insert(upload.media_id.clone(), frame);
+    sources.insert(upload.media_id.clone(), Arc::new(frame));
     if let Some(scene) = scene {
         // preview 経路の decode は速度のため media 宣言サイズより小さい proxy 解像度へ
         // ダウンスケールされ得る（例: maxDecodeEdge=720 で 1920x1080 → 720x405）。
@@ -2114,13 +2137,16 @@ pub fn load_overlay_native_sources_for_scene(
     scene: &NativeOverlaySceneSource,
 ) -> Result<HashMap<String, RgbaFrame>, String> {
     let mut cache = NativeOverlaySourceCache::default();
-    load_overlay_native_sources_for_scene_cached(scene, &mut cache)
+    Ok(load_overlay_native_sources_for_scene_cached(scene, &mut cache)?
+        .into_iter()
+        .map(|(media_id, frame)| (media_id, frame.as_ref().clone()))
+        .collect())
 }
 
 fn load_overlay_native_sources_for_scene_cached(
     scene: &NativeOverlaySceneSource,
     cache: &mut NativeOverlaySourceCache,
-) -> Result<HashMap<String, RgbaFrame>, String> {
+) -> Result<NativeOverlaySharedSources, String> {
     let mut sources = HashMap::new();
     let mut touched_media_ids = HashSet::new();
     for media in &scene.media {
@@ -2159,8 +2185,9 @@ fn load_overlay_native_sources_for_scene_cached(
         } else {
             continue;
         };
+        let frame = Arc::new(frame);
         if let Some(revision) = revision {
-            cache.insert(media.id.clone(), revision, frame.clone());
+            cache.insert(media.id.clone(), revision, Arc::clone(&frame));
             touched_media_ids.insert(media.id.clone());
         }
         if sources.insert(media.id.clone(), frame).is_some() {
@@ -2254,6 +2281,26 @@ fn native_overlay_media_content_revision(
         source_frame.hash(&mut hasher);
     }
     Some(hasher.finish())
+}
+
+fn native_overlay_source_content_revisions_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> HashMap<String, u64> {
+    scene
+        .media
+        .iter()
+        .filter_map(|media| {
+            let source_frame = scene
+                .snapshot
+                .clips
+                .iter()
+                .find(|clip| clip.media_id == media.id)
+                .map(|clip| clip.source_frame)
+                .unwrap_or(scene.snapshot.frame_index);
+            native_overlay_media_content_revision(media, source_frame)
+                .map(|revision| (media.id.clone(), revision))
+        })
+        .collect()
 }
 
 fn hash_getcolor_source_image_metadata(source: &str, hasher: &mut DefaultHasher) -> Option<()> {
@@ -2818,6 +2865,13 @@ mod tests {
             "unchanged static generated media must reuse its CPU source frame"
         );
         assert_eq!(first, second);
+        assert!(
+            Arc::ptr_eq(
+                first.get("hksy-media").expect("first frame must exist"),
+                second.get("hksy-media").expect("second frame must exist"),
+            ),
+            "CPU source cache hit must share the same RgbaFrame allocation instead of cloning pixels"
+        );
 
         let empty_scene = NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
