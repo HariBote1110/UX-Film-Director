@@ -1643,6 +1643,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "uxfd-macos-video-encode"
+version = "0.1.0"
+dependencies = [
+ "objc2",
+ "objc2-av-foundation",
+ "objc2-core-foundation",
+ "objc2-core-media",
+ "objc2-core-video",
+ "objc2-foundation",
+ "objc2-io-surface",
+]
+
+[[package]]
 name = "uxfd-native-overlay"
 version = "0.1.0-Alpha-1a"
 dependencies = [
@@ -1702,6 +1715,7 @@ dependencies = [
  "serde_json",
  "uxfd-golden-harness",
  "uxfd-macos-video-decode",
+ "uxfd-macos-video-encode",
  "uxfd-native-wgpu-renderer",
  "uxfd-rust-core",
  "uxfd-shared-memory-spike",
