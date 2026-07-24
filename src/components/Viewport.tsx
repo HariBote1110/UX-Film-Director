@@ -157,6 +157,25 @@ export const shouldReplaySharedRendererNativeReusePending = (
   rustTimelineSceneRpcEnabled: boolean,
 ): boolean => !rustTimelineSceneRpcEnabled;
 
+/**
+ * export直後は外部動画要素を作り直すため、present可能になった通知
+ * （sharedRendererExternalVideoFrameReadyTickのbump）がRust常駐scene再評価の
+ * 唯一の復帰契機になる。
+ */
+export const shouldRequestRustTimelineSceneEvaluationForTick = (input: {
+  rustTimelineSceneRpcEnabled: boolean;
+  rustTimelineSceneRevisionAvailable: boolean;
+  isExporting: boolean;
+  nativePlaybackActive: boolean;
+  isPlaying: boolean;
+}): boolean => {
+  if (!input.rustTimelineSceneRpcEnabled) return false;
+  if (!input.rustTimelineSceneRevisionAvailable) return false;
+  if (input.isExporting) return false;
+  if (input.nativePlaybackActive && input.isPlaying) return false;
+  return true;
+};
+
 const writeRustTimelineSceneRpcDiagnostics = (diagnostics: RustTimelineSceneRpcDiagnostics) => {
   if (typeof document === 'undefined') return;
   const dataset = document.documentElement.dataset as Record<string, string | undefined>;
@@ -1751,10 +1770,18 @@ const Viewport: React.FC = () => {
     useStore.getState().setNativePlaybackActive(false);
   }, []);
 
+  // export中はexternal video sourceをtickごとにdisposeするため、export完了直後は
+  // readyState=0のvideo要素からpresenterが起動しvideoTextureViewUnavailableになる。
+  // 動画がpresent可能になった通知(sharedRendererExternalVideoFrameReadyTickのbump)で
+  // scene評価を再要求しないと、RPCモードでは復帰契機が存在しない。
   useEffect(() => {
-    if (!rustTimelineSceneRpcEnabled || rustTimelineSceneRevision === null) return;
-    if (isExporting) return;
-    if (nativePlaybackActive && isPlaying) return;
+    if (!shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled,
+      rustTimelineSceneRevisionAvailable: rustTimelineSceneRevision !== null,
+      isExporting,
+      nativePlaybackActive,
+      isPlaying,
+    })) return;
     const controller = rustTimelineScenePreviewControllerRef.current;
     if (!controller) return;
     controller.requestTime(currentTime, projectSettings.fps);
@@ -1768,6 +1795,7 @@ const Viewport: React.FC = () => {
     projectSettings.fps,
     rustTimelineSceneRevision,
     rustTimelineSceneRpcEnabled,
+    sharedRendererExternalVideoFrameReadyTick,
   ]);
 
   useEffect(() => {
@@ -1776,6 +1804,9 @@ const Viewport: React.FC = () => {
     }
     // sharedRendererExternalVideoFrameReadyTick re-publishes the session so a
     // paused frame that has just become presentable gets re-presented.
+    // This only takes effect when shouldBuildSharedRendererPreviewSessionForTick
+    // is true (i.e. the RPC path is disabled) — when the RPC path is enabled,
+    // the effect above owns this re-evaluation instead.
   }, [currentTime, objects, publishSharedRendererPreviewSession, rustTimelineSceneRpcEnabled, sharedRendererExternalVideoFrameReadyTick]);
 
   useEffect(() => {
