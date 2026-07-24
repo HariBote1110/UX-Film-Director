@@ -19,11 +19,16 @@ import {
   waitForHttp,
   waitForRendererTarget,
 } from './lib/electron-e2e-driver.mjs';
+import {
+  diffChromiumPerformanceMetrics,
+  summariseChromiumRendererTrace,
+} from './lib/chromium-renderer-trace.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_DIR = resolve(ROOT, '.codex/realistic-heavy-edit-e2e');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
+const CHROMIUM_TRACE_PATH = resolve(OUTPUT_DIR, 'chromium-renderer-trace.json');
 const SCREENSHOT_PATH = resolve(OUTPUT_DIR, 'viewport.png');
 const PROJECT_PATH = resolve(OUTPUT_DIR, 'realistic-heavy-edit.uxfd.json');
 const EXPORT_PATH = resolve(OUTPUT_DIR, 'realistic-heavy-edit-preview.mp4');
@@ -47,6 +52,8 @@ const PLAYBACK_MS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_PLAYBACK_MS ?? 
 const SCRUB_ITERATIONS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_SCRUB_ITERATIONS ?? 360);
 const EXPORT_SECONDS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_EXPORT_SECONDS ?? 2);
 const SKIP_EXPORT = process.env.UXFD_REALISTIC_HEAVY_EDIT_SKIP_EXPORT === '1';
+const COLLECT_CHROMIUM_TRACE =
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_CHROMIUM_TRACE !== '0';
 const USER_DATA_DIR = resolve(
   process.env.UXFD_REALISTIC_HEAVY_EDIT_USER_DATA_DIR
     ?? resolve(OUTPUT_DIR, `electron-profile-${process.pid}`),
@@ -144,6 +151,66 @@ const processSample = () => {
   } catch (error) {
     return [`ps failed: ${error instanceof Error ? error.message : String(error)}`];
   }
+};
+
+const collectChromiumRendererTrace = async (operation) => {
+  if (!COLLECT_CHROMIUM_TRACE) {
+    return {
+      value: await operation(),
+      summary: { collected: false, reason: 'disabled' },
+    };
+  }
+  const eventStartIndex = client.events.length;
+  await client.send('Performance.enable');
+  const metricsBefore = await client.send('Performance.getMetrics');
+  await client.send('Tracing.start', {
+    categories: [
+      'blink.user_timing',
+      'devtools.timeline',
+      'disabled-by-default-devtools.timeline',
+      'toplevel',
+      'v8',
+    ].join(','),
+    transferMode: 'ReportEvents',
+  });
+  let value;
+  try {
+    value = await operation();
+  } finally {
+    await client.send('Tracing.end');
+  }
+  const completionStartedAt = Date.now();
+  while (
+    Date.now() - completionStartedAt < 10_000
+    && !client.events.slice(eventStartIndex).some(
+      (event) => event.method === 'Tracing.tracingComplete',
+    )
+  ) {
+    await sleep(25);
+  }
+  const traceEvents = client.events
+    .slice(eventStartIndex)
+    .filter((event) => event.method === 'Tracing.dataCollected')
+    .flatMap((event) => event.params?.value ?? []);
+  const metricsAfter = await client.send('Performance.getMetrics');
+  writeFileSync(
+    CHROMIUM_TRACE_PATH,
+    `${JSON.stringify({ traceEvents })}\n`,
+    'utf8',
+  );
+  return {
+    value,
+    summary: {
+      collected: true,
+      traceEventCount: traceEvents.length,
+      path: CHROMIUM_TRACE_PATH,
+      performanceMetrics: diffChromiumPerformanceMetrics(
+        metricsBefore.metrics ?? [],
+        metricsAfter.metrics ?? [],
+      ),
+      ...summariseChromiumRendererTrace(traceEvents),
+    },
+  };
 };
 
 const inspectExport = ({ expectedDurationSeconds, expectedFrameCount }) => {
@@ -379,15 +446,17 @@ const main = async () => {
   `);
 
   log('スクラブ・複製・Undo/Redo・シーン切替・再生を実行');
-  const exercisePromise = client.evaluate(`
-    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.exercise({
-      scrubIterations: ${JSON.stringify(SCRUB_ITERATIONS)},
-      playbackMs: ${JSON.stringify(PLAYBACK_MS)}
-    })
-  `);
+  const exercisePromise = collectChromiumRendererTrace(() => client.evaluate(`
+      window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.exercise({
+        scrubIterations: ${JSON.stringify(SCRUB_ITERATIONS)},
+        playbackMs: ${JSON.stringify(PLAYBACK_MS)}
+      })
+    `));
   await sleep(Math.min(1_500, Math.max(500, PLAYBACK_MS / 2)));
   const processesDuringPlayback = processSample();
-  const exercise = await exercisePromise;
+  const tracedExercise = await exercisePromise;
+  const exercise = tracedExercise.value;
+  const chromiumRendererTrace = tracedExercise.summary;
 
   log('保存形式の直列化・復元を検証');
   const roundTrip = await client.evaluate(`
@@ -448,6 +517,7 @@ const main = async () => {
       project: PROJECT_PATH,
       screenshot: SCREENSHOT_PATH,
       export: SKIP_EXPORT ? null : EXPORT_PATH,
+      chromiumRendererTrace: COLLECT_CHROMIUM_TRACE ? CHROMIUM_TRACE_PATH : null,
     },
     seed,
     exercise,
@@ -458,6 +528,7 @@ const main = async () => {
     finalSnapshot,
     screenshotInspection,
     processesDuringPlayback,
+    chromiumRendererTrace,
     runtimeErrors,
     missingSourceLines,
     nativeRenderErrorLines,

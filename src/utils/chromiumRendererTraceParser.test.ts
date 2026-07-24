@@ -137,4 +137,43 @@ describe('Chromium renderer trace parser', () => {
     expect(summary.wallDurationMs).toBe(15);
     expect(summary.busyRatio).toBeCloseTo(13 / 15);
   });
+
+  it('reports CDP Performance metric deltas for script, layout, style, heap, and nodes', async () => {
+    const { diffChromiumPerformanceMetrics } = await import(
+      '../../scripts/lib/chromium-renderer-trace.mjs'
+    );
+    const metrics = diffChromiumPerformanceMetrics(
+      [
+        { name: 'TaskDuration', value: 10 },
+        { name: 'ScriptDuration', value: 4 },
+        { name: 'LayoutDuration', value: 1 },
+        { name: 'RecalcStyleDuration', value: 0.5 },
+        { name: 'LayoutCount', value: 20 },
+        { name: 'RecalcStyleCount', value: 30 },
+        { name: 'JSHeapUsedSize', value: 1_000 },
+        { name: 'Nodes', value: 100 },
+      ],
+      [
+        { name: 'TaskDuration', value: 11.25 },
+        { name: 'ScriptDuration', value: 4.75 },
+        { name: 'LayoutDuration', value: 1.2 },
+        { name: 'RecalcStyleDuration', value: 0.6 },
+        { name: 'LayoutCount', value: 24 },
+        { name: 'RecalcStyleCount', value: 35 },
+        { name: 'JSHeapUsedSize', value: 1_300 },
+        { name: 'Nodes', value: 104 },
+      ],
+    );
+
+    expect(metrics).toEqual({
+      taskMs: 1_250,
+      scriptMs: 750,
+      layoutMs: 200,
+      recalcStyleMs: 100,
+      layoutCount: 4,
+      recalcStyleCount: 5,
+      jsHeapUsedBytesDelta: 300,
+      nodeCountDelta: 4,
+    });
+  });
 });
