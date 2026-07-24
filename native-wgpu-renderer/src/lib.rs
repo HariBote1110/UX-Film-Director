@@ -20,6 +20,7 @@ use uxfd_sidecar_protocol::{
 use wgpu::util::DeviceExt;
 
 mod audio_reactive;
+mod focus_lines;
 mod getcolor;
 mod hksy;
 #[cfg(target_os = "macos")]
@@ -31,6 +32,7 @@ mod nv12;
 mod particle;
 mod simple_tube;
 pub use audio_reactive::NativeAudioReactiveSource;
+pub use focus_lines::NativeFocusLinesSource;
 pub use getcolor::NativeGetColorSource;
 pub use hksy::NativeHksySource;
 pub use nv12::{
@@ -94,6 +96,7 @@ pub enum NativeWgpuRenderError {
     GetColor(String),
     Hksy(String),
     SimpleTube(String),
+    FocusLines(String),
     BufferMap,
     InvalidFrame(RgbaFrameError),
     /// NV12 IOSurface import は macOS(Metal) 専用。他プラットフォームでは
@@ -244,6 +247,7 @@ pub struct NativeWgpuRenderer {
     getcolor_renderer: getcolor::GetColorGpuRenderer,
     hksy_renderer: hksy::HksyGpuRenderer,
     simple_tube_renderer: simple_tube::SimpleTubeGpuRenderer,
+    focus_lines_renderer: focus_lines::FocusLinesGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -410,6 +414,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
+        let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -437,6 +442,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             getcolor_renderer,
             hksy_renderer,
             simple_tube_renderer,
+            focus_lines_renderer,
         };
 
         Ok(Self {
@@ -602,6 +608,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         getcolor_sources: &HashMap<String, NativeGetColorSource>,
         hksy_sources: &HashMap<String, NativeHksySource>,
         simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
+        focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -616,6 +623,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 getcolor_sources,
                 hksy_sources,
                 simple_tube_sources,
+                focus_lines_sources,
                 false,
                 content_revisions,
             )?;
@@ -946,6 +954,7 @@ impl NativeWgpuRenderer {
         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
+        let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -974,6 +983,7 @@ impl NativeWgpuRenderer {
             getcolor_renderer,
             hksy_renderer,
             simple_tube_renderer,
+            focus_lines_renderer,
         })
     }
 
@@ -1077,6 +1087,7 @@ impl NativeWgpuRenderer {
             nv12_sources,
             &HashMap::new(),
             audio_reactive_sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1250,6 +1261,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1382,6 +1394,7 @@ impl NativeWgpuRenderer {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1396,6 +1409,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1428,6 +1442,7 @@ impl NativeWgpuRenderer {
         getcolor_sources: &HashMap<String, NativeGetColorSource>,
         hksy_sources: &HashMap<String, NativeHksySource>,
         simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
+        focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1442,6 +1457,7 @@ impl NativeWgpuRenderer {
         let mut touched_getcolor_media_ids: HashSet<String> = HashSet::new();
         let mut touched_hksy_media_ids: HashSet<String> = HashSet::new();
         let mut touched_simple_tube_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_focus_lines_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1540,6 +1556,26 @@ impl NativeWgpuRenderer {
                 continue;
             }
 
+            if let Some(focus_lines_source) = focus_lines_sources.get(&clip.media_id) {
+                touched_focus_lines_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .focus_lines_renderer
+                    .prepare(
+                        &self.device,
+                        &self.queue,
+                        &clip.media_id,
+                        focus_lines_source,
+                    )
+                    .map_err(NativeWgpuRenderError::FocusLines)?;
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
+                continue;
+            }
+
             let source = sources.get(&clip.media_id).ok_or_else(|| {
                 NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
@@ -1577,6 +1613,8 @@ impl NativeWgpuRenderer {
         self.hksy_renderer.finish_frame(&touched_hksy_media_ids);
         self.simple_tube_renderer
             .finish_frame(&touched_simple_tube_media_ids);
+        self.focus_lines_renderer
+            .finish_frame(&touched_focus_lines_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -3840,6 +3878,7 @@ mod tests {
                         &HashMap::new(),
                         &HashMap::new(),
                         &HashMap::new(),
+                        &HashMap::new(),
                         true,
                         &HashMap::new(),
                     )
@@ -3939,6 +3978,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4034,6 +4074,7 @@ mod tests {
                     &getcolor_sources,
                     &HashMap::new(),
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4120,6 +4161,7 @@ mod tests {
                     &HashMap::new(),
                     &hksy_sources,
                     &HashMap::new(),
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4198,6 +4240,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &hksy_sources,
+                    &HashMap::new(),
                     &HashMap::new(),
                     true,
                     &HashMap::new(),
@@ -4304,6 +4347,7 @@ mod tests {
                     &HashMap::new(),
                     &HashMap::new(),
                     &simple_tube_sources,
+                    &HashMap::new(),
                     true,
                     &HashMap::new(),
                 )
@@ -4392,6 +4436,7 @@ mod tests {
                 &HashMap::new(),
                 &HashMap::new(),
                 &simple_tube_sources,
+                &HashMap::new(),
                 true,
                 &HashMap::new(),
             )

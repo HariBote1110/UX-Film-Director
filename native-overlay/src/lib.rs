@@ -12,9 +12,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, NativeAudioReactiveSource, NativeGetColorSource, NativeHksySource,
-    NativeParticleSource, NativeSimpleTubeSource, NativeWgpuFrameStageTimings,
-    NativeWgpuLiveSurfaceRenderer,
+    render_native_wgpu_frame, NativeAudioReactiveSource, NativeFocusLinesSource,
+    NativeGetColorSource, NativeHksySource, NativeParticleSource, NativeSimpleTubeSource,
+    NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
 };
 use uxfd_rust_backend::{build_native_generated_source_frame, load_native_getcolor_sample_frame};
 use uxfd_rust_core::{
@@ -728,6 +728,7 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     last_getcolor_sources: HashMap<String, NativeGetColorSource>,
     last_hksy_sources: HashMap<String, NativeHksySource>,
     last_simple_tube_sources: HashMap<String, NativeSimpleTubeSource>,
+    last_focus_lines_sources: HashMap<String, NativeFocusLinesSource>,
     #[cfg(target_os = "macos")]
     video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
@@ -770,6 +771,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_getcolor_sources: HashMap::new(),
             last_hksy_sources: HashMap::new(),
             last_simple_tube_sources: HashMap::new(),
+            last_focus_lines_sources: HashMap::new(),
             #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
@@ -807,6 +809,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         self.last_getcolor_sources.clear();
         self.last_hksy_sources.clear();
         self.last_simple_tube_sources.clear();
+        self.last_focus_lines_sources.clear();
         #[cfg(target_os = "macos")]
         self.video_decoders.clear();
         let content_revisions = scene
@@ -969,6 +972,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         )?;
         let hksy_sources = native_overlay_hksy_sources_for_scene(scene)?;
         let simple_tube_sources = native_overlay_simple_tube_sources_for_scene(scene)?;
+        let focus_lines_sources = native_overlay_focus_lines_sources_for_scene(scene)?;
         self.last_scene = Some(Arc::new((snapshot, sources)));
         self.last_scene_content_revisions = content_revisions;
         self.last_nv12_sources = nv12_sources;
@@ -977,6 +981,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         self.last_getcolor_sources = getcolor_sources;
         self.last_hksy_sources = hksy_sources;
         self.last_simple_tube_sources = simple_tube_sources;
+        self.last_focus_lines_sources = focus_lines_sources;
         self.scene_generation = self.scene_generation.wrapping_add(1);
 
         let (decoration_clips, decoration_sources) = decoration
@@ -1005,6 +1010,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                     &self.last_getcolor_sources,
                     &self.last_hksy_sources,
                     &self.last_simple_tube_sources,
+                    &self.last_focus_lines_sources,
                     &decoration_clips,
                     &decoration_sources,
                 ),
@@ -1090,6 +1096,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             && self.last_getcolor_sources.is_empty()
             && self.last_hksy_sources.is_empty()
             && self.last_simple_tube_sources.is_empty()
+            && self.last_focus_lines_sources.is_empty()
         {
             pollster::block_on(
                 self.renderer
@@ -1115,6 +1122,7 @@ impl NativeOverlayLiveSurfaceRenderer {
                         &self.last_getcolor_sources,
                         &self.last_hksy_sources,
                         &self.last_simple_tube_sources,
+                        &self.last_focus_lines_sources,
                         &decoration_clips,
                         &decoration_sources,
                     ),
@@ -2095,6 +2103,7 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
     renderer.last_getcolor_sources.clear();
     renderer.last_hksy_sources.clear();
     renderer.last_simple_tube_sources.clear();
+    renderer.last_focus_lines_sources.clear();
     #[cfg(target_os = "macos")]
     renderer.video_decoders.clear();
     // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
@@ -2609,6 +2618,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
                     | MediaKind::GeneratedGetColorDots
                     | MediaKind::GeneratedHksyCheckerGrid
                     | MediaKind::GeneratedSimpleTube
+                    | MediaKind::GeneratedFocusLinesPlus
             )
         {
             continue;
@@ -2839,6 +2849,52 @@ fn native_overlay_simple_tube_sources_for_scene(
     Ok(sources)
 }
 
+fn native_overlay_focus_lines_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, NativeFocusLinesSource>, String> {
+    let mut sources = HashMap::new();
+    for media in scene
+        .media
+        .iter()
+        .filter(|media| media.kind == "GeneratedFocusLinesPlus")
+    {
+        let mut source_frames = scene
+            .snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(scene.snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native overlay cannot render FocusLinesPlus media {} at multiple source frames in one scene.",
+                media.id
+            ));
+        }
+        let config_revision = native_overlay_media_content_revision(media, source_frame)
+            .ok_or_else(|| {
+                format!(
+                    "Native overlay FocusLinesPlus media '{}' has no stable content revision.",
+                    media.id
+                )
+            })?;
+        let descriptor = NativeFocusLinesSource {
+            source: media.source.clone(),
+            width: media.width,
+            height: media.height,
+            source_frame,
+            config_revision,
+        };
+        if sources.insert(media.id.clone(), descriptor).is_some() {
+            return Err(format!(
+                "Duplicate native overlay FocusLinesPlus mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    Ok(sources)
+}
+
 fn native_overlay_audio_reactive_sources_for_scene<F>(
     scene: &NativeOverlaySceneSource,
     cache: &mut NativeOverlayAudioPcmCache,
@@ -3021,10 +3077,18 @@ fn native_overlay_media_content_revision(
     if kind == MediaKind::GeneratedGetColorDots {
         hash_getcolor_source_image_metadata(&media.source, &mut hasher)?;
     }
-    if matches!(
+    if kind == MediaKind::GeneratedFocusLinesPlus {
+        let parsed: serde_json::Value = serde_json::from_str(&media.source).ok()?;
+        let keyframe_interval = parsed.get("keyframe_interval")?.as_u64()?;
+        let frame_bucket = if keyframe_interval == 0 {
+            0
+        } else {
+            source_frame / keyframe_interval
+        };
+        frame_bucket.hash(&mut hasher);
+    } else if matches!(
         kind,
         MediaKind::GeneratedParticle
-            | MediaKind::GeneratedFocusLinesPlus
             | MediaKind::GeneratedShakingPolygon
             | MediaKind::GeneratedShatteredSphere
     ) {
@@ -3864,6 +3928,78 @@ mod tests {
         assert_eq!(descriptor.width, 64);
         assert_eq!(descriptor.height, 48);
         assert_eq!(descriptor.source, scene.media[0].source);
+    }
+
+    #[test]
+    fn direct_focus_lines_scene_uses_gpu_descriptor_and_static_bucket_revision() {
+        let build_scene = |source_frame| {
+            NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: source_frame,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "focus-lines-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "focus-lines-media".to_string(),
+                    source_frame,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "focus-lines-media".to_string(),
+                kind: "GeneratedFocusLinesPlus".to_string(),
+                source: r##"{"generator":"focus-lines-plus","ray_width":2.5,"gap":6,"centre_radius":8,"rotation_degrees":15,"centre_x":32,"centre_y":24,"centre_jitter_percent":20,"seed":93,"keyframe_interval":0,"line_colour":"#ff8000"}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_rate: None,
+            }],
+            canvas_width: 64,
+            canvas_height: 48,
+        }
+        };
+        let first_scene = build_scene(0);
+        let later_scene = build_scene(60);
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&first_scene, &mut cache, true)
+                .expect("direct FocusLinesPlus source resolution must succeed");
+        assert!(direct_rgba.is_empty());
+        assert_eq!(cache.stats(), (0, 0));
+
+        let first = native_overlay_focus_lines_sources_for_scene(&first_scene)
+            .expect("first FocusLinesPlus descriptor resolution succeeds");
+        let later = native_overlay_focus_lines_sources_for_scene(&later_scene)
+            .expect("later FocusLinesPlus descriptor resolution succeeds");
+        let first = first.get("focus-lines-media").expect("first descriptor");
+        let later = later.get("focus-lines-media").expect("later descriptor");
+        assert_eq!(first.source_frame, 0);
+        assert_eq!(later.source_frame, 60);
+        assert_eq!(
+            first.config_revision, later.config_revision,
+            "keyframe_interval=0 must keep one static GPU source texture"
+        );
+
+        let mut bucket_nine_scene = build_scene(9);
+        bucket_nine_scene.media[0].source = bucket_nine_scene.media[0]
+            .source
+            .replace(r#""keyframe_interval":0"#, r#""keyframe_interval":10"#);
+        let mut bucket_ten_scene = build_scene(10);
+        bucket_ten_scene.media[0].source = bucket_ten_scene.media[0]
+            .source
+            .replace(r#""keyframe_interval":0"#, r#""keyframe_interval":10"#);
+        let bucket_nine = native_overlay_focus_lines_sources_for_scene(&bucket_nine_scene)
+            .expect("bucket nine descriptor resolution succeeds");
+        let bucket_ten = native_overlay_focus_lines_sources_for_scene(&bucket_ten_scene)
+            .expect("bucket ten descriptor resolution succeeds");
+        assert_ne!(
+            bucket_nine["focus-lines-media"].config_revision,
+            bucket_ten["focus-lines-media"].config_revision,
+            "keyframe interval boundary must regenerate the GPU source texture"
+        );
     }
 
     #[test]
