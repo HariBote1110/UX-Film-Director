@@ -144,6 +144,12 @@ GPUオフロードはまだ完了していない。
 - Beta-476aでHKSYとSimpleTubeも同じbundleへ接続し、shared frameとexportの
   CPU完成RGBA生成を除去した。両sourceは時間非依存の設定revisionを使うため、
   source frameが進んでも同じGPU textureを再利用する。
+- Beta-477aでParticleとFocusLinesPlusも同じbundleへ接続した。これにより
+  `NativeGeneratedGpuSources`の7フィールドすべてをbackendが構築し、direct preview、
+  shared frame、RGBA readback、BGRA IOSurface exportの全経路で同じdescriptor契約を
+  使う。Particleは時間で変わる`source_frame`と設定revisionを分離し、instance設定を
+  再利用する。FocusLinesPlusは`keyframeInterval`から求めるframe bucketだけを
+  revisionへ含め、その計算をCPU参照描画、direct overlay、WGPU、exportで共通化した。
 - 診断traceを有効にした実機再生ではElectron renderer、Rust backend、Electron
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
@@ -156,17 +162,22 @@ GPUオフロードはまだ完了していない。
 - 書き出し中のRust preview評価を抑止し、書き出し終了時に現在frameを再要求する。
   これによりexport用surface gateの`exporting`状態がpreviewへ残留しない。
 
-次のGPU化候補は、優先順に以下とする。
+次のGPU化・Rust移管候補は、優先順に以下とする。
 
-1. FocusLinesPlus、Particleのdescriptor収集を
-   `NativeGeneratedGpuSources`へ接続し、previewだけでなくshared frameとexportでも
-   CPU完成RGBA生成を除去する。
-2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
+1. Rust exportが未対応sourceでblockedになった場合だけ到達するlegacy canvas
+   captureを、残る生成source・Text・Shapeのnative化により到達不能にする。
+2. CAMetalLayer direct presentが利用可能な場面ではChromium WebGPU presenterと
+   browser側GPU capability probeを起動しない契約を固定する。presenter自体は
+   native direct非対応環境のfallbackとして隔離する。
+3. 残るCPU完成RGBA生成sourceを、画素数、時間依存性、重量fixtureでの利用頻度から
+   順にGPU descriptorへ移す。特にText・GeneratedShapeを単発effectとは別の共通
+   vector/text source境界として設計する。
+4. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
-3. ShakingPolygonのsource frame更新で行うtexture再生成を、同一textureへの
+5. ShakingPolygonのsource frame更新で行うtexture再生成を、同一textureへの
    geometry buffer更新とrenderへ変え、Metal resource churnを減らす。
-4. Timeline分離後のCDP traceを基準に、PropertyPanel、Viewport、DOM compositorへ
-   残る更新をさらに局所化する。
+6. 3D StageのThree.js/WebGLは2D compositorの残作業と混ぜず、camera、controls、
+   billboard、selectionを含む独立したRust renderer移行として扱う。
 
 ## 採用しなかった案
 

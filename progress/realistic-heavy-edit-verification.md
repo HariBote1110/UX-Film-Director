@@ -347,6 +347,39 @@ GPU textureを再利用する。
 - 未処理例外: 0件
 - 画面検査: visible pixel 261,124、colourful pixel 48,558
 
+## Particle／FocusLinesPlus export GPU接続後の再検証
+
+Beta-477aではParticleとFocusLinesPlusをbackendのCPU完成RGBA収集から外し、
+`NativeGeneratedGpuSources`経由でshared frame、RGBA readback、BGRA IOSurface
+exportへ接続した。Particleは時間で変わる`source_frame`と設定revisionを分離し、
+FocusLinesPlusは共通のframe bucket計算により、bucket境界をまたがない限りGPU
+textureを再利用する。
+
+同じ66素材・44同時クリップの重量E2Eは総合PASSした。
+
+- 120回スクラブ: 158.87 ms
+- requestAnimationFrame: 平均16.69 ms、p95 21.10 ms、最大24.92 ms
+- long task: 0件
+- 保存復元: 66オブジェクト、fingerprint一致
+- 出力: 1920×1080、MP4 74フレーム、1.24秒
+- export所要時間: 35.74秒（開発ビルド、`ffmpegRawRgba`）
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 画面検査: visible pixel 261,009、colourful pixel 49,034
+- 最終状態: presenter `ready`、Rust timeline `ready`
+
+再生中の瞬間CPU sampleはElectron browser/main 57.0%、Electron Renderer 51.9%、
+Rust backend 26.8%、audio service 13.4%だった。Beta-475aのRenderer 77.6%より低いが、
+単発sample同士なので移管効果の因果証明や性能回帰閾値には使わない。
+
+Chromium描画APIの監査では、通常2D previewのscene source生成はnative側へ分離済み
+だった。一方、native exportがblockedになった場合のlegacy canvas capture、
+CAMetalLayer direct非対応時のWebGPU presenter、3D StageのThree.js/WebGL、
+PSD import時の一時canvas、文字boxの`measureText`がproduction到達可能である。
+前二者を2D renderer移行の対象とし、3D Stageは独立した移行、PSD importと文字計測は
+per-frame compositor外の後段課題として扱う。
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない
