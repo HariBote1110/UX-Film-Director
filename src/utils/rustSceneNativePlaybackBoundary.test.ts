@@ -41,4 +41,17 @@ describe('Rust scene native playback境界', () => {
 
     expect(requestGuard).toContain('rustTimelineSceneRevision === null');
   });
+
+  it('書き出し中のpreview評価を止め、終了時に現在frameを再要求する', () => {
+    const viewport = read('src/components/Viewport.tsx');
+    const requestEffectEnd = viewport.indexOf(
+      'controller.requestTime(currentTime, projectSettings.fps);',
+    );
+    const requestEffectStart = viewport.lastIndexOf('useEffect(() => {', requestEffectEnd);
+    const requestEffectClosure = viewport.indexOf(']);', requestEffectEnd);
+    const requestEffect = viewport.slice(requestEffectStart, requestEffectClosure);
+
+    expect(requestEffect).toContain('if (isExporting) return;');
+    expect(requestEffect).toMatch(/\[\s*currentTime,\s*isExporting,/);
+  });
 });
