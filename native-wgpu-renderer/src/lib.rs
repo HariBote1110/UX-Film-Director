@@ -3402,6 +3402,14 @@ fn area_expand_fill(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
 mod tests {
     use super::*;
 
+    #[test]
+    fn live_surface_exposes_nv12_scene_present_boundary() {
+        let _present =
+            NativeWgpuLiveSurfaceRenderer::present_scene_with_decoration_and_nv12_to_surface_texture::<
+                RgbaFrame,
+            >;
+    }
+
     fn request_test_adapter() -> wgpu::Adapter {
         let instance = wgpu::Instance::default();
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
