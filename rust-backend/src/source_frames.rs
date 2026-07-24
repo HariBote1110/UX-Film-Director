@@ -29,6 +29,7 @@ pub(crate) fn collect_native_render_sources(
             MediaKind::Psd => build_psd_source_frame(media, source_frame_cache)?,
             MediaKind::GeneratedAudioWaveform
             | MediaKind::GeneratedAudioSphere
+            | MediaKind::GeneratedParticle
             | MediaKind::GeneratedGetColorDots
             | MediaKind::GeneratedHksyCheckerGrid
             | MediaKind::GeneratedSimpleTube
