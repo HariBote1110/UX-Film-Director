@@ -1,5 +1,7 @@
 use uxfd_golden_harness::RgbaFrame;
-use uxfd_rust_core::SceneMediaReference;
+use uxfd_rust_core::{
+    generated_particle_unit, parse_generated_particle_source, SceneMediaReference,
+};
 
 use super::*;
 
@@ -13,12 +15,9 @@ pub(crate) fn build_generated_particle_source_frame(
             media.width, media.height
         ));
     }
-    let particle: GeneratedParticleSource = serde_json::from_str(&media.source)
-        .map_err(|error| format!("Invalid GeneratedParticle media '{}': {error}", media.id))?;
-    validate_generated_particle_source(&particle)
+    let particle = parse_generated_particle_source(&media.source)
         .map_err(|message| format!("Invalid GeneratedParticle media '{}': {message}", media.id))?;
-    let [red, green, blue] = parse_hex_colour_source(&particle.colour)
-        .map_err(|message| format!("Invalid GeneratedParticle media '{}': {message}", media.id))?;
+    let [red, green, blue] = particle.colour;
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -38,8 +37,8 @@ pub(crate) fn build_generated_particle_source_frame(
     let source_seconds = source_frame as f32 / 60.0;
 
     for index in 0..particle.particle_count {
-        let angle = deterministic_unit(particle.seed, index, 0) * std::f32::consts::TAU;
-        let distance = deterministic_unit(particle.seed, index, 1) * particle.spread;
+        let angle = generated_particle_unit(particle.seed, index, 0) * std::f32::consts::TAU;
+        let distance = generated_particle_unit(particle.seed, index, 1) * particle.spread;
         let lifetime_position = if particle.lifetime_seconds <= f32::EPSILON {
             0.0
         } else {

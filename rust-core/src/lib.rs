@@ -1,5 +1,6 @@
 pub mod audio_waveform_scene;
 pub mod command;
+pub mod generated_particle;
 pub mod keyframe;
 pub mod nv12_source;
 pub mod schema;
@@ -14,6 +15,9 @@ pub use audio_waveform_scene::{
     AudioWaveformSource,
 };
 pub use command::{apply_command, AppliedCommand, Command, CommandError};
+pub use generated_particle::{
+    generated_particle_unit, parse_generated_particle_source, GeneratedParticleParams,
+};
 pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
 pub use schema::{
     Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, MediaKind, MediaReference,

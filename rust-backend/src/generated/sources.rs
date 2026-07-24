@@ -12,18 +12,6 @@ pub(crate) struct GeneratedGradientSource {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedParticleSource {
-    pub(crate) generator: String,
-    pub(crate) seed: u64,
-    pub(crate) particle_count: u32,
-    pub(crate) spread: f32,
-    pub(crate) speed: f32,
-    pub(crate) size: f32,
-    pub(crate) colour: String,
-    pub(crate) lifetime_seconds: f32,
-}
-
-#[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedBarcodeSource {
     pub(crate) generator: String,
     pub(crate) data: String,

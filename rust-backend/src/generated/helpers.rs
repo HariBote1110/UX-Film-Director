@@ -477,15 +477,7 @@ pub(crate) fn deterministic_signed_noise(seed: i64, index: i64) -> f32 {
 }
 
 pub(crate) fn deterministic_unit(seed: u64, index: u32, lane: u64) -> f32 {
-    let mut value = seed
-        ^ ((index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15))
-        ^ lane.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    value ^= value >> 30;
-    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    value ^= value >> 27;
-    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
-    value ^= value >> 31;
-    (value as f64 / u64::MAX as f64) as f32
+    uxfd_rust_core::generated_particle_unit(seed, index, lane)
 }
 
 pub(crate) fn fill_rect_rgba(

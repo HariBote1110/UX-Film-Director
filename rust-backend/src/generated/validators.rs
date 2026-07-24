@@ -437,31 +437,6 @@ pub(crate) fn validate_generated_tone_curve_source(
     Ok(())
 }
 
-pub(crate) fn validate_generated_particle_source(
-    source: &GeneratedParticleSource,
-) -> Result<(), String> {
-    if source.generator != "standard-particle" {
-        return Err("generator must be standard-particle".to_string());
-    }
-    if source.particle_count == 0 || source.particle_count > 10_000 {
-        return Err("particle_count must be 1..10000".to_string());
-    }
-    if !source.spread.is_finite() || source.spread < 0.0 {
-        return Err("spread must be a finite non-negative number".to_string());
-    }
-    if !source.speed.is_finite() || source.speed < 0.0 {
-        return Err("speed must be a finite non-negative number".to_string());
-    }
-    if !source.size.is_finite() || source.size <= 0.0 {
-        return Err("size must be a finite positive number".to_string());
-    }
-    if !source.lifetime_seconds.is_finite() || source.lifetime_seconds <= 0.0 {
-        return Err("lifetime_seconds must be a finite positive number".to_string());
-    }
-    parse_hex_colour_source(&source.colour)?;
-    Ok(())
-}
-
 pub(crate) fn validate_generated_region_frame_source(
     source: &GeneratedRegionFrameSource,
 ) -> Result<(), String> {
