@@ -29,6 +29,11 @@ import {
 import { remoteDeckIpcChannels } from '../shared/remoteDeckProtocol';
 import { resolveRemoteDeckStaticDir } from './remoteDeckStaticDir';
 import { DEFAULT_REMOTE_DECK_LAYOUT } from '../shared/remoteDeckLayout';
+import {
+  createRustScenePlaybackController,
+  type RustScenePlaybackEvaluation,
+  type RustScenePlaybackStartPayload,
+} from './rustScenePlaybackController';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -601,7 +606,7 @@ app.whenReady().then(() => {
   })
 
   // --- IPC Handlers ---
-  registerNativeOverlayIpcHandlers(ipcMain, createNativeOverlayMainBridge({
+  const nativeOverlayBridge = createNativeOverlayMainBridge({
     env: process.env,
     cwd: process.cwd(),
     resourcesPath: process.resourcesPath,
@@ -611,7 +616,8 @@ app.whenReady().then(() => {
       return targetWindow ? screen.getDisplayMatching(targetWindow.getBounds()).scaleFactor : null
     },
     logDiagnostic: (eventName, payload) => console.info(formatNativeOverlayDiagnosticLog(eventName, payload)),
-  }), {
+  });
+  registerNativeOverlayIpcHandlers(ipcMain, nativeOverlayBridge, {
     resolveWindowIdFromEvent: (event) => {
       const sender = typeof event === 'object' && event !== null && 'sender' in event
         ? (event as { sender?: WebContents }).sender
@@ -620,6 +626,28 @@ app.whenReady().then(() => {
     },
     logDiagnostic: (eventName, payload) => console.info(formatNativeOverlayDiagnosticLog(eventName, payload)),
   })
+  const rustScenePlaybackController = createRustScenePlaybackController({
+    evaluateScene: async (payload) =>
+      (await callRustBackend('scene.evaluate', payload, 8_000)) as RustScenePlaybackEvaluation,
+    presentScene: (payload) => nativeOverlayBridge.presentScene(payload),
+    emit: (state) => {
+      win?.webContents.send('rust-backend-scene-playback-ui-state', state);
+    },
+  });
+  ipcMain.handle(
+    'rust-backend-scene-playback-start',
+    async (event, payload: Omit<RustScenePlaybackStartPayload, 'windowId'>) => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
+      return rustScenePlaybackController.start({ ...payload, windowId });
+    },
+  );
+  ipcMain.handle('rust-backend-scene-playback-pause', () =>
+    rustScenePlaybackController.pause());
+  ipcMain.handle('rust-backend-scene-playback-stop', () =>
+    rustScenePlaybackController.stop());
+  app.on('before-quit', () => {
+    rustScenePlaybackController.stop();
+  });
 
   ipcMain.handle('save-project-file', async (_event, payload: { data?: string; defaultName?: string }) => {
     const data = typeof payload?.data === 'string' ? payload.data : '';

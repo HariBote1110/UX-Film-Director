@@ -33,6 +33,29 @@ interface Window {
     echo: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     replaceScene: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
     evaluateScene: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
+    startScenePlayback: (payload: {
+      sceneId: string;
+      revision: number;
+      fps: number;
+      startTimeSeconds: number;
+      durationSeconds: number;
+    }) => Promise<{
+      active: boolean;
+      frameIndex?: number;
+      reason?: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+    }>;
+    pauseScenePlayback: () => Promise<{
+      status: string;
+      currentTimeSeconds: number;
+      frameIndex: number;
+      isPlaying: boolean;
+    } | null>;
+    stopScenePlayback: () => Promise<{
+      status: string;
+      currentTimeSeconds: number;
+      frameIndex: number;
+      isPlaying: boolean;
+    } | null>;
     startVideoDecode: (payload: {
       jobId: string;
       source: string;

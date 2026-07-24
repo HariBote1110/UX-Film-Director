@@ -7,10 +7,12 @@ import { resolveKeyCommand } from './keyCommandResolver';
 import { connectRemoteDeckToCommandBus } from '../remoteDeck/connectRemoteDeckToCommandBus';
 import { subscribeStoreToRemoteDeckState } from '../remoteDeck/remoteDeckStatePush';
 import { subscribeStoreToRemoteDeckPlayback } from '../remoteDeck/remoteDeckPlaybackPush';
+import { shouldRunRendererPlaybackClock } from '../utils/playbackClockOwnership';
 
 export const useAppLogic = () => {
   const {
     isPlaying,
+    nativePlaybackActive,
     advanceTime,
     selectedIds,
     copySelectedObjects,
@@ -21,6 +23,7 @@ export const useAppLogic = () => {
     ungroupSelectedObjects,
   } = useStore((state) => ({
     isPlaying: state.isPlaying,
+    nativePlaybackActive: state.nativePlaybackActive,
     advanceTime: state.advanceTime,
     selectedIds: state.selectedIds,
     copySelectedObjects: state.copySelectedObjects,
@@ -70,7 +73,7 @@ export const useAppLogic = () => {
   };
 
   useEffect(() => {
-    if (isPlaying) {
+    if (shouldRunRendererPlaybackClock({ isPlaying, nativePlaybackActive })) {
       lastTimeRef.current = 0; // Reset last time to avoid huge jump
       requestRef.current = requestAnimationFrame(animate);
     } else {
@@ -83,7 +86,7 @@ export const useAppLogic = () => {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [isPlaying]); // Re-run when play state changes
+  }, [isPlaying, nativePlaybackActive]); // Re-run when clock ownership changes
 
   // --- 2. Keyboard Shortcuts ---
   useEffect(() => {

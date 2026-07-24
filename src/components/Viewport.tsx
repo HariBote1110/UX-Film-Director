@@ -111,6 +111,38 @@ interface RustTimelineSceneRpcDiagnostics {
   failed?: number;
 }
 
+interface RustNativePlaybackUiState {
+  status: 'started' | 'playing' | 'paused' | 'stopped' | 'ended' | 'failed';
+  currentTimeSeconds: number;
+  frameIndex: number;
+  isPlaying: boolean;
+  reason?: string;
+  diagnostics?: {
+    requestedFrames: number;
+    presentedFrames: number;
+    skippedFrames: number;
+    failedFrames: number;
+    uiNotifications: number;
+  };
+}
+
+const writeRustNativePlaybackDiagnostics = (state: RustNativePlaybackUiState) => {
+  if (typeof document === 'undefined') return;
+  const dataset = document.documentElement.dataset;
+  dataset.uxfdRustPlaybackClockOwner = state.isPlaying ? 'main' : 'renderer';
+  dataset.uxfdRustPlaybackStatus = state.status;
+  dataset.uxfdRustPlaybackFrame = String(state.frameIndex);
+  dataset.uxfdRustPlaybackTime = String(state.currentTimeSeconds);
+  if (state.diagnostics) {
+    dataset.uxfdRustPlaybackPresented = String(state.diagnostics.presentedFrames);
+    dataset.uxfdRustPlaybackSkipped = String(state.diagnostics.skippedFrames);
+    dataset.uxfdRustPlaybackFailed = String(state.diagnostics.failedFrames);
+    dataset.uxfdRustPlaybackUiNotifications = String(state.diagnostics.uiNotifications);
+  }
+  (window as unknown as { __UXFD_RUST_PLAYBACK_CLOCK__?: RustNativePlaybackUiState })
+    .__UXFD_RUST_PLAYBACK_CLOCK__ = state;
+};
+
 /** Rust常駐sceneの評価結果がある間は、Chromiumでsceneを再構築しない。 */
 export const shouldBuildSharedRendererPreviewSessionForTick = (
   rustTimelineSceneRpcEnabled: boolean,
@@ -622,9 +654,11 @@ const Viewport: React.FC = () => {
   const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
   const rustTimelineScenePreviewControllerRef = useRef<EditableRustScenePreviewController | null>(null);
+  const rustNativePlaybackStartGenerationRef = useRef(0);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
+  const [rustTimelineSceneRevision, setRustTimelineSceneRevision] = useState<number | null>(null);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0';
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
@@ -809,7 +843,8 @@ const Viewport: React.FC = () => {
 
   const {
     currentTime, objects, selectedIds, selectedId, clearSelection,
-    projectSettings, isPlaying, isExporting,
+    projectSettings, isPlaying, isExporting, duration, nativePlaybackActive,
+    setNativePlaybackActive, setIsPlaying, setTime,
     layers,
     camera,
     stageCamera3D,
@@ -831,6 +866,11 @@ const Viewport: React.FC = () => {
     projectSettings: state.projectSettings,
     isPlaying: state.isPlaying,
     isExporting: state.isExporting,
+    duration: state.duration,
+    nativePlaybackActive: state.nativePlaybackActive,
+    setNativePlaybackActive: state.setNativePlaybackActive,
+    setIsPlaying: state.setIsPlaying,
+    setTime: state.setTime,
     layers: state.layers,
     camera: state.camera,
     stageCamera3D: state.stageCamera3D,
@@ -1503,6 +1543,8 @@ const Viewport: React.FC = () => {
     if (!rustTimelineSceneRpcEnabled) {
       rustTimelineScenePreviewControllerRef.current?.dispose();
       rustTimelineScenePreviewControllerRef.current = null;
+      setRustTimelineSceneRevision(null);
+      setNativePlaybackActive(false);
       writeRustTimelineSceneRpcDiagnostics({ status: 'disabled', projectId: projectId ?? null });
       return;
     }
@@ -1579,6 +1621,9 @@ const Viewport: React.FC = () => {
     if (!controller) return;
     const result = controller.replaceScene({ projectSettings, layers, objects });
     if (!result.ok) {
+      setRustTimelineSceneRevision(null);
+      setNativePlaybackActive(false);
+      void window.rustBackend.stopScenePlayback();
       setSharedRendererPreviewSession(null);
       writeRustTimelineSceneRpcDiagnostics({
         status: 'blocked',
@@ -1587,6 +1632,7 @@ const Viewport: React.FC = () => {
       });
       return;
     }
+    setRustTimelineSceneRevision(result.revision);
     writeRustTimelineSceneRpcDiagnostics({
       status: 'pending',
       projectId: projectId ?? null,
@@ -1599,15 +1645,125 @@ const Viewport: React.FC = () => {
     projectSettings.height,
     projectSettings.width,
     rustTimelineSceneRpcEnabled,
+    setNativePlaybackActive,
   ]);
 
   useEffect(() => {
+    if (!rustTimelineSceneRpcEnabled) return undefined;
+    const onPlaybackUiState = (_event: unknown, rawState: unknown) => {
+      if (!rawState || typeof rawState !== 'object') return;
+      const state = rawState as Partial<RustNativePlaybackUiState>;
+      if (
+        typeof state.status !== 'string'
+        || typeof state.currentTimeSeconds !== 'number'
+        || !Number.isFinite(state.currentTimeSeconds)
+        || typeof state.frameIndex !== 'number'
+      ) {
+        return;
+      }
+      const playbackState = state as RustNativePlaybackUiState;
+      writeRustNativePlaybackDiagnostics(playbackState);
+      setTime(playbackState.currentTimeSeconds);
+      if (playbackState.status === 'ended') {
+        setNativePlaybackActive(false);
+        setIsPlaying(false);
+      } else if (playbackState.status === 'failed') {
+        // main/native presentが途中で失敗した場合だけrenderer rAFを再開する。
+        // 再生自体は止めず、次のcurrentTime tickから既存経路へ安全に戻す。
+        setNativePlaybackActive(false);
+      }
+    };
+    window.ipcRenderer.on('rust-backend-scene-playback-ui-state', onPlaybackUiState);
+    return () => {
+      window.ipcRenderer.off('rust-backend-scene-playback-ui-state', onPlaybackUiState);
+    };
+  }, [
+    rustTimelineSceneRpcEnabled,
+    setIsPlaying,
+    setNativePlaybackActive,
+    setTime,
+  ]);
+
+  useEffect(() => {
+    if (!rustTimelineSceneRpcEnabled || rustTimelineSceneRevision === null) {
+      if (useStore.getState().nativePlaybackActive) {
+        void window.rustBackend.stopScenePlayback();
+        setNativePlaybackActive(false);
+      }
+      return;
+    }
+
+    const startGeneration = rustNativePlaybackStartGenerationRef.current + 1;
+    rustNativePlaybackStartGenerationRef.current = startGeneration;
+    if (!isPlaying) {
+      if (useStore.getState().nativePlaybackActive) {
+        void window.rustBackend.pauseScenePlayback().then((state) => {
+          if (state && Number.isFinite(state.currentTimeSeconds)) {
+            setTime(state.currentTimeSeconds);
+          }
+          setNativePlaybackActive(false);
+        });
+      }
+      return;
+    }
+
+    void (async () => {
+      let startTimeSeconds = useStore.getState().currentTime;
+      if (useStore.getState().nativePlaybackActive) {
+        const paused = await window.rustBackend.pauseScenePlayback();
+        if (paused && Number.isFinite(paused.currentTimeSeconds)) {
+          startTimeSeconds = paused.currentTimeSeconds;
+          setTime(startTimeSeconds);
+        }
+      }
+      const result = await window.rustBackend.startScenePlayback({
+        sceneId: 'viewport-rust-timeline',
+        revision: rustTimelineSceneRevision,
+        fps: projectSettings.fps,
+        startTimeSeconds,
+        durationSeconds: duration,
+      });
+      if (rustNativePlaybackStartGenerationRef.current !== startGeneration) {
+        return;
+      }
+      setNativePlaybackActive(result.active);
+      if (!result.active) {
+        document.documentElement.dataset.uxfdRustPlaybackClockOwner = 'renderer';
+        document.documentElement.dataset.uxfdRustPlaybackStatus =
+          `fallback:${result.reason ?? 'unknown'}`;
+      }
+    })();
+  }, [
+    duration,
+    isPlaying,
+    projectSettings.fps,
+    rustTimelineSceneRevision,
+    rustTimelineSceneRpcEnabled,
+    setNativePlaybackActive,
+    setTime,
+  ]);
+
+  useEffect(() => () => {
+    rustNativePlaybackStartGenerationRef.current += 1;
+    void window.rustBackend.stopScenePlayback();
+    useStore.getState().setNativePlaybackActive(false);
+  }, []);
+
+  useEffect(() => {
     if (!rustTimelineSceneRpcEnabled) return;
+    if (nativePlaybackActive && isPlaying) return;
     const controller = rustTimelineScenePreviewControllerRef.current;
     if (!controller) return;
     controller.requestTime(currentTime, projectSettings.fps);
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
-  }, [currentTime, projectId, projectSettings.fps, rustTimelineSceneRpcEnabled]);
+  }, [
+    currentTime,
+    isPlaying,
+    nativePlaybackActive,
+    projectId,
+    projectSettings.fps,
+    rustTimelineSceneRpcEnabled,
+  ]);
 
   useEffect(() => {
     if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {

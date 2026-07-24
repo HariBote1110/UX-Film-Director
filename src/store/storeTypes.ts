@@ -127,6 +127,7 @@ export interface AppState {
   currentTime: number;
   duration: number;
   isPlaying: boolean;
+  nativePlaybackActive: boolean;
   layers: LayerState[];
   objects: TimelineObject[];
   camera: CameraState;
@@ -165,6 +166,7 @@ export interface AppState {
   advanceTime: (deltaTime: number) => void;
   togglePlay: () => void;
   setIsPlaying: (isPlaying: boolean) => void;
+  setNativePlaybackActive: (active: boolean) => void;
   setExporting: (isExporting: boolean) => void;
   setExportProgress: (progress: ExportProgress | null) => void;
   requestExportCancel: () => void;

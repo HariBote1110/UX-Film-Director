@@ -6,11 +6,13 @@ type PlaybackSlice = Pick<
   | 'currentTime'
   | 'duration'
   | 'isPlaying'
+  | 'nativePlaybackActive'
   | 'setTime'
   | 'setDuration'
   | 'advanceTime'
   | 'togglePlay'
   | 'setIsPlaying'
+  | 'setNativePlaybackActive'
 >;
 
 type SetState = StoreApi<AppState>['setState'];
@@ -20,6 +22,7 @@ export const createPlaybackSlice = (set: SetState, get: GetState): PlaybackSlice
   currentTime: 0,
   duration: 30,
   isPlaying: false,
+  nativePlaybackActive: false,
 
   setTime: (time) => set((state) => {
     const nextTime = Math.max(0, time);
@@ -55,4 +58,5 @@ export const createPlaybackSlice = (set: SetState, get: GetState): PlaybackSlice
   }),
 
   setIsPlaying: (isPlaying) => set({ isPlaying }),
+  setNativePlaybackActive: (nativePlaybackActive) => set({ nativePlaybackActive }),
 });
