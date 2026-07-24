@@ -35,6 +35,11 @@ mod stub {
         pub(crate) rgba: Vec<u8>,
     }
 
+    pub(crate) struct InProcessNv12Frame {
+        pub(crate) pts_seconds: f64,
+        pub(crate) source: uxfd_rust_core::Nv12IoSurfaceRef,
+    }
+
     pub(crate) struct InProcessDecodeSession;
 
     impl InProcessDecodeSession {
@@ -46,8 +51,26 @@ mod stub {
             Err("in-process decode is only available on macOS".to_string())
         }
 
-        pub(crate) fn request_frame(&self, _target_pts_seconds: f64) -> Result<InProcessFrame, String> {
+        pub(crate) fn open_nv12_only(
+            _source_path: &std::path::Path,
+            _output_width: u32,
+            _output_height: u32,
+        ) -> Result<Self, String> {
+            Err("in-process decode is only available on macOS".to_string())
+        }
+
+        pub(crate) fn request_frame(
+            &self,
+            _target_pts_seconds: f64,
+        ) -> Result<InProcessFrame, String> {
             unreachable!("open() always returns Err on this platform, so no instance can exist")
+        }
+
+        pub(crate) fn request_nv12_frame(
+            &self,
+            _target_pts_seconds: f64,
+        ) -> Result<InProcessNv12Frame, String> {
+            unreachable!("open_nv12_only() always returns Err on this platform")
         }
 
         pub(crate) fn last_served_nv12_source(&self) -> Option<uxfd_rust_core::Nv12IoSurfaceRef> {
@@ -98,6 +121,23 @@ mod platform {
         pub(crate) rgba: Vec<u8>,
     }
 
+    pub(crate) struct InProcessNv12Frame {
+        pub(crate) pts_seconds: f64,
+        pub(crate) source: uxfd_rust_core::Nv12IoSurfaceRef,
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum DecodeOutputMode {
+        RgbaCompatibility,
+        Nv12Only,
+    }
+
+    impl DecodeOutputMode {
+        fn materialises_rgba(self) -> bool {
+            matches!(self, Self::RgbaCompatibility)
+        }
+    }
+
     /// Phase 4c Stage 2: keeps the decoded frame's IOSurface-backed
     /// `CVPixelBuffer` retained (via `retain`) for as long as this
     /// `RingFrame` itself lives, alongside the cheap-to-copy metadata a
@@ -131,7 +171,7 @@ mod platform {
 
     struct RingFrame {
         pts_seconds: f64,
-        rgba: Vec<u8>,
+        rgba: Option<Vec<u8>>,
         /// `None` when the decoded frame was unexpectedly not IOSurface-backed
         /// (see `DecodedVideoFrame::io_surface_id`'s doc -- "should not
         /// happen" but handled defensively rather than assumed).
@@ -181,7 +221,12 @@ mod platform {
         /// GPU import can run after the ring has already moved on. `None`
         /// before the first served frame, or if that frame was unexpectedly
         /// not IOSurface-backed.
-        last_served_nv12: Mutex<Option<(uxfd_rust_core::Nv12IoSurfaceRef, Arc<Mutex<DecodedVideoFrame>>)>>,
+        last_served_nv12: Mutex<
+            Option<(
+                uxfd_rust_core::Nv12IoSurfaceRef,
+                Arc<Mutex<DecodedVideoFrame>>,
+            )>,
+        >,
     }
 
     impl Drop for InProcessDecodeSession {
@@ -212,6 +257,33 @@ mod platform {
             output_width: u32,
             output_height: u32,
         ) -> Result<Self, String> {
+            Self::open_with_mode(
+                source_path,
+                output_width,
+                output_height,
+                DecodeOutputMode::RgbaCompatibility,
+            )
+        }
+
+        pub(crate) fn open_nv12_only(
+            source_path: &Path,
+            output_width: u32,
+            output_height: u32,
+        ) -> Result<Self, String> {
+            Self::open_with_mode(
+                source_path,
+                output_width,
+                output_height,
+                DecodeOutputMode::Nv12Only,
+            )
+        }
+
+        fn open_with_mode(
+            source_path: &Path,
+            output_width: u32,
+            output_height: u32,
+            output_mode: DecodeOutputMode,
+        ) -> Result<Self, String> {
             let mut session =
                 VideoDecodeSession::open(source_path).map_err(|error| error.to_string())?;
 
@@ -232,7 +304,15 @@ mod platform {
             let worker_shared = Arc::clone(&shared);
             let worker = std::thread::Builder::new()
                 .name("uxfd-inprocess-decode".to_string())
-                .spawn(move || worker_loop(&mut session, output_width, output_height, &worker_shared))
+                .spawn(move || {
+                    worker_loop(
+                        &mut session,
+                        output_width,
+                        output_height,
+                        output_mode,
+                        &worker_shared,
+                    )
+                })
                 .map_err(|error| format!("failed to spawn decoder worker thread: {error}"))?;
 
             let instance = Self {
@@ -302,7 +382,63 @@ mod platform {
                     self.remember_served_nv12(frame.nv12.as_ref());
                     return Ok(InProcessFrame {
                         pts_seconds: frame.pts_seconds,
-                        rgba: frame.rgba.clone(),
+                        rgba: frame.rgba.clone().ok_or_else(|| {
+                            "NV12-only decode session cannot serve an RGBA frame".to_string()
+                        })?,
+                    });
+                }
+                if ring.eof {
+                    return Err(
+                        "in-process decoder reached end of stream with no frame available"
+                            .to_string(),
+                    );
+                }
+                let now = Instant::now();
+                if now >= deadline {
+                    return Err("in-process decoder ring has no frame available yet".to_string());
+                }
+                let (guard, _) = self
+                    .shared
+                    .condvar
+                    .wait_timeout(ring, deadline - now)
+                    .expect("ring mutex poisoned");
+                ring = guard;
+            }
+        }
+
+        pub(crate) fn request_nv12_frame(
+            &self,
+            target_pts_seconds: f64,
+        ) -> Result<InProcessNv12Frame, String> {
+            {
+                let mut ring = self.shared.ring.lock().expect("ring mutex poisoned");
+                if should_seek(&ring, target_pts_seconds) {
+                    ring.seek_request = Some(target_pts_seconds);
+                    ring.frames.clear();
+                    ring.eof = false;
+                }
+                ring.target_pts_seconds = target_pts_seconds;
+                trim_consumed_frames(&mut ring, target_pts_seconds);
+            }
+            self.shared.condvar.notify_all();
+
+            let deadline = Instant::now() + RING_WAIT_TIMEOUT;
+            let mut ring = self.shared.ring.lock().expect("ring mutex poisoned");
+            loop {
+                if let Some(error) = &ring.fatal_error {
+                    return Err(error.clone());
+                }
+                if let Some(frame) = nearest_frame(&ring.frames, target_pts_seconds) {
+                    let Some(entry) = frame.nv12.as_ref() else {
+                        return Err("decoded frame is not IOSurface-backed NV12".to_string());
+                    };
+                    self.remember_served_nv12(Some(entry));
+                    let source = self
+                        .last_served_nv12_source()
+                        .expect("remembered NV12 source must be available");
+                    return Ok(InProcessNv12Frame {
+                        pts_seconds: frame.pts_seconds,
+                        source,
                     });
                 }
                 if ring.eof {
@@ -426,6 +562,7 @@ mod platform {
         session: &mut VideoDecodeSession,
         output_width: u32,
         output_height: u32,
+        output_mode: DecodeOutputMode,
         shared: &Arc<Shared>,
     ) {
         loop {
@@ -463,7 +600,9 @@ mod platform {
             match session.next_frame() {
                 Ok(Some(frame)) => {
                     let pts_seconds = frame.pts_seconds;
-                    let rgba = convert_and_resize(&frame, output_width, output_height);
+                    let rgba = output_mode
+                        .materialises_rgba()
+                        .then(|| convert_and_resize(&frame, output_width, output_height));
                     // Phase 4c Stage 2: also keep the decoded frame's NV12
                     // IOSurface reference, alongside (not instead of) the CPU
                     // bridge's RGBA conversion above -- both are derived from
@@ -582,12 +721,7 @@ mod platform {
     /// Converts one YCbCr 4:2:0 sample triple to full-range RGB8, using the
     /// same range/matrix formulae as `nv12_composite.wgsl`'s
     /// `load_source_linear`.
-    pub(crate) fn ycbcr_to_rgb(
-        y: u8,
-        cb: u8,
-        cr: u8,
-        colour: ColourMetadata,
-    ) -> (u8, u8, u8) {
+    pub(crate) fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8, colour: ColourMetadata) -> (u8, u8, u8) {
         let y = f32::from(y);
         let cb = f32::from(cb);
         let cr = f32::from(cr);
@@ -684,10 +818,18 @@ mod platform {
 
         #[test]
         fn ycbcr_to_rgb_full_range_bt709_white_and_black_are_exact() {
-            let white = ycbcr_to_rgb(255, 128, 128, colour(ColourRange::Full, ColourMatrix::Bt709));
+            let white = ycbcr_to_rgb(
+                255,
+                128,
+                128,
+                colour(ColourRange::Full, ColourMatrix::Bt709),
+            );
             // 128/255 is not exactly the neutral 0.5 chroma midpoint, so allow
             // the one-ULP-of-u8 rounding slack that introduces.
-            assert!(white.0 >= 254 && white.1 >= 254 && white.2 >= 254, "{white:?}");
+            assert!(
+                white.0 >= 254 && white.1 >= 254 && white.2 >= 254,
+                "{white:?}"
+            );
 
             let black = ycbcr_to_rgb(0, 128, 128, colour(ColourRange::Full, ColourMatrix::Bt709));
             assert!(black.0 <= 1 && black.1 <= 1 && black.2 <= 1, "{black:?}");
@@ -696,16 +838,33 @@ mod platform {
         #[test]
         fn ycbcr_to_rgb_video_range_bt601_black_and_white_levels_are_exact() {
             // Y=16 is the "tv" black floor, Y=235 the "tv" white ceiling.
-            let black = ycbcr_to_rgb(16, 128, 128, colour(ColourRange::Video, ColourMatrix::Bt601));
+            let black = ycbcr_to_rgb(
+                16,
+                128,
+                128,
+                colour(ColourRange::Video, ColourMatrix::Bt601),
+            );
             assert!(black.0 <= 1 && black.1 <= 1 && black.2 <= 1, "{black:?}");
 
-            let white = ycbcr_to_rgb(235, 128, 128, colour(ColourRange::Video, ColourMatrix::Bt601));
-            assert!(white.0 >= 254 && white.1 >= 254 && white.2 >= 254, "{white:?}");
+            let white = ycbcr_to_rgb(
+                235,
+                128,
+                128,
+                colour(ColourRange::Video, ColourMatrix::Bt601),
+            );
+            assert!(
+                white.0 >= 254 && white.1 >= 254 && white.2 >= 254,
+                "{white:?}"
+            );
         }
 
         #[test]
         fn ycbcr_to_rgb_neutral_chroma_never_produces_a_colour_cast() {
-            for matrix in [ColourMatrix::Bt601, ColourMatrix::Bt709, ColourMatrix::Bt2020] {
+            for matrix in [
+                ColourMatrix::Bt601,
+                ColourMatrix::Bt709,
+                ColourMatrix::Bt2020,
+            ] {
                 for y in [0u8, 64, 128, 192, 255] {
                     let (r, g, b) = ycbcr_to_rgb(y, 128, 128, colour(ColourRange::Full, matrix));
                     let max = r.max(g).max(b);
@@ -756,8 +915,16 @@ mod platform {
         #[test]
         fn nearest_frame_holds_the_last_decoded_frame_when_target_is_ahead() {
             let mut frames = VecDeque::new();
-            frames.push_back(RingFrame { pts_seconds: 0.0, rgba: vec![0], nv12: None });
-            frames.push_back(RingFrame { pts_seconds: 0.1, rgba: vec![1], nv12: None });
+            frames.push_back(RingFrame {
+                pts_seconds: 0.0,
+                rgba: Some(vec![0]),
+                nv12: None,
+            });
+            frames.push_back(RingFrame {
+                pts_seconds: 0.1,
+                rgba: Some(vec![1]),
+                nv12: None,
+            });
             let held = nearest_frame(&frames, 5.0).expect("should hold last frame");
             assert_eq!(held.pts_seconds, 0.1);
         }
@@ -765,8 +932,16 @@ mod platform {
         #[test]
         fn nearest_frame_falls_back_to_earliest_when_target_precedes_ring() {
             let mut frames = VecDeque::new();
-            frames.push_back(RingFrame { pts_seconds: 1.0, rgba: vec![0], nv12: None });
-            frames.push_back(RingFrame { pts_seconds: 1.1, rgba: vec![1], nv12: None });
+            frames.push_back(RingFrame {
+                pts_seconds: 1.0,
+                rgba: Some(vec![0]),
+                nv12: None,
+            });
+            frames.push_back(RingFrame {
+                pts_seconds: 1.1,
+                rgba: Some(vec![1]),
+                nv12: None,
+            });
             let held = nearest_frame(&frames, 0.0).expect("should fall back to earliest");
             assert_eq!(held.pts_seconds, 1.0);
         }
@@ -797,10 +972,24 @@ mod platform {
             assert!(should_seek(&ring, 1.0 + FORWARD_SEEK_GAP_SECONDS + 0.5));
             assert!(should_seek(&ring, 0.0));
             ring.last_decoded_pts = None;
-            ring.frames.push_back(RingFrame { pts_seconds: 2.0, rgba: vec![], nv12: None });
-            ring.frames.push_back(RingFrame { pts_seconds: 2.1, rgba: vec![], nv12: None });
-            assert!(!should_seek(&ring, 2.05), "target inside ring range must not seek");
-            assert!(should_seek(&ring, 0.5), "target before ring range must seek");
+            ring.frames.push_back(RingFrame {
+                pts_seconds: 2.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            ring.frames.push_back(RingFrame {
+                pts_seconds: 2.1,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            assert!(
+                !should_seek(&ring, 2.05),
+                "target inside ring range must not seek"
+            );
+            assert!(
+                should_seek(&ring, 0.5),
+                "target before ring range must seek"
+            );
         }
 
         #[test]
@@ -815,7 +1004,11 @@ mod platform {
         fn trim_consumed_frames_keeps_only_the_frame_nearest_frame_would_serve() {
             let mut ring = empty_ring_state();
             for pts in [0.0, 0.1, 0.2, 0.3, 0.4] {
-                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![], nv12: None });
+                ring.frames.push_back(RingFrame {
+                    pts_seconds: pts,
+                    rgba: Some(vec![]),
+                    nv12: None,
+                });
             }
             trim_consumed_frames(&mut ring, 0.25);
             let pts_values: Vec<f64> = ring.frames.iter().map(|frame| frame.pts_seconds).collect();
@@ -826,10 +1019,18 @@ mod platform {
         fn trim_consumed_frames_never_empties_the_ring_when_target_is_ahead_of_everything() {
             let mut ring = empty_ring_state();
             for pts in [0.0, 0.1, 0.2] {
-                ring.frames.push_back(RingFrame { pts_seconds: pts, rgba: vec![], nv12: None });
+                ring.frames.push_back(RingFrame {
+                    pts_seconds: pts,
+                    rgba: Some(vec![]),
+                    nv12: None,
+                });
             }
             trim_consumed_frames(&mut ring, 99.0);
-            assert_eq!(ring.frames.len(), 1, "must hold the last frame, never empty out");
+            assert_eq!(
+                ring.frames.len(),
+                1,
+                "must hold the last frame, never empty out"
+            );
             assert_eq!(ring.frames[0].pts_seconds, 0.2);
         }
 
@@ -845,7 +1046,7 @@ mod platform {
             for index in 0..PREFETCH_RING_DEPTH {
                 ring.frames.push_back(RingFrame {
                     pts_seconds: index as f64 * 0.1,
-                    rgba: vec![],
+                    rgba: Some(vec![]),
                     nv12: None,
                 });
             }
