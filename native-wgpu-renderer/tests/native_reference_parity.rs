@@ -993,6 +993,51 @@ fn native_wgpu_renders_generated_audio_waveform_frame() {
 }
 
 #[test]
+fn native_wgpu_renders_windowed_audio_waveform_after_its_source_frame_advances() {
+    // Chromium 側は source_frame の再生位置から切り出した短い PCM window を
+    // 渡す。この window を音声先頭からの全 PCM と誤認して source_frame 分を
+    // もう一度足すと、再生が進んだフレームで全サンプルが範囲外になる。
+    let mut clip = evaluated_clip("waveform-1", 0, 1.0, Vec::new());
+    clip.source_frame = 60;
+    let snapshot = scene_snapshot(vec![clip]);
+    let waveform = NativeAudioWaveformInput {
+        media_id: "waveform-1".to_string(),
+        source: AudioWaveformSource::from_json(
+            r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}"##,
+        )
+        .expect("valid waveform source"),
+        samples: vec![-1.0, 1.0, -1.0, 1.0],
+        sample_rate: 4,
+        width: 4,
+        height: 2,
+    };
+
+    let native_result = pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &snapshot,
+        &HashMap::new(),
+        &[waveform],
+        4,
+        2,
+    ));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!(
+                "skipping windowed waveform source-frame regression test: no GPU adapter available"
+            );
+            return;
+        }
+        Err(error) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    assert_eq!(
+        &native.pixels[0..4],
+        &[0, 255, 0, 255],
+        "a non-zero source frame must still render the supplied PCM window"
+    );
+}
+
+#[test]
 fn native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples() {
     let snapshot = scene_snapshot(vec![evaluated_clip("audio-sphere-1", 0, 1.0, Vec::new())]);
     let quiet = NativeAudioWaveformInput {
@@ -1055,6 +1100,64 @@ fn native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples() {
     assert!(quiet_opaque > 100);
     assert!(loud_opaque > quiet_opaque);
     assert!(changed_bytes > 200);
+}
+
+#[test]
+fn native_wgpu_audio_sphere_treats_pcm_as_a_window_after_source_frame_advances() {
+    let source = AudioWaveformSource::from_json(
+        r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"colour":"#36c2ff","columns":2,"rows":6,"base_radius":22,"audio_influence":0.6,"point_size":2,"polygon_size":0.35,"random_amount":0,"seed":93}"##,
+    )
+    .expect("valid audio sphere source");
+    let input = NativeAudioWaveformInput {
+        media_id: "audio-sphere-1".to_string(),
+        source,
+        // A short window. The two columns intentionally differ at indexes
+        // 1 and 3 so an accidental source-frame offset changes the image.
+        samples: vec![0.2, 0.9, 0.1, 0.2, 0.0, 0.0, 0.0],
+        sample_rate: 64,
+        width: 64,
+        height: 64,
+    };
+    let initial_snapshot =
+        scene_snapshot(vec![evaluated_clip("audio-sphere-1", 0, 1.0, Vec::new())]);
+    let mut advanced_clip = evaluated_clip("audio-sphere-1", 0, 1.0, Vec::new());
+    advanced_clip.source_frame = 60;
+    let advanced_snapshot = scene_snapshot(vec![advanced_clip]);
+
+    let initial_result = pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &initial_snapshot,
+        &HashMap::new(),
+        &[input.clone()],
+        64,
+        64,
+    ));
+    let advanced_result = pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &advanced_snapshot,
+        &HashMap::new(),
+        &[input],
+        64,
+        64,
+    ));
+    let (initial, advanced) = match (initial_result, advanced_result) {
+        (Ok(initial), Ok(advanced)) => (initial, advanced),
+        (Err(NativeWgpuRenderError::AdapterUnavailable), _)
+        | (_, Err(NativeWgpuRenderError::AdapterUnavailable)) => {
+            eprintln!(
+                "skipping windowed audio sphere source-frame regression test: no GPU adapter available"
+            );
+            return;
+        }
+        (Err(error), _) | (_, Err(error)) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    assert_eq!(
+        advanced.pixels, initial.pixels,
+        "the supplied PCM window must be independent of the timeline source frame"
+    );
+    assert!(
+        advanced.pixels.chunks_exact(4).any(|pixel| pixel[3] > 0),
+        "the advanced audio sphere frame should remain visible"
+    );
 }
 
 #[test]

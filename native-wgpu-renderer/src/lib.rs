@@ -1798,16 +1798,19 @@ pub async fn render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
 
 fn rasterise_audio_waveform_input(
     input: &NativeAudioWaveformInput,
-    source_frame: u64,
+    _source_frame: u64,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
     if input.source.generator == "audio-sphere-93" {
-        return rasterise_audio_sphere_input(input, source_frame);
+        return rasterise_audio_sphere_input(input);
     }
+    // `NativeAudioWaveformInput::samples` is a window decoded by the caller
+    // from the clip's current source frame.  Its index zero is therefore the
+    // current timeline position, not the start of the underlying audio file.
     let line = build_audio_waveform_line_strip(
         &input.source,
         &input.samples,
         input.sample_rate,
-        source_frame,
+        0,
         60,
         input.width,
         input.height,
@@ -1843,7 +1846,6 @@ fn rasterise_audio_waveform_input(
 
 fn rasterise_audio_sphere_input(
     input: &NativeAudioWaveformInput,
-    source_frame: u64,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
     if input.width == 0 || input.height == 0 || input.sample_rate == 0 {
         return RgbaFrame::from_rgba8(input.width, input.height, Vec::new())
@@ -1859,9 +1861,9 @@ fn rasterise_audio_sphere_input(
     let seed = input.source.seed.unwrap_or(93) as u64;
     let colour = parse_audio_sphere_colour(&input.source.colour);
     let mut pixels = vec![0_u8; input.width as usize * input.height as usize * 4];
-    let start_sample = ((source_frame as f32 / 60.0) * input.sample_rate as f32)
-        .floor()
-        .max(0.0) as usize;
+    // As with the waveform renderer, samples are already a window beginning
+    // at the clip's current source frame.
+    let start_sample = 0_usize;
     let window_len = (input.source.sample_window_seconds * input.sample_rate as f32)
         .floor()
         .max(1.0) as usize;
