@@ -42,6 +42,7 @@ describe('常駐 Rust scene export 境界', () => {
     expect(viewport).toContain('createResidentSceneExportFrameSource');
     expect(viewport).toContain("sceneId: 'viewport-rust-timeline'");
     expect(viewport).toContain('revision: rustTimelineSceneRevision');
+    expect(viewport).not.toContain('&& !context.hasVideoObjects');
   });
 
   it('frame要求をsnapshotなしのresident scene encode payloadへ変換する', async () => {
