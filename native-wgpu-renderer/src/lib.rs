@@ -4423,6 +4423,85 @@ mod tests {
     }
 
     #[test]
+    fn focus_lines_plus_source_is_generated_on_gpu_and_reuses_static_bucket() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 48)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU FocusLinesPlus test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "focus-lines-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "focus-lines-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let focus_lines_sources = HashMap::from([(
+            "focus-lines-media".to_string(),
+            NativeFocusLinesSource {
+                source: r##"{"generator":"focus-lines-plus","ray_width":2.5,"gap":6,"centre_radius":8,"rotation_degrees":15,"centre_x":32,"centre_y":24,"centre_jitter_percent":0,"seed":93,"keyframe_interval":0,"line_colour":"#ff8000"}"##.to_string(),
+                width: 64,
+                height: 48,
+                source_frame: 0,
+                config_revision: 13,
+            },
+        )]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let render = |renderer: &NativeWgpuRenderer| {
+            let (prepared, _) = renderer
+                .prepare_scene_clips_with_upload_fence(
+                    &snapshot,
+                    &rgba_sources,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    &focus_lines_sources,
+                    true,
+                    &HashMap::new(),
+                )
+                .expect("FocusLinesPlus preparation must succeed without CPU RGBA");
+            let mut encoder =
+                renderer
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("UXFD FocusLinesPlus test composite encoder"),
+                    });
+            let output_view = renderer
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.queue.submit(Some(encoder.finish()));
+            renderer
+                .read_output_texture_to_rgba8()
+                .expect("FocusLinesPlus output readback must succeed")
+        };
+
+        let first = render(&renderer);
+        let second = render(&renderer);
+        assert!(first.pixels.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(first
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel[0] > 200 && pixel[1] > 70 && pixel[3] > 0));
+        assert_eq!(first.pixels, second.pixels);
+        assert_eq!(renderer.focus_lines_renderer.stats(), (1, 1));
+        assert_eq!(renderer.media_texture_cache_stats(), (0, 0));
+    }
+
+    #[test]
     fn audio_sphere_source_is_rasterised_on_gpu_and_reuses_its_texture() {
         let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 64)) {
             Ok(renderer) => renderer,
