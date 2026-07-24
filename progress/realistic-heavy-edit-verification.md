@@ -260,6 +260,26 @@ direct previewから完成RGBAのCPUラスタライズとuploadを除去した�
 - 未処理例外: 0件
 - 最終状態: presenter `ready`、Rust timeline `ready`
 
+## ShatteredSphere GPU source移行後の再検証
+
+Beta-473aではShatteredSphereの最大64×64 fragment gridをNative WGPUの
+instance描画へ移した。各fragmentはCPU正本と同じ4 triangle fan、60 fps基準の時間、
+決定論ノイズ、`blend: None`の後描き優先で描画する。設定が同じままsource frameだけ
+進む場合はtextureを再生成せず、同じtextureへuniform更新とrender passを行う。
+
+重量fixtureには約1,024 fragmentの24秒オブジェクトを追加した。57オブジェクトを
+投入する短時間E2Eは総合PASSし、操作後44、Undo後35、Redo後44、保存復元後
+66オブジェクトのfingerprint一致を確認した。
+
+- 60回スクラブ: 68.18 ms
+- requestAnimationFrame: 平均16.72 ms、p95 19.27 ms、最大32.25 ms
+- long task: 1件（53 ms）
+- Timeline: 67 commit、合計66.23 ms、平均0.99 ms
+- `MissingSource`: 0件
+- WGPU/native render error: 0件
+- 未処理例外: 0件
+- 最終状態: presenter `ready`、Rust timeline `ready`
+
 ## 制約と次の観測点
 
 - 現在の値は1台のMac、開発ビルド、1回の代表測定であり、性能回帰の閾値にはまだ使わない
