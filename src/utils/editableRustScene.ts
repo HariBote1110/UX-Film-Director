@@ -17,6 +17,7 @@ import {
   fpsToFrameRate,
   mediaReferenceForEditableRustScene,
   rustColourPipeline,
+  rustEffectsForObject,
   secondsToFrameIndex,
   type RustEffect,
   type RustFrameRate,
@@ -212,7 +213,7 @@ const issueForObject = (
   if (object.clipping) {
     return { objectId: object.id, code: 'unsupportedMask', detail: 'クリッピングマスクはV1対象外です' };
   }
-  if (getEnabledObjectFiltersInOrder(object).length > 0) {
+  if (getEnabledObjectFiltersInOrder(object).some((filter) => filter.type !== 'spot_light')) {
     return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
   }
   if (object.type === 'getcolor_dot_field') {
@@ -256,7 +257,7 @@ export const buildEditableRustScene = ({
       opacity: object.opacity,
       opacity_keyframes: [],
       position_keyframes: positionKeyframesForObject(object, projectSettings.fps),
-      effects: [],
+      effects: rustEffectsForObject(object, object.startTime),
     });
     tracksByLayer.set(object.layer, track);
   }

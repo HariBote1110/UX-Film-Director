@@ -245,6 +245,40 @@ describe('buildEditableRustScene', () => {
     ]);
   });
 
+  it('SpotLightだけは既存Rust effect serializerで常駐Projectへ渡す', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'scene-spotlight',
+      projectSettings,
+      layers,
+      objects: [shape({
+        filters: [{
+          id: 'spot-light',
+          type: 'spot_light',
+          enabled: true,
+          params: {
+            centreX: 0.25,
+            centreY: 0.75,
+            radius: 0.6,
+            intensity: 0.8,
+            colour: '#fff4c2',
+          },
+        }],
+      })],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected SpotLight scene conversion to succeed');
+    expect(result.project.tracks[0].clips[0].effects).toEqual([{
+      SpotLight: {
+        centre_x: 0.25,
+        centre_y: 0.75,
+        radius: 0.6,
+        intensity: 0.8,
+        colour: [1, 0xf4 / 255, 0xc2 / 255],
+      },
+    }]);
+  });
+
   it('V1外のgroup、逆再生、filter、animated crop、mask、未対応typeを明示拒否する', () => {
     const unsupported: TimelineObject[] = [
       { ...shape({ id: 'group-member' }), groupId: 'group-a' },

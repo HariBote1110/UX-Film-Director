@@ -634,7 +634,7 @@ const computeGroupGradientEffects = (
   return result;
 };
 
-const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[] => {
+export const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[] => {
   const effects: RustEffect[] = [];
   getEnabledObjectFiltersInOrder(object).forEach((filter) => {
     if (filter.type === 'color_correction') {
