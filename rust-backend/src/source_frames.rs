@@ -557,6 +557,63 @@ mod source_frame_cache_tests {
     }
 
     #[test]
+    fn getcolor_sample_frame_reuses_cache_and_invalidates_on_file_metadata_change() {
+        let path = unique_temp_path("getcolor-sample.png");
+        write_solid_png(&path, [255, 0, 0, 255]);
+        let media = SceneMediaReference {
+            id: "getcolor-sample".to_string(),
+            kind: MediaKind::GeneratedGetColorDots,
+            source: serde_json::json!({
+                "generator": "getcolor-v2r-dot-field",
+                "columns": 4,
+                "rows": 4,
+                "dot_size": 8,
+                "size_influence": 0.5,
+                "luminance_influence": 0.5,
+                "hue_shift_degrees": 0,
+                "alternate_rows": false,
+                "foreground_colour": "#ffffff",
+                "secondary_colour": "#36c2ff",
+                "background_colour": "#000000",
+                "source_image": path.to_string_lossy(),
+                "seed": 93
+            })
+            .to_string(),
+            width: 64,
+            height: 64,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+        let mut cache = SourceFrameCache::default();
+
+        let (first, first_revision) =
+            load_cached_getcolor_sample_frame(&media, &mut cache).expect("first decode succeeds");
+        let first = first.expect("sample frame exists");
+        let (second, second_revision) =
+            load_cached_getcolor_sample_frame(&media, &mut cache).expect("cache hit succeeds");
+        let second = second.expect("cached sample frame exists");
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(first_revision, second_revision);
+        assert_eq!(cache.len(), 1);
+
+        write_solid_png(&path, [0, 0, 255, 255]);
+        let file = File::options()
+            .write(true)
+            .open(&path)
+            .expect("open GetColor sample for mtime bump");
+        file.set_modified(SystemTime::now() + Duration::from_secs(5))
+            .expect("bump GetColor sample mtime");
+        let (third, third_revision) =
+            load_cached_getcolor_sample_frame(&media, &mut cache).expect("reload succeeds");
+        let third = third.expect("reloaded sample frame exists");
+        assert!(!Arc::ptr_eq(&first, &third));
+        assert_ne!(first_revision, third_revision);
+        assert_eq!(third.pixels[0..4], [0, 0, 255, 255]);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
     fn build_source_frame_cache_key_changes_with_mtime_only() {
         let path = unique_temp_path("key-mtime.png");
         write_solid_png(&path, [10, 20, 30, 255]);
