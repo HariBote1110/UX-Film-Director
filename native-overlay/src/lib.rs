@@ -2539,6 +2539,103 @@ mod tests {
     }
 
     #[test]
+    fn overlay_native_source_cache_reuses_static_generated_frames_and_evicts_idle_media() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "hksy-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "hksy-media".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "hksy-media".to_string(),
+                kind: "GeneratedHksyCheckerGrid".to_string(),
+                source: concat!(
+                    r##"{"generator":"hksy-checker-grid","cell_size":8,"line_width":1,"##,
+                    r##""checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","##,
+                    r##""secondary_colour":"#333333","background_colour":"#000000"}"##
+                )
+                .to_string(),
+                width: 64,
+                height: 36,
+            }],
+            canvas_width: 64,
+            canvas_height: 36,
+        };
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let first = load_overlay_native_sources_for_scene_cached(&scene, &mut cache)
+            .expect("first static generated source load must succeed");
+        assert_eq!(cache.stats(), (0, 1));
+
+        let second = load_overlay_native_sources_for_scene_cached(&scene, &mut cache)
+            .expect("second static generated source load must succeed");
+        assert_eq!(
+            cache.stats(),
+            (1, 1),
+            "unchanged static generated media must reuse its CPU source frame"
+        );
+        assert_eq!(first, second);
+
+        let empty_scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 1,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: Vec::new(),
+            },
+            media: Vec::new(),
+            canvas_width: 64,
+            canvas_height: 36,
+        };
+        for _ in 0..=NATIVE_OVERLAY_SOURCE_CACHE_IDLE_FRAME_LIMIT {
+            load_overlay_native_sources_for_scene_cached(&empty_scene, &mut cache)
+                .expect("empty scene cache sweep must succeed");
+        }
+        assert_eq!(cache.len(), 0, "idle generated source must be evicted");
+    }
+
+    #[test]
+    fn getcolor_source_image_metadata_changes_native_overlay_media_revision() {
+        let unique = format!(
+            "uxfd-getcolor-cache-revision-{}-{}",
+            std::process::id(),
+            SHM_NAME_COUNTER.fetch_add(1, Ordering::Relaxed),
+        );
+        let source_image = std::env::temp_dir().join(unique);
+        std::fs::write(&source_image, [1_u8, 2, 3]).expect("write initial source image marker");
+        let media = NativeOverlaySceneMedia {
+            id: "getcolor-media".to_string(),
+            kind: "GeneratedGetColorDots".to_string(),
+            source: format!(
+                r##"{{"generator":"getcolor-v2r-dot-field","columns":2,"rows":2,"dot_size":4,"size_influence":0.5,"luminance_influence":0.5,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#000000","background_colour":"#000000","seed":1,"source_image":"{}"}}"##,
+                source_image.display(),
+            ),
+            width: 16,
+            height: 16,
+        };
+        let first = native_overlay_media_content_revision(&media, 0)
+            .expect("GetColor source image metadata must produce a revision");
+        std::fs::write(&source_image, [1_u8, 2, 3, 4])
+            .expect("change source image marker size");
+        let second = native_overlay_media_content_revision(&media, 0)
+            .expect("changed GetColor source image metadata must produce a revision");
+        let _ = std::fs::remove_file(source_image);
+
+        assert_ne!(
+            first, second,
+            "GetColor cache revision must include source_image metadata, not only its JSON path"
+        );
+    }
+
+    #[test]
     fn build_empty_scene_snapshot_for_transparent_clear_yields_no_clips_and_no_sources() {
         // Bug D — `clear_native_overlay_live_surface` は空 scene を live surface に present し、
         // `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable を全 pixel alpha=0 で
