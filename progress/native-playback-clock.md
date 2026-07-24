@@ -8,7 +8,7 @@ CAMetalLayerへ直接提示できるシーンの再生時計はElectron mainが�
 
 mainは単調時計からフレーム番号を求め、resident sceneに対して`scene.evaluate`を呼び、結果をnative overlayへ直接渡す。評価または提示が遅れた場合は古いフレームを順番に処理せず、現在時刻に対応するフレームへ追いつく。UI時刻通知は200ms間隔とし、開始・停止・終端・失敗だけ即時通知する。
 
-Video、PSD、音声生成物、PNG以外の画像を含むシーンは、対応するネイティブsource供給が完成するまで既存renderer時計へ戻す。途中失敗でも再生を止めずrendererへフォールバックし、失敗詳細を`data-uxfd-rust-playback-detail`へ残す。
+VideoはElectron main process内のnative overlay addonがVideoToolbox decode sessionを所有し、NV12 IOSurfaceをWGPUへimportしてCAMetalLayerへ直接提示する。PSD、音声生成物、PNG以外の画像を含むシーンは、対応するネイティブsource供給が完成するまで既存renderer時計へ戻す。途中失敗でも再生を止めずrendererへフォールバックし、失敗詳細を`data-uxfd-rust-playback-detail`へ残す。
 
 ## 境界契約
 
@@ -17,6 +17,9 @@ Video、PSD、音声生成物、PNG以外の画像を含むシーンは、対応
 - mainはsnake_caseのRust snapshotをN-API用camelCaseへ変換する。
 - `effects`は`effectsJson`として渡し、GetColor、HKSY、SimpleTubeを含む既存Rust Effect enumを再利用する。
 - 編集でrevisionが変わった場合は旧再生generationを破棄し、新revision・現在時刻から再開する。
+- decode済みIOSurface IDは作成process内だけで解決する。rust-backendからElectron mainへIDをJSON転送せず、CAMetalLayerを所有するaddon内でVideoToolbox sessionとframe leaseを保持する。
+- Videoの`sourceRate`は有理数のままN-APIへ渡す。欠落、分子0、分母0はnative decode開始前に拒否する。
+- 同じmediaを同一sceneで異なるsource frameとして要求する場合は、暗黙に片方を選ばず明示的に拒否する。
 
 ## 実機検証
 
@@ -73,4 +76,21 @@ resident scene exportが動画のdecode sessionも所有する。VideoToolboxの
 - frontend 213 files / 1,533 tests成功
 - Rust backend、native WGPU renderer、IOSurface H.264統合テスト成功
 
-音声付き書き出しは一時WAVのmuxが必要なため、現時点ではFFmpeg raw RGBA経路を維持する。次段階は映像をIOSurfaceで作成した後に音声をstream copyでmuxする。また、プレビューの動画decodeとCAMetalLayer直接提示、GeneratedAudioWaveform・Particle・SpotLightのresident scene対応も未完了である。
+音声付き書き出しは一時WAVのmuxが必要なため、現時点ではFFmpeg raw RGBA経路を維持する。次段階は映像をIOSurfaceで作成した後に音声をstream copyでmuxする。また、GeneratedAudioWaveform・Particle・SpotLightのresident scene対応も未完了である。
+
+## Resident動画プレビュー
+
+動画プレビューもChromiumの`HTMLVideoElement`、`requestAnimationFrame`、external texture uploadから切り離した。Electron mainの単調時計が`scene.evaluate`を呼び、native overlay addon内のresident `AVAssetReader`/VideoToolbox sessionがNV12 IOSurface frameを保持する。native WGPU rendererはRGBA生成sourceとNV12動画を同一sceneでz-index合成し、CPU readbackなしでCAMetalLayer drawableへpresentする。
+
+実Electronで134MBのH.264 proxy動画を60fps再生し、次を確認した。
+
+- main時計: 5秒間で約538 frameまで進行
+- native present成功: 522回、失敗0
+- Chromium側の旧presented source frame: 0のまま
+- Chromium `Page.captureScreenshot`対象surface: 再生中も不変
+- native playback frameの5秒サンプル: 21/21が一意、span 304 frame
+- addon build、native-overlay 60 tests、controller 6 tests成功
+
+CDP screenshotはchild NSWindowのCAMetalLayerを含まないため、E2Eでは「native present成功・main時計進行・Chromium surface不変」を経路分離の契約として検証する。画素内容の検証はnative WGPUのNV12 offscreen parityテストと、OS画面キャプチャによる目視を併用する。
+
+次段階はGeneratedAudioWaveform・Particle・SpotLightのresident scene対応、音声付きIOSurface書き出し、重量編集の保存復元・書き出し再検証である。

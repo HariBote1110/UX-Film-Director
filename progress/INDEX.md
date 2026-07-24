@@ -1,6 +1,6 @@
 # 決定ログ索引
 
-- [native-playback-clock.md](native-playback-clock.md) — Electron main所有の単調再生時計、resident scene評価からCAMetalLayer直接提示までのChromium非経由化、36オブジェクト実機検証、CPU測定（2026-07-24）
+- [native-playback-clock.md](native-playback-clock.md) — Electron main所有の単調再生時計、VideoToolbox NV12 resident動画と生成sceneのCAMetalLayer直接提示、Chromium surface分離E2E、CPU測定（2026-07-24）
 - [native-overlay-source-cache.md](native-overlay-source-cache.md) — CAMetalLayer直接描画における静的生成sourceのCPU/GPU revision cache、GetColor参照画像のmetadata invalidation、Arc共有と退避規約（2026-07-24）
 - [editable-rust-scene-v1.md](editable-rust-scene-v1.md) — 編集可能なRust Projectのshape/image/video/PSD/text/GetColor/HKSY/SimpleTube変換、track順序、snapshot serializer再利用、位置keyframe互換、明示拒否する表現（2026-07-24）
 - [rust-scene-rpc-scheduler.md](rust-scene-rpc-scheduler.md) — `scene.replace`/`scene.evaluate`の型付きElectron橋渡し、revision付きlatest-winsプレビュー評価スケジューラ、古い評価結果をpresentしない契約（2026-07-24）

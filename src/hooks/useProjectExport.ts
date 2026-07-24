@@ -401,7 +401,8 @@ export const useProjectExport = (
               fps,
               iosurfaceEncode: (
                 audioPath === null
-                && exportFrameSourcePlan.frameSource?.encodeTarget === 'iosurfaceVideoToolbox'
+                && exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
+                && exportFrameSourcePlan.frameSource.encodeTarget === 'iosurfaceVideoToolbox'
               ),
               frames: renderRustEncodeFrames(),
               renderAheadFrameCount: rustExportRenderAheadFrameCount,
