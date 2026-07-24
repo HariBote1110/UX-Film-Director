@@ -71,7 +71,11 @@ export interface RustScenePlaybackDiagnostics {
 
 export type RustScenePlaybackStartResult =
   | { active: true; frameIndex: number }
-  | { active: false; reason: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed' };
+  | {
+      active: false;
+      reason: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+      detail?: string;
+    };
 
 export interface RustScenePlaybackController {
   start: (payload: RustScenePlaybackStartPayload) => Promise<RustScenePlaybackStartResult>;
@@ -233,9 +237,13 @@ export const createRustScenePlaybackController = ({
         revision: request.revision,
         frameIndex,
       });
-    } catch {
+    } catch (error) {
       diagnostics.failedFrames += 1;
-      return { active: false, reason: 'evaluationFailed' };
+      return {
+        active: false,
+        reason: 'evaluationFailed',
+        detail: error instanceof Error ? error.message : String(error),
+      };
     }
     if (!active || generation !== runGeneration) {
       return { active: false, reason: 'evaluationFailed' };
@@ -254,16 +262,24 @@ export const createRustScenePlaybackController = ({
         snapshot: toNativeOverlayPlaybackSnapshot(evaluation.snapshot),
         media: evaluation.media,
       });
-    } catch {
+    } catch (error) {
       diagnostics.failedFrames += 1;
-      return { active: false, reason: 'presentFailed' };
+      return {
+        active: false,
+        reason: 'presentFailed',
+        detail: error instanceof Error ? error.message : String(error),
+      };
     }
     if (!active || generation !== runGeneration) {
       return { active: false, reason: 'presentFailed' };
     }
     if (!response.success) {
       diagnostics.failedFrames += 1;
-      return { active: false, reason: 'presentFailed' };
+      return {
+        active: false,
+        reason: 'presentFailed',
+        ...(response.reason ? { detail: response.reason } : {}),
+      };
     }
     if (lastPresentedFrame >= 0 && frameIndex > lastPresentedFrame + 1) {
       diagnostics.skippedFrames += frameIndex - lastPresentedFrame - 1;
@@ -298,7 +314,7 @@ export const createRustScenePlaybackController = ({
     if (frameIndex !== lastPresentedFrame) {
       const result = await renderFrame(runGeneration, frameIndex, false);
       if (!result.active) {
-        finish('failed', result.reason);
+        finish('failed', result.detail ?? result.reason);
         return;
       }
     }

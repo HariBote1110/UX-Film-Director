@@ -176,4 +176,30 @@ describe('RustScenePlaybackController', () => {
       expect(presentScene).not.toHaveBeenCalled();
     }
   });
+
+  it('native overlay の失敗理由を診断情報として呼び出し元へ返す', async () => {
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene: async () => ({
+        success: false,
+        attached: false,
+        fallback: 'webgpuPresenter',
+        reason: 'diagnostic presentation failure',
+      }),
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toEqual({
+      active: false,
+      reason: 'presentFailed',
+      detail: 'diagnostic presentation failure',
+    });
+  });
 });

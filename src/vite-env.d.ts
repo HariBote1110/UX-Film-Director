@@ -43,6 +43,7 @@ interface Window {
       active: boolean;
       frameIndex?: number;
       reason?: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+      detail?: string;
     }>;
     pauseScenePlayback: () => Promise<{
       status: string;

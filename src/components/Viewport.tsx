@@ -1731,6 +1731,7 @@ const Viewport: React.FC = () => {
         document.documentElement.dataset.uxfdRustPlaybackClockOwner = 'renderer';
         document.documentElement.dataset.uxfdRustPlaybackStatus =
           `fallback:${result.reason ?? 'unknown'}`;
+        document.documentElement.dataset.uxfdRustPlaybackDetail = result.detail ?? '';
       }
     })();
   }, [

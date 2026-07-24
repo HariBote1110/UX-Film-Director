@@ -174,6 +174,8 @@ mod tests {
         let result = evaluated.result.expect("scene.evaluate result");
         assert_eq!(result["frameIndex"], 12);
         assert_eq!(result["snapshot"]["frame_index"], 12);
+        assert_eq!(result["snapshot"]["canvas_width"], 1920);
+        assert_eq!(result["snapshot"]["canvas_height"], 1080);
         assert_eq!(result["snapshot"]["clips"][0]["clip_id"], "clip-1");
         assert_eq!(result["media"][0]["source"], "#112233");
     }

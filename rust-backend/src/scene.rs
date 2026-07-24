@@ -122,6 +122,17 @@ pub(crate) fn handle_scene_evaluate(
         .iter()
         .filter(|reference| referenced_media_ids.contains(reference.id.as_str()))
         .collect();
+    let mut snapshot_value = json!(snapshot);
+    if let Value::Object(snapshot_object) = &mut snapshot_value {
+        snapshot_object.insert(
+            "canvas_width".to_string(),
+            Value::from(session.project.size.width),
+        );
+        snapshot_object.insert(
+            "canvas_height".to_string(),
+            Value::from(session.project.size.height),
+        );
+    }
     RpcResponse {
         id,
         ok: true,
@@ -129,7 +140,7 @@ pub(crate) fn handle_scene_evaluate(
             "sceneId": session.scene_id,
             "revision": session.revision,
             "frameIndex": parsed.frame_index,
-            "snapshot": snapshot,
+            "snapshot": snapshot_value,
             "media": media,
         })),
         error: None,
