@@ -212,6 +212,30 @@ React ProfilerでViewport、Timeline、PropertyPanelのcommit時間を分離す�
 - テキスト影に8桁カラーを渡し、native書き出しが拒否される問題
 - 4Kシーク直後のデコード待機が200 msしかなく、初回ハードウェアデコード完了前に失敗する問題
 - 静止画の実寸ではなく表示寸法をデコーダへ渡し、書き出し時に寸法不一致になる問題
+- Rust previewのframe要求が書き出し終了を購読せず、書き出し中の`exporting`判定で
+  blockedになった表示が終了後も残る問題
+
+## React component別CPU計測とTimeline分離
+
+Beta-470aでは重量E2E専用のReact Profilerを追加し、通常起動には計測処理を入れず、
+Viewport、PropertyPanel、Timelineのcommit時間を同じ操作区間で採取できるようにした。
+分離前の代表実行ではTimelineが67 commit・合計211.55 ms・平均3.16 msで、
+Viewportの21.57 ms、PropertyPanelの22.30 msに対して約10倍を占めた。
+
+Beta-471aではTimeline本体から`currentTime`購読を外し、時刻更新を2本の軽量な
+playhead componentだけへ局所化した。追加操作の時刻はイベント実行時にstoreから
+取得するため、操作時刻の正しさを保ちながら、再生tickごとの全clip一覧再描画を
+避けている。同じ短時間構成の代表値ではTimelineの平均commit時間が
+3.16 msから0.88 msへ約72%低下した。別の60回スクラブ・1秒再生実行でも
+平均1.25 ms、requestAnimationFrame平均16.72 ms、p95 22.57 ms、long task 0件で、
+`MissingSource`、WGPU/native render error、未処理例外はすべて0件だった。
+
+実書き出し検証では1920×1080・2.24秒のMP4生成とprobeが成功した一方、完了直後に
+previewが`exporting`でblockedのまま残る不具合を検出した。書き出し中はRust preview
+評価を止め、`isExporting`がfalseへ戻った時点で現在frameを再要求するよう修正した。
+短縮再検証では最終snapshotが`ok: true`、presenterが`ready`へ復帰した。なお、この
+短縮実行の0.5秒切り詰めでは別のencode-only media制約によりMP4生成自体は失敗したため、
+書き出し成功と復帰成功はそれぞれ前後2回の実行結果を組み合わせて確認している。
 
 ## 制約と次の観測点
 

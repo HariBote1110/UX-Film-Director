@@ -122,8 +122,13 @@ GPUオフロードはまだ完了していない。
   mainのCPU使用率が高く、直描画だけでCPU負荷問題が解消したとは判断しない。
 - CDP traceを重量E2Eへ統合した代表測定では、Renderer main threadのScriptが
   約403～415 ms、Layoutが約28 ms、Style再計算が約9 msだった。上位処理は
-  React DOM開発ビルドの同期callbackであり、scene評価よりReact commit側が
-  支配的である可能性が高い。次はReact Profilerでcomponent別に確定する。
+  React DOM開発ビルドの同期callbackだった。React Profilerでcomponent別に分離すると、
+  Timelineが67 commit・合計211.55 ms・平均3.16 msで主要因と確認できた。
+- Timeline本体から再生時刻の購読を外し、2本のplayheadだけへ局所化した後は、
+  代表実行の平均commit時間が0.88 msまで低下した。これはChromium側のUI更新削減であり、
+  GPU化とは別だが、Rust側へ移した再生clockの効果をUI全体の再描画で相殺しないために必要。
+- 書き出し中のRust preview評価を抑止し、書き出し終了時に現在frameを再要求する。
+  これによりexport用surface gateの`exporting`状態がpreviewへ残留しない。
 
 次のGPU化候補は、優先順に以下とする。
 
@@ -131,8 +136,8 @@ GPUオフロードはまだ完了していない。
    GPU source passへ段階的に移す。
 2. 複数動画、PSD、PNG以外の静止画を含むsceneのdirect present適格性を、同じ
    zero-copy/Native source契約で段階的に広げる。
-3. Chromium rendererに残る高CPU処理を時系列計測し、scene評価、React更新、
-   DOM compositorのどれが支配的かを分離する。
+3. Timeline分離後のCDP traceを基準に、PropertyPanel、Viewport、DOM compositorへ
+   残る更新をさらに局所化する。
 
 ## 採用しなかった案
 
