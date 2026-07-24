@@ -1143,6 +1143,49 @@ mod tests {
     }
 
     #[test]
+    fn hksy_is_collected_as_gpu_descriptor_without_cpu_rgba() {
+        let snapshot = uxfd_rust_core::SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "hksy-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "hksy-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let media = vec![uxfd_rust_core::SceneMediaReference {
+            id: "hksy-media".to_string(),
+            kind: uxfd_rust_core::MediaKind::GeneratedHksyCheckerGrid,
+            source: r##"{"generator":"hksy-checker-grid","pattern":"checker-grid","cell_size":8,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            width: 320,
+            height: 180,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }];
+        let mut cache = crate::state::SourceFrameCache::default();
+
+        let rgba_sources =
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+                .expect("HKSY CPU source collection must succeed");
+        assert!(
+            rgba_sources.is_empty(),
+            "HKSY must not allocate a completed CPU RGBA source"
+        );
+
+        let sources =
+            collect_native_render_hksy_sources(&media).expect("HKSY descriptor collection succeeds");
+        let source = sources.get("hksy-media").expect("descriptor must be collected");
+        assert_eq!(source.width, 320);
+        assert_eq!(source.height, 180);
+        assert_ne!(source.config_revision, 0);
+    }
+
+    #[test]
     fn shaking_polygon_is_collected_as_animated_gpu_descriptor_without_cpu_rgba() {
         let build_snapshot = |source_frame| uxfd_rust_core::SceneSnapshot {
             frame_index: source_frame,
