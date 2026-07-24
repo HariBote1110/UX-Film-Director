@@ -92,13 +92,23 @@ export interface RustScenePlaybackController {
 
 type TimerHandle = ReturnType<typeof setTimeout>;
 
-const isDirectOverlayMediaSupported = (kind: string, source: string): boolean => {
+const isDirectOverlayMediaSupported = (
+  kind: string,
+  source: string,
+  sourceRate?: { numerator: number; denominator: number },
+): boolean => {
   if (
     kind === 'Psd'
     || kind === 'GeneratedAudioWaveform'
     || kind === 'GeneratedAudioSphere'
   ) {
     return false;
+  }
+  if (kind === 'Video') {
+    return Number.isSafeInteger(sourceRate?.numerator)
+      && (sourceRate?.numerator ?? 0) > 0
+      && Number.isSafeInteger(sourceRate?.denominator)
+      && (sourceRate?.denominator ?? 0) > 0;
   }
   return kind !== 'Image' || /\.png(?:[?#].*)?$/i.test(source);
 };
@@ -257,7 +267,7 @@ export const createRustScenePlaybackController = ({
     if (
       verifyEligibility
       && !evaluation.media.every((media) =>
-        isDirectOverlayMediaSupported(media.kind, media.source))
+        isDirectOverlayMediaSupported(media.kind, media.source, media.source_rate))
     ) {
       return { active: false, reason: 'unsupportedDirectMedia' };
     }
