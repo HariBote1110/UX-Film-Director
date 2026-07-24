@@ -25,9 +25,11 @@ mod metal_encode_target;
 #[path = "metal_encode_target_stub.rs"]
 mod metal_encode_target;
 mod nv12;
+mod particle;
 pub use nv12::{
     Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceSource, SceneLayer, SceneLayerContent,
 };
+pub use particle::NativeParticleSource;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const OUTPUT_BYTES_PER_PIXEL: u32 = 4;
@@ -226,6 +228,7 @@ pub struct NativeWgpuRenderer {
     /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
     nv12_texture_cache_hits: AtomicU64,
     nv12_texture_cache_misses: AtomicU64,
+    particle_renderer: particle::ParticleGpuRenderer,
 }
 
 /// live surface 専用の prepared clip キャッシュ 1 世代分。
@@ -387,6 +390,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let output_texture =
             create_output_texture_for_format(&device, width, height, surface_format);
         let readback_buffer = create_readback_buffer(&device, width, height);
+        let particle_renderer = particle::ParticleGpuRenderer::new(&device);
         let core = NativeWgpuRenderer {
             width,
             height,
@@ -409,6 +413,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
+            particle_renderer,
         };
 
         Ok(Self {
@@ -569,6 +574,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         base_sources: &HashMap<String, S>,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        particle_sources: &HashMap<String, NativeParticleSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -578,6 +584,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                 base_snapshot,
                 base_sources,
                 nv12_sources,
+                particle_sources,
                 false,
                 content_revisions,
             )?;
@@ -903,6 +910,7 @@ impl NativeWgpuRenderer {
         );
         let output_texture = create_output_texture(&device, width, height);
         let readback_buffer = create_readback_buffer(&device, width, height);
+        let particle_renderer = particle::ParticleGpuRenderer::new(&device);
 
         Ok(Self {
             width,
@@ -926,6 +934,7 @@ impl NativeWgpuRenderer {
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
+            particle_renderer,
         })
     }
 
@@ -1006,6 +1015,7 @@ impl NativeWgpuRenderer {
             snapshot,
             sources,
             nv12_sources,
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1166,6 +1176,7 @@ impl NativeWgpuRenderer {
             snapshot,
             sources,
             nv12_sources,
+            &HashMap::new(),
             true,
             content_revisions,
         )?;
@@ -1293,6 +1304,7 @@ impl NativeWgpuRenderer {
             snapshot,
             sources,
             &HashMap::new(),
+            &HashMap::new(),
             true,
             content_revisions,
         )
@@ -1307,6 +1319,7 @@ impl NativeWgpuRenderer {
         self.prepare_scene_clips_with_upload_fence(
             snapshot,
             sources,
+            &HashMap::new(),
             &HashMap::new(),
             false,
             content_revisions,
@@ -1329,6 +1342,7 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, S>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        particle_sources: &HashMap<String, NativeParticleSource>,
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
@@ -1338,6 +1352,7 @@ impl NativeWgpuRenderer {
         let mut prepared_clips = Vec::with_capacity(clips.len());
         let mut touched_media_ids: HashSet<String> = HashSet::with_capacity(clips.len());
         let mut touched_nv12_media_ids: HashSet<String> = HashSet::new();
+        let mut touched_particle_media_ids: HashSet<String> = HashSet::new();
         let max_source_dimension = self.device.limits().max_texture_dimension_2d;
         let upload_start = Instant::now();
         for clip in &clips {
@@ -1355,6 +1370,20 @@ impl NativeWgpuRenderer {
                 touched_nv12_media_ids.insert(clip.media_id.clone());
                 let prepared = self.prepare_nv12_clip(clip, rotation_radians, nv12_source)?;
                 prepared_clips.push(Arc::new(prepared));
+                continue;
+            }
+
+            if let Some(particle_source) = particle_sources.get(&clip.media_id) {
+                touched_particle_media_ids.insert(clip.media_id.clone());
+                let (texture_view, prepared_width, prepared_height) = self
+                    .particle_renderer
+                    .prepare(&self.device, &self.queue, &clip.media_id, particle_source);
+                prepared_clips.push(Arc::new(build_prepared_clip_bind_group(
+                    &self.device,
+                    &self.bind_group_layout,
+                    &texture_view,
+                    build_render_params(clip, rotation_radians, prepared_width, prepared_height),
+                )));
                 continue;
             }
 
@@ -1386,6 +1415,8 @@ impl NativeWgpuRenderer {
         // を積み上げ、閾値超過またはバイト予算超過で GPU メモリを解放する。
         self.evict_stale_media_textures(&touched_media_ids);
         self.evict_stale_nv12_textures(&touched_nv12_media_ids);
+        self.particle_renderer
+            .finish_frame(&touched_particle_media_ids);
         if wait_for_upload {
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
@@ -3741,6 +3772,106 @@ mod tests {
             RgbaFrame::from_rgba8(2, 2, vec![10; 2 * 2 * 4]).expect("valid source frame"),
         )]);
         (snapshot, sources)
+    }
+
+    #[test]
+    fn particle_source_is_rasterised_on_gpu_without_rgba_upload() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(64, 64)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping GPU particle test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("renderer creation failed: {error:?}"),
+        };
+        let mut snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "particle-clip".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "particle-media".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }],
+        };
+        let params = uxfd_rust_core::parse_generated_particle_source(
+            r##"{"generator":"standard-particle","seed":93,"particle_count":8,"spread":16,"speed":20,"size":3,"colour":"#80d8ff","lifetime_seconds":2}"##,
+        )
+        .expect("valid particle source");
+        let mut particle_sources = HashMap::from([(
+            "particle-media".to_string(),
+            NativeParticleSource {
+                params,
+                width: 64,
+                height: 64,
+                source_frame: 0,
+                config_revision: 7,
+            },
+        )]);
+        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+
+        let render =
+            |renderer: &NativeWgpuRenderer,
+             snapshot: &SceneSnapshot,
+             particle_sources: &HashMap<String, NativeParticleSource>| {
+                let (prepared, _) = renderer
+                    .prepare_scene_clips_with_upload_fence(
+                        snapshot,
+                        &rgba_sources,
+                        &HashMap::new(),
+                        particle_sources,
+                        true,
+                        &HashMap::new(),
+                    )
+                    .expect("particle preparation must succeed without an RGBA source");
+                let mut encoder =
+                    renderer
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("UXFD particle test composite encoder"),
+                        });
+                let output_view = renderer
+                    .output_texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+                renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+                renderer.queue.submit(Some(encoder.finish()));
+                renderer
+                    .read_output_texture_to_rgba8()
+                    .expect("particle output readback must succeed")
+            };
+
+        let first = render(&renderer, &snapshot, &particle_sources);
+        assert!(
+            first.pixels.chunks_exact(4).any(|pixel| pixel[3] != 0),
+            "GPU particle pass must produce visible pixels"
+        );
+
+        snapshot.frame_index = 30;
+        snapshot.clips[0].source_frame = 30;
+        particle_sources
+            .get_mut("particle-media")
+            .expect("particle source exists")
+            .source_frame = 30;
+        let second = render(&renderer, &snapshot, &particle_sources);
+
+        assert_ne!(
+            first.pixels, second.pixels,
+            "source-frame changes must move particles on the GPU"
+        );
+        assert_eq!(
+            renderer.particle_renderer.stats(),
+            (1, 2),
+            "animation must reuse one GPU texture and run one source pass per frame"
+        );
+        assert_eq!(
+            renderer.media_texture_cache_stats(),
+            (0, 0),
+            "procedural particles must never enter the CPU RGBA upload cache"
+        );
     }
 
     #[test]

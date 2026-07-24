@@ -11,13 +11,14 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, NativeWgpuFrameStageTimings, NativeWgpuLiveSurfaceRenderer,
+    render_native_wgpu_frame, NativeParticleSource, NativeWgpuFrameStageTimings,
+    NativeWgpuLiveSurfaceRenderer,
 };
 use uxfd_rust_backend::build_native_generated_source_frame;
 use uxfd_rust_core::{
-    build_video_frame_decode_requests, ColourPipeline, Effect, EvaluatedClip, Fps, MediaKind,
-    Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef, SamplingMode, SceneMediaReference,
-    SceneSnapshot, Transform, VideoFrameDecodeRequest,
+    build_video_frame_decode_requests, parse_generated_particle_source, ColourPipeline, Effect,
+    EvaluatedClip, Fps, MediaKind, Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef,
+    SamplingMode, SceneMediaReference, SceneSnapshot, Transform, VideoFrameDecodeRequest,
 };
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -602,6 +603,7 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// backend process の IOSurface ID は別プロセスから lookup できないため、
     /// live present 用 frame はこの renderer が所有する。
     last_nv12_sources: HashMap<String, Nv12IoSurfaceRef>,
+    last_particle_sources: HashMap<String, NativeParticleSource>,
     #[cfg(target_os = "macos")]
     video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
     /// direct CAMetalLayer scene が毎 tick 渡されても、静的な生成 source を
@@ -637,6 +639,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             scene_generation: 0,
             last_scene_content_revisions: HashMap::new(),
             last_nv12_sources: HashMap::new(),
+            last_particle_sources: HashMap::new(),
             #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
@@ -667,6 +670,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             );
         }
         self.last_nv12_sources.clear();
+        self.last_particle_sources.clear();
         #[cfg(target_os = "macos")]
         self.video_decoders.clear();
         let content_revisions = scene
@@ -803,69 +807,60 @@ impl NativeOverlayLiveSurfaceRenderer {
         decoration: Option<&SelectionDecorationState>,
     ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
         let video_requests = native_overlay_video_decode_requests(scene)?;
-        if !video_requests.is_empty() {
-            let content_revisions = native_overlay_source_content_revisions_for_scene(scene);
-            let sources =
-                load_overlay_native_sources_for_scene_cached(scene, &mut self.native_source_cache)?;
-            let snapshot = fit_scene_snapshot_to_drawable(
-                &scene.snapshot,
-                scene.canvas_width,
-                scene.canvas_height,
-                self.drawable_width,
-                self.drawable_height,
-            );
-            let nv12_sources = self.resolve_video_sources(&video_requests)?;
-            self.last_scene = Some(Arc::new((snapshot, sources)));
-            self.last_scene_content_revisions = content_revisions;
-            self.last_nv12_sources = nv12_sources;
-            self.scene_generation = self.scene_generation.wrapping_add(1);
+        let content_revisions = native_overlay_source_content_revisions_for_scene(scene);
+        let sources = load_overlay_native_sources_for_scene_cached_impl(
+            scene,
+            &mut self.native_source_cache,
+            true,
+        )?;
+        let snapshot = fit_scene_snapshot_to_drawable(
+            &scene.snapshot,
+            scene.canvas_width,
+            scene.canvas_height,
+            self.drawable_width,
+            self.drawable_height,
+        );
+        let nv12_sources = self.resolve_video_sources(&video_requests)?;
+        let particle_sources = native_overlay_particle_sources_for_scene(scene)?;
+        self.last_scene = Some(Arc::new((snapshot, sources)));
+        self.last_scene_content_revisions = content_revisions;
+        self.last_nv12_sources = nv12_sources;
+        self.last_particle_sources = particle_sources;
+        self.scene_generation = self.scene_generation.wrapping_add(1);
 
-            let (decoration_clips, decoration_sources) = decoration
-                .map(|state| {
-                    build_selection_decoration_clips(
-                        state,
-                        self.drawable_width,
-                        self.drawable_height,
-                        self.contents_scale,
-                    )
-                })
-                .unwrap_or_default();
-            let (base_snapshot, base_sources) = self
-                .last_scene
-                .as_deref()
-                .expect("last_scene was just assigned above");
-            let report = pollster::block_on(
-                self.renderer
-                    .present_scene_with_decoration_and_nv12_to_surface_texture(
-                        base_snapshot,
-                        base_sources,
-                        &self.last_scene_content_revisions,
-                        &self.last_nv12_sources,
-                        &decoration_clips,
-                        &decoration_sources,
-                    ),
-            )
-            .map_err(|error| {
-                format!("Native overlay NV12 live surface present failed: {error:?}")
-            })?;
-            return Ok(Some(OverlayLiveSurfaceDiagnostics {
-                live_prepared_clip_count: report.prepared_clip_count,
-                live_readback_non_transparent_pixels: 0,
-                live_readback_checksum: 0,
-                live_readback_export_max_channel_delta: None,
-            }));
-        }
-
-        // Non-video scenes share the existing RGBA/generated source path.
-        let unreferenced = OverlayUploadFrame {
-            media_id: "__uxfd_scene_only_unreferenced__".to_string(),
-            width: 1,
-            height: 1,
-            generation: self.scene_generation.wrapping_add(1),
-            pts_frame: scene.snapshot.frame_index,
-            pixels: vec![0, 0, 0, 0],
-        };
-        self.present_upload_frame(&unreferenced, Some(scene), decoration)
+        let (decoration_clips, decoration_sources) = decoration
+            .map(|state| {
+                build_selection_decoration_clips(
+                    state,
+                    self.drawable_width,
+                    self.drawable_height,
+                    self.contents_scale,
+                )
+            })
+            .unwrap_or_default();
+        let (base_snapshot, base_sources) = self
+            .last_scene
+            .as_deref()
+            .expect("last_scene was just assigned above");
+        let report = pollster::block_on(
+            self.renderer
+                .present_scene_with_decoration_and_nv12_to_surface_texture(
+                    base_snapshot,
+                    base_sources,
+                    &self.last_scene_content_revisions,
+                    &self.last_nv12_sources,
+                    &self.last_particle_sources,
+                    &decoration_clips,
+                    &decoration_sources,
+                ),
+        )
+        .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
+        Ok(Some(OverlayLiveSurfaceDiagnostics {
+            live_prepared_clip_count: report.prepared_clip_count,
+            live_readback_non_transparent_pixels: 0,
+            live_readback_checksum: 0,
+            live_readback_export_max_channel_delta: None,
+        }))
     }
 
     /// キャッシュ済み scene（無ければ透明クリア相当の空 scene）にデコレーション
@@ -934,34 +929,36 @@ impl NativeOverlayLiveSurfaceRenderer {
             return Ok(());
         }
 
-        let report = if self.last_nv12_sources.is_empty() {
-            pollster::block_on(
-                self.renderer
-                    .present_scene_with_decoration_to_surface_texture(
-                        self.scene_generation,
-                        base_snapshot,
-                        base_sources,
-                        &self.last_scene_content_revisions,
-                        &decoration_clips,
-                        &decoration_sources,
-                    ),
-            )
-        } else {
-            pollster::block_on(
-                self.renderer
-                    .present_scene_with_decoration_and_nv12_to_surface_texture(
-                        base_snapshot,
-                        base_sources,
-                        &self.last_scene_content_revisions,
-                        &self.last_nv12_sources,
-                        &decoration_clips,
-                        &decoration_sources,
-                    ),
-            )
-        }
-        .map_err(|error| {
-            format!("Native overlay selection decoration present failed: {error:?}")
-        })?;
+        let report =
+            if self.last_nv12_sources.is_empty() && self.last_particle_sources.is_empty() {
+                pollster::block_on(
+                    self.renderer
+                        .present_scene_with_decoration_to_surface_texture(
+                            self.scene_generation,
+                            base_snapshot,
+                            base_sources,
+                            &self.last_scene_content_revisions,
+                            &decoration_clips,
+                            &decoration_sources,
+                        ),
+                )
+            } else {
+                pollster::block_on(
+                    self.renderer
+                        .present_scene_with_decoration_and_nv12_to_surface_texture(
+                            base_snapshot,
+                            base_sources,
+                            &self.last_scene_content_revisions,
+                            &self.last_nv12_sources,
+                            &self.last_particle_sources,
+                            &decoration_clips,
+                            &decoration_sources,
+                        ),
+                )
+            }
+            .map_err(|error| {
+                format!("Native overlay selection decoration present failed: {error:?}")
+            })?;
         if let Some(start) = trace_start {
             trace_present_stage_timings(
                 "present_cached_scene_with_decoration",
@@ -1930,6 +1927,7 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
     renderer.last_scene = None;
     renderer.last_nv12_sources.clear();
+    renderer.last_particle_sources.clear();
     #[cfg(target_os = "macos")]
     renderer.video_decoders.clear();
     // 削除残像バグ・修正（実機トレースで確定した真因への対処）: `last_scene` を
@@ -2421,12 +2419,23 @@ fn load_overlay_native_sources_for_scene_cached(
     scene: &NativeOverlaySceneSource,
     cache: &mut NativeOverlaySourceCache,
 ) -> Result<NativeOverlaySharedSources, String> {
+    load_overlay_native_sources_for_scene_cached_impl(scene, cache, false)
+}
+
+fn load_overlay_native_sources_for_scene_cached_impl(
+    scene: &NativeOverlaySceneSource,
+    cache: &mut NativeOverlaySourceCache,
+    skip_gpu_particles: bool,
+) -> Result<NativeOverlaySharedSources, String> {
     let mut sources = HashMap::new();
     let mut touched_media_ids = HashSet::new();
     for media in &scene.media {
         let Some(kind) = overlay_media_kind(&media.kind) else {
             continue;
         };
+        if skip_gpu_particles && kind == MediaKind::GeneratedParticle {
+            continue;
+        }
         let source_frame = scene
             .snapshot
             .clips
@@ -2472,6 +2481,59 @@ fn load_overlay_native_sources_for_scene_cached(
         }
     }
     cache.evict_stale(&touched_media_ids);
+    Ok(sources)
+}
+
+fn native_overlay_particle_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, NativeParticleSource>, String> {
+    let mut sources = HashMap::new();
+    for media in scene
+        .media
+        .iter()
+        .filter(|media| media.kind == "GeneratedParticle")
+    {
+        if media.width == 0 || media.height == 0 {
+            return Err(format!(
+                "GeneratedParticle media dimensions must be positive, got {}x{}",
+                media.width, media.height
+            ));
+        }
+        let mut source_frames = scene
+            .snapshot
+            .clips
+            .iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(scene.snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Native overlay cannot render particle media {} at multiple source frames in one scene.",
+                media.id
+            ));
+        }
+        let params = parse_generated_particle_source(&media.source).map_err(|message| {
+            format!("Invalid GeneratedParticle media '{}': {message}", media.id)
+        })?;
+        let mut hasher = DefaultHasher::new();
+        media.id.hash(&mut hasher);
+        media.source.hash(&mut hasher);
+        media.width.hash(&mut hasher);
+        media.height.hash(&mut hasher);
+        let source = NativeParticleSource {
+            params,
+            width: media.width,
+            height: media.height,
+            source_frame,
+            config_revision: hasher.finish(),
+        };
+        if sources.insert(media.id.clone(), source).is_some() {
+            return Err(format!(
+                "Duplicate native overlay particle mediaId '{}'",
+                media.id
+            ));
+        }
+    }
     Ok(sources)
 }
 
@@ -3282,6 +3344,78 @@ mod tests {
                 .expect("empty scene cache sweep must succeed");
         }
         assert_eq!(cache.len(), 0, "idle generated source must be evicted");
+    }
+
+    #[test]
+    fn direct_particle_scene_uses_gpu_descriptor_instead_of_cpu_rgba_frame() {
+        let build_scene = |source_frame| {
+            NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: source_frame,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "particle-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "particle-media".to_string(),
+                    source_frame,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "particle-media".to_string(),
+                kind: "GeneratedParticle".to_string(),
+                source: r##"{"generator":"standard-particle","seed":93,"particle_count":64,"spread":48,"speed":24,"size":3,"colour":"#80d8ff","lifetime_seconds":2}"##.to_string(),
+                width: 160,
+                height: 90,
+                source_rate: None,
+            }],
+            canvas_width: 160,
+            canvas_height: 90,
+        }
+        };
+        let first_scene = build_scene(0);
+        let second_scene = build_scene(30);
+        let mut cache = NativeOverlaySourceCache::default();
+
+        let direct_rgba =
+            load_overlay_native_sources_for_scene_cached_impl(&first_scene, &mut cache, true)
+                .expect("direct particle source resolution must succeed");
+        assert!(
+            direct_rgba.is_empty(),
+            "direct particle scene must not allocate a CPU RGBA source"
+        );
+        assert_eq!(
+            cache.stats(),
+            (0, 0),
+            "direct particle scene must not enter the CPU frame cache"
+        );
+
+        let first = native_overlay_particle_sources_for_scene(&first_scene)
+            .expect("first particle descriptor must resolve");
+        let second = native_overlay_particle_sources_for_scene(&second_scene)
+            .expect("second particle descriptor must resolve");
+        let first = first
+            .get("particle-media")
+            .expect("first descriptor exists");
+        let second = second
+            .get("particle-media")
+            .expect("second descriptor exists");
+        assert_eq!(first.source_frame, 0);
+        assert_eq!(second.source_frame, 30);
+        assert_eq!(
+            first.config_revision, second.config_revision,
+            "animation advances must reuse the same GPU texture configuration"
+        );
+
+        let fallback_rgba = load_overlay_native_sources_for_scene_cached(&first_scene, &mut cache)
+            .expect("legacy fallback must remain available during migration");
+        assert!(
+            fallback_rgba.contains_key("particle-media"),
+            "non-direct fallback must retain CPU particle rendering until legacy removal"
+        );
     }
 
     #[test]
