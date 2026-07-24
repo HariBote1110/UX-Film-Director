@@ -66,6 +66,44 @@ const sharedFramePayload = (
 });
 
 describe('runRustBackendVideoEncodeExport', () => {
+  it('requests IOSurface encode at session start when the frame source requires it', async () => {
+    let startPayload: unknown;
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (payload) => {
+        startPayload = payload;
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async () => ({ success: true }),
+      finishVideoEncode: async () => ({
+        success: true,
+        result: {
+          finished: true,
+          sessionId: 'session-iosurface',
+          filePath: '/tmp/iosurface.mp4',
+          frameCount: 0,
+        },
+      }),
+      abortVideoEncode: async () => ({ success: true }),
+    };
+    async function* noFrames() {
+      return;
+      yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0) };
+    }
+
+    await runRustBackendVideoEncodeExport({
+      sessionId: 'session-iosurface',
+      filePath: '/tmp/iosurface.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: noFrames(),
+      iosurfaceEncode: true,
+      encoderBridge,
+    });
+
+    expect(startPayload).toMatchObject({ iosurfaceEncode: true });
+  });
+
   it('prefetches the next shared frame while the current frame is being written', async () => {
     const events: string[] = [];
     const firstWriteStarted = deferredVoid();

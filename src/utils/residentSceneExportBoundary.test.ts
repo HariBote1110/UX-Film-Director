@@ -50,6 +50,7 @@ describe('常駐 Rust scene export 境界', () => {
       sceneId: 'export-scene',
       revision: 12,
     });
+    expect(source.encodeTarget).toBe('iosurfaceVideoToolbox');
 
     await expect(source.renderEncodeFrame?.({
       encodeSessionId: 'encode-1',
