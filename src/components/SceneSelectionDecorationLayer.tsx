@@ -76,6 +76,12 @@ const isSharedRendererNativeRenderOnlySession = (session: SharedRendererPreviewS
   return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) !== 'Video');
 };
 
+/** Viewport.tsxのshouldDeferCurrentTimeTickと同趣旨（対象フィールドは本層がレンダーで使うobjects/selectedIdsのみ）。 */
+export const shouldDeferSelectionDecorationTick = (
+  state: { objects: unknown; selectedIds: unknown },
+  rendered: { objects: unknown; selectedIds: unknown },
+): boolean => state.objects !== rendered.objects || state.selectedIds !== rendered.selectedIds;
+
 export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLayerProps> = ({
   selectedIds,
   objects,
@@ -252,11 +258,27 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
   // 張り替えない）。素の subscribe（store は subscribeWithSelector 未使用）で
   // currentTime の変化のみを自前で判定し、変化時にジオメトリの命令的パッチと
   // native overlay への標準送信をこの順で行う。
+  //
+  // objects/selectedIds が currentTime と同一 set() でまとめて変わるアクション
+  // （switchScene 等）では、この tick が React コミット前に旧 objects の
+  // closure（applyGeometryNow/sendStandaloneDecoration が読む latestRef.current
+  // はレンダー本体で更新されるため、この時点ではまだ旧値）で発火し、旧シーンの
+  // objects から計算した quad を新時刻で送ってしまう回帰があった
+  // （Viewport.tsx の shouldDeferCurrentTimeTick と同型の問題）。
+  // shouldDeferSelectionDecorationTick が「store がコミット済みレンダーより
+  // 先行している」と判定した tick は previousCurrentTime の更新だけ行って
+  // 即時実行をスキップする。この層には catch-up flag は不要:
+  // コミット後は依存配列なしの applyGeometryNow effect と、低頻度送信 effect
+  // （deps: selectedIds, objects, …）が必ず新鮮な値で実行するため、
+  // それらが catch-up の役割を兼ねる。
   useEffect(() => {
     let previousCurrentTime = useStore.getState().currentTime;
     const unsubscribe = useStore.subscribe((state) => {
       if (state.currentTime !== previousCurrentTime) {
         previousCurrentTime = state.currentTime;
+        if (shouldDeferSelectionDecorationTick(state, latestRef.current)) {
+          return;
+        }
         applyGeometryNow(state.currentTime);
         sendStandaloneDecoration(state.currentTime);
       }

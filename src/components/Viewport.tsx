@@ -142,6 +142,36 @@ export const shouldBuildSharedRendererPreviewSessionForTick = (
 ): boolean => !rustTimelineSceneRpcEnabled;
 
 /**
+ * currentTime tickをsubscribeリスナー内で即時実行してよいかの判定。
+ * zustandのsetStateはリスナーを同期実行するため、currentTimeと構造系state
+ * （objects/layers/isPlaying等）を単一set()で変えるアクション（switchScene等）
+ * では、tickがReactコミット前に1レンダー分古いclosureで走ってしまう。
+ * storeの構造系フィールドがコミット済みレンダーの値と一致するときだけ即時実行し、
+ * 不一致（storeが先行）ならコミット後のcatch-up effectへ委ねる。
+ */
+export interface CurrentTimeTickRenderedState {
+  objects: unknown;
+  layers: unknown;
+  isPlaying: boolean;
+  isExporting: boolean;
+  nativePlaybackActive: boolean;
+  activeSceneId: unknown;
+  projectSettings: unknown;
+}
+export const shouldDeferCurrentTimeTick = (
+  state: CurrentTimeTickRenderedState,
+  rendered: CurrentTimeTickRenderedState,
+): boolean => (
+  state.objects !== rendered.objects
+  || state.layers !== rendered.layers
+  || state.isPlaying !== rendered.isPlaying
+  || state.isExporting !== rendered.isExporting
+  || state.nativePlaybackActive !== rendered.nativePlaybackActive
+  || state.activeSceneId !== rendered.activeSceneId
+  || state.projectSettings !== rendered.projectSettings
+);
+
+/**
  * native reuse のfinallyは同期sceneを再構築するため、Rust常駐sceneの最新評価を
  * 追い越す可能性がある。flag中は次のscene.evaluate結果を待つ。
  */
@@ -2119,6 +2149,15 @@ const Viewport: React.FC = () => {
     rustTimelineSceneRpcEnabled,
   ]);
 
+  // tickの即時実行可否判定に使う「コミット済みレンダーが見た構造系state」。
+  // レンダー本体で毎回代入する（コミット前のtickはこれと store が食い違う）。
+  const renderedTickStateRef = useRef<CurrentTimeTickRenderedState>({
+    objects, layers, isPlaying, isExporting, nativePlaybackActive, activeSceneId: projectId, projectSettings,
+  });
+  renderedTickStateRef.current = {
+    objects, layers, isPlaying, isExporting, nativePlaybackActive, activeSceneId: projectId, projectSettings,
+  };
+
   // 毎フレームのcurrentTime tickで行う処理。ViewportはcurrentTimeをhook購読
   // しない（再生中の毎フレーム再レンダーを避ける）ため、素のuseStore.subscribe
   // から最新closureをref経由で呼ぶ（latestScenePointerHandlersRefと同じパターン）。
@@ -2151,16 +2190,32 @@ const Viewport: React.FC = () => {
 
   // mount時に一度だけcurrentTimeを購読する。storeはsubscribeWithSelector未使用
   // のため素のsubscribeで自前diffする（TimelineCurrentTimeIndicatorと同じ流儀）。
+  const pendingDeferredTickRef = useRef(false);
   useEffect(() => {
     let previousCurrentTime = useStore.getState().currentTime;
     const unsubscribe = useStore.subscribe((state) => {
       if (state.currentTime !== previousCurrentTime) {
         previousCurrentTime = state.currentTime;
+        if (shouldDeferCurrentTimeTick(state, renderedTickStateRef.current)) {
+          // 構造系stateが同一set()で（あるいは未コミットのまま）変わっている。
+          // このままだと1レンダー分古いclosureで発火するため、コミット後の
+          // catch-up effectへ委ねる（旧effect実装の「必ずコミット後」意味論の復元）。
+          pendingDeferredTickRef.current = true;
+          return;
+        }
         onCurrentTimeTickRef.current(state.currentTime);
       }
     });
     return unsubscribe;
   }, []);
+
+  // 保留されたtickのcatch-up。依存配列なし＝毎コミット後に実行され、
+  // 新しいclosure（最新のobjects/layers/isPlaying等）でtickを実行する。
+  useEffect(() => {
+    if (!pendingDeferredTickRef.current) return;
+    pendingDeferredTickRef.current = false;
+    onCurrentTimeTickRef.current(useStore.getState().currentTime);
+  });
 
   // currentTime tickによる再描画は onCurrentTimeTickRef が担うため、このeffectは
   // objects の変化（renderTick 経由の明示的な再描画要求を含む）にのみ追従する

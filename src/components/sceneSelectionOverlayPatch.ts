@@ -58,7 +58,6 @@ export function applySceneSelectionOverlayGeometry(
       patchTargets.polygon.setAttribute('points', entry.points);
 
       // handles を top-left, top-right, bottom-left, bottom-right の順で更新
-      const handleCornerOrder: SceneSelectionHandleCorner[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
       for (const handle of entry.handles) {
         const elem = patchTargets.handles[handle.corner];
         elem.setAttribute('x', String(handle.x));

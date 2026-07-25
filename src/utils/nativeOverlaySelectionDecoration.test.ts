@@ -252,7 +252,8 @@ describe('scene selection overlay native decoration boundary', () => {
     // 選択デコレーションの送信ロジック（sender・SVG フォールバック配線）は
     // SceneSelectionDecorationLayer.tsx へ移設済み。Viewport 側は同レイヤーを
     // マウントし、body co-delivery 計算用の quad ビルダーだけを引き続き使う
-    // （body present 経路。SceneSelectionDecorationLayer.test.ts 参照）。
+    // （body present 経路。viewportTickConsistency.test.ts と
+    // progress/renderer-per-frame-rerender.md 参照）。
     const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
     const layer = readFileSync(resolve(root, 'src/components/SceneSelectionDecorationLayer.tsx'), 'utf8');
 
