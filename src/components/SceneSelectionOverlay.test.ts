@@ -65,6 +65,9 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
     // ハンドルもクリックできない」という実機バグA対策の保護目的は維持する
     // （renderToStaticMarkup では style={{display:'none'}} は
     // `style="display:none"` という属性文字列になる）。
+    //
+    // 命令的パッチが再表示時にハンドル要素へ書き戻せるよう、非表示時も
+    // 4 つのハンドル <rect> を常時マウントする（位置は x={0} y={0}）。
     const objects = [imageObject()];
 
     const markup = renderToStaticMarkup(
@@ -80,6 +83,9 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
 
     expect(markup).toContain('data-object-id="obj-1"');
     expect(markup).toContain('style="display:none"');
+    // 4つのハンドル <rect> が常にレンダーされることを検証
+    const rectMatches = markup.match(/<rect/g);
+    expect(rectMatches).toHaveLength(4);
   });
 
   it('プレイヘッドが選択オブジェクトの時間帯内なら選択枠を描画し、display:none は付与されない', () => {

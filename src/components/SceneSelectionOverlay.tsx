@@ -1,6 +1,8 @@
 import React from 'react';
 import type { TimelineObject } from '../types';
-import { getObjectWorldCorners, worldPointToCssPoint, type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { computeSceneSelectionOverlayGeometry, SCENE_SELECTION_RESIZE_HANDLE_SIZE, type SceneSelectionHandleCorner } from './sceneSelectionOverlayGeometry';
+import type { SceneSelectionOverlayPatchTargets } from './sceneSelectionOverlayPatch';
 
 /**
  * 選択中オブジェクトの変形済み矩形を SVG で描く、Pixi 非依存のオーバーレイ。
@@ -10,6 +12,12 @@ import { getObjectWorldCorners, worldPointToCssPoint, type SceneHitTestViewport 
  * ための土台。配線はせず export のみ（統合は Phase 3 後、親セッションが行う）。
  *
  * props の座標系は `sceneHitTest.ts` と同じ（preview 要素基準の CSS pt）。
+ *
+ * 【新契約（TDD Green フェーズ）】
+ * 時間帯外のオブジェクトについても、`<g data-object-id>` を常にレンダーし、
+ * `display:none` で隠す。これにより、命令的パッチ（`sceneSelectionOverlayPatch.ts`）が
+ * 時間追従時に同じ DOM 要素へ属性を書き戻せるようになる。
+ * ジオメトリ計算は `computeSceneSelectionOverlayGeometry` へ切り出した純関数を利用。
  */
 
 export interface SceneSelectionOverlayProps {
@@ -30,9 +38,15 @@ export interface SceneSelectionOverlayProps {
    * 可視スタイルへフォールバックする。
    */
   visualsHidden?: boolean;
+  /**
+   * 命令的パッチ（`sceneSelectionOverlayPatch.ts`）が時間追従の属性書き戻しで
+   * 参照する DOM 要素群を Map で管理するための ref。渡された場合、各選択オブジェクトの
+   * `<g>` / `<polygon>` / ハンドル `<rect>` を `SceneSelectionOverlayPatchTargets`
+   * として objectId をキーにして登録。callback ref が null（unmount）のときは削除。
+   * 渡されていない場合は一切何もしない（既存の挙動不変）。
+   */
+  geometryPatchTargetsRef?: React.MutableRefObject<Map<string, SceneSelectionOverlayPatchTargets> | null>;
 }
-
-const RESIZE_HANDLE_SIZE = 10;
 
 const RESIZE_CURSORS: Record<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', React.CSSProperties['cursor']> = {
   'top-left': 'nwse-resize',
@@ -40,6 +54,9 @@ const RESIZE_CURSORS: Record<'top-left' | 'top-right' | 'bottom-left' | 'bottom-
   'bottom-left': 'nesw-resize',
   'bottom-right': 'nwse-resize',
 };
+
+/** ハンドルコーナーの固定順序（top-left → top-right → bottom-left → bottom-right）。 */
+const HANDLE_CORNER_ORDER: SceneSelectionHandleCorner[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
   selectedIds,
@@ -50,8 +67,61 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
   height,
   onHandlePointerDown,
   visualsHidden = false,
+  geometryPatchTargetsRef,
 }) => {
-  const selectedObjects = objects.filter((obj) => selectedIds.includes(obj.id));
+  // ジオメトリ計算を純関数へ委譲
+  const geometries = computeSceneSelectionOverlayGeometry({
+    selectedIds,
+    objects,
+    time,
+    viewport,
+  });
+
+  /**
+   * <g> 要素の callback ref。React は commit 時に子→親の順で ref を呼ぶが、
+   * 親である <g> の ref が呼ばれる時点では子要素（polygon, rect）がすべて
+   * DOM に存在するため、querySelector で収集可能。
+   *
+   * ref が同一 commit 内で detach(null) → attach(elem) と呼ばれる場合も
+   * あるが、React がこれを同期実行するため問題ない。
+   */
+  const groupRef = (objectId: string) => (elem: SVGGElement | null) => {
+    if (!geometryPatchTargetsRef) return;
+
+    if (!elem) {
+      // unmount / detach: そのobjectIdのエントリを削除
+      geometryPatchTargetsRef.current?.delete(objectId);
+      return;
+    }
+
+    // 初回マウント時は Map を生成
+    let map = geometryPatchTargetsRef.current;
+    if (!map) {
+      map = new Map();
+      geometryPatchTargetsRef.current = map;
+    }
+
+    // querySelector で子要素を収集（すべてが DOM に存在する）
+    const polygon = elem.querySelector('polygon');
+    if (!polygon) return; // 防御：polygon が無ければ登録しない
+
+    // 各ハンドル <rect> を data-corner 属性で取得
+    const handles: SceneSelectionOverlayPatchTargets['handles'] = {} as SceneSelectionOverlayPatchTargets['handles'];
+    for (const corner of HANDLE_CORNER_ORDER) {
+      const rectElem = elem.querySelector(`rect[data-corner="${corner}"]`);
+      if (rectElem) {
+        handles[corner] = rectElem as unknown as SceneSelectionOverlayPatchTargets['handles'][SceneSelectionHandleCorner];
+      }
+    }
+
+    // targets を組み立てて登録
+    const targets: SceneSelectionOverlayPatchTargets = {
+      group: elem as unknown as SceneSelectionOverlayPatchTargets['group'],
+      polygon: polygon as unknown as SceneSelectionOverlayPatchTargets['polygon'],
+      handles,
+    };
+    map.set(objectId, targets);
+  };
 
   return (
     <svg
@@ -67,47 +137,42 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
         overflow: 'visible',
       }}
     >
-      {selectedObjects.map((obj) => {
-        const corners = getObjectWorldCorners(obj, time, objects);
-        if (!corners) return null;
-
-        const toCss = (p: { x: number; y: number }) => worldPointToCssPoint(p, viewport);
-        const tl = toCss(corners.topLeft);
-        const tr = toCss(corners.topRight);
-        const bl = toCss(corners.bottomLeft);
-        const br = toCss(corners.bottomRight);
-
-        const points = `${tl.x},${tl.y} ${tr.x},${tr.y} ${br.x},${br.y} ${bl.x},${bl.y}`;
-
-        const handleCorners: { corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; point: { x: number; y: number } }[] = [
-          { corner: 'top-left', point: tl },
-          { corner: 'top-right', point: tr },
-          { corner: 'bottom-left', point: bl },
-          { corner: 'bottom-right', point: br },
-        ];
-
+      {geometries.map((entry) => {
         return (
-          <g key={obj.id} data-object-id={obj.id}>
+          <g
+            key={entry.objectId}
+            ref={groupRef(entry.objectId)}
+            data-object-id={entry.objectId}
+            style={{ display: entry.visible ? undefined : 'none' }}
+          >
             <polygon
-              points={points}
+              points={entry.visible ? entry.points : ''}
               fill="none"
               stroke={visualsHidden ? 'transparent' : '#ffd700'}
               strokeWidth={2}
             />
-            {handleCorners.map(({ corner, point }) => (
-              <rect
-                key={corner}
-                x={point.x - RESIZE_HANDLE_SIZE / 2}
-                y={point.y - RESIZE_HANDLE_SIZE / 2}
-                width={RESIZE_HANDLE_SIZE}
-                height={RESIZE_HANDLE_SIZE}
-                fill={visualsHidden ? 'transparent' : '#ffffff'}
-                stroke={visualsHidden ? 'transparent' : '#ffd700'}
-                strokeWidth={1.2}
-                style={{ pointerEvents: onHandlePointerDown ? 'auto' : 'none', cursor: RESIZE_CURSORS[corner] }}
-                onPointerDown={(e) => onHandlePointerDown?.(obj.id, corner, e)}
-              />
-            ))}
+            {HANDLE_CORNER_ORDER.map((corner) => {
+              // entry.handles から該当 corner を探す
+              const handle = entry.handles.find((h) => h.corner === corner);
+              const x = handle?.x ?? 0;
+              const y = handle?.y ?? 0;
+
+              return (
+                <rect
+                  key={corner}
+                  data-corner={corner}
+                  x={entry.visible ? x : 0}
+                  y={entry.visible ? y : 0}
+                  width={SCENE_SELECTION_RESIZE_HANDLE_SIZE}
+                  height={SCENE_SELECTION_RESIZE_HANDLE_SIZE}
+                  fill={visualsHidden ? 'transparent' : '#ffffff'}
+                  stroke={visualsHidden ? 'transparent' : '#ffd700'}
+                  strokeWidth={1.2}
+                  style={{ pointerEvents: onHandlePointerDown ? 'auto' : 'none', cursor: RESIZE_CURSORS[corner] }}
+                  onPointerDown={(e) => onHandlePointerDown?.(entry.objectId, corner, e)}
+                />
+              );
+            })}
           </g>
         );
       })}
