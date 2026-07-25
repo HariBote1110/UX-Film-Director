@@ -13,11 +13,16 @@ describe('Timeline playback render isolation boundary', () => {
     expect(timeline).toContain('useStore.getState().currentTime');
   });
 
-  it('subscribes to currentTime only inside the lightweight playhead component', () => {
+  it('subscribes to currentTime only inside the lightweight playhead component, without a React re-render selector', () => {
     const timeline = readSource('./Timeline.tsx');
     const playhead = readSource('./TimelineCurrentTimeIndicator.tsx');
 
-    expect(playhead).toContain('useStore((state) => state.currentTime)');
+    // 再生ヘッドはReactの再レンダー/コミットを経由せず、store.subscribeで
+    // 直接DOMのtransformを更新する（毎フレームのReactコミットとレイアウトを
+    // 構造的に取り除くため）。
+    expect(playhead).not.toContain('useStore((state) => state.currentTime)');
+    expect(playhead).toContain('useStore.subscribe');
+    expect(playhead).toContain('.style.transform');
     expect(timeline.match(/<TimelineCurrentTimeIndicator/g)).toHaveLength(2);
   });
 });
