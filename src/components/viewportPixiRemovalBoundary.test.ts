@@ -16,6 +16,11 @@ const viewportSource = () =>
 const selectionDecorationLayerSource = () =>
   readFileSync(new URL('./SceneSelectionDecorationLayer.tsx', import.meta.url), 'utf8');
 
+// Vision 検出枠（cat/dog 単フレーム検出プレビュー）は VisionDetectionOverlayLayer.tsx
+// へ移設済み（Viewport の currentTime hook 購読除去に伴う独立コンポーネント抽出）。
+const visionDetectionOverlayLayerSource = () =>
+  readFileSync(new URL('./VisionDetectionOverlayLayer.tsx', import.meta.url), 'utf8');
+
 describe('Viewport Pixi removal boundary', () => {
   it('Viewport.tsx は pixi.js とPixi依存モジュールを import しない', () => {
     const code = viewportSource();
@@ -37,7 +42,9 @@ describe('Viewport Pixi removal boundary', () => {
   });
 
   it('vision 検出枠は Pixi ではなく SVG ジオメトリ（visionDetectionOverlayGeometry）で描く', () => {
-    const code = viewportSource();
+    // 描画ロジック自体は VisionDetectionOverlayLayer.tsx へ移設済み（Viewport の
+    // currentTime hook 購読除去に伴う独立コンポーネント抽出）。
+    const code = visionDetectionOverlayLayerSource();
     expect(code).toContain('buildVisionDetectionOverlayBoxes');
   });
 

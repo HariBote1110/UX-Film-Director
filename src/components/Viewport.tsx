@@ -13,11 +13,11 @@ import { useSceneInteraction } from '../hooks/useSceneInteraction';
 import { hitTestSceneObjects, type SceneHitTestViewport } from '../utils/sceneHitTest';
 import { createStablePointerSubscription } from '../utils/sceneInteractionLogic';
 import { SceneSelectionDecorationLayer } from './SceneSelectionDecorationLayer';
+import { VisionDetectionOverlayLayer } from './VisionDetectionOverlayLayer';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
-import { buildVisionDetectionOverlayBoxes } from '../utils/visionDetectionOverlayGeometry';
 import { measureTextBoxSize } from '../utils/textBoxMeasurement';
 import {
   buildSharedRendererPreviewSession,
@@ -844,7 +844,7 @@ const Viewport: React.FC = () => {
   }, []);
 
   const {
-    currentTime, objects, selectedIds, selectedId, clearSelection,
+    objects, selectedIds, selectedId, clearSelection,
     projectSettings, isPlaying, isExporting, duration, nativePlaybackActive,
     setNativePlaybackActive, setIsPlaying, setTime,
     layers,
@@ -860,7 +860,6 @@ const Viewport: React.FC = () => {
     visionDetectionOverlay,
     projectId
   } = useStore((state) => ({
-    currentTime: state.currentTime,
     objects: state.objects,
     selectedIds: state.selectedIds,
     selectedId: state.selectedId,
@@ -890,6 +889,11 @@ const Viewport: React.FC = () => {
     // effect の deps に載せる。
     projectId: state.activeSceneId,
   }), shallow);
+  // 意図的に currentTime をこのセレクタへ含めない — 再生中は毎フレーム
+  // currentTime が変化するため、hook 購読すると Viewport 全体が毎フレーム
+  // 再レンダーされてしまう。currentTime への追従は onCurrentTimeTickRef
+  // （renderScene 定義直後）が useStore.subscribe + ref 経由で行う
+  // （SceneSelectionDecorationLayer / TimelineCurrentTimeIndicator と同じ方針）。
 
   useVisionRealtimeDetection();
 
@@ -1676,6 +1680,10 @@ const Viewport: React.FC = () => {
   // readyState=0のvideo要素からpresenterが起動しvideoTextureViewUnavailableになる。
   // 動画がpresent可能になった通知(sharedRendererExternalVideoFrameReadyTickのbump)で
   // scene評価を再要求しないと、RPCモードでは復帰契機が存在しない。
+  // currentTime tickによる再要求は onCurrentTimeTickRef（renderScene 定義直後）が
+  // 担うため、このeffectはexport終了・revision出現・video frame ready等の
+  // 低頻度契機のみを担う（そのためdepsに currentTime は含めず、値は都度
+  // useStore.getState() から読む）。
   useEffect(() => {
     if (!shouldRequestRustTimelineSceneEvaluationForTick({
       rustTimelineSceneRpcEnabled,
@@ -1686,10 +1694,9 @@ const Viewport: React.FC = () => {
     })) return;
     const controller = rustTimelineScenePreviewControllerRef.current;
     if (!controller) return;
-    controller.requestTime(currentTime, projectSettings.fps);
+    controller.requestTime(useStore.getState().currentTime, projectSettings.fps);
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
   }, [
-    currentTime,
     isExporting,
     isPlaying,
     nativePlaybackActive,
@@ -1700,16 +1707,19 @@ const Viewport: React.FC = () => {
     sharedRendererExternalVideoFrameReadyTick,
   ]);
 
+  // currentTime tickによるpublishは onCurrentTimeTickRef が担うため、このeffectは
+  // objects の変化と sharedRendererExternalVideoFrameReadyTick の低頻度契機のみを
+  // 担う（currentTime は useStore.getState() から読む）。
   useEffect(() => {
     if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
-      publishSharedRendererPreviewSession(currentTime, objects);
+      publishSharedRendererPreviewSession(useStore.getState().currentTime, objects);
     }
     // sharedRendererExternalVideoFrameReadyTick re-publishes the session so a
     // paused frame that has just become presentable gets re-presented.
     // This only takes effect when shouldBuildSharedRendererPreviewSessionForTick
     // is true (i.e. the RPC path is disabled) — when the RPC path is enabled,
     // the effect above owns this re-evaluation instead.
-  }, [currentTime, objects, publishSharedRendererPreviewSession, rustTimelineSceneRpcEnabled, sharedRendererExternalVideoFrameReadyTick]);
+  }, [objects, publishSharedRendererPreviewSession, rustTimelineSceneRpcEnabled, sharedRendererExternalVideoFrameReadyTick]);
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
@@ -2002,9 +2012,10 @@ const Viewport: React.FC = () => {
     // 依存に含めると presenter 起動中でもこの effect が毎 move で cleanup →
     // 再実行され、in-flight の startSharedRendererViewportPresenter が cancel
     // され続けて一度も present が完了しない（症状B の起動キャンセル連鎖）。
-    // objects の変化は publish 側 effect（deps: [currentTime, objects, ...]）が
-    // 受けて session を再構築するので、presenter の再起動が必要な変化は
-    // sharedRendererPreviewSession の変化としてここへ届く。
+    // objects の変化は publish 側 effect（deps: [objects, ...]）および
+    // currentTime tick（onCurrentTimeTickRef）が受けて session を再構築するので、
+    // presenter の再起動が必要な変化は sharedRendererPreviewSession の変化として
+    // ここへ届く。
   }, [isExporting, isPlaying, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
   // --- Main Render Logic ---
@@ -2108,10 +2119,55 @@ const Viewport: React.FC = () => {
     rustTimelineSceneRpcEnabled,
   ]);
 
+  // 毎フレームのcurrentTime tickで行う処理。ViewportはcurrentTimeをhook購読
+  // しない（再生中の毎フレーム再レンダーを避ける）ため、素のuseStore.subscribe
+  // から最新closureをref経由で呼ぶ（latestScenePointerHandlersRefと同じパターン）。
+  // 実行順は旧effectの宣言順（requestTime → publish → renderScene）を保存する。
+  const onCurrentTimeTickRef = useRef<(time: number) => void>(() => {});
+  onCurrentTimeTickRef.current = (time: number) => {
+    // 1) Rust常駐sceneへの評価要求（旧: requestTime effectのcurrentTime依存分）
+    if (shouldRequestRustTimelineSceneEvaluationForTick({
+      rustTimelineSceneRpcEnabled,
+      rustTimelineSceneRevisionAvailable: rustTimelineSceneRevision !== null,
+      isExporting,
+      nativePlaybackActive,
+      isPlaying,
+    })) {
+      const controller = rustTimelineScenePreviewControllerRef.current;
+      if (controller) {
+        controller.requestTime(time, projectSettings.fps);
+        writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
+      }
+    }
+    // 2) preview sessionのpublish（旧: publish effectのcurrentTime依存分）
+    if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
+      publishSharedRendererPreviewSession(time, latestObjectsRef.current);
+    }
+    // 3) renderScene（音声同期・3Dビルボード同期。旧: renderScene effectのcurrentTime依存分）
+    if (!useStore.getState().isExporting) {
+      renderScene(time, latestObjectsRef.current);
+    }
+  };
+
+  // mount時に一度だけcurrentTimeを購読する。storeはsubscribeWithSelector未使用
+  // のため素のsubscribeで自前diffする（TimelineCurrentTimeIndicatorと同じ流儀）。
   useEffect(() => {
-    if (!isExporting) renderScene(currentTime, objects);
+    let previousCurrentTime = useStore.getState().currentTime;
+    const unsubscribe = useStore.subscribe((state) => {
+      if (state.currentTime !== previousCurrentTime) {
+        previousCurrentTime = state.currentTime;
+        onCurrentTimeTickRef.current(state.currentTime);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // currentTime tickによる再描画は onCurrentTimeTickRef が担うため、このeffectは
+  // objects の変化（renderTick 経由の明示的な再描画要求を含む）にのみ追従する
+  // （currentTime は useStore.getState() から読む）。
+  useEffect(() => {
+    if (!isExporting) renderScene(useStore.getState().currentTime, objects);
   }, [
-    currentTime,
     objects,
     renderScene,
     renderTick,
@@ -2179,9 +2235,13 @@ const Viewport: React.FC = () => {
   useProjectExport(renderScene, getExportCanvas, getRustExportFrameSource);
 
   // --- Snapshot Logic (after renderScene is defined) ---
+  // currentTime・objects はこのeffectの依存にせず、発火時にstoreから直接読む
+  // （ViewportはcurrentTimeをhook購読しないため）。
   useEffect(() => {
       if (!isSnapshotRequested) return;
 
+      const currentTime = useStore.getState().currentTime;
+      const objects = useStore.getState().objects;
       const mode = useStore.getState().projectSettings.editorMode ?? '2d';
       if (mode === '3d_stage') {
         renderScene(currentTime, objects);
@@ -2215,7 +2275,7 @@ const Viewport: React.FC = () => {
           document.body.removeChild(link);
           finishSnapshot();
       }
-  }, [isSnapshotRequested, finishSnapshot, renderScene, currentTime, objects]);
+  }, [isSnapshotRequested, finishSnapshot, renderScene]);
 
   const previewW = projectSettings.width * displayScale;
   const previewH = projectSettings.height * displayScale;
@@ -2355,7 +2415,7 @@ const Viewport: React.FC = () => {
               const hitId = hitTestSceneObjects({
                 cssX,
                 cssY,
-                time: currentTime,
+                time: useStore.getState().currentTime,
                 objects: latestObjectsRef.current,
                 viewport: sceneInteractionViewportRef.current,
                 layers,
@@ -2393,52 +2453,25 @@ const Viewport: React.FC = () => {
             Vision 検出枠（cat/dog 単フレーム検出プレビュー）。
             PixiJS 排除計画 Phase 4 で PIXI Graphics から SVG オーバーレイへ
             置き換えた（座標計算は visionDetectionOverlayGeometry.ts）。
+            currentTime tick購読を除去する Viewport 本体からの独立コンポーネント
+            抽出（VisionDetectionOverlayLayer.tsx）— vision 検出プレビュー有効時の
+            みマウントされ、マウント中は currentTime を意図的に hook 購読する。
           */}
           {editorMode !== '3d_stage'
             && !isExporting
             && !isSnapshotRequested
             && visionDetectionPreviewEnabled
             && visionDetectionOverlay
-            && (() => {
-              const targetVideo = objects.find(
-                (object): object is VideoObject =>
-                  object.type === 'video' && object.id === visionDetectionOverlay.videoId
-              );
-              if (!targetVideo) return null;
-              const detection = buildVisionDetectionOverlayBoxes({
-                video: targetVideo,
-                overlay: visionDetectionOverlay,
-                time: currentTime,
-                objects,
-                viewport: sceneInteractionViewportRef.current,
-              });
-              if (!detection) return null;
-              return (
-                <svg
-                  data-testid="vision-detection-overlay"
-                  width={previewW}
-                  height={previewH}
-                  viewBox={`0 0 ${previewW} ${previewH}`}
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    pointerEvents: 'none',
-                    overflow: 'visible',
-                    opacity: detection.stale ? 0.42 : 1,
-                  }}
-                >
-                  {detection.boxes.map((box, index) => (
-                    <polygon
-                      key={index}
-                      points={box.points}
-                      fill="none"
-                      stroke={box.colour}
-                      strokeWidth={5 * displayScale}
-                    />
-                  ))}
-                </svg>
-              );
-            })()}
+            && (
+              <VisionDetectionOverlayLayer
+                objects={objects}
+                overlay={visionDetectionOverlay}
+                viewportRef={sceneInteractionViewportRef}
+                width={previewW}
+                height={previewH}
+                displayScale={displayScale}
+              />
+            )}
           {shouldMountSharedRendererSurface && (
             <>
               <canvas
