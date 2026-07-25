@@ -18,11 +18,21 @@ describe('TimelineControlBar playback render isolation boundary', () => {
     expect(controlBar).not.toContain('currentTime.toFixed(2)');
   });
 
-  it('subscribes to currentTime only inside the lightweight TimelineCurrentTimeDisplay component', () => {
+  it('renders TimelineCurrentTimeDisplay from TimelineControlBar', () => {
     const controlBar = readSource('./TimelineControlBar.tsx');
+
+    expect(controlBar).toContain('<TimelineCurrentTimeDisplay');
+  });
+
+  // TimelineCurrentTimeDisplayはTimelineCurrentTimeIndicatorと同じ流儀
+  // （素のuseStore.subscribe+手動diff+DOM直接更新）へ移行済み。hook購読
+  // （useStore((state) => ...) 形）を残すと毎フレームReactの再レンダー/コミット
+  // が発生し、重量E2Eのコミット回数（callCount）が下がらなくなる。
+  it('keeps TimelineCurrentTimeDisplay free of a per-frame hook subscription to currentTime', () => {
     const display = readSource('./TimelineCurrentTimeDisplay.tsx');
 
-    expect(display).toContain('useStore((state) => state.currentTime)');
-    expect(controlBar).toContain('<TimelineCurrentTimeDisplay');
+    expect(display).not.toMatch(/useStore\(\s*\(\s*state\s*\)\s*=>\s*state\.currentTime/);
+    expect(display).toContain('useStore.subscribe');
+    expect(display).toContain('textContent');
   });
 });
