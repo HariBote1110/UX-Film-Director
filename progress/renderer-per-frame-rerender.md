@@ -20,25 +20,45 @@ Chromium描画APIの監査では2Dプレビューの本番描画経路は既にn
   呼ばれるときに読むだけだった。購読を削除し `useStore.getState().currentTime`
   の読み捨てへ変更した（`src/components/Timeline.tsx:468` と同じ流儀）。
 
-## 実測（1台・開発ビルド・各1回の代表測定）
+## 実測（1台・開発ビルド。修正後は3回測定）
 
-重量E2Eの再生3.6秒区間のChromiumレンダラートレース。
+重量E2Eの再生3.6秒区間のChromiumレンダラートレース。修正後は同一に近い構成で
+3回測っている（①は選択デコレーション実験前、A/Bは実験時の選択あり／クリア）。
 
-| 指標 | 修正前 | 修正後 | 差 |
-|---|---|---|---|
-| busyMs | 1516.5 | 1363.2 | -10% |
-| busyRatio | 0.420 | 0.377 | -0.043 |
-| scriptingMs | 448.2 | 263.7 | **-41%** |
-| scriptMs | 406.0 | 222.9 | **-45%** |
-| renderingMs | 201.5 | 189.6 | -6% |
-| gcMs | 53.7 | 46.8 | -13% |
-| React再レンダー関数 | 305.8 ms / 212回 | 120.4 ms / 212回 | **-61%**（回数は不変） |
-| FireAnimationFrame | 384.8 ms / 395回 | 189.0 ms / 395回 | -51%（回数は不変） |
-| layoutCount | 213 | 213 | 不変 |
-| recalcStyleCount | 216 | 214 | ほぼ不変 |
+| 指標 | 修正前(1回) | 修正後① | 修正後A | 修正後B |
+|---|---|---|---|---|
+| busyMs | 1516.5 | 1363.2 | **970.3** | 1519.7 |
+| scriptingMs | 448.2 | 263.7 | 295.8 | 363.2 |
+| scriptMs | 406.0 | 222.9 | 247.6 | 308.9 |
+| React再レンダー関数 | 305.8 ms / 212回 | 120.4 / 212 | 170.9 / 210 | 195.3 / 210 |
+| `Receive mojo reply` | 508 / 311 | 602 / 395 | **108 / 67** | 465 / 249 |
+| layoutCount | 213 | 213 | 211 | 211 |
 
-E2Eは総合PASS、`settled: true`、runtimeErrors / MissingSource / WGPUエラーは
-いずれも0件。
+E2Eはいずれも総合PASS、`settled: true`、runtimeErrors / MissingSource / WGPUエラーは
+すべて0件。
+
+### 信頼できる結論
+
+- **scripting の削減は実在する**。修正後3サンプルの `scriptMs` は 223 / 248 / 309 で、
+  いずれも修正前の 406 を下回る。React再レンダー関数の時間も 120 / 171 / 195 で
+  修正前 306 を一貫して下回る。削減幅は **-40〜45%** 程度と見るのが妥当。
+  `PropertyPanel` と `TimelineControlBar` を毎フレーム経路から外した構造的変更なので、
+  測定以前に効果が説明できる。
+
+### 信頼できない指標（重要）
+
+- **`busyMs` / `busyRatio` は単発比較に使えない**。修正後だけで 970〜1520 と
+  1.6倍ばらつく。当初「busyMs -10%」と記録したが、これは誤差の範囲だった。
+- **`Receive mojo reply` は原因帰属に使えない**。同一に近い構成で 67回〜395回と
+  6倍ばらつく。一時「単一項目で最大のコスト」と判断したが、それは1サンプルに
+  基づく誤りだった。
+- **`exportRun.durationMs` もばらつく**（42.6 / 60.3 / 67.7 秒）。
+
+### 安定している指標
+
+`callCount`（212 / 212 / 210 / 210）と `layoutCount`（213 / 213 / 211 / 211）は
+ほぼ完全に安定している。**今後の性能検証はミリ秒ではなく、これらの回数系指標を
+一次根拠にする。** 回数が減れば構造が変わった証拠になり、ミリ秒は補助的に見る。
 
 ## 残っている問題
 
@@ -50,12 +70,28 @@ E2Eは総合PASS、`settled: true`、runtimeErrors / MissingSource / WGPUエラ�
   Reactのstate経由のインラインstyleで毎フレーム書き換えているため。
   `ref` + 直接DOM書き込み、または `store.subscribe` による transient update に
   すればReactを経由せず更新できる。
-- `Receive mojo reply` は 508ms/311回 → 602ms/395回 と**増えている**。単発測定の
-  ばらつきの範囲かもしれないが、ネイティブ再生中は `scene.evaluate` と
-  `publishSharedRendererPreviewSession` がガードされている想定なので、
-  実際に何が飛んでいるかは別途特定が必要。候補は再生クロック通知
-  （`rust-backend-scene-playback-ui-state`）と、co-delivery非対象セッションでの
-  選択デコレーション送信（`src/components/Viewport.tsx:954-990`）。
+## 選択デコレーションのIPC切り分け実験（結果: 仮説は否定された）
+
+`Receive mojo reply` の発生源として、`src/components/Viewport.tsx:954-1019` の
+選択デコレーション送信effectを疑った。依存配列に `currentTime` を含むため再生中は
+毎フレーム再実行され、`nativeOverlayBodyCoDeliveryEligible` が
+`VITE_UXFD_RUST_VIDEO_ONLY === '1'` 前提でこのE2Eでは常にfalseになるため、
+`shouldSendStandaloneDecoration` が無条件にtrueを返す状態だった。
+
+そこで `UXFD_REALISTIC_HEAVY_EDIT_CLEAR_SELECTION_BEFORE_PLAYBACK=1` を追加し、
+再生計測区間の直前に選択をクリアして比較した（プロダクションコードは変更していない）。
+
+- A（選択あり）: `Receive mojo reply` 108ms / **67回**
+- B（選択クリア）: `Receive mojo reply` 465ms / **249回**
+
+選択をクリアした方が**多い**という逆の結果になった。よって選択デコレーション送信は
+`Receive mojo reply` の主因ではない。この指標自体が run-to-run で6倍ばらつくため、
+単発測定での原因帰属は不可能である。
+
+トレース側の制約も判明した。Electronはrenderer↔main間の全チャネルを単一の
+`electron.mojom.ElectronApiIPC` に集約するため（368件すべてが同一 `ipc_hash`）、
+**トレースからチャネル別の内訳は特定できない**。IPC発生源を特定したい場合は、
+main process側でチャネル別カウンタを取るなど別の計測手段が必要。
 
 ## 制約・注意点
 
