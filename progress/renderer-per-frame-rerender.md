@@ -60,16 +60,46 @@ E2Eはいずれも総合PASS、`settled: true`、runtimeErrors / MissingSource /
 ほぼ完全に安定している。**今後の性能検証はミリ秒ではなく、これらの回数系指標を
 一次根拠にする。** 回数が減れば構造が変わった証拠になり、ミリ秒は補助的に見る。
 
+## 再生ヘッドのref+transform化（結果: 回数系指標は変わらなかった）
+
+Beta-481aで `TimelineCurrentTimeIndicator` を、`useStore` の購読による再レンダーから
+`useStore.subscribe` + `ref` による `transform: translate3d()` の直接更新へ変更した
+（storeは `subscribeWithSelector` を使っていないため素の `subscribe` で差分判定）。
+`left` の更新をやめたのはレイアウトを避けるためである。
+
+**しかし計測では `callCount` 211、`layoutCount` 213 でいずれも変化しなかった。**
+狙った「毎フレームのReactコミット1回を取り除く」効果は出ていない。
+
+理由は下記のとおり、毎フレームのコミットが `TimelineCurrentTimeIndicator` ではなく
+`Viewport` 由来だったためである。Reactは1フレームに複数コンポーネントが再レンダー
+されても1コミットにまとめるので、`Viewport` が毎フレーム再レンダーする限り
+コミット回数は減らない。
+
+この変更自体は `left` → `transform` の分だけ合成側に有利で、再生ヘッドをReactの
+毎フレーム経路から外してもあるため残置する。ただし**現時点で測定可能な効果は無い**。
+`Viewport` の再レンダーを止めたあとに初めて効果が現れる位置づけである。
+
 ## 残っている問題
 
-- **再レンダー回数は212回のまま**、つまり依然として毎フレーム1回Reactが走る。
-  減ったのは1回あたりの仕事量だけである。回数を減らすには
-  `src/components/Viewport.tsx:880-910` の巨大な shallow セレクタが
-  `currentTime` を含んでいる点を解消する必要がある。
-- **layoutCount 213 も不変**。`TimelineCurrentTimeIndicator` が再生ヘッド位置を
-  Reactのstate経由のインラインstyleで毎フレーム書き換えているため。
-  `ref` + 直接DOM書き込み、または `store.subscribe` による transient update に
-  すればReactを経由せず更新できる。
+- **再レンダー回数は210〜212回のまま**、つまり依然として毎フレーム1回Reactが走る。
+  これまでに減ったのは1回あたりの仕事量だけである。
+
+  原因は特定済みで、**`Viewport` のJSX自体が `currentTime` に依存している**こと。
+  選択枠オーバーレイの位置計算がレンダー中に行われている
+  （`src/components/Viewport.tsx:2456, 2478, 2491-2524`：`evaluateObjectPositionAtTime`、
+  `getGroupTransforms`、`getVibrationOffset` を `currentTime` 付きで呼び、子へ
+  `time={currentTime}` を渡している）。したがって effect を切り出すだけでは足りず、
+  **この `currentTime` 依存のJSXサブツリー（選択枠オーバーレイ）を独立コンポーネントへ
+  抽出する**必要がある。
+
+  ただし選択枠は `progress/five-bugs-structural-redesign.md` と
+  `progress/selection-decoration-phase2-visibility-and-codelivery.md` にある通り、
+  ズレ・幽霊表示のバグを繰り返してきた領域である。抽出は相応のリスクを伴うため、
+  単独のタスクとして時間を取り、選択枠の既存契約テストを厚くしてから着手するべき。
+- **layoutCount 213 も不変**。再生ヘッドを `transform` 化しても変わらなかったため、
+  毎フレームのレイアウトは再生ヘッド由来ではない。残る候補は
+  `TimelineCurrentTimeDisplay` の時刻テキスト更新と、`Viewport` の再レンダーに伴う
+  DOM更新。`Viewport` を止めるまで切り分けられない。
 ## 選択デコレーションのIPC切り分け実験（結果: 仮説は否定された）
 
 `Receive mojo reply` の発生源として、`src/components/Viewport.tsx:954-1019` の
