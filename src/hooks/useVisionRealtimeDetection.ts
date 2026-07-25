@@ -34,7 +34,6 @@ export const useVisionRealtimeDetection = (): void => {
   const selectedId = useStore((s) => s.selectedId);
   const selectedIds = useStore((s) => s.selectedIds);
   const objects = useStore((s) => s.objects);
-  const currentTime = useStore((s) => s.currentTime);
   const isPlaying = useStore((s) => s.isPlaying);
   const isExporting = useStore((s) => s.isExporting);
   const previewOn = useStore((s) => s.visionDetectionPreviewEnabled);
@@ -118,22 +117,37 @@ export const useVisionRealtimeDetection = (): void => {
     if (!selectedVideo || !diskPath) return;
     if (isPlaying) return;
 
-    const mediaT = mediaTimeInClipForPlayhead(selectedVideo, currentTime);
-    if (mediaT === null) return;
+    let timer: number | null = null;
+    // 時刻が動くたびに従来どおりデバウンスを仕切り直す。クリップ時間外へ出た場合は
+    // 保留中の検出を取り消すだけで新たなアームはしない（旧実装のcleanup+早期returnと同じ意味論）。
+    const arm = (t: number) => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      const mediaT = mediaTimeInClipForPlayhead(selectedVideo, t);
+      if (mediaT === null) return;
+      timer = window.setTimeout(() => {
+        void runDetect(mediaT);
+      }, SCRUB_DEBOUNCE_MS);
+    };
 
-    const h = window.setTimeout(() => {
-      void runDetect(mediaT);
-    }, SCRUB_DEBOUNCE_MS);
-    return () => window.clearTimeout(h);
-  }, [
-    previewOn,
-    realtimeOn,
-    coreMlSupported,
-    isExporting,
-    selectedVideo,
-    diskPath,
-    isPlaying,
-    currentTime,
-    runDetect
-  ]);
+    // 従来: effect実行時に一度アーム（deps変化=選択・有効化直後の追従）
+    arm(useStore.getState().currentTime);
+
+    // スクラブ（currentTime変化）はhook購読ではなく素のsubscribeで追う
+    // （このhookの購読が残るとViewport本体が毎フレーム再レンダーされるため）。
+    let previousCurrentTime = useStore.getState().currentTime;
+    const unsubscribe = useStore.subscribe((s) => {
+      if (s.currentTime !== previousCurrentTime) {
+        previousCurrentTime = s.currentTime;
+        arm(s.currentTime);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [previewOn, realtimeOn, coreMlSupported, isExporting, selectedVideo, diskPath, isPlaying, runDetect]);
 };
