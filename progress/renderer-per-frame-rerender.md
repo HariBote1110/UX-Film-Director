@@ -209,3 +209,22 @@ nativeRenderエラー 0件。**成功判定の回数系指標で、再生中のR
 - リサイズハンドル押下（onHandlePointerDown）のワールド変換prepは同層へ
   verbatim移設したが、重量E2Eはリサイズ操作を演習しないため実機での
   ドラッグ・リサイズ確認が未実施。実機確認時の観点として残す。
+
+### 追補（Beta-482b）: 敵対的レビューで確定した回帰と修正
+
+抽出後のdiffに対する多視点レビュー（4観点の発見→指摘ごとに2名の反証検証）で、
+**混在set()時のstale closure発火**が確定した: zustandのsetStateはリスナーを
+set()内で同期実行するため、`switchScene` 等がobjects/layers/isPlaying/currentTime
+を単一set()で変えると、tickがReactコミット前に1レンダー分古いclosureで発火する
+（旧effect実装は必ずコミット後発火だったため起きなかった回帰）。
+
+修正: `shouldDeferCurrentTimeTick`（純関数）で「storeがコミット済みレンダーより
+先行している」tickを検出して保留し、毎コミット後のcatch-up effectが新鮮な
+closureで実行する（`viewportTickConsistency.test.ts` が契約を固定。複製述語
+`isSharedRendererNativeRenderOnlySession` の同期テストも同ファイル）。
+選択デコレーション層にも同型ガード（こちらは既存のコミット後effect群が
+catch-upを兼ねる）。修正後の重量E2E（run3）でもcallCount 5 / layoutCount 213 /
+PASS / settled / エラー0を維持。
+
+反証で棄却した指摘: 「unmount後の応答がsetActiveを呼ぶ」（React 18では
+unmount後のsetStateは無害なno-opで実害なし）。
