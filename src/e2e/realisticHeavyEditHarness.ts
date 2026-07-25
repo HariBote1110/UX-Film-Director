@@ -14,7 +14,11 @@ type HarnessResult = Record<string, unknown> & { ok: boolean };
 
 type RealisticHeavyEditHarnessApi = {
   seed: (paths: RealisticHeavyEditPaths) => Promise<HarnessResult>;
-  exercise: (options?: { scrubIterations?: number; playbackMs?: number }) => Promise<HarnessResult>;
+  exercise: (options?: {
+    scrubIterations?: number;
+    playbackMs?: number;
+    clearSelectionBeforePlayback?: boolean;
+  }) => Promise<HarnessResult>;
   roundTrip: () => Promise<HarnessResult>;
   prepareShortExport: (durationSeconds?: number) => HarnessResult;
   serialiseProject: () => string;
@@ -165,11 +169,19 @@ const seed = async (paths: RealisticHeavyEditPaths): Promise<HarnessResult> => {
 };
 
 const exercise = async (
-  options: { scrubIterations?: number; playbackMs?: number } = {},
+  options: {
+    scrubIterations?: number;
+    playbackMs?: number;
+    clearSelectionBeforePlayback?: boolean;
+  } = {},
 ): Promise<HarnessResult> => {
   window.__UXFD_REACT_PROFILE_TRACE__?.reset();
   const scrubIterations = Math.max(60, Math.min(1_200, options.scrubIterations ?? 360));
   const playbackMs = Math.max(1_000, Math.min(10_000, options.playbackMs ?? 3_000));
+  // 再生中のmojo IPC(Receive mojo reply)発生源を切り分けるための計測オプション。
+  // trueの場合のみ再生計測区間へ入る直前に選択をクリアし、選択デコレーション
+  // 送信経路とpresentフレーム本体経路のどちらが主因かを実験的に確定させる。
+  const clearedSelectionBeforePlayback = options.clearSelectionBeforePlayback === true;
   const before = snapshot();
   const initialState = useStore.getState();
   const mainSceneId = initialState.activeSceneId;
@@ -227,6 +239,9 @@ const exercise = async (
   }
 
   useStore.getState().setTime(0);
+  if (clearedSelectionBeforePlayback) {
+    useStore.getState().selectObjects([]);
+  }
   useStore.getState().setIsPlaying(true);
   const rafDeltas = await collectRafDeltas(playbackMs);
   useStore.getState().setIsPlaying(false);
@@ -258,6 +273,7 @@ const exercise = async (
     after,
     scrubIterations,
     scrubDurationMs,
+    clearedSelectionBeforePlayback,
     duplicatedObjectCount,
     undoObjectCount,
     redoObjectCount,

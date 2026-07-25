@@ -23,6 +23,7 @@ import {
   diffChromiumPerformanceMetrics,
   summariseChromiumRendererTrace,
 } from './lib/chromium-renderer-trace.mjs';
+import { parseClearSelectionBeforePlaybackOption } from './lib/realistic-heavy-edit-options.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_DIR = resolve(ROOT, '.codex/realistic-heavy-edit-e2e');
@@ -52,6 +53,9 @@ const PLAYBACK_MS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_PLAYBACK_MS ?? 
 const SCRUB_ITERATIONS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_SCRUB_ITERATIONS ?? 360);
 const EXPORT_SECONDS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_EXPORT_SECONDS ?? 2);
 const SKIP_EXPORT = process.env.UXFD_REALISTIC_HEAVY_EDIT_SKIP_EXPORT === '1';
+// IPC発生源（選択デコレーション送信経路 vs. presentフレーム本体経路）を切り分ける
+// ための計測専用オプション。既定はfalseで従来どおり選択を維持したまま再生する。
+const CLEAR_SELECTION_BEFORE_PLAYBACK = parseClearSelectionBeforePlaybackOption(process.env);
 const COLLECT_CHROMIUM_TRACE =
   process.env.UXFD_REALISTIC_HEAVY_EDIT_CHROMIUM_TRACE !== '0';
 const USER_DATA_DIR = resolve(
@@ -455,7 +459,8 @@ const main = async () => {
   const exercisePromise = collectChromiumRendererTrace(() => client.evaluate(`
       window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.exercise({
         scrubIterations: ${JSON.stringify(SCRUB_ITERATIONS)},
-        playbackMs: ${JSON.stringify(PLAYBACK_MS)}
+        playbackMs: ${JSON.stringify(PLAYBACK_MS)},
+        clearSelectionBeforePlayback: ${JSON.stringify(CLEAR_SELECTION_BEFORE_PLAYBACK)}
       })
     `));
   await sleep(Math.min(1_500, Math.max(500, PLAYBACK_MS / 2)));
