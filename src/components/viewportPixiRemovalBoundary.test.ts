@@ -10,6 +10,12 @@ import { describe, expect, it } from 'vitest';
 const viewportSource = () =>
   readFileSync(new URL('./Viewport.tsx', import.meta.url), 'utf8');
 
+// 選択枠のリサイズハンドル押下ハンドラ（グループ変形・振動込みのワールド変換
+// 計算）は SceneSelectionDecorationLayer.tsx へ移設済み（選択枠オーバーレイの
+// Viewport からの独立コンポーネント抽出）。
+const selectionDecorationLayerSource = () =>
+  readFileSync(new URL('./SceneSelectionDecorationLayer.tsx', import.meta.url), 'utf8');
+
 describe('Viewport Pixi removal boundary', () => {
   it('Viewport.tsx は pixi.js とPixi依存モジュールを import しない', () => {
     const code = viewportSource();
@@ -23,7 +29,10 @@ describe('Viewport Pixi removal boundary', () => {
   });
 
   it('グループ変形・振動は sceneTransforms から直接 import する', () => {
-    const code = viewportSource();
+    // この import は選択枠のリサイズハンドル押下ハンドラでのみ使われており、
+    // 選択枠オーバーレイの独立コンポーネント抽出で
+    // SceneSelectionDecorationLayer.tsx 側へ移設された。
+    const code = selectionDecorationLayerSource();
     expect(code).toContain("from '../utils/sceneTransforms'");
   });
 

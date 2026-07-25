@@ -249,12 +249,18 @@ describe('scene selection overlay native decoration boundary', () => {
   });
 
   it('wires Viewport selection changes to the native overlay selection decoration IPC with SVG fallback', () => {
+    // 選択デコレーションの送信ロジック（sender・SVG フォールバック配線）は
+    // SceneSelectionDecorationLayer.tsx へ移設済み。Viewport 側は同レイヤーを
+    // マウントし、body co-delivery 計算用の quad ビルダーだけを引き続き使う
+    // （body present 経路。SceneSelectionDecorationLayer.test.ts 参照）。
     const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
+    const layer = readFileSync(resolve(root, 'src/components/SceneSelectionDecorationLayer.tsx'), 'utf8');
 
     expect(viewport).toContain('buildSelectionDecorationQuads');
-    expect(viewport).toContain('createNativeOverlaySelectionDecorationSender');
-    expect(viewport).toContain('setSelectionDecoration');
-    expect(viewport).toContain('visualsHidden');
+    expect(viewport).toContain('SceneSelectionDecorationLayer');
+    expect(layer).toContain('createNativeOverlaySelectionDecorationSender');
+    expect(layer).toContain('setSelectionDecoration');
+    expect(layer).toContain('visualsHidden');
   });
 
   it('exposes setSelectionDecoration through preload and the renderer type surface', () => {
@@ -265,12 +271,17 @@ describe('scene selection overlay native decoration boundary', () => {
     expect(envTypes).toContain('setSelectionDecoration: (payload: {');
   });
 
-  it('wires the body co-delivery split (Bug B対策) into Viewport: shouldSendStandaloneDecoration gates standalone sends, and the native-overlay present call carries selectionDecoration', () => {
+  it('wires the body co-delivery split (Bug B対策) into Viewport/SceneSelectionDecorationLayer: shouldSendStandaloneDecoration gates standalone sends, and the native-overlay present call carries selectionDecoration', () => {
+    // standalone channel の送信可否判定（shouldSendStandaloneDecoration・
+    // nativeOverlayBodyCoDeliveryEligible）は SceneSelectionDecorationLayer.tsx
+    // へ移設済み。body present（video-only reuse 経路、Viewport 側）は
+    // 従来どおり selectionDecoration を同梱する。
     const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
+    const layer = readFileSync(resolve(root, 'src/components/SceneSelectionDecorationLayer.tsx'), 'utf8');
 
     // standalone channel は shouldSendStandaloneDecoration の判定を経由する。
-    expect(viewport).toContain('shouldSendStandaloneDecoration');
-    expect(viewport).toContain('nativeOverlayBodyCoDeliveryEligible');
+    expect(layer).toContain('shouldSendStandaloneDecoration');
+    expect(layer).toContain('nativeOverlayBodyCoDeliveryEligible');
     // body present（video-only reuse 経路）は selectionDecoration を同梱する。
     expect(viewport).toContain('prepareSharedRendererViewportNativeOverlayPresent');
     expect(viewport).toContain('selectionDecoration: sessionSelectionDecoration');
@@ -280,14 +291,15 @@ describe('scene selection overlay native decoration boundary', () => {
     // native-render-only と混在セッションの reuse tick も native overlay の
     // presentSharedFrame へ selectionDecoration を同梱するため、standalone
     // 送信のskip判定へ両方を含めて2チャネルの競合presentを防ぐ。
-    const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
-    const start = viewport.indexOf('const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled');
-    const end = viewport.indexOf(';', start);
-    const block = viewport.slice(start, end);
+    // この判定は SceneSelectionDecorationLayer.tsx へ移設済み。
+    const layer = readFileSync(resolve(root, 'src/components/SceneSelectionDecorationLayer.tsx'), 'utf8');
+    const start = layer.indexOf('const nativeOverlayBodyCoDeliveryEligible = latest.rustVideoOnlyEnabled');
+    const end = layer.indexOf(';', start);
+    const block = layer.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('isNativeOverlayDirectSceneSession(sharedRendererPreviewSession)');
-    expect(block).toContain('isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)');
+    expect(block).toContain('isNativeOverlayDirectSceneSession(latest.sharedRendererPreviewSession)');
+    expect(block).toContain('isSharedRendererNativeRenderOnlySession(latest.sharedRendererPreviewSession)');
   });
 });
 

@@ -12,12 +12,9 @@ import { shallow } from 'zustand/shallow';
 import { useSceneInteraction } from '../hooks/useSceneInteraction';
 import { hitTestSceneObjects, type SceneHitTestViewport } from '../utils/sceneHitTest';
 import { createStablePointerSubscription } from '../utils/sceneInteractionLogic';
-import { SceneSelectionOverlay } from './SceneSelectionOverlay';
+import { SceneSelectionDecorationLayer } from './SceneSelectionDecorationLayer';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
-// PixiJS 排除計画 Phase 4: グループ変形・振動は Pixi 非依存の sceneTransforms を直接参照する。
-import { getGroupTransforms, getVibrationOffset } from '../utils/sceneTransforms';
-import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { buildVisionDetectionOverlayBoxes } from '../utils/visionDetectionOverlayGeometry';
@@ -84,12 +81,7 @@ import {
   buildNativeOverlayAttachKey,
   shouldPollNativeOverlayAttach,
 } from '../utils/nativeOverlayAttachPolling';
-import {
-  buildSelectionDecorationQuads,
-  createNativeOverlaySelectionDecorationSender,
-  shouldSendStandaloneDecoration,
-  type SelectionDecorationSendState,
-} from '../utils/nativeOverlaySelectionDecoration';
+import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDecoration';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
@@ -688,22 +680,12 @@ const Viewport: React.FC = () => {
   // 評価を renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
   const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC === '1';
   const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';
-  // 選択デコレーション — SVG（SceneSelectionOverlay）は child NSWindow 化された
-  // native overlay に隠れるため、選択枠・ハンドルの見た目は addon 側で描く。
-  // true の間は SVG を透明化（不可視だが操作可能）し、addon 不可用・attach
-  // 失敗時は false に戻して SVG の可視スタイルへフォールバックする。
-  const [nativeSelectionDecorationActive, setNativeSelectionDecorationActive] = useState(false);
+  // 選択デコレーション（送信ロジック・SVG 透明化 state）は
+  // SceneSelectionDecorationLayer.tsx へ移設済み。attach 成功 tick の bump
+  // だけは Viewport 側に残す（attach 自体は Viewport が行うため）。
   // attach は resize 等で作り直され addon 側の decoration state が失われ得る
   // ため、attach 成功 tick を dedupe 鍵に含めて同値 quad でも再送する。
   const [nativeOverlayAttachTick, setNativeOverlayAttachTick] = useState(0);
-  const selectionDecorationSenderRef = useRef(
-    createNativeOverlaySelectionDecorationSender((payload) =>
-      window.nativeOverlay!.setSelectionDecoration(payload)),
-  );
-  // 症状B（本体フレームと選択枠 present が独立2チャネルのためドラッグ中に
-  // ズレる不具合）対策 — shouldSendStandaloneDecoration が「前回 tick から
-  // 何が変化したか」を判定するための直近状態。
-  const selectionDecorationSendStateRef = useRef<SelectionDecorationSendState | null>(null);
   const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
   // 二重クロック対策（発見1）の逃げ道 — 実機で吸着が不自然に見えた場合は
   // VITE_UXFD_EXTERNAL_VIDEO_MASTER_CLOCK=0 で無効化して従来の rAF 積算のみに
@@ -934,89 +916,9 @@ const Viewport: React.FC = () => {
 
   const editorMode = projectSettings.editorMode ?? '2d';
 
-  // 選択デコレーション（standalone チャネル）— 選択変更・時間変化のたびに
-  // world quad を送る。値が不変なら sender が dedupe して IPC を発行しない。
-  // 応答の success/attached で SVG の透明化（native 描画が生きている間のみ）
-  // を切り替える。
-  //
-  // 症状B対策: native overlay の body co-delivery が有効な tick
-  // （video-only・native-render-only・混在セッションの reuse present 経路。
-  // publishSharedRendererPreviewSession
-  // 内で selectionDecoration を presentNativeOverlaySharedFrame に同梱する）では、
-  // objects/currentTime が変化した tick の送信を shouldSendStandaloneDecoration
-  // がスキップする。body 側が同じ (objects, time) から計算した decoration を
-  // 同じ present に同梱するため、ここで独立に送ると2チャネルが同じ native
-  // overlay live surface へ競合 present してしまう（ドラッグ中に本体と選択枠
-  // がズレる根本原因）。selectedIds のみの変化、および co-delivery 非対象
-  // （native overlayを利用できないフォールバック経路など、本体が
-  // native overlay の presentSharedFrame に一切乗らない場合）は従来どおり
-  // standalone が唯一の配信経路であり続ける。
-  useEffect(() => {
-    if (
-      !nativeOverlayPreviewEnabled
-      || editorMode === '3d_stage'
-      || typeof window.nativeOverlay?.setSelectionDecoration !== 'function'
-    ) {
-      setNativeSelectionDecorationActive(false);
-      selectionDecorationSendStateRef.current = null;
-      return;
-    }
-    // native-overlay が生成ソースを構築できるため、混在セッションも
-    // CAMetalLayerへ本体とselectionDecorationを同時配信する。
-    const nativeOverlayBodyCoDeliveryEligible = rustVideoOnlyEnabled
-      && sharedRendererPreviewSession != null
-      && (
-        isNativeOverlayDirectSceneSession(sharedRendererPreviewSession)
-        || isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)
-      );
-    const nextSendState: SelectionDecorationSendState = {
-      selectedIds,
-      objects,
-      time: currentTime,
-      nativeOverlayBodyCoDeliveryEligible,
-    };
-    const shouldSend = shouldSendStandaloneDecoration(selectionDecorationSendStateRef.current, nextSendState);
-    selectionDecorationSendStateRef.current = nextSendState;
-    if (!shouldSend) return;
-    const quads = buildSelectionDecorationQuads({
-      selectedIds,
-      objects,
-      time: currentTime,
-    });
-    const pending = selectionDecorationSenderRef.current.update(
-      {
-        canvasWidth: projectSettings.width,
-        canvasHeight: projectSettings.height,
-        quads,
-      },
-      nativeOverlayAttachTick,
-    );
-    if (!pending) return;
-    let cancelled = false;
-    pending
-      .then((response) => {
-        if (cancelled) return;
-        setNativeSelectionDecorationActive(Boolean(response?.success && response?.attached));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setNativeSelectionDecorationActive(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    nativeOverlayPreviewEnabled,
-    editorMode,
-    selectedIds,
-    objects,
-    currentTime,
-    projectSettings.width,
-    projectSettings.height,
-    nativeOverlayAttachTick,
-    rustVideoOnlyEnabled,
-    sharedRendererPreviewSession,
-  ]);
+  // 選択デコレーション（standalone チャネル）の送信ロジック・SVG 透明化 state は
+  // SceneSelectionDecorationLayer.tsx へ移設済み（currentTime を React 経由で
+  // 購読せず、useStore.subscribe + 命令的パッチで時間追従するため）。
 
   const selectedBillboardPsdId = useMemo(() => {
     if (editorMode !== '3d_stage') return null;
@@ -2472,34 +2374,19 @@ const Viewport: React.FC = () => {
             }}
           />
           {editorMode !== '3d_stage' && (
-            <SceneSelectionOverlay
+            <SceneSelectionDecorationLayer
               selectedIds={selectedIds}
               objects={objects}
-              time={currentTime}
-              viewport={sceneInteractionViewportRef.current}
+              viewportRef={sceneInteractionViewportRef}
               width={previewW}
               height={previewH}
-              visualsHidden={nativeSelectionDecorationActive}
-              onHandlePointerDown={(objectId, corner, e) => {
-                const targetObject = objects.find((o) => o.id === objectId);
-                if (!targetObject) return;
-                const size = (targetObject as unknown as { width?: number; height?: number });
-                const bounds = { bx: 0, by: 0, bw: size.width ?? 100, bh: size.height ?? 100 };
-                // 選択枠と同じ「コンテナのワールド変換」（base position + group
-                // transforms + vibration, rotation/scale も group 積算込み）を使う。
-                // sceneHitTest.ts の getObjectWorldCorners と同じ式。
-                const base = evaluateObjectPositionAtTime(targetObject, currentTime);
-                const groupEffects = getGroupTransforms(targetObject, currentTime, objects);
-                const vib = getVibrationOffset(targetObject, currentTime);
-                const rotationRad = ((targetObject.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
-                onSceneResizeStart(e, objectId, corner, bounds, {
-                  x: base.x + groupEffects.x + vib.x,
-                  y: base.y + groupEffects.y + vib.y,
-                  rotationRad,
-                  scaleX: (targetObject.scaleX ?? 1) * groupEffects.scaleX,
-                  scaleY: (targetObject.scaleY ?? 1) * groupEffects.scaleY,
-                });
-              }}
+              projectCanvasWidth={projectSettings.width}
+              projectCanvasHeight={projectSettings.height}
+              nativeOverlayPreviewEnabled={nativeOverlayPreviewEnabled}
+              rustVideoOnlyEnabled={rustVideoOnlyEnabled}
+              sharedRendererPreviewSession={sharedRendererPreviewSession}
+              nativeOverlayAttachTick={nativeOverlayAttachTick}
+              onResizeStart={onSceneResizeStart}
             />
           )}
           {/*
