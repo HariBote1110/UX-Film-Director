@@ -1,6 +1,7 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
+更新: 2026-07-25 / 版 `0.1.1-Beta-482a` — P1完了（callCount 211→5）。次はP2から。
 
 ## 0. ゴール（元の指示）
 
@@ -12,28 +13,25 @@ GetColor・HKSY・SimpleTube等のエフェクト生成、テキスト・図形�
 
 ## 1. ここから着手（優先順）
 
-### P1: Viewportの選択枠オーバーレイを独立コンポーネントへ抽出する
+### P1: ✅完了（Beta-482a, 2026-07-25） Viewportの選択枠オーバーレイ抽出とcurrentTime購読の全廃
 
-**これが再生中レンダラーCPUの最大の残課題。**
+**結果: React sync work の `callCount` 211 → 5（2回のE2Eで再現）。総合PASS・
+settled・エラー0件。** 詳細と測定表は `progress/renderer-per-frame-rerender.md`
+の「解決（Beta-482a）」節。
 
-`src/components/Viewport.tsx` のJSXが `currentTime` に依存しているため、再生中
-毎フレーム1回Reactがコミットする（`callCount` 210〜212で不変）。依存箇所は
-選択枠オーバーレイの位置計算：
+実施内容（コミット d03b2459〜4c2f8a73）:
+- 選択枠を `SceneSelectionDecorationLayer` へ抽出。時間追従はhook購読ではなく
+  `useStore.subscribe` + SVG属性の命令的パッチ（React描画とパッチが純関数
+  `computeSceneSelectionOverlayGeometry` を共有）。契約テストを先に整備した。
+- Viewport本体のセレクタから `currentTime` を除去し、requestTime→publish→
+  renderScene のtick処理を `onCurrentTimeTickRef` + subscribeへ一元化。
+- `TimelineCurrentTimeDisplay`（textContent直接更新）と
+  `useVisionRealtimeDetection`（デバウンスのsubscribe化）の購読も除去。
+- 残る毎フレームのlayoutCount（212〜213）は時刻テキスト等のDOM更新由来で、
+  Reactではない。`performWorkUntilDeadline` が180〜195残る（コスト小・原因未特定）。
 
-- `Viewport.tsx:2456`（`time: currentTime`）
-- `Viewport.tsx:2478`（子への `time={currentTime}`）
-- `Viewport.tsx:2491-2493`（`evaluateObjectPositionAtTime` / `getGroupTransforms` / `getVibrationOffset`）
-- `Viewport.tsx:2524`（`time: currentTime`）
-
-effectだけ切り出しても止まらない。**このJSXサブツリーを独立コンポーネントへ
-抽出し、そこだけが `currentTime` を購読する形にする**必要がある。
-
-**注意**: 選択枠は枠ズレ・幽霊表示のバグを繰り返してきた領域である
-（`progress/five-bugs-structural-redesign.md`、
-`progress/selection-decoration-phase2-visibility-and-codelivery.md`）。
-**先に選択枠の契約テストを厚くしてから抽出すること。**
-
-成功判定は `callCount` の減少（後述の測定規約を必ず読むこと）。
+**実機での未確認事項**: 選択枠のドラッグ・リサイズ操作（重量E2Eは演習しない）。
+実機確認時にリサイズハンドルの追従を確認すること。
 
 ### P2: `text` をRust frame source必須側へ倒す
 

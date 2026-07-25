@@ -79,7 +79,7 @@ Beta-481aで `TimelineCurrentTimeIndicator` を、`useStore` の購読による�
 毎フレーム経路から外してもあるため残置する。ただし**現時点で測定可能な効果は無い**。
 `Viewport` の再レンダーを止めたあとに初めて効果が現れる位置づけである。
 
-## 残っている問題
+## 残っている問題（→ Beta-482aで解決。後述「解決」節を参照）
 
 - **再レンダー回数は210〜212回のまま**、つまり依然として毎フレーム1回Reactが走る。
   これまでに減ったのは1回あたりの仕事量だけである。
@@ -133,3 +133,79 @@ main process側でチャネル別カウンタを取るなど別の計測手段�
   今後は推測ではなくトレース値を根拠に優先順位を決められる。
 - 重量E2Eを二重に走らせるとElectron同士が競合してタイムアウトする。計測は
   必ず単独で実行すること。
+
+## 解決（Beta-482a）: currentTime hook購読の全廃で callCount 211 → 5
+
+### 設計
+
+「毎フレーム購読者だけを小コンポーネントへ切り出す」方針をさらに進め、
+**`currentTime` をhook購読するコンポーネントをゼロにした**（例外は後述の
+VisionDetectionOverlayLayerのみ）。時間追従はすべて素の `useStore.subscribe` +
+手動diff + DOM直接更新（`TimelineCurrentTimeIndicator` の流儀）で行う。
+
+1. **選択枠オーバーレイの抽出**（`SceneSelectionDecorationLayer.tsx`）
+   - ジオメトリ計算を純関数 `computeSceneSelectionOverlayGeometry`
+     （`sceneSelectionOverlayGeometry.ts`）へ切り出し、React描画と命令的パッチ
+     （`sceneSelectionOverlayPatch.ts` の `applySceneSelectionOverlayGeometry`）が
+     **同じ純関数を共有**することで両経路のズレを構造的に防ぐ。契約は手計算
+     リテラルの単体テストで固定（幽霊枠バグ・症状A/Bの保護を含む）。
+   - `SceneSelectionOverlay` は選択オブジェクトの `<g>` を**常時マウントし
+     `display:none` で隠す**契約へ変更（時間帯の出入りを命令的にトグルするため）。
+     パッチ対象要素は `<g>` のcallback refのみで収集する（Reactのrefは子→親の
+     順で呼ばれるため、親のref時点で子要素を `querySelector` できる。polygon/rect
+     個別のrefだと初回マウントで登録漏れする）。
+   - 選択デコレーションのstandalone送信・`nativeSelectionDecorationActive` も
+     同層へ移設。送信応答の適用は「cleanupでcancel」から「send idのlatest-wins」
+     へ置き換え（意味論は最新送信の応答のみ適用で同等。旧実装は再生中ほぼ常に
+     cancelされる偶発挙動だった）。setStateには同値ガードを入れ、毎フレームの
+     応答でReact workを発生させない。
+2. **Viewport本体の購読除去** — セレクタから `currentTime` を外し、
+   requestTime → publish → renderScene のtick処理を `onCurrentTimeTickRef`
+   （最新closureのref差し替え + mount時一度だけのsubscribe）へ一元化。既存
+   effectはexport終了・revision出現・objects変化等の低頻度契機のみ担当し、
+   時刻は `useStore.getState()` で都度読む。
+3. **時刻表示** `TimelineCurrentTimeDisplay` — subscribe + `textContent` 直接更新へ。
+4. **`useVisionRealtimeDetection`** — 停止中スクラブのデバウンスをsubscribe +
+   armクロージャへ（このhookの購読は呼び出し元Viewportを毎フレーム再レンダー
+   させていた）。
+5. **例外**: `VisionDetectionOverlayLayer`（vision検出枠）はopt-inプレビュー
+   有効時のみマウントされる小さな層で、マウント中のみhook購読を許容する
+   （重量E2Eでは非マウント）。
+
+### 実測（重量E2E、同一機・開発ビルド。修正後は2回）
+
+| 指標 | 修正前(481a) | 修正後run1 | 修正後run2 |
+|---|---|---|---|
+| React sync work関数 callCount（旧「React再レンダー関数」） | **211** / 160.1ms | **5** / 45.7ms | **5** / 44.7ms |
+| `performWorkUntilDeadline` | 364 | 195 | 180 |
+| `animate`（rAF） | 178 | 179 | 178 |
+| layoutCount | 213 | 213 | 212 |
+| recalcStyleCount | 220 | 217 | 215 |
+| busyMs（参考。run-to-runで大きくばらつく） | 1473.7 | 1437.2 | 1306.2 |
+
+両runとも総合PASS・`settled: true`・runtimeErrors / MissingSource /
+nativeRenderエラー 0件。**成功判定の回数系指標で、再生中のReact workは
+毎フレーム1回（211）→ 実測5回まで消滅し、2回のrunで完全に再現した。**
+残る5回は選択デコレーション応答による `visualsHidden` 切替等の実変化分。
+
+### 分かったこと・残る観察
+
+- **layoutCount（212〜213）は不変**。予測どおり毎フレームのレイアウトはReactでは
+  なくDOM更新（時刻テキストの `textContent`、選択枠SVG属性パッチ）由来。時刻を
+  表示し続ける限り原理的に避けられない。削るなら表示の更新間引きが次の手。
+- `performWorkUntilDeadline` は364→180〜195に減ったが依然フレーム級に残る。
+  Schedulerのidle loop起因とみられ、コストは小さい（77〜87ms）。原因特定は未着手。
+- busyMs は参考値。1306〜1474はばらつき幅（過去実測970〜1520）の内側であり、
+  単発比較で改善と断定しない（測定規約どおり）。
+
+### 制約・注意（今後の触り方）
+
+- `SceneSelectionDecorationLayer` は「Reactレンダー時も命令的パッチ時も
+  ジオメトリは純関数から取る」ことが不変条件。SVGの形を変えるときは
+  `sceneSelectionOverlayGeometry.ts` を変更し、契約テストを先に更新すること。
+- `isSharedRendererNativeRenderOnlySession` は境界テストと循環import回避のため
+  Viewport.tsxから**意図的に複製**した（同層ファイル冒頭のコメント参照）。
+  述語を変更する際は両方を揃えること。
+- リサイズハンドル押下（onHandlePointerDown）のワールド変換prepは同層へ
+  verbatim移設したが、重量E2Eはリサイズ操作を演習しないため実機での
+  ドラッグ・リサイズ確認が未実施。実機確認時の観点として残す。
