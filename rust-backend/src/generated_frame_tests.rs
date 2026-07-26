@@ -1724,6 +1724,79 @@ fn generated_text_source_frame_shadow_blur_spread_increases_monotonically() {
     );
 }
 
+/// 極端に大きい・非有限な `blur` を与えてもハングせずに完了することを検証する
+/// ための共通ヘルパー。フレーム生成を別スレッドで実行し、`timeout_secs` 秒
+/// 待っても結果が返らない場合は「ハングした」とみなしてテストを失敗させる
+/// （半径に上限が無い実装は、この待ち時間内に戻ってこない）。
+fn build_generated_text_source_frame_with_timeout(
+    media: SceneMediaReference,
+    timeout_secs: u64,
+) -> Result<RgbaFrame, String> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = build_generated_text_source_frame(&media);
+        // 受信側が既にタイムアウトで諦めている場合は送信に失敗しうるが、
+        // その場合はテストが既に失敗しているため無視してよい。
+        let _ = sender.send(result);
+    });
+
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(timeout_secs))
+        .unwrap_or_else(|_| {
+            panic!(
+                "generated Text frame did not complete within {timeout_secs}s; \
+                 an unbounded box-blur radius would loop proportionally to `blur` \
+                 regardless of the buffer size and effectively hang"
+            )
+        })
+}
+
+#[test]
+fn generated_text_source_frame_shadow_extreme_blur_completes_without_hanging() {
+    // 意図的に極端な blur を与える。半径にクランプが無い実装だと、初期窓和
+    // ループ（`for x in 0..=radius`）が半径に比例した回数だけ回るため、
+    // この規模の半径では現実的な時間内に終わらない（ハングする）。
+    let media = text_shadow_blur_test_media(1.0e9);
+    let frame = build_generated_text_source_frame_with_timeout(media, 10)
+        .expect("generated Text frame with extreme blur should render, not error");
+
+    // クランプ後の半径（プレーン寸法程度）でも window（= 2*radius+1）は
+    // プレーン寸法よりなお大きくなり得るため、影の総アルファ質量が
+    // ローカルバッファ全体へ極端に希釈され、8bit 量子化で 0 に丸め込まれる
+    // ことがある（実測済み）。これは意図した副作用であり、この修正が
+    // 保証すべきなのは「ハングも panic もせず、壊れていない寸法のフレームが
+    // 有限時間で返ること」であって、極端値での影の可視性そのものではない。
+    assert_eq!(frame.width, 400);
+    assert_eq!(frame.height, 150);
+    assert_eq!(frame.pixels.len(), 400 * 150 * 4);
+}
+
+#[test]
+fn generated_text_source_frame_shadow_blur_non_positive_and_overflowing_do_not_panic() {
+    // "-10.0" と "0.0" は blur <= 0 のフォールバック経路を、"1e40" は
+    // JSON としては正当な数値だが f32 へのデシリアライズ時にオーバー
+    // フローして無限大になる経路を通す（f32::INFINITY は JSON の数値
+    // リテラルとして直接は表現できないため、この形で経路を確保する）。
+    for blur_literal in ["-10.0", "0.0", "1e40"] {
+        let media = SceneMediaReference {
+            id: format!("text-shadow-blur-literal-{blur_literal}"),
+            kind: MediaKind::Text,
+            source: format!(
+                r##"{{"text":"l","font_family":"Arial","font_size":64,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":{{"colour":"#ff0000","offset_x":120,"offset_y":0,"blur":{blur_literal}}}}}"##
+            ),
+            width: 400,
+            height: 150,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+        let result = build_generated_text_source_frame_with_timeout(media, 10);
+        assert!(
+            result.is_ok(),
+            "blur literal {blur_literal} should not panic and should still render a frame"
+        );
+    }
+}
+
 #[test]
 fn generated_shape_source_frame_renders_filled_circle_with_transparent_corners() {
     let media = SceneMediaReference {
