@@ -1,6 +1,7 @@
 use super::*;
 use flate2::{write::ZlibEncoder, Compression};
 use std::io::Write;
+use uxfd_golden_harness::RgbaFrame;
 
 fn write_test_rgba_png(name: &str, width: u32, height: u32, rgba: &[u8]) -> std::path::PathBuf {
     let expected_len = usize::try_from(width)
@@ -1573,6 +1574,154 @@ fn generated_text_source_frame_rejects_non_positive_dimensions() {
 
     let result = build_generated_text_source_frame(&media);
     assert!(result.is_err());
+}
+
+/// `textShadow.blur` の契約テスト用ヘルパー。
+///
+/// 本体（白 `#ffffff`）と影（赤 `#ff0000`）を色で判別できるようにし、
+/// 影のオフセットを大きく取ることで本体グリフと重ならないようにする。
+/// こうすることで、フレーム内の「赤みがかった」ピクセルだけを見れば
+/// 影の広がり・アルファを本体の影響なしに検証できる。
+fn text_shadow_blur_test_media(blur: f32) -> SceneMediaReference {
+    SceneMediaReference {
+        id: format!("text-shadow-blur-{blur}"),
+        kind: MediaKind::Text,
+        source: format!(
+            r##"{{"text":"l","font_family":"Arial","font_size":64,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":{{"colour":"#ff0000","offset_x":120,"offset_y":0,"blur":{blur}}}}}"##
+        ),
+        width: 400,
+        height: 150,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    }
+}
+
+/// 赤み（影）を帯びたピクセルかどうかを判定する。本体は白（r=g=b）なので
+/// 単純な「赤が緑・青より十分強い」判定で影のピクセルだけを拾える。
+fn is_shadow_tinted(rgba: &[u8]) -> bool {
+    rgba[3] > 0 && rgba[0] > rgba[1].saturating_add(50) && rgba[0] > rgba[2].saturating_add(50)
+}
+
+/// 影（赤）ピクセルのバウンディングボックス `(min_x, min_y, max_x, max_y)` を求める。
+fn shadow_bounding_box(frame: &RgbaFrame) -> (u32, u32, u32, u32) {
+    let mut min_x = u32::MAX;
+    let mut min_y = u32::MAX;
+    let mut max_x = 0u32;
+    let mut max_y = 0u32;
+    for y in 0..frame.height {
+        for x in 0..frame.width {
+            let index = ((y * frame.width + x) * 4) as usize;
+            if is_shadow_tinted(&frame.pixels[index..index + 4]) {
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+            }
+        }
+    }
+    assert!(min_x <= max_x, "expected at least one shadow pixel");
+    (min_x, min_y, max_x, max_y)
+}
+
+fn pixel_alpha(frame: &RgbaFrame, x: u32, y: u32) -> u8 {
+    let index = ((y * frame.width + x) * 4) as usize;
+    frame.pixels[index + 3]
+}
+
+fn count_shadow_tinted_pixels(frame: &RgbaFrame) -> usize {
+    frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| is_shadow_tinted(rgba))
+        .count()
+}
+
+#[test]
+fn generated_text_source_frame_shadow_without_blur_keeps_sharp_edge() {
+    let media = text_shadow_blur_test_media(0.0);
+    let frame = build_generated_text_source_frame(&media)
+        .expect("generated Text frame with shadow should render");
+
+    let (min_x, min_y, max_x, max_y) = shadow_bounding_box(&frame);
+    let centre_y = (min_y + max_y) / 2;
+    let centre_x = (min_x + max_x) / 2;
+
+    // ぼかし無しなので、バウンディングボックスの外側1pxは完全に透明のはず。
+    assert_eq!(
+        pixel_alpha(&frame, min_x - 1, centre_y),
+        0,
+        "left of the sharp shadow bounding box should stay fully transparent"
+    );
+    assert_eq!(
+        pixel_alpha(&frame, max_x + 1, centre_y),
+        0,
+        "right of the sharp shadow bounding box should stay fully transparent"
+    );
+    assert_eq!(
+        pixel_alpha(&frame, centre_x, min_y - 1),
+        0,
+        "above the sharp shadow bounding box should stay fully transparent"
+    );
+    assert_eq!(
+        pixel_alpha(&frame, centre_x, max_y + 1),
+        0,
+        "below the sharp shadow bounding box should stay fully transparent"
+    );
+}
+
+#[test]
+fn generated_text_source_frame_shadow_with_blur_spreads_beyond_sharp_bounds() {
+    let sharp_frame = build_generated_text_source_frame(&text_shadow_blur_test_media(0.0))
+        .expect("generated Text frame with sharp shadow should render");
+    let (min_x, min_y, _max_x, max_y) = shadow_bounding_box(&sharp_frame);
+    let centre_y = (min_y + max_y) / 2;
+
+    let blurred_frame = build_generated_text_source_frame(&text_shadow_blur_test_media(16.0))
+        .expect("generated Text frame with blurred shadow should render");
+
+    // ぼかし無しでは透明だった、バウンディングボックスの少し外側の位置が
+    // ぼかしありでは非透明になっている（影が外側へ広がった証拠）。
+    assert_eq!(pixel_alpha(&sharp_frame, min_x - 2, centre_y), 0);
+    assert!(
+        pixel_alpha(&blurred_frame, min_x - 2, centre_y) > 0,
+        "blurred shadow should spread past the sharp bounding box"
+    );
+}
+
+#[test]
+fn generated_text_source_frame_shadow_blur_reduces_centre_alpha() {
+    let sharp_frame = build_generated_text_source_frame(&text_shadow_blur_test_media(0.0))
+        .expect("generated Text frame with sharp shadow should render");
+    let (min_x, min_y, max_x, max_y) = shadow_bounding_box(&sharp_frame);
+    let centre_x = (min_x + max_x) / 2;
+    let centre_y = (min_y + max_y) / 2;
+
+    let blurred_frame = build_generated_text_source_frame(&text_shadow_blur_test_media(16.0))
+        .expect("generated Text frame with blurred shadow should render");
+
+    let sharp_alpha = pixel_alpha(&sharp_frame, centre_x, centre_y);
+    let blurred_alpha = pixel_alpha(&blurred_frame, centre_x, centre_y);
+
+    assert!(
+        blurred_alpha < sharp_alpha,
+        "blurred shadow centre alpha ({blurred_alpha}) should be lower than sharp shadow centre alpha ({sharp_alpha}) as energy spreads out"
+    );
+}
+
+#[test]
+fn generated_text_source_frame_shadow_blur_spread_increases_monotonically() {
+    let small_blur_frame = build_generated_text_source_frame(&text_shadow_blur_test_media(4.0))
+        .expect("generated Text frame with small blur should render");
+    let large_blur_frame = build_generated_text_source_frame(&text_shadow_blur_test_media(12.0))
+        .expect("generated Text frame with large blur should render");
+
+    let small_blur_count = count_shadow_tinted_pixels(&small_blur_frame);
+    let large_blur_count = count_shadow_tinted_pixels(&large_blur_frame);
+
+    assert!(
+        large_blur_count > small_blur_count,
+        "larger blur ({large_blur_count} tinted pixels) should spread the shadow further than a smaller blur ({small_blur_count} tinted pixels)"
+    );
 }
 
 #[test]
