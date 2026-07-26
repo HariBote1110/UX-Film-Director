@@ -279,7 +279,10 @@ fn paint_shadow(
         return;
     }
 
-    let radius = box_blur_radius_for(blur);
+    // バッファ寸法（プレーンの width/height）でクランプする。上限の根拠は
+    // clamp_box_blur_radius のドキュメントを参照。通常の blur 値（この上限
+    // に掛からない範囲）では半径を一切変えないため、見た目は変わらない。
+    let radius = clamp_box_blur_radius(box_blur_radius_for(blur), width as usize, height as usize);
     if radius <= 0 {
         // 計算上ブラー半径が0になるほど小さい blur 値は、視覚的な差が
         // 出ないためシャープ描画にフォールバックする。
@@ -401,7 +404,11 @@ fn paint_shadow(
 /// ガウシアン分散 σ² に一致するよう導出されたもの）。ボックス幅から
 /// 片側半径は radius = floor(w / 2) とする。
 fn box_blur_radius_for(blur: f32) -> i32 {
-    if blur <= 0.0 {
+    // NaN / 無限大は後段の算術（floor、i32キャストなど）を通すと未定義の
+    // 挙動にはならないものの（Rust の float→int キャストは飽和するため）、
+    // 意図がわかりにくい巨大値やゼロが暗黙に生じてしまう。ここで明示的に
+    // ガードし、ぼかし無しへフォールバックさせる。
+    if !blur.is_finite() || blur <= 0.0 {
         return 0;
     }
     let sigma = blur / 2.0;
@@ -409,9 +416,36 @@ fn box_blur_radius_for(blur: f32) -> i32 {
     ((ideal_width / 2.0).floor() as i32).max(0)
 }
 
+/// ボックスブラー半径をバッファ寸法でクランプする。
+///
+/// ローカルなアルファバッファ（`width` x `height`）より大きい半径でぼかして
+/// も、結果は「バッファ全体に均一に拡散しきった状態」以上には変わらない。
+/// 3パスのボックスブラーを直列適用すると、各パスが半径分ずつ広がりを
+/// 足し合わせるため最終的な広がりは概ね `3 * radius` になる。したがって
+/// `radius` が `max(width, height)` を超えると、3パス後の広がりはバッファの
+/// 一辺の長さを優に超え、それ以上半径を大きくしても視覚的な結果は変わらない
+/// （バッファ全体が一様に薄まるだけ）。上限を `max(width, height)` に取れば、
+/// 通常の（この上限に掛からない）blur 値では半径を一切変えずに、
+/// ループ回数とオーバーフローの両方をバッファ寸法で有界化できる。
+///
+/// `radius` が 0 以下（ぼかし無し／不正値のフォールバック）の場合はそのまま
+/// 返す。呼び出し側の「0以下ならスキップ」という判断をここで変えないため。
+fn clamp_box_blur_radius(radius: i32, width: usize, height: usize) -> i32 {
+    if radius <= 0 {
+        return radius;
+    }
+    let max_dimension = width.max(height).min(i32::MAX as usize) as i32;
+    radius.min(max_dimension)
+}
+
 /// 分離可能ボックスブラーを「水平1回＋垂直1回」を1セットとして3セット
 /// 適用し、ガウシアンぼかしを近似する。
+///
+/// `radius` はここでもバッファ寸法でクランプする。呼び出し元（現状は
+/// `paint_shadow` のみ）が既にクランプ済みであっても、二重クランプは
+/// no-op で無害なので、将来呼び出し元が増えたときの安全網として残す。
 fn box_blur_three_pass(buffer: &mut [u8], width: usize, height: usize, radius: i32) {
+    let radius = clamp_box_blur_radius(radius, width, height);
     if radius <= 0 || width == 0 || height == 0 {
         return;
     }
@@ -422,7 +456,10 @@ fn box_blur_three_pass(buffer: &mut [u8], width: usize, height: usize, radius: i
 }
 
 fn box_blur_horizontal(buffer: &mut [u8], width: usize, height: usize, radius: i32) {
-    let window = 2 * radius + 1;
+    // radius は呼び出し元（box_blur_three_pass）でバッファ寸法にクランプ
+    // 済みである前提だが、念のため window はオーバーフローしない i64 で
+    // 計算する。
+    let window: i64 = 2 * radius as i64 + 1;
     let mut row_buffer = vec![0u8; width];
     for y in 0..height {
         let row_start = y * width;
@@ -453,7 +490,8 @@ fn box_blur_horizontal(buffer: &mut [u8], width: usize, height: usize, radius: i
 }
 
 fn box_blur_vertical(buffer: &mut [u8], width: usize, height: usize, radius: i32) {
-    let window = 2 * radius + 1;
+    // window の算出根拠は box_blur_horizontal を参照。
+    let window: i64 = 2 * radius as i64 + 1;
     let mut column_buffer = vec![0u8; height];
     for x in 0..width {
         let mut sum: i64 = 0;
@@ -483,8 +521,8 @@ fn box_blur_vertical(buffer: &mut [u8], width: usize, height: usize, radius: i32
 }
 
 /// ウィンドウ内の合計値から四捨五入で平均を求める。
-fn box_blur_average(sum: i64, window: i32) -> u8 {
-    ((sum + window as i64 / 2) / window as i64).clamp(0, 255) as u8
+fn box_blur_average(sum: i64, window: i64) -> u8 {
+    ((sum + window / 2) / window).clamp(0, 255) as u8
 }
 
 fn blend_pixel(dest: &mut [u8], source: [u8; 4]) {
@@ -537,7 +575,47 @@ fn family_with_cjk_fallback(font_family: &str) -> Family<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::list_font_families;
+    use super::{box_blur_radius_for, clamp_box_blur_radius, list_font_families};
+
+    /// クランプは、通常の（クランプ境界にかからない）blur 値に対しては
+    /// 半径を一切変えない no-op であるべき。これはクランプ導入前後で
+    /// `paint_shadow` の見た目が変わらないことを担保する契約。
+    #[test]
+    fn clamp_box_blur_radius_is_noop_for_typical_blur_and_dimensions() {
+        let width = 400usize;
+        let height = 150usize;
+        let radius = box_blur_radius_for(8.0);
+        assert!(radius > 0, "expected a positive radius for blur=8.0");
+        assert_eq!(
+            clamp_box_blur_radius(radius, width, height),
+            radius,
+            "clamp should be a no-op for a radius well within the buffer dimensions"
+        );
+    }
+
+    #[test]
+    fn clamp_box_blur_radius_caps_at_the_larger_buffer_dimension() {
+        assert_eq!(clamp_box_blur_radius(1_000_000, 400, 150), 400);
+        assert_eq!(clamp_box_blur_radius(1_000_000, 150, 400), 400);
+    }
+
+    #[test]
+    fn clamp_box_blur_radius_leaves_non_positive_radius_untouched() {
+        assert_eq!(clamp_box_blur_radius(0, 400, 150), 0);
+        assert_eq!(clamp_box_blur_radius(-5, 400, 150), -5);
+    }
+
+    /// `blur` が NaN / 無限大でも `box_blur_radius_for` は 0（ぼかし無し
+    /// フォールバック）を返し、後段の算術（floor、i32 キャストなど）へ
+    /// 非有限値を持ち込まない。JSON 経由では NaN を直接表現できないため
+    /// （`generated_frame_tests.rs` 側のブラックボックステストではこの
+    /// 経路を通せない）、ここで直接ホワイトボックスに検証する。
+    #[test]
+    fn box_blur_radius_for_non_finite_blur_returns_zero() {
+        assert_eq!(box_blur_radius_for(f32::NAN), 0);
+        assert_eq!(box_blur_radius_for(f32::INFINITY), 0);
+        assert_eq!(box_blur_radius_for(f32::NEG_INFINITY), 0);
+    }
 
     #[test]
     #[cfg(target_os = "macos")]
