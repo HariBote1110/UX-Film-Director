@@ -1141,10 +1141,17 @@ const Viewport: React.FC = () => {
   // 代わり Canvas 2D の measureText で近似計測し、rustSceneSnapshot の
   // textMediaBox が参照する measuredWidth/measuredHeight を維持する。
   // 計測不能な環境では書き戻さず、textMediaBox のヒューリスティックに任せる。
+  // letterSpacing はボックス計測と実描画（rust-backend の text.rs）の不整合を
+  // 防ぐため、object.letterSpacing をそのまま計測へ渡す（未指定時は 0 扱い）。
   useEffect(() => {
     objects.forEach((object) => {
       if (object.type !== 'text') return;
-      const size = measureTextBoxSize(object);
+      const size = measureTextBoxSize({
+        text: object.text,
+        fontFamily: object.fontFamily,
+        fontSize: object.fontSize,
+        letterSpacing: object.letterSpacing,
+      });
       if (!size) return;
       if (object.measuredWidth === size.width && object.measuredHeight === size.height) return;
       useStore.getState().updateObject(object.id, {
