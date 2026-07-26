@@ -1624,15 +1624,19 @@ describe('hasProjectExportNativeRenderMediaObjects: native対応objectの網羅�
   // 別々に手書き管理されている。二重管理は必ずどちらかの更新漏れを生む
   // (実際にshattered_sphereとplain_effector_lineがexport判定側から漏れていた)。
   // このテストはSSOT (isSupportedSceneObject) がtrueを返す全typeを総当たりし、
-  // textを除いてhasProjectExportNativeRenderMediaObjectsもtrueを返すことを固定する。
+  // hasProjectExportNativeRenderMediaObjectsもtrueを返すことを固定する。
   // これにより将来また新typeがネイティブ対応されてもexport判定側の追従漏れを自動検知できる。
-  it('rustSceneSnapshotのSSOTがサポートする全object type (text除く) がnative render media扱いになる', () => {
+  it('rustSceneSnapshotのSSOTがサポートする全object typeがnative render media扱いになる', () => {
     const objectsRequiringSsotSupport = ALL_TIMELINE_OBJECT_TYPES
       .map((type) => contractObjectOfType(type))
-      .filter((object) => isSupportedSceneObject(object) && object.type !== 'text');
+      .filter((object) => isSupportedSceneObject(object));
 
-    // textはPixiの標準テキスト描画がlegacy canvas captureでも正しく動作するため、
-    // Rust frame sourceを強制する対象から意図的に除外している。
+    // PixiJSはPhase 4/5で完全撤去済みで、Chromium側はテキストのグリフを一切描いていない
+    // (実描画はrust-backend/src/generated/text.rsのcosmic-textが担う。
+    // textBoxMeasurement.tsのmeasureTextはボックス寸法測定のみ)。
+    // 2D exportの「legacy canvas」はgetExportCanvasが返すshared rendererのsurface
+    // canvasであり、中身は既にRustが描いた結果をCPU往復コピーしているだけなので、
+    // textだけをRust frame source必須から除外する理由は無い。
     objectsRequiringSsotSupport.forEach((object) => {
       expect(hasProjectExportNativeRenderMediaObjects([object])).toBe(true);
     });
@@ -1642,5 +1646,45 @@ describe('hasProjectExportNativeRenderMediaObjects: native対応objectの網羅�
     expect(hasProjectExportNativeRenderMediaObjects([
       contractObjectOfType('shattered_sphere'),
     ])).toBe(true);
+  });
+
+  it('text単体のobjectでもnative render media扱いになる (Pixi撤去によりChromiumはグリフを描かないため除外不要)', () => {
+    expect(hasProjectExportNativeRenderMediaObjects([
+      contractObjectOfType('text'),
+    ])).toBe(true);
+  });
+});
+
+describe('text単体プロジェクトのRust frame source方針: legacy canvasへ落ちず失敗する (意図した挙動変更)', () => {
+  // 【意図した挙動変更であることの明記】
+  // 従来はtextのみのプロジェクトはhasNativeRenderMediaObjects=falseとなり、
+  // Rust frame sourceが用意できなくてもlegacy canvasへフォールバックしてexportが
+  // 成立していた。しかしlegacy canvasの中身はshared rendererのsurface canvasに
+  // すぎず、Rust frame sourceが用意できない状況ではそのcanvas自体も空か古いフレーム
+  // である可能性が高い。「フォールバック」は正しい絵を保証せず、無音で空フレームを
+  // 書き出すより失敗した方がよい。image/psdのみのプロジェクトは既に同じ扱い
+  // (Rust必須・失敗時はfailExport) であり、textだけが例外である理由が無くなったため、
+  // テキストのみのプロジェクトもRust frame sourceが無ければexport失敗するようにする。
+  it('text単体のプロジェクトはrequireRustFrameSource/failExportになる', () => {
+    const objects: TimelineObject[] = [contractObjectOfType('text')];
+
+    const context = resolveProjectExportRustFrameSourceContext({
+      objects,
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    });
+
+    expect(context.hasNativeRenderMediaObjects).toBe(true);
+
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      rustExportOnly: false,
+      hasVideoObjects: context.hasVideoObjects,
+      hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
+      encodeEngine: 'webCodecsMp4Muxer',
+    })).toEqual({
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceBlockedFallback: 'failExport',
+    });
   });
 });
