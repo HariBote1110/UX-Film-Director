@@ -150,7 +150,7 @@ pub(crate) fn build_generated_text_source_frame(
             .map_err(|message| format!("Invalid Text media '{}': {message}", media.id))?,
     ) {
         let [sr, sg, sb] = shadow_colour;
-        paint_buffer(
+        paint_shadow(
             &mut buffer,
             &mut font_system,
             &mut swash_cache,
@@ -178,7 +178,6 @@ pub(crate) fn build_generated_text_source_frame(
                 stroke_colour_value,
                 dx,
                 dy,
-                0.0,
             );
         }
     }
@@ -193,7 +192,6 @@ pub(crate) fn build_generated_text_source_frame(
         text_colour,
         0.0,
         0.0,
-        0.0,
     );
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
@@ -206,7 +204,8 @@ pub(crate) fn build_generated_text_source_frame(
 
 /// swash によるラスタライズ結果を `pixels`（RGBA8, straight alpha）へ
 /// アルファブレンドで描き込む。`offset_*` はストローク・影の位置ずらしに使う。
-#[allow(clippy::too_many_arguments)]
+/// ぼかしは持たない（本体・ストロークの描画に使う。影のぼかしは
+/// `paint_shadow` を参照）。
 fn paint_buffer(
     buffer: &mut Buffer,
     font_system: &mut FontSystem,
@@ -217,7 +216,6 @@ fn paint_buffer(
     colour: CosmicColor,
     offset_x: f32,
     offset_y: f32,
-    _blur: f32,
 ) {
     let width_i = width as i32;
     let height_i = height as i32;
@@ -241,6 +239,252 @@ fn paint_buffer(
             }
         }
     });
+}
+
+/// 影を描く。`blur <= 0` のときは従来どおり `paint_buffer` でシャープに描く
+/// （回帰させないための分岐）。`blur > 0` のときは、影のグリフをいったん
+/// ローカルなアルファバッファへラスタライズし、分離可能ボックスブラー
+/// 3パス（水平＋垂直を1セットとして3セット）でガウシアンぼかしを近似
+/// してから `pixels` へ合成する。色・アルファの合成規則（`blend_pixel`）
+/// 自体は変えない。
+///
+/// パフォーマンス: プレーン全体ではなく、影のバウンディングボックス＋
+/// ブラーの広がり分だけをアルファバッファとして確保・処理する
+/// （テキストは通常プレーンの一部にしか広がらないため）。
+#[allow(clippy::too_many_arguments)]
+fn paint_shadow(
+    buffer: &mut Buffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    colour: CosmicColor,
+    offset_x: f32,
+    offset_y: f32,
+    blur: f32,
+) {
+    if blur <= 0.0 {
+        paint_buffer(
+            buffer,
+            font_system,
+            swash_cache,
+            pixels,
+            width,
+            height,
+            colour,
+            offset_x,
+            offset_y,
+        );
+        return;
+    }
+
+    let radius = box_blur_radius_for(blur);
+    if radius <= 0 {
+        // 計算上ブラー半径が0になるほど小さい blur 値は、視覚的な差が
+        // 出ないためシャープ描画にフォールバックする。
+        paint_buffer(
+            buffer,
+            font_system,
+            swash_cache,
+            pixels,
+            width,
+            height,
+            colour,
+            offset_x,
+            offset_y,
+        );
+        return;
+    }
+
+    let width_i = width as i32;
+    let height_i = height as i32;
+    let offset_x_i = offset_x.round() as i32;
+    let offset_y_i = offset_y.round() as i32;
+
+    // 1パス目: 影グリフの（オフセット適用後の）バウンディングボックスを求める。
+    let mut min_x = i32::MAX;
+    let mut min_y = i32::MAX;
+    let mut max_x = i32::MIN;
+    let mut max_y = i32::MIN;
+    buffer.draw(font_system, swash_cache, colour, |x, y, w, h, glyph_colour| {
+        if glyph_colour.a() == 0 || w == 0 || h == 0 {
+            return;
+        }
+        let gx0 = x + offset_x_i;
+        let gy0 = y + offset_y_i;
+        let gx1 = gx0 + w as i32 - 1;
+        let gy1 = gy0 + h as i32 - 1;
+        min_x = min_x.min(gx0);
+        min_y = min_y.min(gy0);
+        max_x = max_x.max(gx1);
+        max_y = max_y.max(gy1);
+    });
+    if min_x > max_x || min_y > max_y {
+        // 描くべきグリフが無かった（空文字列など）。
+        return;
+    }
+
+    // 3パスのボックスブラーを直列適用すると、各パスが半径分ずつ広がりを
+    // 足し合わせるため、最終的な広がりは概ね 3 * radius になる。
+    // ローカルバッファはその広がりを打ち切らずに保持できるよう
+    // 3 * radius の余白を確保する。
+    let padding = radius.saturating_mul(3);
+    let padded_min_x = (min_x - padding).max(0);
+    let padded_min_y = (min_y - padding).max(0);
+    let padded_max_x = (max_x + padding).min(width_i - 1);
+    let padded_max_y = (max_y + padding).min(height_i - 1);
+    if padded_min_x > padded_max_x || padded_min_y > padded_max_y {
+        return;
+    }
+
+    let local_width = (padded_max_x - padded_min_x + 1) as usize;
+    let local_height = (padded_max_y - padded_min_y + 1) as usize;
+    let mut alpha_buffer = vec![0u8; local_width * local_height];
+
+    // 2パス目: 影グリフのアルファをローカルバッファへ描き込む。
+    buffer.draw(font_system, swash_cache, colour, |x, y, w, h, glyph_colour| {
+        let glyph_alpha = glyph_colour.a();
+        if glyph_alpha == 0 {
+            return;
+        }
+        for row in 0..h as i32 {
+            for col in 0..w as i32 {
+                let px = x + col + offset_x_i;
+                let py = y + row + offset_y_i;
+                if px < padded_min_x || py < padded_min_y || px > padded_max_x || py > padded_max_y
+                {
+                    continue;
+                }
+                let local_x = (px - padded_min_x) as usize;
+                let local_y = (py - padded_min_y) as usize;
+                let index = local_y * local_width + local_x;
+                // グリフ同士が重なるケース（通常は起きないが）で暗くならないよう最大値を採る。
+                alpha_buffer[index] = alpha_buffer[index].max(glyph_alpha);
+            }
+        }
+    });
+
+    box_blur_three_pass(&mut alpha_buffer, local_width, local_height, radius);
+
+    let shadow_rgb = [colour.r(), colour.g(), colour.b()];
+    for local_y in 0..local_height {
+        for local_x in 0..local_width {
+            let alpha = alpha_buffer[local_y * local_width + local_x];
+            if alpha == 0 {
+                continue;
+            }
+            let px = padded_min_x + local_x as i32;
+            let py = padded_min_y + local_y as i32;
+            // ここでプレーン境界の外は既にバッファ生成時に切り捨てているが、
+            // ぼかしによって影が本来より外側へ広がる分、境界での見切れが
+            // 目立ちやすくなる可能性がある。これは別の既知の課題
+            // （テキストのバウンディングボックスに stroke/shadow の広がりが
+            // 加算されていないこと）であり、本修正では対応しない。
+            let index = ((py as u32 * width + px as u32) * 4) as usize;
+            blend_pixel(
+                &mut pixels[index..index + 4],
+                [shadow_rgb[0], shadow_rgb[1], shadow_rgb[2], alpha],
+            );
+        }
+    }
+}
+
+/// CSS の `text-shadow` / `box-shadow` の慣習に合わせ、`blur` パラメータを
+/// ガウシアンの標準偏差 σ = blur / 2 とみなす。
+///
+/// 3パスのボックスブラーで単一の標準偏差 σ のガウシアンを近似する場合、
+/// 各パスのボックス幅 w は、W. M. Kutskir（"Fastest Gaussian Blur (in
+/// linear time)"）で示された定番の近似式
+///   w = floor(σ * 3 * sqrt(2π) / 4 + 0.5)
+/// で求められる（3つの同じ幅のボックス畳み込みの分散の和が、目的の
+/// ガウシアン分散 σ² に一致するよう導出されたもの）。ボックス幅から
+/// 片側半径は radius = floor(w / 2) とする。
+fn box_blur_radius_for(blur: f32) -> i32 {
+    if blur <= 0.0 {
+        return 0;
+    }
+    let sigma = blur / 2.0;
+    let ideal_width = (sigma * 3.0 * (2.0 * std::f32::consts::PI).sqrt() / 4.0 + 0.5).floor();
+    ((ideal_width / 2.0).floor() as i32).max(0)
+}
+
+/// 分離可能ボックスブラーを「水平1回＋垂直1回」を1セットとして3セット
+/// 適用し、ガウシアンぼかしを近似する。
+fn box_blur_three_pass(buffer: &mut [u8], width: usize, height: usize, radius: i32) {
+    if radius <= 0 || width == 0 || height == 0 {
+        return;
+    }
+    for _ in 0..3 {
+        box_blur_horizontal(buffer, width, height, radius);
+        box_blur_vertical(buffer, width, height, radius);
+    }
+}
+
+fn box_blur_horizontal(buffer: &mut [u8], width: usize, height: usize, radius: i32) {
+    let window = 2 * radius + 1;
+    let mut row_buffer = vec![0u8; width];
+    for y in 0..height {
+        let row_start = y * width;
+        let row = &buffer[row_start..row_start + width];
+
+        let mut sum: i64 = 0;
+        for x in 0..=radius {
+            if (x as usize) < width {
+                sum += row[x as usize] as i64;
+            }
+        }
+
+        for x in 0..width {
+            row_buffer[x] = box_blur_average(sum, window);
+
+            let leaving_x = x as i32 - radius;
+            let entering_x = x as i32 + radius + 1;
+            if leaving_x >= 0 && (leaving_x as usize) < width {
+                sum -= row[leaving_x as usize] as i64;
+            }
+            if entering_x >= 0 && (entering_x as usize) < width {
+                sum += row[entering_x as usize] as i64;
+            }
+        }
+
+        buffer[row_start..row_start + width].copy_from_slice(&row_buffer);
+    }
+}
+
+fn box_blur_vertical(buffer: &mut [u8], width: usize, height: usize, radius: i32) {
+    let window = 2 * radius + 1;
+    let mut column_buffer = vec![0u8; height];
+    for x in 0..width {
+        let mut sum: i64 = 0;
+        for y in 0..=radius {
+            if (y as usize) < height {
+                sum += buffer[(y as usize) * width + x] as i64;
+            }
+        }
+
+        for y in 0..height {
+            column_buffer[y] = box_blur_average(sum, window);
+
+            let leaving_y = y as i32 - radius;
+            let entering_y = y as i32 + radius + 1;
+            if leaving_y >= 0 && (leaving_y as usize) < height {
+                sum -= buffer[(leaving_y as usize) * width + x] as i64;
+            }
+            if entering_y >= 0 && (entering_y as usize) < height {
+                sum += buffer[(entering_y as usize) * width + x] as i64;
+            }
+        }
+
+        for y in 0..height {
+            buffer[y * width + x] = column_buffer[y];
+        }
+    }
+}
+
+/// ウィンドウ内の合計値から四捨五入で平均を求める。
+fn box_blur_average(sum: i64, window: i32) -> u8 {
+    ((sum + window as i64 / 2) / window as i64).clamp(0, 255) as u8
 }
 
 fn blend_pixel(dest: &mut [u8], source: [u8; 4]) {
