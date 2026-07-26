@@ -1,7 +1,8 @@
 # 決定ログ索引
 
+- [text-stroke-shadow-clipping.md](text-stroke-shadow-clipping.md) — 縁取り・影がプレーン境界で切れる未修正バグ。プレーンを広げるだけでは回転軸が動くため、TS側の寸法・位置とRust側の描画原点の協調変更が要る（2026-07-26）
 - [text-shadow-blur.md](text-shadow-blur.md) — `textShadow.blur` が完全に無視されていたバグの修正。分離可能ボックスブラー3パスでガウシアンを近似し、影のバウンディングボックス限定で処理。境界クリップは既知の別バグとして残置（2026-07-26）
-- [renderer-per-frame-rerender.md](renderer-per-frame-rerender.md) — 再生中のReact毎フレーム再レンダーのトレース実測と、`currentTime` hook購読の全廃（選択枠のsubscribe+命令的パッチ化・Viewport tick一元化）による callCount 211→5 の解決。測定指標のばらつき実測を含む（2026-07-25）
+- [renderer-per-frame-rerender.md](renderer-per-frame-rerender.md) — 再生中のReact毎フレーム再レンダーの削減。`currentTime` hook購読の全廃と生成効果object-idの供給元一本化で Viewport commitCount 377→109〜126。**測定指標の誤り2件の訂正（callCountのlane問題・rAFスロットリング）と、指標ごとのばらつき実測を含む**（2026-07-26）
 - [chromium-render-path-audit.md](chromium-render-path-audit.md) — production到達可能なChromium描画経路（legacy canvas capture、WebGPU presenter、3D Stage、PSD import、measureText）の棚卸しと廃止順序、`shattered_sphere`のexport判定漏れ（2026-07-25）
 - [post-export-presenter-recovery.md](post-export-presenter-recovery.md) — export直後に`videoTextureViewUnavailable`でpresenterがfallback固定される不具合の原因（RPCモードで復帰経路が未配線）と、ready tick再評価・起動時transient扱い・E2E整定条件の強化（2026-07-25）
 - [native-playback-clock.md](native-playback-clock.md) — Electron main所有の単調再生時計、VideoToolbox NV12 resident動画と生成sceneのCAMetalLayer直接提示、Chromium surface分離E2E、CPU測定（2026-07-24）
