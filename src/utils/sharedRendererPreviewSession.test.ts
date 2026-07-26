@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
-import {
-  buildSharedRendererPreviewSession,
-  collectSharedRendererGeneratedEffectObjectIdsFromSession,
-} from './sharedRendererPreviewSession';
+import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
-import { buildAviUtlShatteredSphereObject } from './objectFactories/shatteredSphereObjectFactory';
 import type { ImageObject, ProjectSettings, ShapeObject } from '../types';
 
 const settings: ProjectSettings = {
@@ -127,29 +123,5 @@ describe('buildSharedRendererPreviewSession', () => {
       reason: 'planNotComparable',
       detail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
-  });
-
-  it('collects a standalone shattered sphere as a generated effect for native preview ownership', () => {
-    const object = buildAviUtlShatteredSphereObject({
-      id: 'shattered-sphere-1',
-      projectWidth: settings.width,
-      projectHeight: settings.height,
-      startTime: 0,
-      layer: 1,
-    });
-    const session = buildSharedRendererPreviewSession({
-      enabled: true,
-      projectSettings: settings,
-      layers: createDefaultLayers(),
-      objects: [object],
-      time: 0,
-      editorMode: '2d',
-      isExporting: false,
-      webGpuAvailable: true,
-      fallbackAdapter: false,
-    });
-
-    expect(session.surfaceGate.ok).toBe(true);
-    expect(collectSharedRendererGeneratedEffectObjectIdsFromSession(session)).toEqual(['shattered-sphere-1']);
   });
 });

@@ -21,7 +21,6 @@ import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { measureTextBoxSize } from '../utils/textBoxMeasurement';
 import {
   buildSharedRendererPreviewSession,
-  collectSharedRendererGeneratedEffectObjectIdsFromSession,
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
 import { buildSharedRendererPreviewSessionFromEvaluatedScene } from '../utils/sharedRendererEvaluatedScenePreviewSession';
@@ -1211,7 +1210,18 @@ const Viewport: React.FC = () => {
         }),
       }
       : undefined;
-    updateSharedRendererGeneratedEffectObjectIds(collectSharedRendererGeneratedEffectObjectIdsFromSession(session));
+    // 生成効果の object-id 変化検出（renderTick 経由の renderScene 再実行契機）は
+    // presenter 起動完了コールバック（nativeRenderFrameReady でゲートされた
+    // control.generatedEffectObjectIds）を唯一の供給元とする。
+    // かつてはここで session から無条件に収集した値を毎tick即時反映していたが
+    // （2026-06-21 commit c951f8ed、PixiJS 二重描画レース対策）、PixiJS 排除計画
+    // Phase 4 で Pixi シーングラフ描画自体が撤去され、その対策の存在意義が
+    // 失われた。にもかかわらず残っていたため、この session 側（無条件）と
+    // presenter 側（nativeRenderFrameReady ゲート）という異なる条件の2つの
+    // 供給元が同じ ref を交互に「まるごと追加→まるごと削除」で上書きし合い、
+    // renderTick が再生中ほぼ毎フレーム発火して Viewport が過剰再レンダーする
+    // 原因になっていた（solidColour/image/psd/text は最初から presenter 側の
+    // みが供給元で、この二重書きを持たない）。
     const diagnosticsWindow = window as unknown as {
       __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
       __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
@@ -1491,7 +1501,6 @@ const Viewport: React.FC = () => {
     nativeOverlayPreviewEnabled,
     rustVideoOnlyEnabled,
     requestSharedRendererExternalVideoFrameRepaint,
-    updateSharedRendererGeneratedEffectObjectIds,
   ]);
 
   // Latest publish callback, so the native reuse single-flight replay can re-run
