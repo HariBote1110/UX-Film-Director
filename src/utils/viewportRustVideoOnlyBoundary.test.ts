@@ -35,16 +35,23 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('updateSharedRendererVideoObjectIds');
   });
 
-  it('updates generated effect Pixi cutover ids from the shared renderer preview session before presenter completion', () => {
+  // 旧: 「session から即時反映」契約（2026-06-21 commit c951f8ed、PixiJS 二重描画
+  // レース対策）。PixiJS 排除計画 Phase 4 で Pixi シーングラフ描画そのものが
+  // 撤去され対策の前提が消えた後もこの即時反映だけが残り、毎tick実行される
+  // publish 側（無条件）と presenter 完了コールバック側
+  // （nativeRenderFrameReady ゲート）という異なる条件の2供給元が同じ ref を
+  // 交互に上書きし合う renderTick flip-flop（重量E2Eの再生区間で Viewport が
+  // 196回コミット）を引き起こしていた。
+  // 詳細は src/components/viewportGeneratedEffectObjectIdsSingleSource.test.ts
+  // を参照。修正で publish 側の即時反映は撤去し、solidColour/image/psd/text と
+  // 同様に presenter 完了コールバックのみを単一供給源（SSOT）とした。
+  it('does not update generated effect object ids from the publish-side session (single source of truth is the presenter completion callback)', () => {
     const code = viewportSource();
     const start = code.indexOf('const session = evaluatedSession ?? buildSharedRendererPreviewSession({');
     const end = code.indexOf('setSharedRendererPreviewSession(session)', start);
     const publishSessionBlock = code.slice(start, end);
 
-    expect(code).toContain('collectSharedRendererGeneratedEffectObjectIdsFromSession');
-    expect(publishSessionBlock).toContain(
-      'updateSharedRendererGeneratedEffectObjectIds(collectSharedRendererGeneratedEffectObjectIdsFromSession(session))'
-    );
+    expect(publishSessionBlock).not.toContain('updateSharedRendererGeneratedEffectObjectIds(');
   });
 
   it('does not let the Viewport own legacy Pixi HTMLVideoElement texture resources', () => {
