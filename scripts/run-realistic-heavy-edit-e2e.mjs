@@ -548,6 +548,18 @@ const main = async () => {
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
   log(`結果: ${result.passed ? 'PASS' : 'FAIL'} ${RESULT_JSON}`);
+  // 有効性ゲート: rAFがスロットリングされていると回数系の性能指標
+  // （rafSampleCount/rafMeanMs/Viewport commits/layoutCount等）が桁違いに
+  // 悪化するのに機能的な正しさは影響を受けず総合PASSしてしまう。ここでは
+  // 総合PASS/FAILの判定自体は変えない（機能的な正しさは別問題であり、
+  // スロットリングを理由にE2Eを失敗させたいわけではない）。あくまで
+  // 「性能指標を比較に使ってよいか」を目立つ警告として出すだけに留める。
+  const playbackClockHealth = exercise?.playbackClockHealth ?? null;
+  if (playbackClockHealth && playbackClockHealth.healthy === false) {
+    log('警告: 再生計測がスロットリングされている可能性があります。今回の性能指標（rafSampleCount/rafMeanMs等）を比較・改善判定に使ってはいけません。');
+    log(`警告理由: ${playbackClockHealth.reason} / 実測 rafSampleCount=${exercise.rafSampleCount} rafMeanMs=${exercise.rafMeanMs}`);
+    log('警告: 他アプリがElectronウィンドウを隠していないか・ウィンドウがバックグラウンドへ回っていないかを確認したうえで、この重量E2Eを測り直してください。');
+  }
   stopProcesses();
   process.exit(result.passed ? 0 : 1);
 };

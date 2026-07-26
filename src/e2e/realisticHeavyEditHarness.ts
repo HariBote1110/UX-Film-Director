@@ -9,6 +9,7 @@ import {
   inspectRealisticHeavyEditScenario,
   type RealisticHeavyEditPaths,
 } from './realisticHeavyEditScenario';
+import { evaluateRealisticHeavyEditPlaybackClockHealth } from './realisticHeavyEditPlaybackClockHealth';
 
 type HarnessResult = Record<string, unknown> & { ok: boolean };
 
@@ -250,6 +251,19 @@ const exercise = async (
 
   const after = snapshot();
   const reactProfile = window.__UXFD_REACT_PROFILE_TRACE__?.snapshot() ?? null;
+  const rafSampleCount = rafDeltas.length;
+  const rafMeanMs = rafDeltas.length > 0
+    ? rafDeltas.reduce((total, value) => total + value, 0) / rafDeltas.length
+    : 0;
+  // Electronウィンドウが他アプリに隠れる等でrAFがスロットリングされると、
+  // 回数系の性能指標が桁違いに悪化するのに総合PASSしてしまう罠がある
+  // （詳細はrealisticHeavyEditPlaybackClockHealth.tsのdocコメントを参照）。
+  // ランナー側でこの計測区間を信頼してよいかを警告できるよう判定を含める。
+  const playbackClockHealth = evaluateRealisticHeavyEditPlaybackClockHealth({
+    rafSampleCount,
+    rafMeanMs,
+    playbackMs,
+  });
   const idCount = new Set(useStore.getState().objects.map((object) => object.id)).size;
   const expectedDuplicatedCount = initialObjectCount + editableIds.length * 3;
   const errors = [
@@ -278,15 +292,14 @@ const exercise = async (
     undoObjectCount,
     redoObjectCount,
     playbackMs,
-    rafSampleCount: rafDeltas.length,
-    rafMeanMs: rafDeltas.length > 0
-      ? rafDeltas.reduce((total, value) => total + value, 0) / rafDeltas.length
-      : 0,
+    rafSampleCount,
+    rafMeanMs,
     rafP95Ms: percentile(rafDeltas, 0.95),
     rafMaxMs: Math.max(0, ...rafDeltas),
     longTaskCount: longTaskDurations.length,
     longTaskMaxMs: Math.max(0, ...longTaskDurations),
     reactProfile,
+    playbackClockHealth,
   };
 };
 
