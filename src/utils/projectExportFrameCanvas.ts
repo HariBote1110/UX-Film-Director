@@ -319,12 +319,23 @@ export const resolveProjectExportFrameSourcePolicyForEncode = ({
 // rustSceneSnapshot.tsのisSupportedSceneObjectであり、ここでは手書きのOR式で
 // 二重管理しない。二重管理はどちらかの更新漏れ(実際にshattered_sphereと
 // plain_effector_lineが export 判定側から漏れていた)を必ず生むため、SSOTから導出する。
-// ただしtextはPixiの標準テキスト描画がlegacy canvas captureでも正しく動作するため、
-// Rust frame sourceを強制する対象から意図的に除外する。
+// textも除外しない。PixiJSはPhase 4/5で完全撤去済みで、Chromium側はテキストの
+// グリフを一切描いていない(実描画はrust-backend/src/generated/text.rsのcosmic-text
+// が担い、textBoxMeasurement.tsのmeasureTextはボックス寸法測定のみ)。2D exportの
+// 「legacy canvas」はgetExportCanvas(Viewport.tsx)が返すshared rendererのsurface
+// canvasであり、中身は既にRustが描いた結果をprojectExportLegacyCanvasCapture.tsが
+// createImageBitmapでCPU往復コピーしているだけなので、textだけを除外する理由が無い。
+// テキストのみのプロジェクトもRust frame sourceを必須とし、用意できなければ
+// (resolveProjectExportFrameSourcePolicyForEncodeによりfailExportとなり)
+// legacy canvasへ逃げずにexport失敗させる。これは意図した挙動である: legacy canvas
+// の中身はshared rendererのsurface canvasに過ぎず、Rust frame sourceが用意できない
+// 状況ではそのcanvas自体も空か古いフレームである可能性が高い。無音で空フレームを
+// 書き出すより失敗した方がよい。image/psdのみのプロジェクトは既に同じ扱いであり、
+// textだけが例外である理由も無い。
 export const hasProjectExportNativeRenderMediaObjects = (
   objects: readonly TimelineObject[]
 ): boolean =>
-  objects.some((object) => isSupportedSceneObject(object) && object.type !== 'text');
+  objects.some(isSupportedSceneObject);
 
 export const resolveProjectExportRustFrameSourceContext = ({
   objects,
