@@ -47,7 +47,14 @@ Rust/native側の対応object typeを唯一管理している `rustSceneSnapshot
 `isSupportedSceneObject` 側の更新だけで自動的に追従する。契約テストは
 `src/utils/projectExportFrameCanvas.test.ts` にSSOT総当たりの形で追加済み。
 
-### `text` を除外している理由（既知の未解決点）
+### `text` を除外している理由（→ Beta-483aで解消。下記は当時の記録）
+
+> **【解消済み・当時の認識に誤りあり】** Beta-483aで `!== 'text'` を撤去した
+> （commit `28bcd15b`）。下記が述べる「フォント選択・字形・行送りの再現性検証」は
+> **不要だった**。PixiJS撤去済みのためChromiumはグリフを描いておらず、legacy canvas
+> の中身も既にRustが描いたsurface canvasのCPU往復コピーに過ぎなかったため、
+> 比較すべき2つの描画系がそもそも存在しない。詳細は
+> `markdown/Chromium_Limitation_Handoff.md` のP2節。
 
 `text` の除外は**移行が済んでいるからではなく、従来挙動を変えないため**である。
 テキストはRust側に描画実装（`rust-backend/src/generated/text.rs`、`fonts.rs`）を持ち、

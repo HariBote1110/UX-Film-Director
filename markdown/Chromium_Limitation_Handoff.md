@@ -1,7 +1,7 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
-更新: 2026-07-26 / 版 `0.1.1-Beta-482b` — P1完了（callCount 211→5、レビュー確定回帰の修正込み）。次はP2から。
+更新: 2026-07-26 / 版 `0.1.1-Beta-483a` — P1は残件あり（Viewport 191→109/126）、P2完了。次はP3から。
 
 ## 0. ゴール（元の指示）
 
@@ -13,11 +13,12 @@ GetColor・HKSY・SimpleTube等のエフェクト生成、テキスト・図形�
 
 ## 1. ここから着手（優先順）
 
-### P1: 部分完了（Beta-482b） Viewportの選択枠オーバーレイ抽出とcurrentTime購読の全廃
+### P1: 残件あり（Beta-483a時点） Viewportの再レンダー削減
 
-**結果（コンポーネント別コミット数、3回のE2Eで再現）**:
-`Timeline` 211 → 5（達成）、`Viewport` 377 → 184〜198（**半減にとどまる。
-毎フレームのコミットは残存**）。総合PASS・settled・エラー0件。
+**現在の到達点**: `Timeline` 211 → 5、`Viewport` 377 → **109〜126**。
+総合PASS・settled・エラー0件。178フレーム中109〜126なので、まだ約0.6回/フレーム残る。
+
+以下は途中経過の記録（Beta-482a/482bの段階と、そこで犯した測定の誤り）。
 
 > **当初「callCount 211 → 5 で完了」と記録したが誤りだった。** その指標
 > （`topFunctions` の `chunk-…js:18625`）はReactの **sync lane** だけを数えており、
@@ -36,27 +37,59 @@ GetColor・HKSY・SimpleTube等のエフェクト生成、テキスト・図形�
 - layoutCount 213は不変だが**原因の主体は入れ替わった**。`InvalidateLayout` の
   祖先は修正前99%がReactコミット、修正後97%がrAF（`animate`）内の命令的DOM更新。
 
-**次にやるべき残件（P1の続き）**: `Viewport` がなぜ毎フレームコミットするのかは
-未特定。トレースとコード読解だけでは切り分けられず（生トレースにJSスタックが
-記録されていない）、**どのsetStateが毎フレーム発火しているかのランタイム計測**が要る。
-`setSharedRendererPreviewDiagnostic` が候補だが未確証。
+**その後（Beta-483a）**: ランタイム計測で原因を特定し修正した。
+`generatedEffect` の object-id 供給元が2つ（毎tickのpublish側と、
+`nativeRenderFrameReady` でゲートされたpresenter完了側）あって同じrefを交互に
+上書きし、`renderTick` が毎フレーム発火していた。publish側の即時反映は
+Pixi二重描画レース対策の名残でPhase 4後は不要だったため撤去。
+**`Viewport` commitCount は 191 → 109/126 まで減った**（2回とも計測有効・PASS）。
+
+**次にやるべき残件（P1の続き）**: `Viewport` はまだ109〜126回コミットする
+（178フレーム中）。残りの主因は `setSharedRendererPreviewSession`（計測103回）で、
+`buildSharedRendererPresenterSessionKey` の presenter key が約2フレームに1回
+変化している。reuse条件が成立しないフレームでフル再publishが起きているため、
+その条件を詰めるのが次の一手。
 
 **実機での未確認事項**: 選択枠のドラッグ・リサイズ操作（重量E2Eは演習しない）。
 実機確認時にリサイズハンドルの追従を確認すること。
 
-### P2: `text` をRust frame source必須側へ倒す
+### P2: ✅完了（Beta-483a） `text` をRust frame source必須側へ倒す
 
-テキストのみで構成したプロジェクトはexport時にlegacy canvas
-（`src/utils/projectExportLegacyCanvasCapture.ts` の `createImageBitmap`＝CPU往復）へ
-落ちる。これが経路1がproduction到達する主要条件。
+`hasProjectExportNativeRenderMediaObjects` から `&& object.type !== 'text'` を撤去し、
+SSOT（`isSupportedSceneObject`）からの素直な導出にした（`28bcd15b`）。
 
-`hasProjectExportNativeRenderMediaObjects`（`src/utils/projectExportFrameCanvas.ts`）は
-`isSupportedSceneObject(object) && object.type !== 'text'` となっており、この
-`!== 'text'` を外すのが本題。Rust側にはテキスト描画実装がある
-（`rust-backend/src/generated/text.rs`、`rust-backend/src/fonts.rs`）。
+**着手前の想定（フォント再現性の検証が必須）は誤りだった。** 調査の結果:
 
-**フォント選択・字形・行送りの再現性検証が必須。** 詳細は
-`progress/chromium-render-path-audit.md` の「`text` を除外している理由」節。
+- **PixiJS撤去済みのため、Chromium側はテキストのグリフを一切描いていない。**
+  `textBoxMeasurement.ts` の `measureText` はボックス寸法を測るだけで、実描画は
+  `rust-backend/src/generated/text.rs`（cosmic-text）が担う。
+- 2D exportの「legacy canvas」は `getExportCanvas` が返す shared renderer の
+  surface canvas であり、**中身は既にRustが描いた結果**。それを
+  `createImageBitmap` でCPU往復コピーしていただけ。
+- よって「Chromium描画とRust描画の比較」という論点自体が存在しなかった。
+  この変更で絵は変わらず、変わるのはキャプチャ手段だけ。
+
+**意図した挙動変更**: テキストのみのプロジェクトは、Rust frame sourceを用意できない
+環境でlegacy canvasへ逃げず**export失敗**するようになった。legacy canvasの中身は
+shared rendererのsurface canvasに過ぎず、Rust frame sourceが用意できない状況では
+そのcanvas自体も空か古いフレームである可能性が高い。無音で空フレームを書き出すより
+失敗させる方を選んだ（image/psdのみのプロジェクトは既に同じ扱い）。
+
+**未検証**: テキストのみのプロジェクトのexportを実際に走らせた確認はしていない
+（重量E2Eはvideoを含むため、この経路を通らない）。テキスト単体のexport E2Eを
+作るのが確実な検証手段。
+
+**副産物として見つかったRustテキスト描画の既存バグ**（P2とは独立）:
+
+- ✅修正済み（`ae0535ea`）: 行送り比率が計測1.2に対し実描画1.25で複数行がクリップ／
+  `letterSpacing` が計測に反映されず実描画幅を超える
+- ❌未修正: `textShadow.blur` がRust側で完全に無視されている
+  （`text.rs` の `paint_buffer` が `_blur` を受け取るだけで使っていない）
+- ❌未修正: stroke/shadowがボックス寸法に加算されずプレーン境界でクリップされる
+  （`textBoxMeasurement.ts` / `rustSceneSnapshot.ts` の `textMediaBox` が
+  `textStroke.width` や `textShadow.offset/blur` を考慮しない）
+- 未確認: 存在しないフォント名を指定したときのRust側フォールバック挙動
+  （`family_with_cjk_fallback` のコメントと実装が乖離している）
 
 ### P3: PSDの `putImageData` 往復を除去する
 
@@ -81,12 +114,29 @@ Three.js CanvasTexture化のためCanvas2Dへ書き戻している。
 
 - **`exercise.reactProfile.components[].commitCount`** — Reactの再レンダー削減は
   必ずこれを一次根拠にする。コンポーネント別の直接値で、laneの区別に影響されない。
-- `performanceMetrics.layoutCount` / `recalcStyleCount` — 213/213/211/211
+- `performanceMetrics.layoutCount` — 全runで212〜213。実測上もっとも安定している。
+  （`recalcStyleCount` は安定指標ではない。後述の追加訂正を参照）
 - `chromiumRendererTrace.topFunctions[].callCount` — 安定はしているが**Reactの
   判定には使わないこと**。`chunk-…js:18625` はsync laneのみを数えており、
   concurrent laneへ移動しただけの変化を「消えた」と誤読させる（Beta-482aで実害）。
 
 **構造改善の成否はこの回数系で判定する。**
+
+### 追加訂正: `recalcStyleCount` は安定指標ではない
+
+上のリストに `recalcStyleCount` を安定指標として挙げていたが、同一構成で
+**215〜308** を観測した（Beta-483aのrun1で308、run2で215）。1サンプルで308を見て
+回帰かと疑ったが次のrunで戻った。**安定しているのは `layoutCount` だけ。**
+
+### 計測の有効性を必ず確認すること（Beta-483aで追加）
+
+Electronウィンドウが他アプリに隠されると**レンダラーのrAFがスロットリングされ、
+性能指標が桁違いに良く見えるのに総合PASSする**（実測: `rafSampleCount` 178→9、
+Viewportコミット 191→15、layoutCount 213→44）。これを改善と誤読しかけた。
+
+`result.json` の `exercise.playbackClockHealth.healthy` が **false の回は
+性能比較に使ってはいけない**。ランナーが警告も出す。測るときはElectronウィンドウを
+前面に保ち、他アプリの重い処理を並行させないこと。
 
 ### 使ってはいけない指標（run-to-runで大きくばらつく）
 

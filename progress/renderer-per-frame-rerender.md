@@ -288,3 +288,74 @@ PASS / settled / エラー0を維持。
 
 反証で棄却した指摘: 「unmount後の応答がsetActiveを呼ぶ」（React 18では
 unmount後のsetStateは無害なno-opで実害なし）。
+
+## 続き（Beta-483a）: generatedEffectの供給元二重化を解消しViewportコミットを更に半減
+
+### 原因（一時プローブによる実測で確定）
+
+Beta-482bの時点で `Viewport` は依然191回コミットしていた。原因を特定するため、
+Viewportの8つのsetStateすべてを一時的にラップして発火回数を計測した
+（プローブは特定後に撤去済み）:
+
+```
+renderTick:                      calls 197  ← 犯人（178フレーム中）
+sharedRendererPreviewSession:    calls 103
+sharedRendererPreviewDiagnostic: calls 100, changed 0  ← 無罪（値は常にnullでReactがbail out）
+```
+
+さらにupdater別に測ると `generatedEffect` ただ一つが発生源で、**10個のidが
+「まるごと追加 → まるごと削除」を交互に繰り返す** flip-flop だった。
+
+`renderTick` は「object-idの集合が変わったら renderScene を再実行する」ための
+変化検出でしかなく、5つの object-id ref は変化検出以外に**一切読まれていない**。
+そこへ `generatedEffect` だけ供給元が2つあった:
+
+- publish側（毎tick・無条件）— `collectSharedRendererGeneratedEffectObjectIdsFromSession(session)`
+- presenter完了コールバック側 — `control.generatedEffectObjectIds`
+  （`nativeRenderFrameReady` でゲートされ、未準備tickでは空配列）
+
+条件の異なる2つが同じrefを奪い合って毎フレーム発火していた。publish側の即時反映は
+2026-06-21 commit `c951f8ed` のPixi二重描画レース対策だが、**Phase 4でPixi描画自体が
+撤去され前提を失ったまま残っていた**。他の4種（solidColour/image/psd/text）は
+最初からpresenter側のみが供給元で、この欠陥を持たない。
+
+### 修正
+
+publish側の即時反映を撤去し、presenter完了コールバックのみを単一供給源（SSOT）とした。
+本番参照が消えた `collectSharedRendererGeneratedEffectObjectIdsFromSession` と
+その専用ヘルパも削除。契約は
+`src/components/viewportGeneratedEffectObjectIdsSingleSource.test.ts` で固定
+（publish関数本体がこのupdaterを呼ばないこと・呼び出し箇所が2箇所であること）。
+
+### 実測（いずれも計測有効・総合PASS・settled・エラー0件）
+
+| 指標 | 修正前(481a) | Beta-482b | 483a run1 | 483a run2 |
+|---|---|---|---|---|
+| `Viewport` commitCount | 377 | 191 | **109** | **126** |
+| `Timeline` commitCount | 211 | 5 | 5 | 5 |
+| `performWorkUntilDeadline` | 364 | 188 | 106 | — |
+| layoutCount | 213 | 213 | 213 | 213 |
+| recalcStyleCount | 220 | 218 | 308 | 215 |
+| busyMs（参考） | 1474 | 1386 | 1237 | 1302 |
+
+**Viewportのコミットは基準の377から109〜126（約1/3）まで減った。**
+178フレーム中109〜126なので、まだ約0.6回/フレーム残っている。
+
+### 測定規約の追加訂正: recalcStyleCountは安定指標ではない
+
+引き継ぎ資料には `layoutCount` / `recalcStyleCount` が安定指標（213/213/211/211）と
+書かれていたが、`recalcStyleCount` は同一構成で **215〜308** を観測した。
+1サンプルで308を見て回帰かと疑ったが、次のrunで215に戻った。
+**安定しているのは `layoutCount` だけであり、`recalcStyleCount` は
+単発比較に使ってはいけない。**
+
+### 残っている課題
+
+- **`Viewport` はまだ109〜126回コミットする。** 残りの主因は
+  `setSharedRendererPreviewSession`（プローブ実測103回）とみられる。
+  `buildSharedRendererPresenterSessionKey` が返す presenter key が
+  約2フレームに1回変化しており、reuse条件
+  （`rustVideoOnlyEnabled && !isExporting && (externalVideoOnly || nativeRenderOnly || mixedNativeRender)`）が
+  成立しないフレームでフル再publishが起きている。次に削るならここ。
+- **layoutCount 213は不変のまま。** rAF内の命令的DOM更新由来（時刻テキスト等）で
+  Reactではないため、この一連の修正では動かない。
