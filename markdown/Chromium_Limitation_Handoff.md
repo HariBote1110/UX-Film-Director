@@ -13,11 +13,17 @@ GetColor・HKSY・SimpleTube等のエフェクト生成、テキスト・図形�
 
 ## 1. ここから着手（優先順）
 
-### P1: ✅完了（Beta-482a, 2026-07-25） Viewportの選択枠オーバーレイ抽出とcurrentTime購読の全廃
+### P1: 部分完了（Beta-482b） Viewportの選択枠オーバーレイ抽出とcurrentTime購読の全廃
 
-**結果: React sync work の `callCount` 211 → 5（2回のE2Eで再現）。総合PASS・
-settled・エラー0件。** 詳細と測定表は `progress/renderer-per-frame-rerender.md`
-の「解決（Beta-482a）」節。
+**結果（コンポーネント別コミット数、3回のE2Eで再現）**:
+`Timeline` 211 → 5（達成）、`Viewport` 377 → 184〜198（**半減にとどまる。
+毎フレームのコミットは残存**）。総合PASS・settled・エラー0件。
+
+> **当初「callCount 211 → 5 で完了」と記録したが誤りだった。** その指標
+> （`topFunctions` の `chunk-…js:18625`）はReactの **sync lane** だけを数えており、
+> Viewportのコミットは concurrent lane（`performWorkUntilDeadline`）へ移動した
+> だけで消えていない。**今後は `exercise.reactProfile.components[].commitCount`
+> を一次根拠にすること**（下の測定規約も更新済み）。
 
 実施内容（コミット d03b2459〜4c2f8a73）:
 - 選択枠を `SceneSelectionDecorationLayer` へ抽出。時間追従はhook購読ではなく
@@ -27,8 +33,13 @@ settled・エラー0件。** 詳細と測定表は `progress/renderer-per-frame-
   renderScene のtick処理を `onCurrentTimeTickRef` + subscribeへ一元化。
 - `TimelineCurrentTimeDisplay`（textContent直接更新）と
   `useVisionRealtimeDetection`（デバウンスのsubscribe化）の購読も除去。
-- 残る毎フレームのlayoutCount（212〜213）は時刻テキスト等のDOM更新由来で、
-  Reactではない。`performWorkUntilDeadline` が180〜195残る（コスト小・原因未特定）。
+- layoutCount 213は不変だが**原因の主体は入れ替わった**。`InvalidateLayout` の
+  祖先は修正前99%がReactコミット、修正後97%がrAF（`animate`）内の命令的DOM更新。
+
+**次にやるべき残件（P1の続き）**: `Viewport` がなぜ毎フレームコミットするのかは
+未特定。トレースとコード読解だけでは切り分けられず（生トレースにJSスタックが
+記録されていない）、**どのsetStateが毎フレーム発火しているかのランタイム計測**が要る。
+`setSharedRendererPreviewDiagnostic` が候補だが未確証。
 
 **実機での未確認事項**: 選択枠のドラッグ・リサイズ操作（重量E2Eは演習しない）。
 実機確認時にリサイズハンドルの追従を確認すること。
@@ -68,8 +79,12 @@ Three.js CanvasTexture化のためCanvas2Dへ書き戻している。
 
 ### 使ってよい指標（安定）
 
-- `chromiumRendererTrace.topFunctions[].callCount` — 4回の測定で 212/212/210/210
+- **`exercise.reactProfile.components[].commitCount`** — Reactの再レンダー削減は
+  必ずこれを一次根拠にする。コンポーネント別の直接値で、laneの区別に影響されない。
 - `performanceMetrics.layoutCount` / `recalcStyleCount` — 213/213/211/211
+- `chromiumRendererTrace.topFunctions[].callCount` — 安定はしているが**Reactの
+  判定には使わないこと**。`chunk-…js:18625` はsync laneのみを数えており、
+  concurrent laneへ移動しただけの変化を「消えた」と誤読させる（Beta-482aで実害）。
 
 **構造改善の成否はこの回数系で判定する。**
 

@@ -134,7 +134,12 @@ main process側でチャネル別カウンタを取るなど別の計測手段�
 - 重量E2Eを二重に走らせるとElectron同士が競合してタイムアウトする。計測は
   必ず単独で実行すること。
 
-## 解決（Beta-482a）: currentTime hook購読の全廃で callCount 211 → 5
+## 部分解決（Beta-482a）: currentTime hook購読の全廃
+
+> 節タイトルは当初「callCount 211 → 5 で解決」としていたが、その指標が
+> lane別の一部しか見ていない誤りだったため改題した。実際に達成したのは
+> **Timelineの毎フレームコミット除去とViewportのコミット半減**であり、
+> Viewportの毎フレームコミット自体は残っている（後述の訂正節）。
 
 ### 設計
 
@@ -184,17 +189,72 @@ VisionDetectionOverlayLayerのみ）。時間追従はすべて素の `useStore.
 | busyMs（参考。run-to-runで大きくばらつく） | 1473.7 | 1437.2 | 1306.2 |
 
 両runとも総合PASS・`settled: true`・runtimeErrors / MissingSource /
-nativeRenderエラー 0件。**成功判定の回数系指標で、再生中のReact workは
-毎フレーム1回（211）→ 実測5回まで消滅し、2回のrunで完全に再現した。**
-残る5回は選択デコレーション応答による `visualsHidden` 切替等の実変化分。
+nativeRenderエラー 0件。
 
-### 分かったこと・残る観察
+> **【重要な訂正】この表の1行目を「再生中のReact再レンダーが消滅した」と
+> 読んではいけない。** 当初そう解釈して記録したが誤りだった。詳細は直後の
+> 「訂正: callCountはlane別で、Viewportは今も毎フレームコミットしている」節。
 
-- **layoutCount（212〜213）は不変**。予測どおり毎フレームのレイアウトはReactでは
-  なくDOM更新（時刻テキストの `textContent`、選択枠SVG属性パッチ）由来。時刻を
-  表示し続ける限り原理的に避けられない。削るなら表示の更新間引きが次の手。
-- `performWorkUntilDeadline` は364→180〜195に減ったが依然フレーム級に残る。
-  Schedulerのidle loop起因とみられ、コストは小さい（77〜87ms）。原因特定は未着手。
+### 訂正: callCountはlane別で、Viewportは今も毎フレームコミットしている
+
+上表の「React sync work関数 callCount」は `chunk-6W5FFVKH.js:18625` 由来で、
+これはReactの **sync lane**（`scheduleMicrotask` 経路）だけを数えている。
+Viewportのコミットは **concurrent lane**（`performWorkUntilDeadline` 経由）へ
+移っただけで、消えてはいなかった。
+
+`result.json` の `exercise.reactProfile.components[].commitCount` が
+コンポーネント別の直接値を持っており、こちらが正しい像である:
+
+| コンポーネント | 修正前(481a) | run1 | run2 | run3(tickガード後) |
+|---|---|---|---|---|
+| `Viewport` | 377 | 198 | 184 | **191** |
+| `Timeline` | 211 | 5 | 5 | **5** |
+| `PropertyPanel` | 7 | 7 | 7 | 7 |
+
+再生区間は約178フレーム（`animate` の callCount）なので:
+
+- **`Timeline` は毎フレーム→ほぼゼロ（211→5）。ここは狙いどおり達成した。**
+- **`Viewport` は毎フレーム約2回→約1回（377→191）に半減しただけで、
+  依然として毎フレームコミットしている。** `performWorkUntilDeadline` が
+  180〜195残っているのはこれが理由であり、「Schedulerのidle loop」ではない。
+
+**測定規約への反映（重要）**: 今後Reactの再レンダー削減を判定するときは
+`chromiumRendererTrace.topFunctions[].callCount` ではなく
+**`exercise.reactProfile.components[].commitCount` を一次根拠にする。**
+前者はlaneを混同し、実際には減っていないものを減ったと誤読させる。
+
+### layoutの帰属（トレース実測で判明）
+
+`layoutCount` 213は修正前後で不変だが、**原因の主体は入れ替わっている**。
+`InvalidateLayout`（214件）の直近祖先イベントを親子関係復元で集計すると:
+
+- 修正前: 211/214（99%）が `chunk-6W5FFVKH.js:18625`（Reactのコミット経路）
+- 修正後: 208/214（97%）が rAF コールバック
+  （`animate` 178件 + `FireAnimationFrame` 30件。`src/hooks/useAppLogic.ts:51`）
+
+つまりlayoutを起こす主体は「Reactのコミット」から「rAF内の命令的DOM更新」へ
+完全に移った。`animate` の呼び出し回数（178〜179）とほぼ1:1なので、
+1フレームにつき実質1回のlayout無効化が起きている。
+
+**候補の切り分け（一部は確定）**:
+- `TimelineCurrentTimeDisplay` の `textContent` 更新 — 最有力。頻度が1:1で一致。
+- `TimelineCurrentTimeIndicator` の `transform` — **除外**。compositing完結の
+  意図的最適化であり、layout要因ではない。
+- 選択枠SVG属性パッチ（`sceneSelectionOverlayPatch.ts`）— **このE2Eでは無関係**。
+  `exercise.before/after.selectedObjectCount` が両方0で、`geometryPatchTargetsRef`
+  のMapが空のためループ自体が回っていない。ただし「選択ありの実運用では無罪」
+  とは言えない。選択ありシナリオでの別トレースが必要。
+- `Viewport` の `document.documentElement.dataset.*` 毎フレーム書き込み —
+  `src/index.css` に `data-uxfd*` を参照するセレクタが皆無（grep実測0件）のため
+  可能性は低いと推測。ただし切り分けは未達。
+
+**制約**: 生トレースに `disabled-by-default-devtools.timeline.stack` が
+有効化されておらず、`Layout` / `InvalidateLayout` にJSスタックが記録されていない
+（実測で0件）。そのため関数レベルの完全な帰属はできず、上記は
+イベントの時間包含関係からの推定である。
+
+### その他
+
 - busyMs は参考値。1306〜1474はばらつき幅（過去実測970〜1520）の内側であり、
   単発比較で改善と断定しない（測定規約どおり）。
 
