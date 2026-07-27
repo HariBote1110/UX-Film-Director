@@ -426,9 +426,23 @@ const main = async () => {
   log(`砕け散る球を追加: ${JSON.stringify(addResult)}`);
   const previewReady = await waitForNativePreviewReady(client);
   await sleep(500);
+  // 画素検証は「再生を追加する前」の状態で行う。再生を先に走らせるとシーンが
+  // 進行して見た目が変わり、既存の検証結果が変化してしまうため、
+  // 検証→再生→presenter再起動回数計測、の順序を厳守する。
   const visualResult = previewReady?.ok
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;
+  // 動画を含まないこのシーンで、再生区間中に shared renderer presenter が
+  // 何回フル再起動したかを診断計測する（PASS/FAIL判定には含めない）。
+  // canReuseNativeRenderPresenter（src/components/Viewport.tsx）が
+  // rustVideoOnlyEnabled前提のため、本E2E構成では reuse が効かず publish
+  // ごとにフル再起動している疑いがあり、その実測用。
+  const presenterRestarts = previewReady?.ok
+    ? await client.evaluate('window.__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_PLAY__(2000)')
+    : undefined;
+  if (presenterRestarts) {
+    log(`presenter再起動回数(診断・再生区間): before=${presenterRestarts.before} after=${presenterRestarts.after} duringPlayback=${presenterRestarts.duringPlayback}`);
+  }
   const consoleLines = collectConsoleEvents(client);
   const runtimeErrors = collectRuntimeErrors(client);
   const blockingDiagnostics = [
@@ -444,10 +458,12 @@ const main = async () => {
       /GPUDevice:|Invalid CommandBuffer|nativeRender.*Failed|nativeRenderUnsupportedMedia|nativeRenderSourcesUnavailable|presenterStartFailed|shatteredSpherePixelsMissing/i.test(line)
     ));
   const result = {
+    // presenterRestartsは診断計測のためPASS/FAIL判定には含めない。
     passed: Boolean(addResult?.ok && previewReady?.ok && visualResult?.ok && blockingDiagnostics.length === 0),
     addResult,
     previewReady,
     visualResult,
+    presenterRestarts,
     consoleLines,
     runtimeErrors,
     blockingDiagnostics,
