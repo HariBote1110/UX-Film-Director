@@ -1,7 +1,14 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
-更新: 2026-07-26 / 版 `0.1.1-Beta-483a` — P1は残件あり（Viewport 191→109/126）、P2完了。次はP3から。
+更新: 2026-07-27 / 版 `0.1.1-Beta-483c` — P2完了。P1の残件はReactではなく
+**presenterのフル再起動87回/177フレーム**だと判明（下記P1節）。次はP3、または
+`progress/presenter-restart-storm-rustvideoonly-gate.md` の「次にやるべきこと」から。
+
+**既知の壊れているE2E**: `npm run test:shattered-sphere-preview:e2e` は
+`nativePreviewReadyTimeout` で失敗する（このセッションの変更が原因でないことは
+`ae0535ea` での再現で切り分け済み）。生成効果のみのシーンで
+`uxfdSharedRendererPresenterNativeRenderFrameReady` が付与されないのが唯一の未達条件。
 
 ## 0. ゴール（元の指示）
 
@@ -44,11 +51,18 @@ GetColor・HKSY・SimpleTube等のエフェクト生成、テキスト・図形�
 Pixi二重描画レース対策の名残でPhase 4後は不要だったため撤去。
 **`Viewport` commitCount は 191 → 109/126 まで減った**（2回とも計測有効・PASS）。
 
-**次にやるべき残件（P1の続き）**: `Viewport` はまだ109〜126回コミットする
-（178フレーム中）。残りの主因は `setSharedRendererPreviewSession`（計測103回）で、
-`buildSharedRendererPresenterSessionKey` の presenter key が約2フレームに1回
-変化している。reuse条件が成立しないフレームでフル再publishが起きているため、
-その条件を詰めるのが次の一手。
+**残件の正体（Beta-483cで判明。React側ではなくpresenter側）**:
+`Viewport` の残り約103コミットは `setSharedRendererPreviewSession` 由来で、その実体は
+**presenterのフル再起動が再生中に87回起きていること**（177フレーム中。
+`exercise.presenterRestarts.duringPlayback` として常設計測を追加した）。
+コード中のコメントはフル再起動を「約28ms/回」としており、**Reactのコミット削減より
+こちらの方が実CPUコストへの寄与が大きい可能性が高い**。
+
+原因は `canReuseNativeRenderPresenter` のゲートが `rustVideoOnlyEnabled` 単独で、
+この環境変数を `npm run dev` は設定するのに**本番ビルドと各E2Eは設定しない**こと。
+ただし混在セッションでゲートを広げると動画の供給元がHTMLVideoElementのアップロードから
+Rust再デコードへ切り替わり音声と二重クロックになるため、**安易に広げてはいけない**。
+詳細と次の一手は `progress/presenter-restart-storm-rustvideoonly-gate.md`。
 
 **実機での未確認事項**: 選択枠のドラッグ・リサイズ操作（重量E2Eは演習しない）。
 実機確認時にリサイズハンドルの追従を確認すること。
