@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [presenter-restart-storm-rustvideoonly-gate.md](presenter-restart-storm-rustvideoonly-gate.md) — 重量E2Eでpresenterが87回/177フレームフル再起動する原因は`canReuseNativeRenderPresenter`が`rustVideoOnlyEnabled`単独ゲートで本番/E2E構成では常にfalseになること。ゲート拡大を検討したが、混在セッションでHTMLVideoElement音声とRust側再デコードが二重化しA/Vドリフトを起こす破綻経路を特定したため修正を見送った（2026-07-27）
 - [text-stroke-shadow-clipping.md](text-stroke-shadow-clipping.md) — 縁取り・影がプレーン境界で切れる未修正バグ。プレーンを広げるだけでは回転軸が動くため、TS側の寸法・位置とRust側の描画原点の協調変更が要る（2026-07-26）
 - [text-shadow-blur.md](text-shadow-blur.md) — `textShadow.blur` が完全に無視されていたバグの修正。分離可能ボックスブラー3パスでガウシアンを近似し、影のバウンディングボックス限定で処理。境界クリップは既知の別バグとして残置（2026-07-26）
 - [renderer-per-frame-rerender.md](renderer-per-frame-rerender.md) — 再生中のReact毎フレーム再レンダーの削減。`currentTime` hook購読の全廃と生成効果object-idの供給元一本化で Viewport commitCount 377→109〜126。**測定指標の誤り2件の訂正（callCountのlane問題・rAFスロットリング）と、指標ごとのばらつき実測を含む**（2026-07-26）
