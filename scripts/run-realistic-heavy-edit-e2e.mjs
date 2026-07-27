@@ -548,6 +548,14 @@ const main = async () => {
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
   log(`結果: ${result.passed ? 'PASS' : 'FAIL'} ${RESULT_JSON}`);
+  // shared renderer presenter のフル再起動回数（約28ms/回のコストと見積もられて
+  // いる）を常設の診断指標として出す。詳細は
+  // src/e2e/realisticHeavyEditPresenterRestarts.ts のファイル冒頭コメントを参照。
+  // PASS/FAIL判定には影響させない。
+  const presenterRestarts = exercise?.presenterRestarts ?? null;
+  if (presenterRestarts) {
+    log(`presenterRestarts.duringPlayback=${presenterRestarts.duringPlayback} (before=${presenterRestarts.before} / after=${presenterRestarts.after})`);
+  }
   // 有効性ゲート: rAFがスロットリングされていると回数系の性能指標
   // （rafSampleCount/rafMeanMs/Viewport commits/layoutCount等）が桁違いに
   // 悪化するのに機能的な正しさは影響を受けず総合PASSしてしまう。ここでは

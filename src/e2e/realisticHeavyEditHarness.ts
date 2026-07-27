@@ -10,6 +10,7 @@ import {
   type RealisticHeavyEditPaths,
 } from './realisticHeavyEditScenario';
 import { evaluateRealisticHeavyEditPlaybackClockHealth } from './realisticHeavyEditPlaybackClockHealth';
+import { resolveRealisticHeavyEditPresenterRestarts } from './realisticHeavyEditPresenterRestarts';
 
 type HarnessResult = Record<string, unknown> & { ok: boolean };
 
@@ -243,6 +244,10 @@ const exercise = async (
   if (clearedSelectionBeforePlayback) {
     useStore.getState().selectObjects([]);
   }
+  // shared renderer presenter のフル再起動回数（約28ms/回）を再生計測区間の
+  // 前後で差分計測する。詳細は realisticHeavyEditPresenterRestarts.ts を参照。
+  const presenterStartCountBeforePlayback =
+    document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
   useStore.getState().setIsPlaying(true);
   const rafDeltas = await collectRafDeltas(playbackMs);
   useStore.getState().setIsPlaying(false);
@@ -251,6 +256,12 @@ const exercise = async (
 
   const after = snapshot();
   const reactProfile = window.__UXFD_REACT_PROFILE_TRACE__?.snapshot() ?? null;
+  const presenterStartCountAfterPlayback =
+    document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
+  const presenterRestarts = resolveRealisticHeavyEditPresenterRestarts(
+    presenterStartCountBeforePlayback,
+    presenterStartCountAfterPlayback,
+  );
   const rafSampleCount = rafDeltas.length;
   const rafMeanMs = rafDeltas.length > 0
     ? rafDeltas.reduce((total, value) => total + value, 0) / rafDeltas.length
@@ -300,6 +311,7 @@ const exercise = async (
     longTaskMaxMs: Math.max(0, ...longTaskDurations),
     reactProfile,
     playbackClockHealth,
+    presenterRestarts,
   };
 };
 
