@@ -77,13 +77,9 @@ if (urlSearchParams.has('shatteredSpherePreviewE2e')) {
     };
   };
 
-  // E2E専用フック: 動画を含まないシーンでの再生区間における shared renderer
-  // presenter のフル再起動回数を計測する。canReuseNativeRenderPresenter
-  // （src/components/Viewport.tsx）が rustVideoOnlyEnabled を前提にしている
-  // ため、このフラグを立てない構成（本番ビルド・当E2E）では動画の有無に
-  // 関わらず publish ごとにフル再起動する疑いがある。動画を含まないこの
-  // シーンでreuseが効くようになったかを実測で検証できるようにするための
-  // 診断フックであり、PASS/FAIL判定には影響しない。
+  // E2E専用フック: 動画を含まないシーンの定常再生区間で shared renderer
+  // presenter がフル再起動しないことを計測する。play/pause遷移そのものに
+  // 伴う起動は対象外とし、再生開始後に整定してから停止直前までを測る。
   (window as typeof window & {
     __UXFD_SHATTERED_SPHERE_PREVIEW_E2E_PLAY__?: (durationMs: number) => Promise<{
       before: number;
@@ -94,17 +90,18 @@ if (urlSearchParams.has('shatteredSpherePreviewE2e')) {
     const { resolveRealisticHeavyEditPresenterRestarts } = await import(
       './e2e/realisticHeavyEditPresenterRestarts'
     );
+    useStore.getState().setIsPlaying(true);
+    await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
+    await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     const presenterStartCountBefore =
       document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
-    useStore.getState().setIsPlaying(true);
     await new Promise((resolveWait) => setTimeout(resolveWait, durationMs));
-    useStore.getState().setIsPlaying(false);
-    // 再生停止直後は描画が完全に落ち着いていない場合があるため、
-    // rAFを2回挟んでから累積起動回数を読み直す。
-    await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
-    await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
     const presenterStartCountAfter =
       document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
+    useStore.getState().setIsPlaying(false);
+    await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
+    await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
     return resolveRealisticHeavyEditPresenterRestarts(
       presenterStartCountBefore,
       presenterStartCountAfter,

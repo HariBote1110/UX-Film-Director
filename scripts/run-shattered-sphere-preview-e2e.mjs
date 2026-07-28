@@ -447,14 +447,12 @@ const main = async () => {
   const visualResult = previewReady?.ok
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;
-  // 動画を含まないこのシーンで、再生区間中に shared renderer presenter が
-  // 何回フル再起動したかを診断計測する（PASS/FAIL判定には含めない）。
-  // canReuseNativeRenderPresenter（src/components/Viewport.tsx）が
-  // rustVideoOnlyEnabled前提のため、本E2E構成では reuse が効かず publish
-  // ごとにフル再起動している疑いがあり、その実測用。
+  // 動画を含まないこのシーンで、定常再生中に shared renderer presenter が
+  // フル再起動しないことを検証する。
   const presenterRestarts = previewReady?.ok
     ? await client.evaluate('window.__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_PLAY__(2000)')
     : undefined;
+  const presenterReusePassed = presenterRestarts?.duringPlayback === 0;
   if (presenterRestarts) {
     log(`presenter再起動回数(診断・再生区間): before=${presenterRestarts.before} after=${presenterRestarts.after} duringPlayback=${presenterRestarts.duringPlayback}`);
   }
@@ -473,12 +471,18 @@ const main = async () => {
       /GPUDevice:|Invalid CommandBuffer|nativeRender.*Failed|nativeRenderUnsupportedMedia|nativeRenderSourcesUnavailable|presenterStartFailed|shatteredSpherePixelsMissing/i.test(line)
     ));
   const result = {
-    // presenterRestartsは診断計測のためPASS/FAIL判定には含めない。
-    passed: Boolean(addResult?.ok && previewReady?.ok && visualResult?.ok && blockingDiagnostics.length === 0),
+    passed: Boolean(
+      addResult?.ok
+      && previewReady?.ok
+      && visualResult?.ok
+      && presenterReusePassed
+      && blockingDiagnostics.length === 0
+    ),
     addResult,
     previewReady,
     visualResult,
     presenterRestarts,
+    presenterReusePassed,
     consoleLines,
     runtimeErrors,
     blockingDiagnostics,
