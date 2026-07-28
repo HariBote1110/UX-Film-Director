@@ -12,6 +12,7 @@ import {
 } from './rustBackendAudioWaveformControl';
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import { isNativeOverlayDirectMediaSourceSupported } from './nativeOverlayDirectMediaSupport';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import {
   prepareSharedRendererDecodedVideoFrameUpload,
@@ -458,8 +459,7 @@ export const prepareSharedRendererViewportNativeRenderOverlayPresent = async ({
   const canPresentSceneDirectly = nativeOverlayBridge.presentScene != null
     && surfaceGate.media.every((reference) => (
       reference.kind !== 'Video'
-      && reference.kind !== 'Psd'
-      && (reference.kind !== 'Image' || /\.png(?:[?#].*)?$/i.test(reference.source))
+      && isNativeOverlayDirectMediaSourceSupported(reference.kind, reference.source)
     ));
   if (canPresentSceneDirectly) {
     const presentResponse = await nativeOverlayBridge.presentScene?.({

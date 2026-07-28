@@ -1,13 +1,5 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
-
-const isDirectOverlaySourceSupported = (kind: string, source: string): boolean => {
-  if (kind === 'Video') return true;
-  if (kind === 'Psd') return false;
-  if (kind === 'Image') {
-    return /\.png(?:[?#].*)?$/i.test(source);
-  }
-  return true;
-};
+import { isNativeOverlayDirectMediaSourceSupported } from './nativeOverlayDirectMediaSupport';
 
 const isAudioReactiveMediaKind = (kind: string): boolean =>
   kind === 'GeneratedAudioWaveform' || kind === 'GeneratedAudioSphere';
@@ -26,7 +18,10 @@ export const isNativeOverlayDirectSceneSession = (
   let hasVisibleAudioReactiveClip = false;
   for (const clip of session.surfaceGate.snapshot.clips) {
     const reference = mediaById.get(clip.media_id);
-    if (!reference || !isDirectOverlaySourceSupported(reference.kind, reference.source)) {
+    if (
+      !reference
+      || !isNativeOverlayDirectMediaSourceSupported(reference.kind, reference.source)
+    ) {
       return false;
     }
     if (reference.kind === 'Video') {

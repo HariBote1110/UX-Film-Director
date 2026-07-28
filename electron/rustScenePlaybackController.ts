@@ -2,6 +2,7 @@ import type {
   NativeOverlayResponse,
   NativeOverlayScenePayload,
 } from './nativeOverlayMainBridge';
+import { isNativeOverlayDirectMediaSourceSupported } from '../src/utils/nativeOverlayDirectMediaSupport';
 
 export interface RustScenePlaybackStartPayload {
   windowId: number;
@@ -97,14 +98,14 @@ const isDirectOverlayMediaSupported = (
   source: string,
   sourceRate?: { numerator: number; denominator: number },
 ): boolean => {
-  if (kind === 'Psd') return false;
+  if (!isNativeOverlayDirectMediaSourceSupported(kind, source)) return false;
   if (kind === 'Video') {
     return Number.isSafeInteger(sourceRate?.numerator)
       && (sourceRate?.numerator ?? 0) > 0
       && Number.isSafeInteger(sourceRate?.denominator)
       && (sourceRate?.denominator ?? 0) > 0;
   }
-  return kind !== 'Image' || /\.png(?:[?#].*)?$/i.test(source);
+  return true;
 };
 
 const copyDiagnostics = (
