@@ -280,6 +280,46 @@ describe('createNativeOverlayMainBridge', () => {
     expect(nativeAddon.presentNativeOverlayScene).toHaveBeenCalledWith(payload);
   });
 
+  it('includes live surface readback diagnostics in the direct scene trace', async () => {
+    const diagnostics: Array<[string, unknown]> = [];
+    const nativeAddon = {
+      presentNativeOverlayScene: vi.fn(() => ({
+        success: true,
+        attached: true,
+        livePreparedClipCount: 1,
+        liveReadbackNonTransparentPixels: 2048,
+        liveReadbackChecksum: 987654,
+        liveReadbackExportMaxChannelDelta: 0,
+      })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1', UXFD_DECODE_TRACE: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      now: () => 100,
+      logDiagnostic: (eventName, payload) => diagnostics.push([eventName, payload]),
+    });
+
+    await bridge.presentScene({
+      windowId: 7,
+      snapshot: { frameIndex: 24, canvasWidth: 4, canvasHeight: 4 },
+      media: [{ id: 'shape-1', kind: 'SolidColour', source: '#ff0000', width: 4, height: 4 }],
+    });
+
+    expect(diagnostics).toEqual([[
+      'presentSceneTrace',
+      expect.objectContaining({
+        success: true,
+        attached: true,
+        livePreparedClipCount: 1,
+        liveReadbackNonTransparentPixels: 2048,
+        liveReadbackChecksum: 987654,
+        liveReadbackExportMaxChannelDelta: 0,
+      }),
+    ]]);
+  });
+
   it('passes an embedded selectionDecoration through to the native addon present call (Bug B対策: body co-delivery)', async () => {
     const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
     const nativeAddon = {

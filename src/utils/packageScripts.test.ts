@@ -254,6 +254,21 @@ describe('package scripts', () => {
     expect(script).toContain('presenterReusePassed');
   });
 
+  it('provides an opt-in live native surface readback E2E gate', () => {
+    const script = readFileSync(
+      new URL('../../scripts/run-shattered-sphere-preview-e2e.mjs', import.meta.url),
+      'utf8',
+    );
+
+    expect(packageJson.scripts['test:native-overlay-live-readback:e2e'])
+      .toBe('UXFD_SHATTERED_SPHERE_LIVE_READBACK_E2E=1 node scripts/run-shattered-sphere-preview-e2e.mjs');
+    expect(script).toContain('UXFD_SHATTERED_SPHERE_LIVE_READBACK_E2E');
+    expect(script).toContain("UXFD_NATIVE_OVERLAY_READBACK_TRACE: liveReadbackMode ? '1' : '0'");
+    expect(script).toContain('liveReadbackNonTransparentPixels > 0');
+    expect(script).toContain('liveReadbackChecksum > 0');
+    expect(script).toContain('liveReadbackExportMaxChannelDelta === 0');
+  });
+
   it('provides a real video export quality comparison command', () => {
     expect(packageJson.scripts['test:video-export:quality']).toBe('node scripts/compare-video-export-quality.mjs');
 
