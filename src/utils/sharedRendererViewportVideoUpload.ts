@@ -22,6 +22,7 @@ import {
 } from './sharedRendererRustVideoUploadPipeline';
 import type { SharedVideoFrameCopyBridge } from './sharedVideoFrameUploadBridge';
 import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
+import { isNativeOverlayDirectSceneSession } from './nativeOverlayDirectSceneEligibility';
 
 export interface SharedRendererViewportVideoDecodeJob {
   jobId: string;
@@ -133,6 +134,7 @@ export type PrepareSharedRendererViewportNativeOverlayPresentResult =
       ok: false;
       reason:
         | 'surfaceGateUnavailable'
+        | 'nativeOverlayDirectSceneIneligible'
         | 'decodeRequestUnavailable'
         | 'noVideoDecodeRequest'
         | 'stopFailed'
@@ -456,6 +458,15 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
     };
   }
   const surfaceGate = session.surfaceGate;
+
+  if (!isNativeOverlayDirectSceneSession(session)) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayDirectSceneIneligible',
+      detail: 'Shared renderer preview session is not eligible for decoded-frame direct overlay presentation.',
+      activeJob,
+    };
+  }
 
   const decodeRequests = decodeRequestBuilder({
     snapshot: surfaceGate.snapshot,

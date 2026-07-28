@@ -1,51 +1,56 @@
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 
-export const isSharedRendererNativeMediaReferenceSupported = (
-  reference: RustSceneMediaReference
+export const isSharedRendererNativeMediaSourceSupported = (
+  kind: string,
+  source: string
 ): boolean => {
-  if (reference.kind === 'SolidColour') return true;
-  if (reference.kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedAudioSphere') return isSharedRendererNativeGeneratedAudioSphereSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedColourWheel') return isSharedRendererNativeGeneratedColourWheelSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedGourd') return isSharedRendererNativeGeneratedGourdSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedGear') return isSharedRendererNativeGeneratedGearSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedToneCurve') return isSharedRendererNativeGeneratedToneCurveSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedGetColorDots') return isSharedRendererNativeGeneratedGetColorDotsSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedRegionFrame') return isSharedRendererNativeGeneratedRegionFrameSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedSimpleTube') return isSharedRendererNativeGeneratedSimpleTubeSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedSphereDots') return isSharedRendererNativeGeneratedSphereDotsSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedSphericalField') return isSharedRendererNativeGeneratedSphericalFieldSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedTartanCheck') return isSharedRendererNativeGeneratedTartanCheckSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedHoundstooth') return isSharedRendererNativeGeneratedHoundstoothSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedYagasuri') return isSharedRendererNativeGeneratedYagasuriSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedPaperAirplane') return isSharedRendererNativeGeneratedPaperAirplaneSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedContourTrace') return isSharedRendererNativeGeneratedContourTraceSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedDisplacementPoly') return isSharedRendererNativeGeneratedDisplacementPolySourceSupported(reference.source);
-  if (reference.kind === 'GeneratedPlainEffectorLine') return isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedShatteredSphere') return isSharedRendererNativeGeneratedShatteredSphereSourceSupported(reference.source);
-  if (reference.kind === 'GeneratedShape') return isSharedRendererNativeGeneratedShapeSourceSupported(reference.source);
-  if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
-  if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
-  if (reference.kind === 'Text') return isSharedRendererNativeTextSourceSupported(reference.source);
+  if (kind === 'SolidColour') return true;
+  if (kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(source);
+  if (kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(source);
+  if (kind === 'GeneratedAudioSphere') return isSharedRendererNativeGeneratedAudioSphereSourceSupported(source);
+  if (kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(source);
+  if (kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(source);
+  if (kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(source);
+  if (kind === 'GeneratedColourWheel') return isSharedRendererNativeGeneratedColourWheelSourceSupported(source);
+  if (kind === 'GeneratedGourd') return isSharedRendererNativeGeneratedGourdSourceSupported(source);
+  if (kind === 'GeneratedGear') return isSharedRendererNativeGeneratedGearSourceSupported(source);
+  if (kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(source);
+  if (kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(source);
+  if (kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(source);
+  if (kind === 'GeneratedToneCurve') return isSharedRendererNativeGeneratedToneCurveSourceSupported(source);
+  if (kind === 'GeneratedGetColorDots') return isSharedRendererNativeGeneratedGetColorDotsSourceSupported(source);
+  if (kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(source);
+  if (kind === 'GeneratedRegionFrame') return isSharedRendererNativeGeneratedRegionFrameSourceSupported(source);
+  if (kind === 'GeneratedSimpleTube') return isSharedRendererNativeGeneratedSimpleTubeSourceSupported(source);
+  if (kind === 'GeneratedSphereDots') return isSharedRendererNativeGeneratedSphereDotsSourceSupported(source);
+  if (kind === 'GeneratedSphericalField') return isSharedRendererNativeGeneratedSphericalFieldSourceSupported(source);
+  if (kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(source);
+  if (kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(source);
+  if (kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(source);
+  if (kind === 'GeneratedTartanCheck') return isSharedRendererNativeGeneratedTartanCheckSourceSupported(source);
+  if (kind === 'GeneratedHoundstooth') return isSharedRendererNativeGeneratedHoundstoothSourceSupported(source);
+  if (kind === 'GeneratedYagasuri') return isSharedRendererNativeGeneratedYagasuriSourceSupported(source);
+  if (kind === 'GeneratedPaperAirplane') return isSharedRendererNativeGeneratedPaperAirplaneSourceSupported(source);
+  if (kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(source);
+  if (kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(source);
+  if (kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(source);
+  if (kind === 'GeneratedContourTrace') return isSharedRendererNativeGeneratedContourTraceSourceSupported(source);
+  if (kind === 'GeneratedDisplacementPoly') return isSharedRendererNativeGeneratedDisplacementPolySourceSupported(source);
+  if (kind === 'GeneratedPlainEffectorLine') return isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported(source);
+  if (kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(source);
+  if (kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(source);
+  if (kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(source);
+  if (kind === 'GeneratedShatteredSphere') return isSharedRendererNativeGeneratedShatteredSphereSourceSupported(source);
+  if (kind === 'GeneratedShape') return isSharedRendererNativeGeneratedShapeSourceSupported(source);
+  if (kind === 'Image') return isSharedRendererNativeImageSourceSupported(source);
+  if (kind === 'Psd') return isSharedRendererNativePsdSourceSupported(source);
+  if (kind === 'Text') return isSharedRendererNativeTextSourceSupported(source);
   return false;
 };
+
+export const isSharedRendererNativeMediaReferenceSupported = (
+  reference: RustSceneMediaReference
+): boolean => isSharedRendererNativeMediaSourceSupported(reference.kind, reference.source);
 
 const isSharedRendererNativeTextStrokeSupported = (stroke: unknown): boolean => {
   if (stroke === null) return true;
