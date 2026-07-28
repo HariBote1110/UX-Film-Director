@@ -310,6 +310,40 @@ describe('RustScenePlaybackController', () => {
     }));
   });
 
+  it('PSDのactive layer IDをmain所有のdirect presentへ渡す', async () => {
+    const source = '/tmp/character.psd';
+    const activeLayerIds = ['psd-group-0', 'psd-layer-2'];
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => ({
+        ...evaluation(frameIndex, 'Psd'),
+        media: [{
+          ...evaluation(frameIndex, 'Psd').media[0],
+          source,
+          active_layer_ids: activeLayerIds,
+        }],
+      }),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      media: [expect.objectContaining({
+        kind: 'Psd',
+        source,
+        activeLayerIds,
+      })],
+    }));
+  });
+
   it('PSD・PNG/JPEG以外の画像はdirect presentせず既存時計へ戻す', async () => {
     for (const [kind, source] of [
       ['Psd', '/tmp/design.psd'],

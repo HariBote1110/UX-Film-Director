@@ -84,6 +84,12 @@ describe('isNativeOverlayDirectSceneSession', () => {
     ]))).toBe(true);
   });
 
+  it('accepts a local PSD that the direct overlay loader can composite', () => {
+    expect(isNativeOverlayDirectSceneSession(buildSession([
+      { id: 'psd', kind: 'Psd', source: 'file:///tmp/character.psd' },
+    ]))).toBe(true);
+  });
+
   it.each([
     ['GeneratedAudioWaveform', audioWaveformSource],
     ['GeneratedAudioSphere', audioSphereSource],

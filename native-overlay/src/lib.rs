@@ -3854,6 +3854,82 @@ mod tests {
     }
 
     #[test]
+    fn direct_psd_source_loader_uses_active_layer_ids_in_pixels_and_cache_revision() {
+        let psd_path = unique_temp_path("overlay-active-layers", "psd");
+        std::fs::write(&psd_path, minimal_single_layer_psd_bytes())
+            .expect("write minimal PSD fixture");
+        let build_scene = |active_layer_ids: Vec<String>| NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "psd-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "psd-media".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "psd-media".to_string(),
+                kind: "Psd".to_string(),
+                source: psd_path.to_string_lossy().to_string(),
+                width: 2,
+                height: 2,
+                source_rate: None,
+                active_layer_ids,
+            }],
+            canvas_width: 2,
+            canvas_height: 2,
+        };
+        let all_layers = build_scene(Vec::new());
+        let no_matching_layers = build_scene(vec!["psd-layer-missing".to_string()]);
+        let all_revision =
+            native_overlay_media_content_revision(&all_layers.media[0], 0).expect("PSD revision");
+        let selected_revision = native_overlay_media_content_revision(
+            &no_matching_layers.media[0],
+            0,
+        )
+        .expect("selected PSD revision");
+        let mut cache = NativeOverlaySourceCache::default();
+        let all_frame = load_overlay_native_sources_for_scene_cached_impl(
+            &all_layers,
+            &mut cache,
+            true,
+        )
+        .expect("all-visible PSD source")
+        .get("psd-media")
+        .expect("all-visible PSD frame")
+        .clone();
+        let selected_frame = load_overlay_native_sources_for_scene_cached_impl(
+            &no_matching_layers,
+            &mut cache,
+            true,
+        )
+        .expect("selected PSD source")
+        .get("psd-media")
+        .expect("selected PSD frame")
+        .clone();
+
+        assert!(
+            all_frame.pixels.chunks_exact(4).any(|pixel| pixel[3] > 0),
+            "all-visible PSD must contain opaque pixels"
+        );
+        assert!(
+            selected_frame.pixels.chunks_exact(4).all(|pixel| pixel[3] == 0),
+            "an unmatched active layer selection must produce a transparent frame"
+        );
+        assert_ne!(
+            all_revision, selected_revision,
+            "active layer changes must invalidate the direct PSD source cache"
+        );
+        let _ = std::fs::remove_file(psd_path);
+    }
+
+    #[test]
     fn overlay_native_source_loader_builds_getcolor_for_direct_mixed_scene_present() {
         let scene = NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
@@ -5786,5 +5862,55 @@ mod tests {
             "uxfd-{label}-{}-{nanos}.{extension}",
             std::process::id()
         ))
+    }
+
+    fn minimal_single_layer_psd_bytes() -> Vec<u8> {
+        let mut record = Vec::new();
+        record.extend(0i32.to_be_bytes());
+        record.extend(0i32.to_be_bytes());
+        record.extend(2i32.to_be_bytes());
+        record.extend(2i32.to_be_bytes());
+        record.extend(0u16.to_be_bytes());
+        record.extend(b"8BIM");
+        record.extend(b"norm");
+        record.push(255);
+        record.push(0);
+        record.push(0);
+        record.push(0);
+        let mut extra = Vec::new();
+        extra.extend(0u32.to_be_bytes());
+        extra.extend(0u32.to_be_bytes());
+        extra.push(4);
+        extra.extend(b"only");
+        extra.extend([0u8; 3]);
+        record.extend(u32::try_from(extra.len()).expect("extra length fits").to_be_bytes());
+        record.extend(extra);
+
+        let layer_info_len = 2 + record.len();
+        let layer_and_mask_len = 4 + layer_info_len;
+        let mut bytes = Vec::new();
+        bytes.extend(b"8BPS");
+        bytes.extend(1u16.to_be_bytes());
+        bytes.extend([0u8; 6]);
+        bytes.extend(3u16.to_be_bytes());
+        bytes.extend(2u32.to_be_bytes());
+        bytes.extend(2u32.to_be_bytes());
+        bytes.extend(8u16.to_be_bytes());
+        bytes.extend(3u16.to_be_bytes());
+        bytes.extend(0u32.to_be_bytes());
+        bytes.extend(0u32.to_be_bytes());
+        bytes.extend(
+            u32::try_from(layer_and_mask_len)
+                .expect("layer and mask length fits")
+                .to_be_bytes(),
+        );
+        bytes.extend(
+            u32::try_from(layer_info_len)
+                .expect("layer info length fits")
+                .to_be_bytes(),
+        );
+        bytes.extend(1i16.to_be_bytes());
+        bytes.extend(record);
+        bytes
     }
 }
