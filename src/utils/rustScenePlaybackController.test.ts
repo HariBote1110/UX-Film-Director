@@ -368,6 +368,75 @@ describe('RustScenePlaybackController', () => {
     expect(presentScene).not.toHaveBeenCalled();
   });
 
+  it('再生途中で同じresident mediaのsource frameが競合したら次の提示前に停止する', async () => {
+    let nowMs = 0;
+    let scheduled: (() => void) | null = null;
+    let evaluationCount = 0;
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => {
+        const base = evaluation(frameIndex, 'Video');
+        evaluationCount += 1;
+        if (evaluationCount === 1) {
+          return {
+            ...base,
+            media: [{ ...base.media[0], id: 'video-1', source: '/tmp/video.mov' }],
+          };
+        }
+        return {
+          ...base,
+          snapshot: {
+            ...base.snapshot,
+            clips: [
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'video-clip-1',
+                media_id: 'video-1',
+                source_frame: frameIndex,
+              },
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'video-clip-2',
+                media_id: 'video-1',
+                source_frame: frameIndex + 1,
+              },
+            ],
+          },
+          media: [{ ...base.media[0], id: 'video-1', source: '/tmp/video.mov' }],
+        };
+      },
+      presentScene,
+      emit,
+      nowMs: () => nowMs,
+      schedule: (callback) => {
+        scheduled = callback;
+        return 1;
+      },
+      cancel: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledTimes(1);
+
+    nowMs = 20;
+    (scheduled as unknown as (() => void))();
+
+    await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+      isPlaying: false,
+      reason: 'Native overlay media video-1 is requested at multiple source frames (1 and 2).',
+    })));
+    expect(presentScene).toHaveBeenCalledTimes(1);
+  });
+
   it('sourceRateが欠落または0のVideoはnative decoderへ渡さない', async () => {
     for (const source_rate of [
       undefined,
