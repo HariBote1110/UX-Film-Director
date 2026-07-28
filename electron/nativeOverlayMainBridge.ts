@@ -349,10 +349,20 @@ export const createNativeOverlayMainBridge = ({
         const presentStartedAt = now()
         const response = await addon.presentNativeOverlayScene(payload)
         if (nativeOverlayTraceEnabled(env)) {
+          const traceSnapshot = payload.snapshot && typeof payload.snapshot === 'object'
+            ? payload.snapshot as Record<string, unknown>
+            : {}
+          const traceMedia = payload.media.filter(
+            (media): media is Record<string, unknown> =>
+              media !== null && typeof media === 'object'
+          )
           logDiagnostic?.('presentSceneTrace', {
             presentMs: now() - presentStartedAt,
             success: response.success,
             attached: response.attached,
+            frameIndex: traceSnapshot.frameIndex,
+            mediaIds: traceMedia.map((media) => media.id),
+            mediaKinds: traceMedia.map((media) => media.kind),
             livePreparedClipCount: response.livePreparedClipCount,
             liveReadbackNonTransparentPixels: response.liveReadbackNonTransparentPixels,
             liveReadbackChecksum: response.liveReadbackChecksum,

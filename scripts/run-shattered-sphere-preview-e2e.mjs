@@ -299,13 +299,17 @@ const collectPresentSceneReadbackTraces = () => {
     });
 };
 
-const waitForLiveSurfaceReadback = async (timeoutMs = 30_000) => {
+const waitForLiveSurfaceReadback = async ({
+  readbackTraceCursor,
+  timeoutMs = 30_000,
+}) => {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const traces = collectPresentSceneReadbackTraces();
+    const traces = collectPresentSceneReadbackTraces().slice(readbackTraceCursor);
     const trace = traces.findLast((candidate) => (
       candidate?.success === true
       && candidate?.attached === true
+      && candidate?.mediaKinds?.includes('GeneratedShatteredSphere')
       && candidate?.livePreparedClipCount > 0
       && candidate?.liveReadbackNonTransparentPixels > 0
       && candidate?.liveReadbackChecksum > 0
@@ -317,7 +321,7 @@ const waitForLiveSurfaceReadback = async (timeoutMs = 30_000) => {
   return {
     ok: false,
     reason: 'liveSurfaceReadbackMissing',
-    traces: collectPresentSceneReadbackTraces(),
+    traces: collectPresentSceneReadbackTraces().slice(readbackTraceCursor),
   };
 };
 
@@ -482,6 +486,7 @@ const main = async () => {
   const ready = await waitForAppReady(client);
   if (!ready?.ok) throw new Error(`E2E hook did not become ready: ${JSON.stringify(ready)}`);
 
+  const readbackTraceCursor = collectPresentSceneReadbackTraces().length;
   const addResult = await client.evaluate('window.__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_ADD__()');
   log(`砕け散る球を追加: ${JSON.stringify(addResult)}`);
   const previewReady = await waitForNativePreviewReady(client);
@@ -493,7 +498,7 @@ const main = async () => {
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;
   const liveReadbackResult = previewReady?.ok && liveReadbackMode
-    ? await waitForLiveSurfaceReadback()
+    ? await waitForLiveSurfaceReadback({ readbackTraceCursor })
     : undefined;
   const visualGatePassed = liveReadbackMode
     ? liveReadbackResult?.ok === true
