@@ -78,6 +78,12 @@ describe('isNativeOverlayDirectSceneSession', () => {
     ]))).toBe(false);
   });
 
+  it('accepts a local JPEG image that the direct overlay image loader can decode', () => {
+    expect(isNativeOverlayDirectSceneSession(buildSession([
+      { id: 'jpeg', kind: 'Image', source: 'file:///tmp/photo%20one.jpeg?revision=1#preview' },
+    ]))).toBe(true);
+  });
+
   it.each([
     ['GeneratedAudioWaveform', audioWaveformSource],
     ['GeneratedAudioSphere', audioSphereSource],

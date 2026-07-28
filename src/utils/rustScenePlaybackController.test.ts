@@ -285,6 +285,31 @@ describe('RustScenePlaybackController', () => {
     expect(presentScene).not.toHaveBeenCalled();
   });
 
+  it('JPEG画像をmain所有のdirect presentへ渡す', async () => {
+    const source = '/tmp/photo.jpg';
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => ({
+        ...evaluation(frameIndex, 'Image'),
+        media: [{ ...evaluation(frameIndex, 'Image').media[0], source }],
+      }),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      media: [expect.objectContaining({ kind: 'Image', source })],
+    }));
+  });
+
   it('PSD・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
     for (const [kind, source] of [
       ['Psd', '/tmp/design.psd'],

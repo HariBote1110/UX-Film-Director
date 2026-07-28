@@ -3773,6 +3773,46 @@ mod tests {
     }
 
     #[test]
+    fn overlay_image_source_loaders_accept_percent_encoded_jpeg_file_urls() {
+        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../public/icon.jpg");
+        let image_path = unique_temp_path("overlay jpeg image", "jpg");
+        std::fs::copy(&fixture_path, &image_path).expect("copy JPEG fixture");
+        let encoded_path = image_path.to_string_lossy().replace(' ', "%20");
+        let source = format!("file://{encoded_path}?revision=1#preview");
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: Vec::new(),
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "jpeg-1".to_string(),
+                kind: "Image".to_string(),
+                source,
+                width: 320,
+                height: 180,
+                source_rate: None,
+            }],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let image_sources = load_overlay_image_sources_for_scene(&scene)
+            .expect("JPEG file URL must load through the image source loader");
+        let direct_sources = load_overlay_native_sources_for_scene(&scene)
+            .expect("JPEG file URL must load through the direct scene source loader");
+        for sources in [&image_sources, &direct_sources] {
+            let frame = sources
+                .get("jpeg-1")
+                .expect("JPEG source must be registered under its media id");
+            assert_eq!(frame.width, 1024);
+            assert_eq!(frame.height, 1024);
+        }
+        let _ = std::fs::remove_file(image_path);
+    }
+
+    #[test]
     fn overlay_native_source_loader_builds_getcolor_for_direct_mixed_scene_present() {
         let scene = NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
