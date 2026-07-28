@@ -123,12 +123,24 @@ class CdpClient {
   }
 
   async evaluate(expression, awaitPromise = true) {
-    const result = await this.send('Runtime.evaluate', {
-      expression,
-      awaitPromise,
-      returnByValue: true,
-      userGesture: true,
-    });
+    let result;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        result = await this.send('Runtime.evaluate', {
+          expression,
+          awaitPromise,
+          returnByValue: true,
+          userGesture: true,
+        });
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes('Cannot find default execution context') || attempt === 19) {
+          throw error;
+        }
+        await sleep(250);
+      }
+    }
     if (result.exceptionDetails) {
       throw new Error(result.exceptionDetails.text ?? 'Runtime.evaluate failed');
     }
