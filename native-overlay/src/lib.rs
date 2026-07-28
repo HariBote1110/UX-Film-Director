@@ -3474,6 +3474,95 @@ mod tests {
         assert_eq!(requests[0].source_rate.denominator, 1);
     }
 
+    #[test]
+    fn resident_scene_builds_multiple_video_requests_and_audio_reactive_source_together() {
+        let clip = |clip_id: &str, media_id: &str, source_frame: u64, z_index: u32| {
+            EvaluatedClip {
+                clip_id: clip_id.to_string(),
+                track_id: "track-1".to_string(),
+                media_id: media_id.to_string(),
+                source_frame,
+                z_index,
+                transform: Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            }
+        };
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 42,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![
+                    clip("video-clip-1", "video-1", 15, 0),
+                    clip("video-clip-2", "video-2", 27, 1),
+                    clip("audio-clip", "audio-waveform-1", 30, 2),
+                ],
+            },
+            media: vec![
+                NativeOverlaySceneMedia {
+                    id: "video-1".to_string(),
+                    kind: "Video".to_string(),
+                    source: "/tmp/video-1.mov".to_string(),
+                    width: 1920,
+                    height: 1080,
+                    source_rate: Some(Fps {
+                        numerator: 30,
+                        denominator: 1,
+                    }),
+                    active_layer_ids: Vec::new(),
+                },
+                NativeOverlaySceneMedia {
+                    id: "video-2".to_string(),
+                    kind: "Video".to_string(),
+                    source: "/tmp/video-2.mov".to_string(),
+                    width: 1280,
+                    height: 720,
+                    source_rate: Some(Fps {
+                        numerator: 24,
+                        denominator: 1,
+                    }),
+                    active_layer_ids: Vec::new(),
+                },
+                NativeOverlaySceneMedia {
+                    id: "audio-waveform-1".to_string(),
+                    kind: "GeneratedAudioWaveform".to_string(),
+                    source: r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"colour":"#00ff00","thickness":1,"amplitude":1}"##.to_string(),
+                    width: 640,
+                    height: 180,
+                    source_rate: None,
+                    active_layer_ids: Vec::new(),
+                },
+            ],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let requests =
+            native_overlay_video_decode_requests(&scene).expect("two video requests must resolve");
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].media_id, "video-1");
+        assert_eq!(requests[0].source_frame, 15);
+        assert_eq!(requests[1].media_id, "video-2");
+        assert_eq!(requests[1].source_frame, 27);
+
+        let mut cache = NativeOverlayAudioPcmCache::default();
+        let mut decoded_sources = Vec::new();
+        let mut decode = |source: &str, sample_rate: u32| {
+            decoded_sources.push(source.to_string());
+            Ok(vec![0.25; sample_rate as usize])
+        };
+        let audio_sources = native_overlay_audio_reactive_sources_for_scene(
+            &scene,
+            &mut cache,
+            &mut decode,
+        )
+        .expect("resident audio reactive source must resolve beside videos");
+
+        assert_eq!(decoded_sources, vec!["/tmp/dialogue.wav".to_string()]);
+        assert_eq!(audio_sources.len(), 1);
+        assert!(audio_sources.contains_key("audio-waveform-1"));
+    }
+
     static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     #[test]
