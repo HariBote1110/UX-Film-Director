@@ -459,15 +459,6 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
   }
   const surfaceGate = session.surfaceGate;
 
-  if (!isNativeOverlayDirectSceneSession(session)) {
-    return {
-      ok: false,
-      reason: 'nativeOverlayDirectSceneIneligible',
-      detail: 'Shared renderer preview session is not eligible for decoded-frame direct overlay presentation.',
-      activeJob,
-    };
-  }
-
   const decodeRequests = decodeRequestBuilder({
     snapshot: surfaceGate.snapshot,
     media: surfaceGate.media,
@@ -487,6 +478,15 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
       ok: false,
       reason: 'noVideoDecodeRequest',
       detail: 'Shared renderer preview session does not contain a visible video frame request.',
+      activeJob,
+    };
+  }
+
+  if (!isNativeOverlayDirectSceneSession(session)) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayDirectSceneIneligible',
+      detail: 'Shared renderer preview session is not eligible for decoded-frame direct overlay presentation.',
       activeJob,
     };
   }
