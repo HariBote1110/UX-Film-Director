@@ -109,6 +109,40 @@ const isDirectOverlayMediaSupported = (
   return true;
 };
 
+const SINGLE_SOURCE_FRAME_MEDIA_KINDS = new Set([
+  'Video',
+  'GeneratedAudioWaveform',
+  'GeneratedAudioSphere',
+  'GeneratedParticle',
+  'GeneratedFocusLinesPlus',
+  'GeneratedShakingPolygon',
+  'GeneratedShatteredSphere',
+]);
+
+const resolveDirectOverlaySourceFrameConflict = (
+  evaluation: RustScenePlaybackEvaluation,
+): string | null => {
+  const mediaKindsById = new Map(
+    evaluation.media.map((media) => [media.id, media.kind]),
+  );
+  const sourceFramesByMediaId = new Map<string, number>();
+  for (const clip of evaluation.snapshot.clips) {
+    const mediaKind = mediaKindsById.get(clip.media_id);
+    if (!mediaKind || !SINGLE_SOURCE_FRAME_MEDIA_KINDS.has(mediaKind)) {
+      continue;
+    }
+    const previousSourceFrame = sourceFramesByMediaId.get(clip.media_id);
+    if (
+      previousSourceFrame !== undefined
+      && previousSourceFrame !== clip.source_frame
+    ) {
+      return `Native overlay media ${clip.media_id} is requested at multiple source frames (${previousSourceFrame} and ${clip.source_frame}).`;
+    }
+    sourceFramesByMediaId.set(clip.media_id, clip.source_frame);
+  }
+  return null;
+};
+
 const copyDiagnostics = (
   diagnostics: RustScenePlaybackDiagnostics,
 ): RustScenePlaybackDiagnostics => ({ ...diagnostics });
@@ -266,6 +300,14 @@ export const createRustScenePlaybackController = ({
         isDirectOverlayMediaSupported(media.kind, media.source, media.source_rate))
     ) {
       return { active: false, reason: 'unsupportedDirectMedia' };
+    }
+    const sourceFrameConflict = resolveDirectOverlaySourceFrameConflict(evaluation);
+    if (sourceFrameConflict) {
+      return {
+        active: false,
+        reason: 'unsupportedDirectMedia',
+        detail: sourceFrameConflict,
+      };
     }
     let response: NativeOverlayResponse;
     try {
