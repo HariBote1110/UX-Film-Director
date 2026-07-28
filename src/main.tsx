@@ -85,27 +85,38 @@ if (urlSearchParams.has('shatteredSpherePreviewE2e')) {
       before: number;
       after: number;
       duringPlayback: number;
+      valid: boolean;
     }>;
+    __UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__?: number;
   }).__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_PLAY__ = async (durationMs: number) => {
     const { resolveRealisticHeavyEditPresenterRestarts } = await import(
       './e2e/realisticHeavyEditPresenterRestarts'
     );
+    const diagnosticsWindow = window as typeof window & {
+      __UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__?: number;
+    };
     useStore.getState().setIsPlaying(true);
     await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
     await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     const presenterStartCountBefore =
-      document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
+      diagnosticsWindow.__UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__;
     await new Promise((resolveWait) => setTimeout(resolveWait, durationMs));
     const presenterStartCountAfter =
-      document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
+      diagnosticsWindow.__UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__;
     useStore.getState().setIsPlaying(false);
     await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
     await new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame(undefined)));
-    return resolveRealisticHeavyEditPresenterRestarts(
-      presenterStartCountBefore,
-      presenterStartCountAfter,
+    const presenterStartCountValid =
+      Number.isFinite(presenterStartCountBefore) && Number.isFinite(presenterStartCountAfter);
+    const presenterRestarts = resolveRealisticHeavyEditPresenterRestarts(
+      presenterStartCountValid ? String(presenterStartCountBefore) : undefined,
+      presenterStartCountValid ? String(presenterStartCountAfter) : undefined,
     );
+    return {
+      ...presenterRestarts,
+      valid: presenterStartCountValid,
+    };
   };
 }
 

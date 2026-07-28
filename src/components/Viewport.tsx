@@ -91,6 +91,10 @@ const PAUSE_SNAP_MIN_DELTA_SECONDS = 0.004;
 
 type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefined>;
 
+type SharedRendererPresenterStartCountWindow = typeof window & {
+  __UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__?: number;
+};
+
 type RustTimelineSceneRpcStatus = 'disabled' | 'pending' | 'ready' | 'blocked';
 
 interface RustTimelineSceneRpcDiagnostics {
@@ -1865,7 +1869,14 @@ const Viewport: React.FC = () => {
         onFrameReady: requestSharedRendererExternalVideoFrameRepaint,
       });
     }
-    sharedRendererPresenterStartCountRef.current += 1;
+    const presenterStartCountWindow = window as SharedRendererPresenterStartCountWindow;
+    const persistentPresenterStartCount =
+      presenterStartCountWindow.__UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__;
+    sharedRendererPresenterStartCountRef.current = Math.max(sharedRendererPresenterStartCountRef.current,
+      Number.isFinite(persistentPresenterStartCount) ? persistentPresenterStartCount ?? 0 : 0,
+    ) + 1;
+    presenterStartCountWindow.__UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__ =
+      sharedRendererPresenterStartCountRef.current;
     liveDatasets.forEach((dataset) => {
       dataset.uxfdSharedRendererPresenterStartCount = String(sharedRendererPresenterStartCountRef.current);
     });

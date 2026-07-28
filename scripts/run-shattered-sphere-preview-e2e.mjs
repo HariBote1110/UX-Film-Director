@@ -452,7 +452,9 @@ const main = async () => {
   const presenterRestarts = previewReady?.ok
     ? await client.evaluate('window.__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_PLAY__(2000)')
     : undefined;
-  const presenterReusePassed = presenterRestarts?.duringPlayback === 0;
+  const presenterReusePassed =
+    presenterRestarts?.valid === true
+    && presenterRestarts?.duringPlayback === 0;
   if (presenterRestarts) {
     log(`presenter再起動回数(診断・再生区間): before=${presenterRestarts.before} after=${presenterRestarts.after} duringPlayback=${presenterRestarts.duringPlayback}`);
   }
