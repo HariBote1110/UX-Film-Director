@@ -8,13 +8,19 @@ CAMetalLayerへ直接提示できるシーンの再生時計はElectron mainが�
 
 mainは単調時計からフレーム番号を求め、resident sceneに対して`scene.evaluate`を呼び、結果をnative overlayへ直接渡す。評価または提示が遅れた場合は古いフレームを順番に処理せず、現在時刻に対応するフレームへ追いつく。UI時刻通知は200ms間隔とし、開始・停止・終端・失敗だけ即時通知する。
 
-VideoはElectron main process内のnative overlay addonがVideoToolbox decode sessionを所有し、NV12 IOSurfaceをWGPUへimportしてCAMetalLayerへ直接提示する。PSD、PNG以外の画像、renderer decoded-frame注入を使うVideo＋音声生成物の混在シーンは、対応するネイティブsource供給が完成するまで既存renderer時計へ戻す。途中失敗でも再生を止めずrendererへフォールバックし、失敗詳細を`data-uxfd-rust-playback-detail`へ残す。
+VideoはElectron main process内のnative overlay addonがVideoToolbox decode sessionを所有し、NV12 IOSurfaceをWGPUへimportしてCAMetalLayerへ直接提示する。途中失敗でも再生を止めずrendererへフォールバックし、失敗詳細を`data-uxfd-rust-playback-detail`へ残す。
 
 **更新（Beta-483f）**: Native Overlay addonに既に実装済みだったresident PCM cacheと
 GPU audio reactive sourceを適格性判定へ接続し、`GeneratedAudioWaveform`と
 `GeneratedAudioSphere`はmain所有時計から直接提示できるようになった。PSDと
 PNG以外の画像は引き続き既存renderer時計へ戻す。native media schemaを満たさない
 音声sourceはaddon呼び出し前に`unsupportedDirectMedia`として拒否する。
+
+**更新（Beta-484a）**: JPEG decoderとPSD active layer compositorをdirect sourceへ
+接続した。異なるmedia IDの複数Video、およびVideo＋音声生成物はmain所有の
+resident sceneとして同じ`presentScene`へ一括搬送する。同じresident mediaを
+異なるsource frameで同時要求するsceneだけは、提示前に明示拒否してrenderer時計へ
+戻す。renderer側の単一decoded-frame注入gateは安全境界として維持する。
 
 ## 境界契約
 

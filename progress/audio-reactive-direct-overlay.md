@@ -69,12 +69,8 @@ renderer decoded-frame提示関数自身もdirect scene適格性を確認する�
 
 ## 対象外・残件
 
-- Video＋音声生成物はrenderer decoded-frame注入経路にresident PCM sourceを
-  供給する設計が必要。
-- PSDは`active_layer_ids`をNative Overlay payloadへ運んで合成loaderへ渡す必要がある。
-- JPEGはaddonのimage loaderがPNG固定であり、JPEG decoderの配線が必要。
-- 複数Videoはrenderer側のsingle decoded-frame routingとframe lease管理の変更が必要。
-- direct `presentScene`の実GPU readback診断はrenderer/E2Eまで伝播していない。
-  現在はnative-overlayのresident PCM契約とnative-wgpu-rendererの既存GPU画素テスト、
-  TypeScript経路テストを組み合わせて検証している。live surfaceの非透明画素を
-  E2E gateにするには、readback診断のbridge伝播を別作業で追加する。
+- Beta-484aでJPEG、PSD active layer、main-owned複数Video／Video＋音声生成物、
+  direct `presentScene`の実GPU readback E2Eは完了した。
+- renderer側の単一decoded-frame注入はresident PCM sourceを持たないため、
+  複数Video／Video＋音声生成物に対して引き続き不適格とする。混在sceneの直接提示は
+  Electron main所有のresident playback経路が担当する。

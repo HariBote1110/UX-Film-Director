@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [native-overlay-media-readback-completion.md](native-overlay-media-readback-completion.md) — JPEG direct decoder、PSD active layer搬送・合成、main-owned複数Video／Video＋resident音声の一括提示、実CAMetalLayer readbackとoffscreen reference完全一致E2Eを完了（2026-07-28）
 - [audio-reactive-direct-overlay.md](audio-reactive-direct-overlay.md) — 動画なしの音声波形・音声球をrenderer側PCM抽出とshared RGBA生成から外し、Native Overlayのresident PCM＋GPU sourceで直接提示。Video混在はdecode前に拒否し、不正sourceは既存native media schemaでaddon呼び出し前に除外（2026-07-28）
 - [psd-billboard-data-texture.md](psd-billboard-data-texture.md) — Rust合成済みRGBA8のCanvas2D `putImageData`往復を廃止し、ゼロコピーviewからDataTextureへ直接転送。同一cache keyのGPU再転送を止め、置換・削除・unmount時のtexture破棄を明示化（2026-07-28）
 - [video-free-presenter-reuse.md](video-free-presenter-reuse.md) — Native Overlay成功とDOM upload待機が食い違っていた砕け散る球E2Eを修復し、通常cutoverでも動画なしセッションだけpresenter reuseを許可。定常再生中のフル再起動を41回から0回へ削減し、欠落値を拒否する単調カウンタでE2E gate化（2026-07-28）

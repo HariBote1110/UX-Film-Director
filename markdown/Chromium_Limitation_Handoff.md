@@ -1,11 +1,12 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
-更新: 2026-07-28 / 版 `0.1.1-Beta-483f` — P2・P3完了。P1は動画なしセッションの
+更新: 2026-07-28 / 版 `0.1.1-Beta-484a` — P2・P3完了。P1は動画なしセッションの
 presenter再利用を修正し、砕け散る球E2Eで定常再生中41回→0回を確認した。
-動画を含む混在セッションの87回/177フレームは、A/V二重クロックを避けるため未修正。
-WebGPU presenter到達率の縮小は、動画なし音声波形・音声球のdirect提示まで完了。
-次はJPEG、PSD、またはRust側へ動画供給を統合した後の混在セッション再利用。
+renderer側の動画を含む混在セッションは、A/V二重クロックを避けるため単一
+decoded-frame注入gateを維持する。一方、Electron main所有のresident playbackは
+JPEG、PSD active layer、複数Video、Video＋音声生成物まで統合済み。
+実CAMetalLayer readbackは砕け散る球のoffscreen reference renderと完全一致した。
 
 **E2E修復済み**: `npm run test:shattered-sphere-preview:e2e` はNative Overlayの
 direct presentとDOM WebGPU uploadの期待が混在していた。検証対象を後者へ明示固定し、
