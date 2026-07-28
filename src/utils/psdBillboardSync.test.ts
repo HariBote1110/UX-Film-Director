@@ -167,4 +167,22 @@ describe('fetchPsdCompositeRgba', () => {
 
     await expect(fetchPsdCompositeRgba(ipc, basePsd())).resolves.toBeNull();
   });
+
+  it.each([
+    { width: -1, height: -1 },
+    { width: 0.5, height: 2 },
+  ])(
+    'rejects non-positive or fractional dimensions ($width x $height)',
+    async ({ width, height }) => {
+      const invoke = vi.fn().mockResolvedValue({
+        success: true,
+        width,
+        height,
+        pixelData: new Uint8Array([255, 0, 0, 255]).buffer,
+      });
+      const ipc: PsdRenderCompositeIpc = { invoke };
+
+      await expect(fetchPsdCompositeRgba(ipc, basePsd())).resolves.toBeNull();
+    }
+  );
 });
