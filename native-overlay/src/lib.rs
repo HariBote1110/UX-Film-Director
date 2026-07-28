@@ -3640,6 +3640,58 @@ mod tests {
         assert!(audio_sources.contains_key("audio-waveform-1"));
     }
 
+    #[test]
+    fn native_video_decode_requests_reject_duplicate_media_ids() {
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "video-clip".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![
+                NativeOverlaySceneMedia {
+                    id: "video-1".to_string(),
+                    kind: "Video".to_string(),
+                    source: "/tmp/video-a.mov".to_string(),
+                    width: 1920,
+                    height: 1080,
+                    source_rate: Some(Fps {
+                        numerator: 30,
+                        denominator: 1,
+                    }),
+                    active_layer_ids: Vec::new(),
+                },
+                NativeOverlaySceneMedia {
+                    id: "video-1".to_string(),
+                    kind: "Video".to_string(),
+                    source: "/tmp/video-b.mov".to_string(),
+                    width: 1280,
+                    height: 720,
+                    source_rate: Some(Fps {
+                        numerator: 24,
+                        denominator: 1,
+                    }),
+                    active_layer_ids: Vec::new(),
+                },
+            ],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let error = native_overlay_video_decode_requests(&scene)
+            .expect_err("duplicate media IDs must be rejected");
+        assert!(error.contains("Duplicate native overlay mediaId 'video-1'"));
+    }
+
     static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     #[test]

@@ -328,6 +328,46 @@ describe('RustScenePlaybackController', () => {
     expect(presentScene).not.toHaveBeenCalled();
   });
 
+  it('同じmedia IDの異なる定義が重複するsceneは提示前に拒否する', async () => {
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => {
+        const base = evaluation(frameIndex, 'Video');
+        return {
+          ...base,
+          media: [
+            {
+              ...base.media[0],
+              id: 'video-1',
+              source: '/tmp/video-a.mov',
+            },
+            {
+              ...base.media[0],
+              id: 'video-1',
+              source: '/tmp/video-b.mov',
+            },
+          ],
+        };
+      },
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toEqual({
+      active: false,
+      reason: 'unsupportedDirectMedia',
+      detail: 'Native overlay scene contains duplicate media ID video-1.',
+    });
+    expect(presentScene).not.toHaveBeenCalled();
+  });
+
   it('sourceRateが欠落または0のVideoはnative decoderへ渡さない', async () => {
     for (const source_rate of [
       undefined,
