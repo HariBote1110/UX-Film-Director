@@ -568,27 +568,41 @@ describe('Viewport Rust video-only boundary', () => {
 
   it('extends native render presenter reuse to non-video (shape/image) sessions alongside video-only sessions', () => {
     const code = viewportSource();
-    const start = code.indexOf('const canReuseNativeRenderPresenter = rustVideoOnlyEnabled');
-    const end = code.indexOf(';', start);
+    const start = code.indexOf(
+      'const canReuseNativeRenderPresenter = shouldReuseSharedRendererNativeRenderPresenter({'
+    );
+    const end = code.indexOf('const nextPresenterKey =', start);
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('isSharedRendererExternalVideoOnlySession(session)');
-    expect(block).toContain('isSharedRendererNativeRenderOnlySession(session)');
+    expect(block).toContain('rustVideoOnlyEnabled');
+    expect(block).toContain('sharedRendererVideoCutoverEnabled');
+    expect(block).toContain('externalVideoOnly: isSharedRendererExternalVideoOnlySession(session)');
+    expect(block).toContain('nativeRenderOnly: isSharedRendererNativeRenderOnlySession(session)');
+    expect(block).toContain('mixedNativeRender: isSharedRendererMixedNativeRenderSession(session)');
   });
 
   it('mirrors the non-video reuse extension in the presenter start effect key computation', () => {
     const code = viewportSource();
-    const start = code.indexOf('const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled');
-    const end = code.indexOf(';', start);
+    const start = code.indexOf(
+      'const canReuseCurrentNativeRenderPresenter = shouldReuseSharedRendererNativeRenderPresenter({'
+    );
+    const end = code.indexOf('const presenterSessionKey =', start);
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
     // presenter 再起動は state ではなく最新 publish セッション
     // （presenterRestartSession）から key/reuse 述語を導出する
     // （sharedRendererPresenterRestartSession.test.ts の契約を参照）。
-    expect(block).toContain('isSharedRendererExternalVideoOnlySession(presenterRestartSession)');
-    expect(block).toContain('isSharedRendererNativeRenderOnlySession(presenterRestartSession)');
+    expect(block).toContain(
+      'externalVideoOnly: isSharedRendererExternalVideoOnlySession(presenterRestartSession)'
+    );
+    expect(block).toContain(
+      'nativeRenderOnly: isSharedRendererNativeRenderOnlySession(presenterRestartSession)'
+    );
+    expect(block).toContain(
+      'mixedNativeRender: isSharedRendererMixedNativeRenderSession(presenterRestartSession)'
+    );
   });
 
   it('falls back to prepareSharedRendererViewportNativeRenderUpload for native-render-only sessions when the native overlay is disabled (Phase 3b Step 2)', () => {
@@ -640,21 +654,31 @@ describe('Viewport Rust video-only boundary', () => {
     // Phase 3b Step 1 — mixed セッションの毎 pointermove フル再起動
     // （約28ms/回）を解消するため、reuse 対象を mixed セッションにも広げる。
     const code = viewportSource();
-    const start = code.indexOf('const canReuseNativeRenderPresenter = rustVideoOnlyEnabled');
-    const end = code.indexOf(';', start);
+    const start = code.indexOf(
+      'const canReuseNativeRenderPresenter = shouldReuseSharedRendererNativeRenderPresenter({'
+    );
+    const end = code.indexOf('const nextPresenterKey =', start);
     const block = code.slice(start, end);
-    const restartStart = code.indexOf('const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled');
-    const restartEnd = code.indexOf(';', restartStart);
+    const restartStart = code.indexOf(
+      'const canReuseCurrentNativeRenderPresenter = shouldReuseSharedRendererNativeRenderPresenter({'
+    );
+    const restartEnd = code.indexOf('const presenterSessionKey =', restartStart);
     const restartBlock = code.slice(restartStart, restartEnd);
 
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('isSharedRendererExternalVideoOnlySession(session)');
-    expect(block).toContain('isSharedRendererNativeRenderOnlySession(session)');
-    expect(block).toContain('isSharedRendererMixedNativeRenderSession(session)');
+    expect(block).toContain('externalVideoOnly: isSharedRendererExternalVideoOnlySession(session)');
+    expect(block).toContain('nativeRenderOnly: isSharedRendererNativeRenderOnlySession(session)');
+    expect(block).toContain('mixedNativeRender: isSharedRendererMixedNativeRenderSession(session)');
     expect(restartStart).toBeGreaterThan(-1);
-    expect(restartBlock).toContain('isSharedRendererExternalVideoOnlySession(presenterRestartSession)');
-    expect(restartBlock).toContain('isSharedRendererNativeRenderOnlySession(presenterRestartSession)');
-    expect(restartBlock).toContain('isSharedRendererMixedNativeRenderSession(presenterRestartSession)');
+    expect(restartBlock).toContain(
+      'externalVideoOnly: isSharedRendererExternalVideoOnlySession(presenterRestartSession)'
+    );
+    expect(restartBlock).toContain(
+      'nativeRenderOnly: isSharedRendererNativeRenderOnlySession(presenterRestartSession)'
+    );
+    expect(restartBlock).toContain(
+      'mixedNativeRender: isSharedRendererMixedNativeRenderSession(presenterRestartSession)'
+    );
   });
 
   it('routes the mixed-session reuse tick directly to the CAMetalLayer overlay', () => {
