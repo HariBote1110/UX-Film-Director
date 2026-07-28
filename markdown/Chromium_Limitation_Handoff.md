@@ -1,14 +1,15 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
-更新: 2026-07-27 / 版 `0.1.1-Beta-483c` — P2完了。P1の残件はReactではなく
-**presenterのフル再起動87回/177フレーム**だと判明（下記P1節）。次はP3、または
-`progress/presenter-restart-storm-rustvideoonly-gate.md` の「次にやるべきこと」から。
+更新: 2026-07-28 / 版 `0.1.1-Beta-483d` — P2完了。P1は動画なしセッションの
+presenter再利用を修正し、砕け散る球E2Eで定常再生中41回→0回を確認した。
+動画を含む混在セッションの87回/177フレームは、A/V二重クロックを避けるため未修正。
+次はP3、またはRust側へ動画供給を統合した後の混在セッション再利用。
 
-**既知の壊れているE2E**: `npm run test:shattered-sphere-preview:e2e` は
-`nativePreviewReadyTimeout` で失敗する（このセッションの変更が原因でないことは
-`ae0535ea` での再現で切り分け済み）。生成効果のみのシーンで
-`uxfdSharedRendererPresenterNativeRenderFrameReady` が付与されないのが唯一の未達条件。
+**E2E修復済み**: `npm run test:shattered-sphere-preview:e2e` はNative Overlayの
+direct presentとDOM WebGPU uploadの期待が混在していた。検証対象を後者へ明示固定し、
+画素検査・`nativeRenderFrameReady`・定常再生中のpresenter再起動0回を合否条件として
+2回連続PASSした。
 
 ## 0. ゴール（元の指示）
 
@@ -63,6 +64,13 @@ Pixi二重描画レース対策の名残でPhase 4後は不要だったため撤
 ただし混在セッションでゲートを広げると動画の供給元がHTMLVideoElementのアップロードから
 Rust再デコードへ切り替わり音声と二重クロックになるため、**安易に広げてはいけない**。
 詳細と次の一手は `progress/presenter-restart-storm-rustvideoonly-gate.md`。
+
+**Beta-483dで解消した部分集合**:
+動画なしのnative-render-onlyセッションはHTMLVideoElement音声と競合しないため、
+通常cutover構成でもpresenter reuseを許可した。砕け散る球E2Eでは修正前の定常再生中
+41回から、修正後は有効な単調カウンタで0回へ減少した。video-only・混在セッションは
+`rustVideoOnlyEnabled` 必須のままで、既知のA/V二重パイプラインを作らない。
+詳細は `progress/video-free-presenter-reuse.md`。
 
 **実機での未確認事項**: 選択枠のドラッグ・リサイズ操作（重量E2Eは演習しない）。
 実機確認時にリサイズハンドルの追従を確認すること。

@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [video-free-presenter-reuse.md](video-free-presenter-reuse.md) — Native Overlay成功とDOM upload待機が食い違っていた砕け散る球E2Eを修復し、通常cutoverでも動画なしセッションだけpresenter reuseを許可。定常再生中のフル再起動を41回から0回へ削減し、欠落値を拒否する単調カウンタでE2E gate化（2026-07-28）
 - [presenter-restart-storm-rustvideoonly-gate.md](presenter-restart-storm-rustvideoonly-gate.md) — 重量E2Eでpresenterが87回/177フレームフル再起動する原因は`canReuseNativeRenderPresenter`が`rustVideoOnlyEnabled`単独ゲートで本番/E2E構成では常にfalseになること。ゲート拡大を検討したが、混在セッションでHTMLVideoElement音声とRust側再デコードが二重化しA/Vドリフトを起こす破綻経路を特定したため修正を見送った（2026-07-27）
 - [text-stroke-shadow-clipping.md](text-stroke-shadow-clipping.md) — 縁取り・影がプレーン境界で切れる未修正バグ。プレーンを広げるだけでは回転軸が動くため、TS側の寸法・位置とRust側の描画原点の協調変更が要る（2026-07-26）
 - [text-shadow-blur.md](text-shadow-blur.md) — `textShadow.blur` が完全に無視されていたバグの修正。分離可能ボックスブラー3パスでガウシアンを近似し、影のバウンディングボックス限定で処理。境界クリップは既知の別バグとして残置（2026-07-26）

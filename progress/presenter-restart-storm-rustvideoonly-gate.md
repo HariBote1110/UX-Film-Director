@@ -1,5 +1,9 @@
 # 重量E2Eのpresenterフル再起動ストーム — 未修正の判断根拠
 
+更新（2026-07-28）: 動画なしセッションの部分集合は
+`progress/video-free-presenter-reuse.md` で修正済み。以下の判断根拠と残課題は、
+動画を含む混在セッションに対して引き続き有効である。
+
 ## 決定
 
 **修正しなかった。** `canReuseNativeRenderPresenter`（`src/components/Viewport.tsx:1282`,
