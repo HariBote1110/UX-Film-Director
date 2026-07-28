@@ -2724,6 +2724,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
     cache: &mut NativeOverlaySourceCache,
     skip_gpu_particles: bool,
 ) -> Result<NativeOverlaySharedSources, String> {
+    validate_unique_native_overlay_media_ids(scene)?;
     let mut sources = HashMap::new();
     let mut touched_media_ids = HashSet::new();
     for media in &scene.media {
@@ -3216,6 +3217,7 @@ where
 fn native_overlay_video_decode_requests(
     scene: &NativeOverlaySceneSource,
 ) -> Result<Vec<VideoFrameDecodeRequest>, String> {
+    validate_unique_native_overlay_media_ids(scene)?;
     let media: Vec<SceneMediaReference> = scene
         .media
         .iter()
@@ -3249,6 +3251,18 @@ fn native_overlay_video_decode_requests(
     }
 
     Ok(requests.requests)
+}
+
+fn validate_unique_native_overlay_media_ids(
+    scene: &NativeOverlaySceneSource,
+) -> Result<(), String> {
+    let mut media_ids = HashSet::new();
+    for media in &scene.media {
+        if !media_ids.insert(media.id.as_str()) {
+            return Err(format!("Duplicate native overlay mediaId '{}'", media.id));
+        }
+    }
+    Ok(())
 }
 
 fn overlay_media_kind(kind: &str) -> Option<MediaKind> {

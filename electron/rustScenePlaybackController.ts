@@ -122,6 +122,13 @@ const SINGLE_SOURCE_FRAME_MEDIA_KINDS = new Set([
 const resolveDirectOverlaySourceFrameConflict = (
   evaluation: RustScenePlaybackEvaluation,
 ): string | null => {
+  const mediaIds = new Set<string>();
+  for (const media of evaluation.media) {
+    if (mediaIds.has(media.id)) {
+      return `Native overlay scene contains duplicate media ID ${media.id}.`;
+    }
+    mediaIds.add(media.id);
+  }
   const mediaKindsById = new Map(
     evaluation.media.map((media) => [media.id, media.kind]),
   );
