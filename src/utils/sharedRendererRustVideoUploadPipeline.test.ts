@@ -3,6 +3,7 @@ import {
   presentNativeOverlayRustDecodedVideoFrame,
   prepareSharedRendererRustDecodedVideoUpload,
   resetNativeOverlayVisualFrameCache,
+  toNativeOverlaySceneMediaPayload,
   type PresentNativeOverlayRustDecodedVideoFrameInput,
 } from './sharedRendererRustVideoUploadPipeline';
 import type {
@@ -54,6 +55,24 @@ const decodedFrameResponse: RustBackendResult<RustBackendVideoDecodeFrameResult>
 };
 
 describe('sharedRendererRustVideoUploadPipeline', () => {
+  it('preserves PSD active layer ids in the native overlay media payload', () => {
+    expect(toNativeOverlaySceneMediaPayload({
+      id: 'psd-1',
+      kind: 'Psd',
+      source: '/tmp/character.psd',
+      width: 2700,
+      height: 3700,
+      active_layer_ids: ['psd-group-0', 'psd-layer-2'],
+    })).toEqual({
+      id: 'psd-1',
+      kind: 'Psd',
+      source: '/tmp/character.psd',
+      width: 2700,
+      height: 3700,
+      activeLayerIds: ['psd-group-0', 'psd-layer-2'],
+    });
+  });
+
   it('presents a verified Rust decoded frame through Native Overlay and releases the backend slot after present', async () => {
     const calls: unknown[] = [];
     const rustBackendBridge: RustBackendVideoDecodeBridge = {

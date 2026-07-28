@@ -3404,6 +3404,27 @@ mod tests {
     }
 
     #[test]
+    fn scene_media_payload_preserves_psd_active_layer_ids() {
+        let media = scene_media_from_payload(NativeOverlaySceneMediaPayload {
+            id: "psd-1".to_string(),
+            kind: "Psd".to_string(),
+            source: "/tmp/character.psd".to_string(),
+            width: 2700,
+            height: 3700,
+            source_rate: None,
+            active_layer_ids: Some(vec![
+                "psd-group-0".to_string(),
+                "psd-layer-2".to_string(),
+            ]),
+        });
+
+        assert_eq!(
+            media.active_layer_ids,
+            vec!["psd-group-0".to_string(), "psd-layer-2".to_string()]
+        );
+    }
+
+    #[test]
     fn native_video_decode_requests_use_scene_source_frame_and_rate() {
         let scene = NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
