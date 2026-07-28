@@ -56,6 +56,7 @@ export interface RustScenePlaybackEvaluation {
       numerator: number;
       denominator: number;
     };
+    active_layer_ids?: string[];
   }>;
 }
 
@@ -284,6 +285,9 @@ export const createRustScenePlaybackController = ({
                   denominator: media.source_rate.denominator,
                 },
               }
+            : {}),
+          ...(media.active_layer_ids?.length
+            ? { activeLayerIds: [...media.active_layer_ids] }
             : {}),
         })),
       });

@@ -74,7 +74,7 @@ describe('isNativeOverlayDirectSceneSession', () => {
   it('rejects non-video sources that the direct overlay source loader cannot build', () => {
     expect(isNativeOverlayDirectSceneSession(buildSession([
       { id: 'video', kind: 'Video', source: '/tmp/video.mov' },
-      { id: 'psd', kind: 'Psd', source: '/tmp/layers.psd' },
+      { id: 'webp', kind: 'Image', source: '/tmp/photo.webp' },
     ]))).toBe(false);
   });
 

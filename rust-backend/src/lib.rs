@@ -2,6 +2,7 @@ mod generated;
 mod psd_fast;
 
 use generated::*;
+use std::fs;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_rust_core::{MediaKind, SceneMediaReference};
 
@@ -80,6 +81,45 @@ pub fn load_native_getcolor_sample_frame(
         ));
     }
     load_generated_getcolor_sample_frame(media)
+}
+
+pub fn build_native_psd_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.kind != MediaKind::Psd {
+        return Err(format!("Expected Psd media, got {:?}", media.kind));
+    }
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "Psd media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let source_path = local_media_source_path(&media.source, "Psd")?;
+    let bytes = fs::read(&source_path).map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to read source: {error}",
+            media.id
+        )
+    })?;
+    let psd = psd_fast::parse_psd_fast(&bytes).map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to parse PSD source: {error}",
+            media.id
+        )
+    })?;
+    if psd.width != media.width || psd.height != media.height {
+        return Err(format!(
+            "Psd media '{}' dimensions {}x{} do not match decoded PSD {}x{}",
+            media.id, media.width, media.height, psd.width, psd.height
+        ));
+    }
+    psd_fast::select_psd_composite_frame(&psd, Some(&media.active_layer_ids)).map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to composite PSD source: {error}",
+            media.id
+        )
+    })
 }
 
 fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {

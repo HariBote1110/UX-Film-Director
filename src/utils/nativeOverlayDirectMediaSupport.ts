@@ -10,7 +10,6 @@ export const isNativeOverlayDirectMediaSourceSupported = (
   source: string
 ): boolean => {
   if (kind === 'Video') return true;
-  if (kind === 'Psd') return false;
   if (kind === 'Image') {
     return isSharedRendererNativeMediaSourceSupported(kind, source)
       && /\.(?:png|jpe?g)(?:[?#].*)?$/i.test(source);

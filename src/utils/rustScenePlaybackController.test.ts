@@ -344,9 +344,8 @@ describe('RustScenePlaybackController', () => {
     }));
   });
 
-  it('PSD・PNG/JPEG以外の画像はdirect presentせず既存時計へ戻す', async () => {
+  it('PNG/JPEG/PSD以外の画像はdirect presentせず既存時計へ戻す', async () => {
     for (const [kind, source] of [
-      ['Psd', '/tmp/design.psd'],
       ['Image', '/tmp/photo.webp'],
     ]) {
       const presentScene = vi.fn();

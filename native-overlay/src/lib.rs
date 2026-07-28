@@ -20,8 +20,8 @@ use uxfd_native_wgpu_renderer::{
     NativeWgpuLiveSurfaceRenderer,
 };
 use uxfd_rust_backend::{
-    build_native_generated_source_frame, is_jpeg_source, load_native_getcolor_sample_frame,
-    local_media_source_path,
+    build_native_generated_source_frame, build_native_psd_source_frame, is_jpeg_source,
+    load_native_getcolor_sample_frame, local_media_source_path,
 };
 use uxfd_rust_core::{
     build_video_frame_decode_requests, focus_lines_frame_bucket_from_source,
@@ -2676,7 +2676,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
             width: media.width,
             height: media.height,
             source_rate: media.source_rate.clone(),
-            active_layer_ids: Vec::new(),
+            active_layer_ids: media.active_layer_ids.clone(),
         };
         let revision = native_overlay_media_content_revision(media, source_frame);
         if let Some(revision) = revision {
@@ -2688,6 +2688,8 @@ fn load_overlay_native_sources_for_scene_cached_impl(
         }
         let frame = if kind == MediaKind::Image {
             load_overlay_image_source(&media.source)?
+        } else if kind == MediaKind::Psd {
+            build_native_psd_source_frame(&reference)?
         } else if let Some(frame) = build_native_generated_source_frame(&reference, source_frame)? {
             frame
         } else {
@@ -3230,6 +3232,7 @@ fn native_overlay_media_content_revision(
     media.source.hash(&mut hasher);
     media.width.hash(&mut hasher);
     media.height.hash(&mut hasher);
+    media.active_layer_ids.hash(&mut hasher);
 
     if matches!(kind, MediaKind::Image | MediaKind::Psd) {
         hash_local_file_metadata(&media.source, &mut hasher)?;
