@@ -396,6 +396,7 @@ const main = async () => {
       ...process.env,
       VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER: '1',
       VITE_UXFD_SHARED_RENDERER_PREVIEW: '1',
+      VITE_UXFD_NATIVE_OVERLAY: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -412,6 +413,8 @@ const main = async () => {
       VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?shatteredSpherePreviewE2e=1`,
       VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER: '1',
       VITE_UXFD_SHARED_RENDERER_PREVIEW: '1',
+      VITE_UXFD_NATIVE_OVERLAY: '0',
+      UXFD_NATIVE_OVERLAY: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
