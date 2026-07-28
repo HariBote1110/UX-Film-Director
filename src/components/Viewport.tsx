@@ -61,6 +61,7 @@ import {
   type SharedRendererPlaybackDrawableSize,
 } from '../utils/sharedRendererPlaybackPreviewSettings';
 import { resolveSharedRendererNativeReuseReplayTime } from '../utils/sharedRendererNativeReuseCadence';
+import { shouldReuseSharedRendererNativeRenderPresenter } from '../utils/sharedRendererNativeRenderPresenterReuse';
 import {
   createSharedRendererExternalVideoSource,
   syncSharedRendererExternalVideoPlayback,
@@ -1269,21 +1270,18 @@ const Viewport: React.FC = () => {
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
-    // In rust-only mode the native render presenter can be reused across playback
-    // frames: instead of a full presenter restart per frame (the flicker + decode
-    // restart storm), keep the presenter and only push a freshly decoded native
-    // frame onto it. Originally required an all-video session; now also covers
-    // all-non-video (shape/image/etc.) sessions so that dragging a shape does
-    // not restart the presenter on every pointermove (see
-    // isSharedRendererNativeRenderOnlySession comment for the ずれ this fixes).
-    // Phase 3b Step 1 — mixed video + non-video sessions also reuse now (see
-    // isSharedRendererMixedNativeRenderSession comment); restart is reserved for
-    // genuine output-target changes.
-    const canReuseNativeRenderPresenter = rustVideoOnlyEnabled
-      && !isExporting
-      && (isSharedRendererExternalVideoOnlySession(session)
-        || isSharedRendererNativeRenderOnlySession(session)
-        || isSharedRendererMixedNativeRenderSession(session));
+    // 動画を含まないnative-render sessionはHTMLVideoElementの音声クロックと
+    // 競合しないため、通常cutoverでもpresenterを再利用できる。video-only/
+    // mixed sessionはRust video-only時だけ許可し、HTMLVideoElementとRust側
+    // decodeの二重パイプラインを作らない。
+    const canReuseNativeRenderPresenter = shouldReuseSharedRendererNativeRenderPresenter({
+      isExporting,
+      rustVideoOnlyEnabled,
+      sharedRendererVideoCutoverEnabled,
+      externalVideoOnly: isSharedRendererExternalVideoOnlySession(session),
+      nativeRenderOnly: isSharedRendererNativeRenderOnlySession(session),
+      mixedNativeRender: isSharedRendererMixedNativeRenderSession(session),
+    });
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
       includePlaybackFrame: !(canReuseExternalVideoPresenter || canReuseNativeRenderPresenter),
       // The native reuse path re-presents the full Rust-composited frame each
@@ -1498,6 +1496,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.fallbackAdapter,
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererPreviewEnabled,
+    sharedRendererVideoCutoverEnabled,
     nativeOverlayPreviewEnabled,
     rustVideoOnlyEnabled,
     requestSharedRendererExternalVideoFrameRepaint,
@@ -1831,15 +1830,16 @@ const Viewport: React.FC = () => {
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
-    // Mirrors canReuseNativeRenderPresenter above (video-only OR non-video-only OR
-    // mixed, Phase 3b Step 1) so the pending-replay key comparison in .finally
-    // matches the key the publish path stored for all reuse-eligible session
-    // shapes.
-    const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled
-      && !isExporting
-      && (isSharedRendererExternalVideoOnlySession(presenterRestartSession)
-        || isSharedRendererNativeRenderOnlySession(presenterRestartSession)
-        || isSharedRendererMixedNativeRenderSession(presenterRestartSession));
+    // publish側と同じ純粋判定を使い、pending replayのkey比較と実際のreuse
+    // eligibilityを一致させる。
+    const canReuseCurrentNativeRenderPresenter = shouldReuseSharedRendererNativeRenderPresenter({
+      isExporting,
+      rustVideoOnlyEnabled,
+      sharedRendererVideoCutoverEnabled,
+      externalVideoOnly: isSharedRendererExternalVideoOnlySession(presenterRestartSession),
+      nativeRenderOnly: isSharedRendererNativeRenderOnlySession(presenterRestartSession),
+      mixedNativeRender: isSharedRendererMixedNativeRenderSession(presenterRestartSession),
+    });
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(presenterRestartSession, {
       // Mirror publishSharedRendererPreviewSession so the pending-replay key
       // comparison in .finally matches the key the publish path stored.
