@@ -650,54 +650,23 @@ impl NativeWgpuLiveSurfaceRenderer {
         decoration_sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        let (base_prepared_clips, base_source_upload) =
-            self.core.prepare_scene_clips_with_upload_fence(
-                base_snapshot,
-                base_sources,
-                nv12_sources,
-                particle_sources,
-                audio_reactive_sources,
-                getcolor_sources,
-                hksy_sources,
-                simple_tube_sources,
-                focus_lines_sources,
-                shaking_polygon_sources,
-                shattered_sphere_sources,
-                false,
-                content_revisions,
-            )?;
-        let (decoration_prepared_clips, decoration_source_upload) =
-            self.core.prepare_scene_clips_without_upload_fence(
-                &SceneSnapshot {
-                    frame_index: base_snapshot.frame_index,
-                    colour: base_snapshot.colour.clone(),
-                    clips: decoration_clips.to_vec(),
-                },
-                decoration_sources,
-                &HashMap::new(),
-            )?;
-        let source_upload = base_source_upload + decoration_source_upload;
-
-        let mut base_z_indices: Vec<u32> = base_snapshot
-            .clips
-            .iter()
-            .map(|clip| clip.z_index)
-            .collect();
-        base_z_indices.sort_unstable();
-        let mut merged: Vec<(u32, Arc<PreparedClip>)> = base_z_indices
-            .into_iter()
-            .zip(base_prepared_clips)
-            .collect();
-        merged.extend(
-            decoration_clips
-                .iter()
-                .map(|clip| clip.z_index)
-                .zip(decoration_prepared_clips),
-        );
-        merged.sort_by_key(|(z_index, _)| *z_index);
-        let prepared_clip_count = merged.len();
-        let prepared_clips: Vec<Arc<PreparedClip>> =
-            merged.into_iter().map(|(_, prepared)| prepared).collect();
+        let (prepared_clips, source_upload) = self.prepare_scene_with_decoration_and_nv12(
+            base_snapshot,
+            base_sources,
+            content_revisions,
+            nv12_sources,
+            particle_sources,
+            audio_reactive_sources,
+            getcolor_sources,
+            hksy_sources,
+            simple_tube_sources,
+            focus_lines_sources,
+            shaking_polygon_sources,
+            shattered_sphere_sources,
+            decoration_clips,
+            decoration_sources,
+        )?;
+        let prepared_clip_count = prepared_clips.len();
 
         let acquire_start = Instant::now();
         let surface_texture = self
@@ -735,6 +704,171 @@ impl NativeWgpuLiveSurfaceRenderer {
                 total: total_start.elapsed(),
             },
         })
+    }
+
+    /// 診断専用: resident NV12・音声反応・GPU生成物を含む実live surfaceを
+    /// present直前に同じcommand bufferからreadbackする。
+    pub async fn present_scene_with_decoration_and_nv12_to_surface_texture_with_readback<
+        S: RgbaFrameSource,
+    >(
+        &self,
+        base_snapshot: &SceneSnapshot,
+        base_sources: &HashMap<String, S>,
+        content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        particle_sources: &HashMap<String, NativeParticleSource>,
+        audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
+        getcolor_sources: &HashMap<String, NativeGetColorSource>,
+        hksy_sources: &HashMap<String, NativeHksySource>,
+        simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
+        focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
+        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        decoration_clips: &[uxfd_rust_core::EvaluatedClip],
+        decoration_sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        let (prepared_clips, source_upload) = self.prepare_scene_with_decoration_and_nv12(
+            base_snapshot,
+            base_sources,
+            content_revisions,
+            nv12_sources,
+            particle_sources,
+            audio_reactive_sources,
+            getcolor_sources,
+            hksy_sources,
+            simple_tube_sources,
+            focus_lines_sources,
+            shaking_polygon_sources,
+            shattered_sphere_sources,
+            decoration_clips,
+            decoration_sources,
+        )?;
+
+        let acquire_start = Instant::now();
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(NativeWgpuRenderError::Surface)?;
+        let acquire = acquire_start.elapsed();
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu resident live readback encoder"),
+                });
+        self.core
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+        copy_live_surface_texture_to_readback(
+            &mut encoder,
+            &surface_texture.texture,
+            &self.core.readback_buffer,
+            self.surface_config.width,
+            self.surface_config.height,
+        );
+
+        let render_start = Instant::now();
+        self.core.queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        wait_for_submitted_work(&self.core.device, &self.core.queue)?;
+        let render = render_start.elapsed();
+
+        let readback_encode_start = Instant::now();
+        let frame = readback_to_rgba8(
+            &self.core.device,
+            &self.core.readback_buffer,
+            self.surface_config.format,
+            self.surface_config.width,
+            self.surface_config.height,
+        )?;
+        let readback_encode = readback_encode_start.elapsed();
+
+        Ok(NativeWgpuFrameReport {
+            width: self.surface_config.width,
+            height: self.surface_config.height,
+            frame,
+            prepared_clip_count: prepared_clips.len(),
+            timings: NativeWgpuFrameStageTimings {
+                setup: Duration::ZERO,
+                source_upload,
+                acquire,
+                render,
+                readback_encode,
+                steady_state: source_upload + acquire + render + readback_encode,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_scene_with_decoration_and_nv12<S: RgbaFrameSource>(
+        &self,
+        base_snapshot: &SceneSnapshot,
+        base_sources: &HashMap<String, S>,
+        content_revisions: &HashMap<String, u64>,
+        nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+        particle_sources: &HashMap<String, NativeParticleSource>,
+        audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
+        getcolor_sources: &HashMap<String, NativeGetColorSource>,
+        hksy_sources: &HashMap<String, NativeHksySource>,
+        simple_tube_sources: &HashMap<String, NativeSimpleTubeSource>,
+        focus_lines_sources: &HashMap<String, NativeFocusLinesSource>,
+        shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
+        shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
+        decoration_clips: &[uxfd_rust_core::EvaluatedClip],
+        decoration_sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
+        let (base_prepared_clips, base_source_upload) =
+            self.core.prepare_scene_clips_with_upload_fence(
+                base_snapshot,
+                base_sources,
+                nv12_sources,
+                particle_sources,
+                audio_reactive_sources,
+                getcolor_sources,
+                hksy_sources,
+                simple_tube_sources,
+                focus_lines_sources,
+                shaking_polygon_sources,
+                shattered_sphere_sources,
+                false,
+                content_revisions,
+            )?;
+        let (decoration_prepared_clips, decoration_source_upload) =
+            self.core.prepare_scene_clips_without_upload_fence(
+                &SceneSnapshot {
+                    frame_index: base_snapshot.frame_index,
+                    colour: base_snapshot.colour.clone(),
+                    clips: decoration_clips.to_vec(),
+                },
+                decoration_sources,
+                &HashMap::new(),
+            )?;
+
+        let mut base_z_indices: Vec<u32> = base_snapshot
+            .clips
+            .iter()
+            .map(|clip| clip.z_index)
+            .collect();
+        base_z_indices.sort_unstable();
+        let mut merged: Vec<(u32, Arc<PreparedClip>)> = base_z_indices
+            .into_iter()
+            .zip(base_prepared_clips)
+            .collect();
+        merged.extend(
+            decoration_clips
+                .iter()
+                .map(|clip| clip.z_index)
+                .zip(decoration_prepared_clips),
+        );
+        merged.sort_by_key(|(z_index, _)| *z_index);
+        Ok((
+            merged.into_iter().map(|(_, prepared)| prepared).collect(),
+            base_source_upload + decoration_source_upload,
+        ))
     }
 
     pub async fn present_scene_to_surface_texture_with_readback(
@@ -2020,6 +2154,33 @@ pub async fn render_native_wgpu_frame(
     height: u32,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
     measure_native_wgpu_frame_stages(snapshot, sources, width, height)
+        .await
+        .map(|report| report.frame)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn render_native_wgpu_frame_with_native_sources(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    content_revisions: &HashMap<String, u64>,
+    nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+    audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
+    generated_gpu_sources: &NativeGeneratedGpuSources,
+    width: u32,
+    height: u32,
+) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    let renderer = NativeWgpuRenderer::new(width, height).await?;
+    renderer
+        .render_frame_stages_with_setup(
+            snapshot,
+            sources,
+            Duration::ZERO,
+            Instant::now(),
+            content_revisions,
+            nv12_sources,
+            audio_reactive_sources,
+            generated_gpu_sources,
+        )
         .await
         .map(|report| report.frame)
 }

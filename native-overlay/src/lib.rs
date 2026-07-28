@@ -14,7 +14,8 @@ use uxfd_golden_harness::{
     compare_rgba_frames, load_rgba_jpeg, load_rgba_png, ComparisonThresholds, RgbaFrame,
 };
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, NativeAudioReactiveSource, NativeFocusLinesSource,
+    render_native_wgpu_frame, render_native_wgpu_frame_with_native_sources,
+    NativeAudioReactiveSource, NativeFocusLinesSource, NativeGeneratedGpuSources,
     NativeGetColorSource, NativeHksySource, NativeParticleSource, NativeShakingPolygonSource,
     NativeShatteredSphereSource, NativeSimpleTubeSource, NativeWgpuFrameStageTimings,
     NativeWgpuLiveSurfaceRenderer,
@@ -1017,6 +1018,60 @@ impl NativeOverlayLiveSurfaceRenderer {
             .last_scene
             .as_deref()
             .expect("last_scene was just assigned above");
+        if live_surface_readback_trace_enabled() {
+            let report = pollster::block_on(
+                self.renderer
+                    .present_scene_with_decoration_and_nv12_to_surface_texture_with_readback(
+                        base_snapshot,
+                        base_sources,
+                        &self.last_scene_content_revisions,
+                        &self.last_nv12_sources,
+                        &self.last_particle_sources,
+                        &self.last_audio_reactive_sources,
+                        &self.last_getcolor_sources,
+                        &self.last_hksy_sources,
+                        &self.last_simple_tube_sources,
+                        &self.last_focus_lines_sources,
+                        &self.last_shaking_polygon_sources,
+                        &self.last_shattered_sphere_sources,
+                        &decoration_clips,
+                        &decoration_sources,
+                    ),
+            )
+            .map_err(|error| {
+                format!("Native overlay resident live readback present failed: {error:?}")
+            })?;
+            let mut merged_snapshot = base_snapshot.clone();
+            merged_snapshot.clips.extend(decoration_clips);
+            let mut merged_sources: HashMap<String, RgbaFrame> = base_sources
+                .iter()
+                .map(|(media_id, frame)| (media_id.clone(), frame.as_ref().clone()))
+                .collect();
+            merged_sources.extend(decoration_sources);
+            let generated_gpu_sources = NativeGeneratedGpuSources {
+                particles: self.last_particle_sources.clone(),
+                getcolor: self.last_getcolor_sources.clone(),
+                hksy: self.last_hksy_sources.clone(),
+                simple_tubes: self.last_simple_tube_sources.clone(),
+                focus_lines: self.last_focus_lines_sources.clone(),
+                shaking_polygons: self.last_shaking_polygon_sources.clone(),
+                shattered_spheres: self.last_shattered_sphere_sources.clone(),
+            };
+            let live_readback_export_max_channel_delta =
+                compare_live_overlay_readback_with_native_sources(
+                    &report.frame,
+                    &merged_snapshot,
+                    &merged_sources,
+                    &self.last_scene_content_revisions,
+                    &self.last_nv12_sources,
+                    &self.last_audio_reactive_sources,
+                    &generated_gpu_sources,
+                )?;
+            return Ok(Some(live_surface_diagnostics_from_frame_report(
+                report,
+                Some(live_readback_export_max_channel_delta),
+            )));
+        }
         let report = pollster::block_on(
             self.renderer
                 .present_scene_with_decoration_and_nv12_to_surface_texture(
@@ -2384,6 +2439,36 @@ fn compare_live_overlay_readback_with_export(
     Ok(comparison.metrics.max_channel_delta)
 }
 
+fn compare_live_overlay_readback_with_native_sources(
+    live_readback: &RgbaFrame,
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    content_revisions: &HashMap<String, u64>,
+    nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
+    audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
+    generated_gpu_sources: &NativeGeneratedGpuSources,
+) -> Result<u8, String> {
+    let export_readback = pollster::block_on(render_native_wgpu_frame_with_native_sources(
+        snapshot,
+        sources,
+        content_revisions,
+        nv12_sources,
+        audio_reactive_sources,
+        generated_gpu_sources,
+        live_readback.width,
+        live_readback.height,
+    ))
+    .map_err(|error| {
+        format!("Native overlay resident export readback comparison failed: {error:?}")
+    })?;
+    let comparison = compare_rgba_frames(
+        &export_readback,
+        live_readback,
+        ComparisonThresholds::exact(),
+    );
+    Ok(comparison.metrics.max_channel_delta)
+}
+
 pub fn upload_frame_to_scene_sources(
     upload: &OverlayUploadFrame,
     scene: Option<&NativeOverlaySceneSource>,
@@ -3419,10 +3504,7 @@ mod tests {
             width: 2700,
             height: 3700,
             source_rate: None,
-            active_layer_ids: Some(vec![
-                "psd-group-0".to_string(),
-                "psd-layer-2".to_string(),
-            ]),
+            active_layer_ids: Some(vec!["psd-group-0".to_string(), "psd-layer-2".to_string()]),
         });
 
         assert_eq!(
@@ -3476,17 +3558,15 @@ mod tests {
 
     #[test]
     fn resident_scene_builds_multiple_video_requests_and_audio_reactive_source_together() {
-        let clip = |clip_id: &str, media_id: &str, source_frame: u64, z_index: u32| {
-            EvaluatedClip {
-                clip_id: clip_id.to_string(),
-                track_id: "track-1".to_string(),
-                media_id: media_id.to_string(),
-                source_frame,
-                z_index,
-                transform: Transform::identity(),
-                opacity: 1.0,
-                effects: Vec::new(),
-            }
+        let clip = |clip_id: &str, media_id: &str, source_frame: u64, z_index: u32| EvaluatedClip {
+            clip_id: clip_id.to_string(),
+            track_id: "track-1".to_string(),
+            media_id: media_id.to_string(),
+            source_frame,
+            z_index,
+            transform: Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
         };
         let scene = NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
@@ -3551,12 +3631,9 @@ mod tests {
             decoded_sources.push(source.to_string());
             Ok(vec![0.25; sample_rate as usize])
         };
-        let audio_sources = native_overlay_audio_reactive_sources_for_scene(
-            &scene,
-            &mut cache,
-            &mut decode,
-        )
-        .expect("resident audio reactive source must resolve beside videos");
+        let audio_sources =
+            native_overlay_audio_reactive_sources_for_scene(&scene, &mut cache, &mut decode)
+                .expect("resident audio reactive source must resolve beside videos");
 
         assert_eq!(decoded_sources, vec!["/tmp/dialogue.wav".to_string()]);
         assert_eq!(audio_sources.len(), 1);
@@ -3906,8 +3983,8 @@ mod tests {
 
     #[test]
     fn overlay_image_source_loaders_accept_percent_encoded_jpeg_file_urls() {
-        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../public/icon.jpg");
+        let fixture_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../public/icon.jpg");
         let image_path = unique_temp_path("overlay jpeg image", "jpg");
         std::fs::copy(&fixture_path, &image_path).expect("copy JPEG fixture");
         let encoded_path = image_path.to_string_lossy().replace(' ', "%20");
@@ -3981,21 +4058,16 @@ mod tests {
         let no_matching_layers = build_scene(vec!["psd-layer-missing".to_string()]);
         let all_revision =
             native_overlay_media_content_revision(&all_layers.media[0], 0).expect("PSD revision");
-        let selected_revision = native_overlay_media_content_revision(
-            &no_matching_layers.media[0],
-            0,
-        )
-        .expect("selected PSD revision");
+        let selected_revision =
+            native_overlay_media_content_revision(&no_matching_layers.media[0], 0)
+                .expect("selected PSD revision");
         let mut cache = NativeOverlaySourceCache::default();
-        let all_frame = load_overlay_native_sources_for_scene_cached_impl(
-            &all_layers,
-            &mut cache,
-            true,
-        )
-        .expect("all-visible PSD source")
-        .get("psd-media")
-        .expect("all-visible PSD frame")
-        .clone();
+        let all_frame =
+            load_overlay_native_sources_for_scene_cached_impl(&all_layers, &mut cache, true)
+                .expect("all-visible PSD source")
+                .get("psd-media")
+                .expect("all-visible PSD frame")
+                .clone();
         let selected_frame = load_overlay_native_sources_for_scene_cached_impl(
             &no_matching_layers,
             &mut cache,
@@ -4011,7 +4083,10 @@ mod tests {
             "all-visible PSD must contain opaque pixels"
         );
         assert!(
-            selected_frame.pixels.chunks_exact(4).all(|pixel| pixel[3] == 0),
+            selected_frame
+                .pixels
+                .chunks_exact(4)
+                .all(|pixel| pixel[3] == 0),
             "an unmatched active layer selection must produce a transparent frame"
         );
         assert_ne!(
@@ -5975,7 +6050,11 @@ mod tests {
         extra.push(4);
         extra.extend(b"only");
         extra.extend([0u8; 3]);
-        record.extend(u32::try_from(extra.len()).expect("extra length fits").to_be_bytes());
+        record.extend(
+            u32::try_from(extra.len())
+                .expect("extra length fits")
+                .to_be_bytes(),
+        );
         record.extend(extra);
 
         let layer_info_len = 2 + record.len();

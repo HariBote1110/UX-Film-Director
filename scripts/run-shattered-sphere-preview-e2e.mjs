@@ -390,6 +390,7 @@ const waitForAppReady = (client) => client.evaluate(`
 
 const waitForNativePreviewReady = (client) => client.evaluate(`
   new Promise((resolve) => {
+    const liveReadbackMode = ${JSON.stringify(liveReadbackMode)};
     const started = Date.now();
     const tick = () => {
       const gate = window.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__;
@@ -402,7 +403,11 @@ const waitForNativePreviewReady = (client) => client.evaluate(`
           gate?.ok
           && mediaKinds.includes('GeneratedShatteredSphere')
           && root.uxfdSharedRendererPresenterStatus === 'ready'
-          && root.uxfdSharedRendererPresenterNativeRenderFrameReady === 'true'
+          && (
+            liveReadbackMode
+              ? root.uxfdSharedRendererPresenterNativeOverlayAttempt === 'ok'
+              : root.uxfdSharedRendererPresenterNativeRenderFrameReady === 'true'
+          )
         ),
         planMode: window.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__?.mode,
         surfaceGate: gate?.ok ? 'ok' : gate?.reason,

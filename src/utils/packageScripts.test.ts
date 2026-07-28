@@ -268,6 +268,9 @@ describe('package scripts', () => {
     expect(script).toContain('liveReadbackNonTransparentPixels > 0');
     expect(script).toContain('liveReadbackChecksum > 0');
     expect(script).toContain('liveReadbackExportMaxChannelDelta === 0');
+    expect(script).toContain(
+      "root.uxfdSharedRendererPresenterNativeOverlayAttempt === 'ok'"
+    );
   });
 
   it('provides a real video export quality comparison command', () => {
