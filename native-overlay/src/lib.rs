@@ -10,14 +10,19 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
+use uxfd_golden_harness::{
+    compare_rgba_frames, load_rgba_jpeg, load_rgba_png, ComparisonThresholds, RgbaFrame,
+};
 use uxfd_native_wgpu_renderer::{
     render_native_wgpu_frame, NativeAudioReactiveSource, NativeFocusLinesSource,
     NativeGetColorSource, NativeHksySource, NativeParticleSource, NativeShakingPolygonSource,
     NativeShatteredSphereSource, NativeSimpleTubeSource, NativeWgpuFrameStageTimings,
     NativeWgpuLiveSurfaceRenderer,
 };
-use uxfd_rust_backend::{build_native_generated_source_frame, load_native_getcolor_sample_frame};
+use uxfd_rust_backend::{
+    build_native_generated_source_frame, is_jpeg_source, load_native_getcolor_sample_frame,
+    local_media_source_path,
+};
 use uxfd_rust_core::{
     build_video_frame_decode_requests, focus_lines_frame_bucket_from_source,
     parse_generated_particle_source, AudioWaveformSource, ColourPipeline, Effect, EvaluatedClip,
@@ -2592,11 +2597,20 @@ pub fn load_overlay_image_sources_for_scene(
         if media.kind != "Image" {
             continue;
         }
-        let frame = load_rgba_png(&media.source)
-            .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?;
+        let frame = load_overlay_image_source(&media.source)?;
         sources.insert(media.id.clone(), frame);
     }
     Ok(sources)
+}
+
+fn load_overlay_image_source(source: &str) -> Result<RgbaFrame, String> {
+    let source_path = local_media_source_path(source, "Native overlay Image")?;
+    if is_jpeg_source(&source_path) {
+        return load_rgba_jpeg(&source_path)
+            .map_err(|error| format!("Native overlay JPEG source load failed: {error:?}"));
+    }
+    load_rgba_png(&source_path)
+        .map_err(|error| format!("Native overlay PNG source load failed: {error:?}"))
 }
 
 pub fn load_overlay_native_sources_for_scene(
@@ -2671,8 +2685,7 @@ fn load_overlay_native_sources_for_scene_cached_impl(
             }
         }
         let frame = if kind == MediaKind::Image {
-            load_rgba_png(&media.source)
-                .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?
+            load_overlay_image_source(&media.source)?
         } else if let Some(frame) = build_native_generated_source_frame(&reference, source_frame)? {
             frame
         } else {
@@ -3266,7 +3279,7 @@ fn hash_getcolor_source_image_metadata(source: &str, hasher: &mut DefaultHasher)
 }
 
 fn hash_local_file_metadata(source: &str, hasher: &mut DefaultHasher) -> Option<()> {
-    let path = source.strip_prefix("file://").unwrap_or(source);
+    let path = local_media_source_path(source, "Native overlay source").ok()?;
     let metadata = fs::metadata(path).ok()?;
     metadata.len().hash(hasher);
     metadata

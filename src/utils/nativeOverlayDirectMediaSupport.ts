@@ -13,7 +13,7 @@ export const isNativeOverlayDirectMediaSourceSupported = (
   if (kind === 'Psd') return false;
   if (kind === 'Image') {
     return isSharedRendererNativeMediaSourceSupported(kind, source)
-      && /\.png(?:[?#].*)?$/i.test(source);
+      && /\.(?:png|jpe?g)(?:[?#].*)?$/i.test(source);
   }
   return isSharedRendererNativeMediaSourceSupported(kind, source);
 };

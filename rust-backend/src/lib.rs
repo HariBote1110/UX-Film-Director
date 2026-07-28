@@ -111,7 +111,7 @@ fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFr
         .map_err(|error| format!("SolidColour media frame is invalid: {error:?}"))
 }
 
-pub(crate) fn is_jpeg_source(source: &str) -> bool {
+pub fn is_jpeg_source(source: &str) -> bool {
     let lower = source.to_ascii_lowercase();
     lower.ends_with(".jpg") || lower.ends_with(".jpeg")
 }
@@ -120,7 +120,7 @@ pub(crate) fn is_psd_source(source: &str) -> bool {
     source.to_ascii_lowercase().ends_with(".psd")
 }
 
-pub(crate) fn local_media_source_path(source: &str, media_kind: &str) -> Result<String, String> {
+pub fn local_media_source_path(source: &str, media_kind: &str) -> Result<String, String> {
     let without_query = strip_query_and_fragment(source);
     let Some(file_url_path) = without_query.strip_prefix("file://") else {
         if has_url_scheme(without_query) {
