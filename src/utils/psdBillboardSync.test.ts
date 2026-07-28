@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PsdObject, TimelineObject } from '../types';
 import {
   activeLayerIdsForPsdBillboard,
-  fetchPsdCompositeCanvas,
+  fetchPsdCompositeRgba,
   psdBillboardCacheKey,
   selectWorldPlacedPsdBillboards,
   type PsdRenderCompositeIpc,
@@ -95,47 +95,51 @@ describe('psdBillboardCacheKey', () => {
   });
 });
 
-describe('fetchPsdCompositeCanvas', () => {
+describe('fetchPsdCompositeRgba', () => {
   it('returns null when the PSD object has no filePath', async () => {
     const ipc: PsdRenderCompositeIpc = { invoke: vi.fn() };
     const psd = basePsd({ filePath: undefined });
 
-    const canvas = await fetchPsdCompositeCanvas(ipc, psd);
+    const composite = await fetchPsdCompositeRgba(ipc, psd);
 
-    expect(canvas).toBeNull();
+    expect(composite).toBeNull();
     expect(ipc.invoke).not.toHaveBeenCalled();
   });
 
-  it('invokes render-psd-composite with filePath and active layer ids', async () => {
-    const pixelData = new Uint8ClampedArray([255, 0, 0, 255]).buffer;
+  it('returns the IPC RGBA buffer as a Uint8Array without requiring Canvas2D', async () => {
+    const pixelData = new Uint8Array([
+      255, 0, 0, 255,
+      0, 255, 0, 255,
+    ]).buffer;
     const invoke = vi.fn().mockResolvedValue({
       success: true,
-      width: 1,
+      width: 2,
       height: 1,
       pixelData,
     });
     const ipc: PsdRenderCompositeIpc = { invoke };
     const psd = basePsd({ activeLayerIds: { 'face-open': true } });
-    const draw = vi.fn().mockReturnValue({ width: 1, height: 1 } as unknown as HTMLCanvasElement);
 
-    const canvas = await fetchPsdCompositeCanvas(ipc, psd, draw);
+    const composite = await fetchPsdCompositeRgba(ipc, psd);
 
     expect(invoke).toHaveBeenCalledWith('render-psd-composite', {
       filePath: '/tmp/standing.psd',
       activeLayerIds: ['face-open'],
     });
-    expect(draw).toHaveBeenCalledWith(pixelData, 1, 1);
-    expect(canvas).not.toBeNull();
+    expect(composite).toMatchObject({ width: 2, height: 1 });
+    expect(composite?.data).toBeInstanceOf(Uint8Array);
+    expect(composite?.data.buffer).toBe(pixelData);
+    expect(composite?.data.byteOffset).toBe(0);
+    expect(composite?.data.byteLength).toBe(8);
   });
 
   it('omits activeLayerIds from the request when there are none enabled', async () => {
-    const pixelData = new Uint8ClampedArray([0, 0, 0, 0]).buffer;
+    const pixelData = new Uint8Array([0, 0, 0, 0]).buffer;
     const invoke = vi.fn().mockResolvedValue({ success: true, width: 1, height: 1, pixelData });
     const ipc: PsdRenderCompositeIpc = { invoke };
     const psd = basePsd({ activeLayerIds: {} });
-    const draw = vi.fn().mockReturnValue({} as unknown as HTMLCanvasElement);
 
-    await fetchPsdCompositeCanvas(ipc, psd, draw);
+    await fetchPsdCompositeRgba(ipc, psd);
 
     expect(invoke).toHaveBeenCalledWith('render-psd-composite', {
       filePath: '/tmp/standing.psd',
@@ -146,11 +150,21 @@ describe('fetchPsdCompositeCanvas', () => {
     const invoke = vi.fn().mockResolvedValue({ success: false, error: 'boom' });
     const ipc: PsdRenderCompositeIpc = { invoke };
     const psd = basePsd();
-    const draw = vi.fn();
 
-    const canvas = await fetchPsdCompositeCanvas(ipc, psd, draw);
+    const composite = await fetchPsdCompositeRgba(ipc, psd);
 
-    expect(canvas).toBeNull();
-    expect(draw).not.toHaveBeenCalled();
+    expect(composite).toBeNull();
+  });
+
+  it('rejects an RGBA buffer whose byte length does not match its dimensions', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      success: true,
+      width: 2,
+      height: 1,
+      pixelData: new Uint8Array([255, 0, 0, 255]).buffer,
+    });
+    const ipc: PsdRenderCompositeIpc = { invoke };
+
+    await expect(fetchPsdCompositeRgba(ipc, basePsd())).resolves.toBeNull();
   });
 });
