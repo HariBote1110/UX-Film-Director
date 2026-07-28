@@ -71,18 +71,35 @@ export const fetchPsdCompositeRgba = async (
     ...(activeLayerIds.length > 0 ? { activeLayerIds } : {}),
   });
 
-  if (!result.success || !result.pixelData || !result.width || !result.height) {
+  const { pixelData, width, height } = result;
+  if (!result.success || !pixelData) {
     return null;
   }
 
-  const data = new Uint8Array(result.pixelData);
-  if (data.byteLength !== result.width * result.height * 4) {
+  if (
+    typeof width !== 'number'
+    || typeof height !== 'number'
+    || !Number.isSafeInteger(width)
+    || !Number.isSafeInteger(height)
+    || width <= 0
+    || height <= 0
+  ) {
+    return null;
+  }
+
+  const expectedByteLength = width * height * 4;
+  if (!Number.isSafeInteger(expectedByteLength)) {
+    return null;
+  }
+
+  const data = new Uint8Array(pixelData);
+  if (data.byteLength !== expectedByteLength) {
     return null;
   }
 
   return {
     data,
-    width: result.width,
-    height: result.height,
+    width,
+    height,
   };
 };
