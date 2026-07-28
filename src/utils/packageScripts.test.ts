@@ -226,6 +226,31 @@ describe('package scripts', () => {
     expect(script).toContain("root.uxfdSharedRendererPresenterNativeRenderFrameReady === 'true'");
   });
 
+  it('gates shattered-sphere E2E on zero presenter restarts during steady playback', () => {
+    const main = readFileSync(new URL('../../src/main.tsx', import.meta.url), 'utf8');
+    const hookStart = main.indexOf(
+      '.__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_PLAY__ = async (durationMs: number) => {'
+    );
+    const hookEnd = main.indexOf('\n  };', hookStart);
+    const hook = main.slice(hookStart, hookEnd);
+    const playStart = hook.indexOf('useStore.getState().setIsPlaying(true)');
+    const countBefore = hook.indexOf('const presenterStartCountBefore');
+    const countAfter = hook.indexOf('const presenterStartCountAfter');
+    const playStop = hook.indexOf('useStore.getState().setIsPlaying(false)');
+
+    expect(hookStart).toBeGreaterThan(-1);
+    expect(playStart).toBeLessThan(countBefore);
+    expect(countBefore).toBeLessThan(countAfter);
+    expect(countAfter).toBeLessThan(playStop);
+
+    const script = readFileSync(
+      new URL('../../scripts/run-shattered-sphere-preview-e2e.mjs', import.meta.url),
+      'utf8',
+    );
+    expect(script).toContain('presenterRestarts?.duringPlayback === 0');
+    expect(script).toContain('presenterReusePassed');
+  });
+
   it('provides a real video export quality comparison command', () => {
     expect(packageJson.scripts['test:video-export:quality']).toBe('node scripts/compare-video-export-quality.mjs');
 
