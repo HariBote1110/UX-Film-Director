@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import { isNativeOverlayDirectSceneSession } from './nativeOverlayDirectSceneEligibility';
 
+const audioWaveformSource =
+  '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
+const audioSphereSource =
+  '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}';
+
 const buildSession = (
   media: Array<{ id: string; kind: string; source: string }>
 ): SharedRendererPreviewSession => ({
@@ -65,8 +70,8 @@ describe('isNativeOverlayDirectSceneSession', () => {
   });
 
   it.each([
-    ['GeneratedAudioWaveform', '{"generator":"audio-waveform-r"}'],
-    ['GeneratedAudioSphere', '{"generator":"audio-sphere-93"}'],
+    ['GeneratedAudioWaveform', audioWaveformSource],
+    ['GeneratedAudioSphere', audioSphereSource],
   ])('accepts a video-free %s scene backed by the native resident PCM path', (kind, source) => {
     expect(isNativeOverlayDirectSceneSession(buildSession([
       { id: 'audio-reactive', kind, source },
@@ -74,8 +79,8 @@ describe('isNativeOverlayDirectSceneSession', () => {
   });
 
   it.each([
-    ['GeneratedAudioWaveform', '{"generator":"audio-waveform-r"}'],
-    ['GeneratedAudioSphere', '{"generator":"audio-sphere-93"}'],
+    ['GeneratedAudioWaveform', audioWaveformSource],
+    ['GeneratedAudioSphere', audioSphereSource],
   ])(
     'rejects a decoded-video injection mixed with %s until that path supplies resident PCM',
     (kind, source) => {
