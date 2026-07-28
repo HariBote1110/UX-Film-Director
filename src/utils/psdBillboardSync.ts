@@ -47,39 +47,21 @@ export interface PsdRenderCompositeIpc {
   ) => Promise<PsdRenderCompositeIpcResult>;
 }
 
-/**
- * RGBA バイト列を canvas へ描画する処理。DOM 依存（`document.createElement`
- * / `ImageData`）はここに閉じ込め、テストではスタブに差し替えられるように
- * している（textBoxMeasurement.ts と同じ DI パターン）。
- */
-export type DrawRgbaToCanvas = (
-  pixelData: ArrayBuffer,
-  width: number,
-  height: number
-) => HTMLCanvasElement | null;
-
-const defaultDrawRgbaToCanvas: DrawRgbaToCanvas = (pixelData, width, height) => {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  const clamped = new Uint8ClampedArray(pixelData);
-  const imageData = new ImageData(clamped, width, height);
-  ctx.putImageData(imageData, 0, 0);
-  return canvas;
-};
+export interface PsdCompositeRgba {
+  data: Uint8Array;
+  width: number;
+  height: number;
+}
 
 /**
  * rust-backend の `psd.renderComposite` を electron IPC 経由で呼び、
- * 合成 RGBA を 2D canvas に描画して返す。3D ステージのビルボードは
- * Three.js の `CanvasTexture` にそのまま渡せる形にするのがゴール。
+ * 合成済み RGBA8 をコピーせずに返す。Canvas2D を経由させず、Three.js
+ * 境界でこのバイト列を DataTexture へ直接アップロードする。
  */
-export const fetchPsdCompositeCanvas = async (
+export const fetchPsdCompositeRgba = async (
   ipc: PsdRenderCompositeIpc,
-  object: PsdObject,
-  drawRgbaToCanvas: DrawRgbaToCanvas = defaultDrawRgbaToCanvas
-): Promise<HTMLCanvasElement | null> => {
+  object: PsdObject
+): Promise<PsdCompositeRgba | null> => {
   const filePath = object.filePath;
   if (!filePath) return null;
 
@@ -93,5 +75,14 @@ export const fetchPsdCompositeCanvas = async (
     return null;
   }
 
-  return drawRgbaToCanvas(result.pixelData, result.width, result.height);
+  const data = new Uint8Array(result.pixelData);
+  if (data.byteLength !== result.width * result.height * 4) {
+    return null;
+  }
+
+  return {
+    data,
+    width: result.width,
+    height: result.height,
+  };
 };

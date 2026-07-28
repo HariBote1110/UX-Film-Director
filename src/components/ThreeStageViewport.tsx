@@ -3,21 +3,28 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import type { PsdWorldPlacement, StageCamera3D } from '../types';
+import {
+  disposePsdBillboardDataTextures,
+  disposeRemovedPsdBillboardDataTextures,
+  syncPsdBillboardDataTexture,
+  type PsdBillboardDataTextureState,
+} from '../utils/psdBillboardDataTexture';
 import { billboardYawRadians } from '../utils/stage3dMath';
 import { useStore } from '../store/useStore';
 
 export type BillboardTextureEntry = {
   id: string;
-  canvas: HTMLCanvasElement;
+  sourceKey: string;
+  rgba: Uint8Array;
   placement: PsdWorldPlacement;
-  /** Pixel size of canvas (for aspect ratio) */
+  /** 合成画像のピクセル寸法（アスペクト比の算出用） */
   widthPx: number;
   heightPx: number;
 };
 
 export type ThreeStageViewportHandle = {
   getCanvas: () => HTMLCanvasElement | null;
-  /** Call after Pixi has rasterised PSD layers */
+  /** PSDレイヤーの合成結果が更新された後に呼び出す */
   syncBillboards: (entries: BillboardTextureEntry[], stageCamera: StageCamera3D) => void;
 };
 
@@ -82,7 +89,7 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
     const controlsRef = useRef<OrbitControls | null>(null);
     const transformControlsRef = useRef<TransformControls | null>(null);
     const billboardGroupRef = useRef<Map<string, THREE.Group>>(new Map());
-    const textureMapRef = useRef<Map<string, THREE.CanvasTexture>>(new Map());
+    const textureMapRef = useRef<Map<string, PsdBillboardDataTextureState>>(new Map());
     const rafRef = useRef<number>(0);
     const userAdjustingRef = useRef(false);
     const displayScaleRef = useRef(displayScale);
@@ -128,23 +135,23 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
             scene.remove(group);
             disposeBillboardGroup(group);
             billboardGroupRef.current.delete(id);
-            textureMapRef.current.delete(id);
           }
         });
+        disposeRemovedPsdBillboardDataTextures(textureMapRef.current, activeIds);
 
         for (const entry of entries) {
           let group = billboardGroupRef.current.get(entry.id);
-          let tex = textureMapRef.current.get(entry.id);
-
-          if (!tex) {
-            tex = new THREE.CanvasTexture(entry.canvas);
-            tex.colorSpace = THREE.SRGBColorSpace;
-            tex.needsUpdate = true;
-            textureMapRef.current.set(entry.id, tex);
-          } else {
-            tex.image = entry.canvas;
-            tex.needsUpdate = true;
+          const currentTextureState = textureMapRef.current.get(entry.id);
+          const textureState = syncPsdBillboardDataTexture(currentTextureState, {
+            sourceKey: entry.sourceKey,
+            data: entry.rgba,
+            width: entry.widthPx,
+            height: entry.heightPx,
+          });
+          if (textureState !== currentTextureState) {
+            textureMapRef.current.set(entry.id, textureState);
           }
+          const tex = textureState.texture;
 
           const aspect =
             entry.heightPx > 0 ? entry.widthPx / entry.heightPx : 1;
@@ -207,8 +214,10 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
               visMesh.position.z = depth / 2 + 0.002;
             }
             if (visMesh?.material instanceof THREE.MeshBasicMaterial) {
-              visMesh.material.map = tex;
-              visMesh.material.needsUpdate = true;
+              if (visMesh.material.map !== tex) {
+                visMesh.material.map = tex;
+                visMesh.material.needsUpdate = true;
+              }
             }
           }
 
@@ -362,7 +371,7 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
           disposeBillboardGroup(group);
         });
         billboardGroupRef.current.clear();
-        textureMapRef.current.clear();
+        disposePsdBillboardDataTextures(textureMapRef.current);
         renderer.dispose();
         if (renderer.domElement.parentElement === mount) {
           mount.removeChild(renderer.domElement);

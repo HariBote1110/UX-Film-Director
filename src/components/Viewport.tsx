@@ -3,9 +3,10 @@ import { useStore } from '../store/useStore';
 import { TimelineObject, VideoObject } from '../types';
 import { ThreeStageViewport, type BillboardTextureEntry, type ThreeStageViewportHandle } from './ThreeStageViewport';
 import {
-  fetchPsdCompositeCanvas,
+  fetchPsdCompositeRgba,
   psdBillboardCacheKey,
   selectWorldPlacedPsdBillboards,
+  type PsdCompositeRgba,
 } from '../utils/psdBillboardSync';
 import { shallow } from 'zustand/shallow';
 
@@ -652,11 +653,11 @@ const Viewport: React.FC = () => {
   const viewportShellRef = useRef<HTMLDivElement>(null);
   const threeStageRef = useRef<ThreeStageViewportHandle | null>(null);
   // PSD ビルボードの合成キャッシュ: cacheKey（filePath::activeLayerIds）→
-  // 合成済み canvas。rust-backend への psd.renderComposite は非同期・IO束縛
+  // 合成済み RGBA8。rust-backend への psd.renderComposite は非同期・IO束縛
   // のため、renderScene 同期呼び出しの中では「今あるキャッシュをそのまま
   // syncBillboards に渡し、未取得/古いキーだけ裏で取りに行く」stale-while-
   // revalidate 方式にする（毎フレーム同期待ちしてプレビューを止めない）。
-  const psdBillboardCanvasCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const psdBillboardRgbaCacheRef = useRef<Map<string, PsdCompositeRgba>>(new Map());
   const psdBillboardFetchInFlightRef = useRef<Set<string>>(new Set());
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
@@ -2124,9 +2125,9 @@ const Viewport: React.FC = () => {
       // PixiJS 排除計画 Phase 4 でラスタライズ手段（app.renderer.extract）を
       // 失っていたビルボードを、rust-backend の psd.renderComposite 経由で
       // 復活させる。取得は非同期のためキャッシュにある分だけ即時反映し、
-      // 未取得/古いキーは裏で fetchPsdCompositeCanvas を叩いて次tickへ回す。
+      // 未取得/古いキーは裏で fetchPsdCompositeRgba を叩いて次tickへ回す。
       const placedPsdObjects = selectWorldPlacedPsdBillboards(currentObjects);
-      const cache = psdBillboardCanvasCacheRef.current;
+      const cache = psdBillboardRgbaCacheRef.current;
       const inFlight = psdBillboardFetchInFlightRef.current;
       const liveCacheKeys = new Set<string>();
 
@@ -2134,22 +2135,23 @@ const Viewport: React.FC = () => {
       placedPsdObjects.forEach((psd) => {
         const cacheKey = psdBillboardCacheKey(psd);
         liveCacheKeys.add(cacheKey);
-        const cachedCanvas = cache.get(cacheKey);
-        if (cachedCanvas) {
+        const cachedComposite = cache.get(cacheKey);
+        if (cachedComposite) {
           billboardEntries.push({
             id: psd.id,
-            canvas: cachedCanvas,
+            sourceKey: cacheKey,
+            rgba: cachedComposite.data,
             placement: psd.worldPlacement!,
-            widthPx: cachedCanvas.width,
-            heightPx: cachedCanvas.height,
+            widthPx: cachedComposite.width,
+            heightPx: cachedComposite.height,
           });
         }
 
         if (!cache.has(cacheKey) && !inFlight.has(cacheKey) && psd.filePath) {
           inFlight.add(cacheKey);
-          fetchPsdCompositeCanvas(window.ipcRenderer, psd)
-            .then((canvas) => {
-              if (canvas) cache.set(cacheKey, canvas);
+          fetchPsdCompositeRgba(window.ipcRenderer, psd)
+            .then((composite) => {
+              if (composite) cache.set(cacheKey, composite);
             })
             .catch(() => {
               /* ビルボード合成失敗時は次tickの再取得に委ねる */
