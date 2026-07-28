@@ -2,14 +2,15 @@ import type { SharedRendererPreviewSession } from './sharedRendererPreviewSessio
 
 const isDirectOverlaySourceSupported = (kind: string, source: string): boolean => {
   if (kind === 'Video') return true;
-  if (kind === 'Psd' || kind === 'GeneratedAudioWaveform' || kind === 'GeneratedAudioSphere') {
-    return false;
-  }
+  if (kind === 'Psd') return false;
   if (kind === 'Image') {
     return /\.png(?:[?#].*)?$/i.test(source);
   }
   return true;
 };
+
+const isAudioReactiveMediaKind = (kind: string): boolean =>
+  kind === 'GeneratedAudioWaveform' || kind === 'GeneratedAudioSphere';
 
 export const isNativeOverlayDirectSceneSession = (
   session: SharedRendererPreviewSession
@@ -22,6 +23,7 @@ export const isNativeOverlayDirectSceneSession = (
     session.surfaceGate.media.map((reference) => [reference.id, reference])
   );
   let visibleVideoClipCount = 0;
+  let hasVisibleAudioReactiveClip = false;
   for (const clip of session.surfaceGate.snapshot.clips) {
     const reference = mediaById.get(clip.media_id);
     if (!reference || !isDirectOverlaySourceSupported(reference.kind, reference.source)) {
@@ -31,6 +33,13 @@ export const isNativeOverlayDirectSceneSession = (
       visibleVideoClipCount += 1;
       if (visibleVideoClipCount > 1) return false;
     }
+    if (isAudioReactiveMediaKind(reference.kind)) {
+      hasVisibleAudioReactiveClip = true;
+    }
   }
-  return true;
+
+  // Renderer側の動画経路はdecode済み1枚をpresentSharedFrameへ注入する方式で、
+  // addonのresident PCM descriptorを組み立てない。音声生成物のdirect sceneは
+  // 動画を含まないpresentScene経路に限定する。
+  return visibleVideoClipCount === 0 || !hasVisibleAudioReactiveClip;
 };

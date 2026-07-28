@@ -459,8 +459,6 @@ export const prepareSharedRendererViewportNativeRenderOverlayPresent = async ({
     && surfaceGate.media.every((reference) => (
       reference.kind !== 'Video'
       && reference.kind !== 'Psd'
-      && reference.kind !== 'GeneratedAudioWaveform'
-      && reference.kind !== 'GeneratedAudioSphere'
       && (reference.kind !== 'Image' || /\.png(?:[?#].*)?$/i.test(reference.source))
     ));
   if (canPresentSceneDirectly) {

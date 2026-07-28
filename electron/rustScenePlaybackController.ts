@@ -97,13 +97,7 @@ const isDirectOverlayMediaSupported = (
   source: string,
   sourceRate?: { numerator: number; denominator: number },
 ): boolean => {
-  if (
-    kind === 'Psd'
-    || kind === 'GeneratedAudioWaveform'
-    || kind === 'GeneratedAudioSphere'
-  ) {
-    return false;
-  }
+  if (kind === 'Psd') return false;
   if (kind === 'Video') {
     return Number.isSafeInteger(sourceRate?.numerator)
       && (sourceRate?.numerator ?? 0) > 0
