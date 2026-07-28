@@ -6,6 +6,8 @@ const audioWaveformSource =
   '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
 const audioSphereSource =
   '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}';
+const getColorSource =
+  '{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":14,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93}';
 
 const buildSession = (
   media: Array<{ id: string; kind: string; source: string }>
@@ -51,8 +53,15 @@ describe('isNativeOverlayDirectSceneSession', () => {
   it('accepts one decoded video mixed with a generated GetColor source', () => {
     expect(isNativeOverlayDirectSceneSession(buildSession([
       { id: 'video', kind: 'Video', source: '/tmp/video.mov' },
-      { id: 'getcolor', kind: 'GeneratedGetColorDots', source: '{}' },
+      { id: 'getcolor', kind: 'GeneratedGetColorDots', source: getColorSource },
     ]))).toBe(true);
+  });
+
+  it('rejects a malformed generated source before attempting direct overlay', () => {
+    expect(isNativeOverlayDirectSceneSession(buildSession([
+      { id: 'video', kind: 'Video', source: '/tmp/video.mov' },
+      { id: 'getcolor', kind: 'GeneratedGetColorDots', source: '{}' },
+    ]))).toBe(false);
   });
 
   it('rejects multiple visible video clips because one present currently supplies one decoded source', () => {
@@ -76,6 +85,21 @@ describe('isNativeOverlayDirectSceneSession', () => {
     expect(isNativeOverlayDirectSceneSession(buildSession([
       { id: 'audio-reactive', kind, source },
     ]))).toBe(true);
+  });
+
+  it.each([
+    [
+      'GeneratedAudioWaveform',
+      '{"generator":"audio-waveform-r","target_audio_id":"","target_source":"","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}',
+    ],
+    [
+      'GeneratedAudioSphere',
+      '{"generator":"audio-sphere-93","target_audio_id":"","target_source":"","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}',
+    ],
+  ])('rejects %s when its resident PCM target is missing', (kind, source) => {
+    expect(isNativeOverlayDirectSceneSession(buildSession([
+      { id: 'audio-reactive', kind, source },
+    ]))).toBe(false);
   });
 
   it.each([

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRustScenePlaybackController } from '../../electron/rustScenePlaybackController';
 
+const audioWaveformSource =
+  '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
+const audioSphereSource =
+  '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}';
+
 const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
   sceneId: 'scene-1',
   revision: 7,
@@ -221,8 +226,8 @@ describe('RustScenePlaybackController', () => {
   });
 
   it.each([
-    ['GeneratedAudioWaveform', '{"generator":"audio-waveform-r"}'],
-    ['GeneratedAudioSphere', '{"generator":"audio-sphere-93"}'],
+    ['GeneratedAudioWaveform', audioWaveformSource],
+    ['GeneratedAudioSphere', audioSphereSource],
   ])('%sをmain所有のresident PCM direct presentへ渡す', async (kind, source) => {
     const presentScene = vi.fn(async () => ({ success: true, attached: true }));
     const controller = createRustScenePlaybackController({
@@ -245,6 +250,37 @@ describe('RustScenePlaybackController', () => {
     expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
       media: [expect.objectContaining({ kind, source })],
     }));
+  });
+
+  it.each([
+    [
+      'GeneratedAudioWaveform',
+      '{"generator":"audio-waveform-r","target_audio_id":"","target_source":"","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}',
+    ],
+    [
+      'GeneratedAudioSphere',
+      '{"generator":"audio-sphere-93","target_audio_id":"","target_source":"","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}',
+    ],
+  ])('%sのresident PCM targetが未設定ならaddonへ渡さない', async (kind, source) => {
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => ({
+        ...evaluation(frameIndex, kind),
+        media: [{ ...evaluation(frameIndex, kind).media[0], source }],
+      }),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: false, reason: 'unsupportedDirectMedia' });
+    expect(presentScene).not.toHaveBeenCalled();
   });
 
   it('PSD・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {

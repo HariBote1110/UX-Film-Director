@@ -271,6 +271,63 @@ const multiVideoSession: SharedRendererPreviewSession = {
   },
 };
 
+const audioWaveformSource =
+  '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
+
+const videoWithAudioWaveformSession: SharedRendererPreviewSession = {
+  ...session,
+  plan: {
+    ...basePlan,
+    snapshot: {
+      ...basePlan.snapshot,
+      clips: [
+        ...basePlan.snapshot.clips,
+        {
+          ...basePlan.snapshot.clips[0],
+          clip_id: 'audio-reactive-1',
+          media_id: 'audio-reactive-1',
+          z_index: 1,
+        },
+      ],
+    },
+    media: [
+      ...basePlan.media,
+      {
+        id: 'audio-reactive-1',
+        kind: 'GeneratedAudioWaveform',
+        source: audioWaveformSource,
+        width: 64,
+        height: 32,
+      },
+    ],
+  },
+  surfaceGate: {
+    ...baseSurfaceGate,
+    snapshot: {
+      ...baseSurfaceGate.snapshot,
+      clips: [
+        ...baseSurfaceGate.snapshot.clips,
+        {
+          ...baseSurfaceGate.snapshot.clips[0],
+          clip_id: 'audio-reactive-1',
+          media_id: 'audio-reactive-1',
+          z_index: 1,
+        },
+      ],
+    },
+    media: [
+      ...baseSurfaceGate.media,
+      {
+        id: 'audio-reactive-1',
+        kind: 'GeneratedAudioWaveform',
+        source: audioWaveformSource,
+        width: 64,
+        height: 32,
+      },
+    ],
+  },
+};
+
 const createBridges = () => {
   const calls: unknown[] = [];
   const rustBackendBridge: RustBackendVideoDecodeBridge = {
@@ -365,6 +422,25 @@ const createBridges = () => {
 };
 
 describe('sharedRendererViewportVideoUpload', () => {
+  it('rejects video plus audio-reactive scenes before decoded-frame direct presentation', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const nativeOverlayBridge = {
+      presentSharedFrame: async () => {
+        throw new Error('ineligible direct scene must not be presented');
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeOverlayPresent({
+      session: videoWithAudioWaveformSession,
+      rustBackendBridge,
+      nativeOverlayBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
   it('presents a scene snapshot with image media through Native Overlay without copying into a WebGPU upload buffer', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
     const nativeOverlayBridge = {
