@@ -1,10 +1,11 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
-更新: 2026-07-28 / 版 `0.1.1-Beta-483d` — P2完了。P1は動画なしセッションの
+更新: 2026-07-28 / 版 `0.1.1-Beta-483e` — P2・P3完了。P1は動画なしセッションの
 presenter再利用を修正し、砕け散る球E2Eで定常再生中41回→0回を確認した。
 動画を含む混在セッションの87回/177フレームは、A/V二重クロックを避けるため未修正。
-次はP3、またはRust側へ動画供給を統合した後の混在セッション再利用。
+次はWebGPU presenter到達率の縮小、またはRust側へ動画供給を統合した後の
+混在セッション再利用。
 
 **E2E修復済み**: `npm run test:shattered-sphere-preview:e2e` はNative Overlayの
 direct presentとDOM WebGPU uploadの期待が混在していた。検証対象を後者へ明示固定し、
@@ -113,12 +114,22 @@ shared rendererのsurface canvasに過ぎず、Rust frame sourceが用意でき�
 - 未確認: 存在しないフォント名を指定したときのRust側フォールバック挙動
   （`family_with_cjk_fallback` のコメントと実装が乖離している）
 
-### P3: PSDの `putImageData` 往復を除去する
+### P3: ✅完了（Beta-483e） PSDの `putImageData` 往復を除去する
 
-`src/utils/psdBillboardSync.ts:61-71` はRust側で合成済みのRGBA
+`src/utils/psdBillboardSync.ts` はRust側で合成済みのRGBA
 （`rust-backend/src/psd_fast.rs` の `composite_visible_psd_layers*`）を受け取りながら、
-Three.js CanvasTexture化のためCanvas2Dへ書き戻している。
-`THREE.DataTexture` への直接投入で往復を除去できる。
+Three.js CanvasTexture化のためCanvas2Dへ書き戻していた。Beta-483eで
+`ArrayBuffer`からゼロコピーの`Uint8Array` viewを作り、`THREE.DataTexture`へ
+直接渡すよう変更した。
+
+同じ`filePath::activeLayerIds`ではDataTextureを再利用し、毎tickのGPU再転送を停止。
+キー変更、billboard削除、3D Stage unmountではtextureを明示破棄する。
+CanvasTextureとの表示互換のため、sRGB、`flipY=true`、straight alpha、
+線形filterとmipmapを契約テストで固定した。全230 test files・1656 testsと型検査が
+PASS。GPU転送前にRGBA長と正の安全な整数寸法も検証する。詳細は
+`progress/psd-billboard-data-texture.md`。
+
+`psdParser.ts`のPSD import用canvasと、3D Stage自体のThree.js/WebGL描画は対象外。
 
 ### 以降の順序
 

@@ -22,6 +22,8 @@
 2. **4 のうち `psdBillboardSync.ts` の `putImageData` を先に潰す**。Rust側で
    合成済みRGBAを受け取りながらCanvas2Dへ書き戻しており、往復が明確に無駄。
    `THREE.DataTexture` への直接投入で除去できる。
+   **Beta-483eで完了**。RGBA8をコピーせずにキャッシュし、DataTextureへ直接渡す
+   ようにした。`psdParser.ts`のPSD import用canvasは別経路として残る。
 3. **2 を次に**。判定が `nativeOverlayDirectSceneEligibility.ts` 一箇所へ
    集約済みで、対応media kindを広げるだけで到達率を下げられる。
 4. **1 は 2・4 の後**。まず後述の判定漏れを直し、`requireRustFrameSource`
