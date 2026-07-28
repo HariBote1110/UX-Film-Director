@@ -195,6 +195,139 @@ describe('RustScenePlaybackController', () => {
     }));
   });
 
+  it('複数Videoと音声生成物を同じresident sceneとして一括提示する', async () => {
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => {
+        const base = evaluation(frameIndex, 'Video');
+        return {
+          ...base,
+          snapshot: {
+            ...base.snapshot,
+            clips: [
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'video-clip-1',
+                media_id: 'video-1',
+                source_frame: frameIndex,
+                z_index: 0,
+              },
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'video-clip-2',
+                media_id: 'video-2',
+                source_frame: frameIndex + 12,
+                z_index: 1,
+              },
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'audio-sphere-clip',
+                media_id: 'audio-sphere-1',
+                source_frame: frameIndex,
+                z_index: 2,
+              },
+            ],
+          },
+          media: [
+            {
+              ...base.media[0],
+              id: 'video-1',
+              source: '/tmp/video-1.mov',
+            },
+            {
+              ...base.media[0],
+              id: 'video-2',
+              source: '/tmp/video-2.mov',
+            },
+            {
+              id: 'audio-sphere-1',
+              kind: 'GeneratedAudioSphere',
+              source: audioSphereSource,
+              width: 320,
+              height: 180,
+            },
+          ],
+        };
+      },
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledTimes(1);
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      snapshot: expect.objectContaining({
+        clips: expect.arrayContaining([
+          expect.objectContaining({ mediaId: 'video-1', sourceFrame: 0 }),
+          expect.objectContaining({ mediaId: 'video-2', sourceFrame: 12 }),
+          expect.objectContaining({ mediaId: 'audio-sphere-1', sourceFrame: 0 }),
+        ]),
+      }),
+      media: [
+        expect.objectContaining({ id: 'video-1', kind: 'Video' }),
+        expect.objectContaining({ id: 'video-2', kind: 'Video' }),
+        expect.objectContaining({ id: 'audio-sphere-1', kind: 'GeneratedAudioSphere' }),
+      ],
+    }));
+  });
+
+  it('同じresident mediaを異なるsource frameで要求するsceneは提示前に拒否する', async () => {
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => {
+        const base = evaluation(frameIndex, 'Video');
+        return {
+          ...base,
+          snapshot: {
+            ...base.snapshot,
+            clips: [
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'video-clip-1',
+                media_id: 'video-1',
+                source_frame: frameIndex,
+              },
+              {
+                ...base.snapshot.clips[0],
+                clip_id: 'video-clip-2',
+                media_id: 'video-1',
+                source_frame: frameIndex + 1,
+              },
+            ],
+          },
+          media: [{
+            ...base.media[0],
+            id: 'video-1',
+            source: '/tmp/video.mov',
+          }],
+        };
+      },
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toEqual({
+      active: false,
+      reason: 'unsupportedDirectMedia',
+      detail: 'Native overlay media video-1 is requested at multiple source frames (0 and 1).',
+    });
+    expect(presentScene).not.toHaveBeenCalled();
+  });
+
   it('sourceRateが欠落または0のVideoはnative decoderへ渡さない', async () => {
     for (const source_rate of [
       undefined,
