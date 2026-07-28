@@ -51,6 +51,7 @@ export type NativeOverlaySceneMediaPayload = {
   source: string;
   width: number;
   height: number;
+  activeLayerIds?: readonly string[];
 };
 
 export interface PrepareSharedRendererRustDecodedVideoUploadInput {
@@ -373,6 +374,9 @@ export const toNativeOverlaySceneMediaPayload = (
   source: media.source,
   width: media.width,
   height: media.height,
+  ...(media.active_layer_ids?.length
+    ? { activeLayerIds: [...media.active_layer_ids] }
+    : {}),
 });
 
 export const prepareSharedRendererRustDecodedVideoUpload = async ({

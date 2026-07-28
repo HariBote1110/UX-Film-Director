@@ -204,6 +204,7 @@ pub struct NativeOverlaySceneMediaPayload {
     pub width: u32,
     pub height: u32,
     pub source_rate: Option<NativeOverlayFpsPayload>,
+    pub active_layer_ids: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -300,6 +301,7 @@ pub struct NativeOverlaySceneMedia {
     pub width: u32,
     pub height: u32,
     pub source_rate: Option<Fps>,
+    pub active_layer_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3356,6 +3358,7 @@ fn scene_media_from_payload(payload: NativeOverlaySceneMediaPayload) -> NativeOv
             numerator: rate.numerator,
             denominator: rate.denominator,
         }),
+        active_layer_ids: payload.active_layer_ids.unwrap_or_default(),
     }
 }
 
@@ -3392,6 +3395,7 @@ mod tests {
                 numerator: 30_000,
                 denominator: 1_001,
             }),
+            active_layer_ids: None,
         });
 
         assert_eq!(
@@ -3451,6 +3455,7 @@ mod tests {
                     numerator: 30,
                     denominator: 1,
                 }),
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -3792,6 +3797,7 @@ mod tests {
                 width: 1,
                 height: 1,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -3827,6 +3833,7 @@ mod tests {
                 width: 320,
                 height: 180,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -3883,6 +3890,7 @@ mod tests {
                     width: 1920,
                     height: 1080,
                     source_rate: None,
+                    active_layer_ids: Vec::new(),
                 },
                 NativeOverlaySceneMedia {
                     id: "getcolor-media".to_string(),
@@ -3898,6 +3906,7 @@ mod tests {
                     width: 160,
                     height: 90,
                     source_rate: None,
+                    active_layer_ids: Vec::new(),
                 },
             ],
             canvas_width: 1920,
@@ -3954,6 +3963,7 @@ mod tests {
                 width: 64,
                 height: 36,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 36,
@@ -4021,6 +4031,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4070,6 +4081,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4119,6 +4131,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4168,6 +4181,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4218,6 +4232,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4290,6 +4305,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4349,6 +4365,7 @@ mod tests {
                 width: 64,
                 height: 48,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 48,
@@ -4408,6 +4425,7 @@ mod tests {
                 width: 160,
                 height: 90,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 160,
             canvas_height: 90,
@@ -4480,6 +4498,7 @@ mod tests {
                 width: 64,
                 height: 64,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 64,
             canvas_height: 64,
@@ -4538,6 +4557,7 @@ mod tests {
             width: 16,
             height: 16,
             source_rate: None,
+            active_layer_ids: Vec::new(),
         };
         let first = native_overlay_media_content_revision(&media, 0)
             .expect("GetColor source image metadata must produce a revision");
@@ -4998,6 +5018,7 @@ mod tests {
                 width: 1920,
                 height: 1080,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -5088,6 +5109,7 @@ mod tests {
                 width: 1920,
                 height: 1080,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 1920,
             canvas_height: 1080,
@@ -5168,6 +5190,7 @@ mod tests {
                 width: 1920,
                 height: 1080,
                 source_rate: None,
+                active_layer_ids: Vec::new(),
             }],
             canvas_width: 1920,
             canvas_height: 1080,
