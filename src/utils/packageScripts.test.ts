@@ -215,14 +215,15 @@ describe('package scripts', () => {
     expect(script).toContain('await sleep(250)');
   });
 
-  it('pins shattered-sphere E2E to the WebGPU native render frame path', () => {
+  it('pins the default shattered-sphere E2E to WebGPU and enables native overlay only in readback mode', () => {
     const script = readFileSync(
       new URL('../../scripts/run-shattered-sphere-preview-e2e.mjs', import.meta.url),
       'utf8',
     );
 
-    expect(script.match(/VITE_UXFD_NATIVE_OVERLAY: '0'/g)).toHaveLength(2);
-    expect(script).toContain("UXFD_NATIVE_OVERLAY: '0'");
+    expect(script.match(/VITE_UXFD_NATIVE_OVERLAY: liveReadbackMode \? '1' : '0'/g))
+      .toHaveLength(2);
+    expect(script).toContain("UXFD_NATIVE_OVERLAY: liveReadbackMode ? '1' : '0'");
     expect(script).toContain("root.uxfdSharedRendererPresenterNativeRenderFrameReady === 'true'");
   });
 

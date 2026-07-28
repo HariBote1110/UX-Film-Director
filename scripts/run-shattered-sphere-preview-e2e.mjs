@@ -12,6 +12,7 @@ const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
 const RESULT_SCREENSHOT = resolve(OUTPUT_DIR, 'shared-renderer-shattered-sphere.png');
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_SHATTERED_SPHERE_E2E_TIMEOUT_MS ?? 90_000);
+const liveReadbackMode = process.env.UXFD_SHATTERED_SPHERE_LIVE_READBACK_E2E === '1';
 
 let vite = null;
 let electron = null;
@@ -283,6 +284,43 @@ const collectRuntimeErrors = (client) => client.events
       ?? 'Runtime exception';
   });
 
+const collectPresentSceneReadbackTraces = () => {
+  const marker = '[NativeOverlay] presentSceneTrace ';
+  return logLines
+    .flatMap((line) => line.split(/\r?\n/))
+    .flatMap((line) => {
+      const markerIndex = line.indexOf(marker);
+      if (markerIndex < 0) return [];
+      try {
+        return [JSON.parse(line.slice(markerIndex + marker.length).trim())];
+      } catch {
+        return [];
+      }
+    });
+};
+
+const waitForLiveSurfaceReadback = async (timeoutMs = 30_000) => {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const traces = collectPresentSceneReadbackTraces();
+    const trace = traces.findLast((candidate) => (
+      candidate?.success === true
+      && candidate?.attached === true
+      && candidate?.livePreparedClipCount > 0
+      && candidate?.liveReadbackNonTransparentPixels > 0
+      && candidate?.liveReadbackChecksum > 0
+      && candidate?.liveReadbackExportMaxChannelDelta === 0
+    ));
+    if (trace) return { ok: true, trace };
+    await sleep(250);
+  }
+  return {
+    ok: false,
+    reason: 'liveSurfaceReadbackMissing',
+    traces: collectPresentSceneReadbackTraces(),
+  };
+};
+
 const writeResult = (result) => {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
@@ -396,7 +434,7 @@ const main = async () => {
       ...process.env,
       VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER: '1',
       VITE_UXFD_SHARED_RENDERER_PREVIEW: '1',
-      VITE_UXFD_NATIVE_OVERLAY: '0',
+      VITE_UXFD_NATIVE_OVERLAY: liveReadbackMode ? '1' : '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -413,8 +451,10 @@ const main = async () => {
       VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?shatteredSpherePreviewE2e=1`,
       VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER: '1',
       VITE_UXFD_SHARED_RENDERER_PREVIEW: '1',
-      VITE_UXFD_NATIVE_OVERLAY: '0',
-      UXFD_NATIVE_OVERLAY: '0',
+      VITE_UXFD_NATIVE_OVERLAY: liveReadbackMode ? '1' : '0',
+      UXFD_NATIVE_OVERLAY: liveReadbackMode ? '1' : '0',
+      UXFD_DECODE_TRACE: liveReadbackMode ? '1' : '0',
+      UXFD_NATIVE_OVERLAY_READBACK_TRACE: liveReadbackMode ? '1' : '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -444,9 +484,15 @@ const main = async () => {
   // 画素検証は「再生を追加する前」の状態で行う。再生を先に走らせるとシーンが
   // 進行して見た目が変わり、既存の検証結果が変化してしまうため、
   // 検証→再生→presenter再起動回数計測、の順序を厳守する。
-  const visualResult = previewReady?.ok
+  const visualResult = previewReady?.ok && !liveReadbackMode
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;
+  const liveReadbackResult = previewReady?.ok && liveReadbackMode
+    ? await waitForLiveSurfaceReadback()
+    : undefined;
+  const visualGatePassed = liveReadbackMode
+    ? liveReadbackResult?.ok === true
+    : visualResult?.ok === true;
   // 動画を含まないこのシーンで、定常再生中に shared renderer presenter が
   // フル再起動しないことを検証する。
   const presenterRestarts = previewReady?.ok
@@ -466,6 +512,7 @@ const main = async () => {
     ...logLines,
     previewReady?.reason,
     visualResult?.reason,
+    liveReadbackResult?.reason,
     previewReady?.rootDataset?.uxfdSharedRendererPresenterNativeRenderFailureReason,
     previewReady?.rootDataset?.uxfdSharedRendererPresenterNativeRenderFailureDetail,
   ].filter((line) => typeof line === 'string' && line.length > 0)
@@ -476,13 +523,15 @@ const main = async () => {
     passed: Boolean(
       addResult?.ok
       && previewReady?.ok
-      && visualResult?.ok
+      && visualGatePassed
       && presenterReusePassed
       && blockingDiagnostics.length === 0
     ),
     addResult,
     previewReady,
     visualResult,
+    liveReadbackResult,
+    liveReadbackMode,
     presenterRestarts,
     presenterReusePassed,
     consoleLines,

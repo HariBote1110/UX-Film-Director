@@ -354,6 +354,9 @@ export const createNativeOverlayMainBridge = ({
             success: response.success,
             attached: response.attached,
             livePreparedClipCount: response.livePreparedClipCount,
+            liveReadbackNonTransparentPixels: response.liveReadbackNonTransparentPixels,
+            liveReadbackChecksum: response.liveReadbackChecksum,
+            liveReadbackExportMaxChannelDelta: response.liveReadbackExportMaxChannelDelta,
           })
         }
         return response
