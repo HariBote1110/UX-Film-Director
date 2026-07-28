@@ -312,6 +312,9 @@ describe('createNativeOverlayMainBridge', () => {
       expect.objectContaining({
         success: true,
         attached: true,
+        frameIndex: 24,
+        mediaIds: ['shape-1'],
+        mediaKinds: ['SolidColour'],
         livePreparedClipCount: 1,
         liveReadbackNonTransparentPixels: 2048,
         liveReadbackChecksum: 987654,

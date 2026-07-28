@@ -271,6 +271,10 @@ describe('package scripts', () => {
     expect(script).toContain(
       "root.uxfdSharedRendererPresenterNativeOverlayAttempt === 'ok'"
     );
+    expect(script).toContain('readbackTraceCursor');
+    expect(script).toContain(
+      "candidate?.mediaKinds?.includes('GeneratedShatteredSphere')"
+    );
   });
 
   it('provides a real video export quality comparison command', () => {

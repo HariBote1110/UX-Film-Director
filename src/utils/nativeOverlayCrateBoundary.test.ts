@@ -96,9 +96,15 @@ describe('native overlay napi crate boundary', () => {
 
   it('skips the per-frame upload fence on the live surface present path', () => {
     const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
+    const livePresentStart = nativeWgpuRenderer.indexOf(
+      'pub async fn present_scene_to_surface_texture'
+    );
     const livePresentBlock = nativeWgpuRenderer.slice(
-      nativeWgpuRenderer.indexOf('pub async fn present_scene_to_surface_texture'),
-      nativeWgpuRenderer.indexOf('pub async fn present_scene_to_surface_texture_with_readback')
+      livePresentStart,
+      nativeWgpuRenderer.indexOf(
+        'pub async fn present_scene_with_decoration_to_surface_texture',
+        livePresentStart
+      )
     );
 
     expect(nativeWgpuRenderer).toContain('prepare_scene_clips_without_upload_fence');
@@ -114,6 +120,9 @@ describe('native overlay napi crate boundary', () => {
     expect(nativeWgpuRenderer).toContain('wgpu::TextureUsages::COPY_SRC');
     expect(nativeWgpuRenderer).toContain('copy_live_surface_texture_to_readback');
     expect(nativeWgpuRenderer).toContain('readback_to_rgba8');
+    expect(nativeWgpuRenderer).toContain(
+      'present_scene_with_decoration_and_nv12_to_surface_texture_with_readback'
+    );
     expect(lib).toContain('live_readback_non_transparent_pixels');
     expect(lib).toContain('live_readback_checksum');
     expect(lib).toContain('live_prepared_clip_count');
@@ -125,7 +134,9 @@ describe('native overlay napi crate boundary', () => {
 
     expect(lib).toContain('live_readback_export_max_channel_delta');
     expect(lib).toContain('compare_live_overlay_readback_with_export');
+    expect(lib).toContain('compare_live_overlay_readback_with_native_sources');
     expect(lib).toContain('render_native_wgpu_frame');
+    expect(lib).toContain('render_native_wgpu_frame_with_native_sources');
     expect(lib).toContain('compare_rgba_frames');
     expect(lib).toContain('ComparisonThresholds::exact()');
     expect(lib).not.toContain('pub live_readback_pixels');
