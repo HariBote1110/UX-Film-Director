@@ -242,11 +242,14 @@ describe('package scripts', () => {
     expect(playStart).toBeLessThan(countBefore);
     expect(countBefore).toBeLessThan(countAfter);
     expect(countAfter).toBeLessThan(playStop);
+    expect(hook).toContain('__UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__');
+    expect(hook).toContain('valid: presenterStartCountValid');
 
     const script = readFileSync(
       new URL('../../scripts/run-shattered-sphere-preview-e2e.mjs', import.meta.url),
       'utf8',
     );
+    expect(script).toContain('presenterRestarts?.valid === true');
     expect(script).toContain('presenterRestarts?.duringPlayback === 0');
     expect(script).toContain('presenterReusePassed');
   });

@@ -105,7 +105,12 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(code).toContain('sharedRendererPresenterStartCountRef');
     expect(beforePresenterStartBlock).toContain('uxfdSharedRendererPresenterStartCount');
-    expect(beforePresenterStartBlock).toContain('sharedRendererPresenterStartCountRef.current += 1');
+    expect(beforePresenterStartBlock).toContain(
+      '__UXFD_SHARED_RENDERER_PRESENTER_START_COUNT__'
+    );
+    expect(beforePresenterStartBlock).toContain(
+      'Math.max(sharedRendererPresenterStartCountRef.current'
+    );
   });
 
   it('passes Phase 0 benchmark env flags into shared renderer presenter orchestration', () => {
