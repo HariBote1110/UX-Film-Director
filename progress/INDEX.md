@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [audio-reactive-direct-overlay.md](audio-reactive-direct-overlay.md) — 動画なしの音声波形・音声球をrenderer側PCM抽出とshared RGBA生成から外し、Native Overlayのresident PCM＋GPU sourceで直接提示。Video混在はdecode前に拒否し、不正sourceは既存native media schemaでaddon呼び出し前に除外（2026-07-28）
 - [psd-billboard-data-texture.md](psd-billboard-data-texture.md) — Rust合成済みRGBA8のCanvas2D `putImageData`往復を廃止し、ゼロコピーviewからDataTextureへ直接転送。同一cache keyのGPU再転送を止め、置換・削除・unmount時のtexture破棄を明示化（2026-07-28）
 - [video-free-presenter-reuse.md](video-free-presenter-reuse.md) — Native Overlay成功とDOM upload待機が食い違っていた砕け散る球E2Eを修復し、通常cutoverでも動画なしセッションだけpresenter reuseを許可。定常再生中のフル再起動を41回から0回へ削減し、欠落値を拒否する単調カウンタでE2E gate化（2026-07-28）
 - [presenter-restart-storm-rustvideoonly-gate.md](presenter-restart-storm-rustvideoonly-gate.md) — 重量E2Eでpresenterが87回/177フレームフル再起動する原因は`canReuseNativeRenderPresenter`が`rustVideoOnlyEnabled`単独ゲートで本番/E2E構成では常にfalseになること。ゲート拡大を検討したが、混在セッションでHTMLVideoElement音声とRust側再デコードが二重化しA/Vドリフトを起こす破綻経路を特定したため修正を見送った（2026-07-27）

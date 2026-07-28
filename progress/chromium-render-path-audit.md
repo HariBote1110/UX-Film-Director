@@ -26,6 +26,11 @@
    ようにした。`psdParser.ts`のPSD import用canvasは別経路として残る。
 3. **2 を次に**。判定が `nativeOverlayDirectSceneEligibility.ts` 一箇所へ
    集約済みで、対応media kindを広げるだけで到達率を下げられる。
+   **Beta-483fで動画なし`GeneratedAudioWaveform` / `GeneratedAudioSphere`を
+   直接提示へ移行**。既存native media schemaをdirect提示の事前検証にも再利用し、
+   target欠落や壊れた生成sourceはaddonへ渡さない。renderer decoded-frame提示関数も
+   Video＋音声生成物をdecode開始前に拒否する。PSD、JPEG、複数Videoは追加供給が
+   必要なため残る。
 4. **1 は 2・4 の後**。まず後述の判定漏れを直し、`requireRustFrameSource`
    側へ段階的に寄せる。3D Stageの依存が切れるまで完全除去は不可。
 5. **3 が最大かつ最後**。Three.jsシーングラフ・カメラ・ライティング・PSD

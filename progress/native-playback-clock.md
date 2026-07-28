@@ -8,7 +8,13 @@ CAMetalLayerへ直接提示できるシーンの再生時計はElectron mainが�
 
 mainは単調時計からフレーム番号を求め、resident sceneに対して`scene.evaluate`を呼び、結果をnative overlayへ直接渡す。評価または提示が遅れた場合は古いフレームを順番に処理せず、現在時刻に対応するフレームへ追いつく。UI時刻通知は200ms間隔とし、開始・停止・終端・失敗だけ即時通知する。
 
-VideoはElectron main process内のnative overlay addonがVideoToolbox decode sessionを所有し、NV12 IOSurfaceをWGPUへimportしてCAMetalLayerへ直接提示する。PSD、音声生成物、PNG以外の画像を含むシーンは、対応するネイティブsource供給が完成するまで既存renderer時計へ戻す。途中失敗でも再生を止めずrendererへフォールバックし、失敗詳細を`data-uxfd-rust-playback-detail`へ残す。
+VideoはElectron main process内のnative overlay addonがVideoToolbox decode sessionを所有し、NV12 IOSurfaceをWGPUへimportしてCAMetalLayerへ直接提示する。PSD、PNG以外の画像、renderer decoded-frame注入を使うVideo＋音声生成物の混在シーンは、対応するネイティブsource供給が完成するまで既存renderer時計へ戻す。途中失敗でも再生を止めずrendererへフォールバックし、失敗詳細を`data-uxfd-rust-playback-detail`へ残す。
+
+**更新（Beta-483f）**: Native Overlay addonに既に実装済みだったresident PCM cacheと
+GPU audio reactive sourceを適格性判定へ接続し、`GeneratedAudioWaveform`と
+`GeneratedAudioSphere`はmain所有時計から直接提示できるようになった。PSDと
+PNG以外の画像は引き続き既存renderer時計へ戻す。native media schemaを満たさない
+音声sourceはaddon呼び出し前に`unsupportedDirectMedia`として拒否する。
 
 ## 境界契約
 
@@ -76,7 +82,7 @@ resident scene exportが動画のdecode sessionも所有する。VideoToolboxの
 - frontend 213 files / 1,533 tests成功
 - Rust backend、native WGPU renderer、IOSurface H.264統合テスト成功
 
-音声付き書き出しは一時WAVのmuxが必要なため、現時点ではFFmpeg raw RGBA経路を維持する。次段階は映像をIOSurfaceで作成した後に音声をstream copyでmuxする。また、GeneratedAudioWaveform・Particle・SpotLightのresident scene対応も未完了である。
+音声付き書き出しは一時WAVのmuxが必要なため、現時点ではFFmpeg raw RGBA経路を維持する。次段階は映像をIOSurfaceで作成した後に音声をstream copyでmuxする。また、GeneratedAudioWaveform・Particle・SpotLightのresident export対応も未完了である。
 
 ## Resident動画プレビュー
 
@@ -93,4 +99,5 @@ resident scene exportが動画のdecode sessionも所有する。VideoToolboxの
 
 CDP screenshotはchild NSWindowのCAMetalLayerを含まないため、E2Eでは「native present成功・main時計進行・Chromium surface不変」を経路分離の契約として検証する。画素内容の検証はnative WGPUのNV12 offscreen parityテストと、OS画面キャプチャによる目視を併用する。
 
-次段階はGeneratedAudioWaveform・Particle・SpotLightのresident scene対応、音声付きIOSurface書き出し、重量編集の保存復元・書き出し再検証である。
+次段階はPSD・JPEG・複数Videoのdirect source供給、Video混在時のresident PCM統合、
+音声付きIOSurface書き出し、重量編集の保存復元・書き出し再検証である。

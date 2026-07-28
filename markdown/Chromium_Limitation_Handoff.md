@@ -1,11 +1,11 @@
 # 引き継ぎ課題：ChromiumをUI・編集命令の発行に限定する移行
 
 作成: 2026-07-25 / 版 `0.1.1-Beta-481a` / ブランチ `feature-proxy`
-更新: 2026-07-28 / 版 `0.1.1-Beta-483e` — P2・P3完了。P1は動画なしセッションの
+更新: 2026-07-28 / 版 `0.1.1-Beta-483f` — P2・P3完了。P1は動画なしセッションの
 presenter再利用を修正し、砕け散る球E2Eで定常再生中41回→0回を確認した。
 動画を含む混在セッションの87回/177フレームは、A/V二重クロックを避けるため未修正。
-次はWebGPU presenter到達率の縮小、またはRust側へ動画供給を統合した後の
-混在セッション再利用。
+WebGPU presenter到達率の縮小は、動画なし音声波形・音声球のdirect提示まで完了。
+次はJPEG、PSD、またはRust側へ動画供給を統合した後の混在セッション再利用。
 
 **E2E修復済み**: `npm run test:shattered-sphere-preview:e2e` はNative Overlayの
 direct presentとDOM WebGPU uploadの期待が混在していた。検証対象を後者へ明示固定し、
@@ -130,6 +130,24 @@ PASS。GPU転送前にRGBA長と正の安全な整数寸法も検証する。詳
 `progress/psd-billboard-data-texture.md`。
 
 `psdParser.ts`のPSD import用canvasと、3D Stage自体のThree.js/WebGL描画は対象外。
+
+### P4: 部分完了（Beta-483f） WebGPU presenter到達率を下げる
+
+Native Overlay addonには音声波形・音声球のresident PCM cacheとGPU sourceが
+既に実装済みだったが、renderer、native-render-only分岐、Electron main再生の
+3箇所が`GeneratedAudioWaveform` / `GeneratedAudioSphere`を明示拒否していた。
+
+動画なしの両media kindは`presentScene`へ直接渡すよう変更し、renderer側PCM抽出、
+`render.nativeSharedFrame`による完成RGBA生成、shared frame uploadを省略した。
+Electron main所有のnative playback clockでも同じresident PCM経路を使う。
+
+Video＋音声生成物は、renderer側のdecoded-frame注入経路がresident PCM descriptorを
+供給しないため不適格のまま。提示関数自身もdecode開始前にこの組合せを拒否し、
+native media schemaを満たさない音声・生成sourceはaddonへ渡さない。PSDはactive
+layer搬送、JPEGはaddon decoder、複数Videoはroutingとlease管理が必要。
+frontend全230 test files・1670 tests、型検査、native-overlayのresident PCM testが
+PASS。詳細は
+`progress/audio-reactive-direct-overlay.md`。
 
 ### 以降の順序
 
