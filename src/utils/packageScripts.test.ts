@@ -204,6 +204,17 @@ describe('package scripts', () => {
       .toBeLessThan(script.indexOf('Electron 起動: remote-debugging-port='));
   });
 
+  it('retries shattered-sphere E2E evaluation while Electron replaces its execution context', () => {
+    const script = readFileSync(
+      new URL('../../scripts/run-shattered-sphere-preview-e2e.mjs', import.meta.url),
+      'utf8',
+    );
+
+    expect(script).toContain('Cannot find default execution context');
+    expect(script).toContain('for (let attempt = 0; attempt < 20; attempt += 1)');
+    expect(script).toContain('await sleep(250)');
+  });
+
   it('provides a real video export quality comparison command', () => {
     expect(packageJson.scripts['test:video-export:quality']).toBe('node scripts/compare-video-export-quality.mjs');
 
