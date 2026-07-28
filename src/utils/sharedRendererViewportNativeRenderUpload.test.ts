@@ -1860,6 +1860,45 @@ describe('prepareSharedRendererViewportNativeRenderOverlayPresent', () => {
     ]);
   });
 
+  it.each([
+    ['GeneratedAudioWaveform', audioWaveformSession],
+    ['GeneratedAudioSphere', audioSphereSession],
+  ])('presents a video-free %s scene directly through the resident PCM overlay path', async (
+    _kind,
+    session
+  ) => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session,
+      requestId: 30,
+      requestAudioWaveformSamples: async () => {
+        throw new Error('direct resident PCM presentation must not request renderer-side samples.');
+      },
+      renderNativeSharedFrame: async () => {
+        throw new Error('direct resident PCM presentation must not render a shared RGBA frame.');
+      },
+      nativeOverlayBridge: {
+        presentSharedFrame: async () => {
+          throw new Error('direct resident PCM presentation must not upload a shared RGBA frame.');
+        },
+        presentScene: async (payload) => {
+          calls.push(payload);
+          return { success: true, attached: true };
+        },
+      },
+      releaseNativeSharedFrame: async () => {
+        throw new Error('direct resident PCM presentation has no shared output to release.');
+      },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([expect.objectContaining({
+      snapshot: expect.objectContaining({ frameIndex: 30 }),
+      media: session.surfaceGate.ok ? session.surfaceGate.media : null,
+    })]);
+  });
+
   it('renders a media-only scene natively and presents the shared-memory frame directly to the native overlay with embedded selection decoration', async () => {
     const calls: unknown[] = [];
 

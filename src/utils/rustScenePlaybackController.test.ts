@@ -220,10 +220,36 @@ describe('RustScenePlaybackController', () => {
     }
   });
 
-  it('PSD・音声生成物・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
+  it.each([
+    ['GeneratedAudioWaveform', '{"generator":"audio-waveform-r"}'],
+    ['GeneratedAudioSphere', '{"generator":"audio-sphere-93"}'],
+  ])('%sをmain所有のresident PCM direct presentへ渡す', async (kind, source) => {
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => ({
+        ...evaluation(frameIndex, kind),
+        media: [{ ...evaluation(frameIndex, kind).media[0], source }],
+      }),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      media: [expect.objectContaining({ kind, source })],
+    }));
+  });
+
+  it('PSD・PNG以外の画像はdirect presentせず既存時計へ戻す', async () => {
     for (const [kind, source] of [
       ['Psd', '/tmp/design.psd'],
-      ['GeneratedAudioWaveform', '{}'],
       ['Image', '/tmp/photo.jpg'],
     ]) {
       const presentScene = vi.fn();

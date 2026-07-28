@@ -63,4 +63,26 @@ describe('isNativeOverlayDirectSceneSession', () => {
       { id: 'psd', kind: 'Psd', source: '/tmp/layers.psd' },
     ]))).toBe(false);
   });
+
+  it.each([
+    ['GeneratedAudioWaveform', '{"generator":"audio-waveform-r"}'],
+    ['GeneratedAudioSphere', '{"generator":"audio-sphere-93"}'],
+  ])('accepts a video-free %s scene backed by the native resident PCM path', (kind, source) => {
+    expect(isNativeOverlayDirectSceneSession(buildSession([
+      { id: 'audio-reactive', kind, source },
+    ]))).toBe(true);
+  });
+
+  it.each([
+    ['GeneratedAudioWaveform', '{"generator":"audio-waveform-r"}'],
+    ['GeneratedAudioSphere', '{"generator":"audio-sphere-93"}'],
+  ])(
+    'rejects a decoded-video injection mixed with %s until that path supplies resident PCM',
+    (kind, source) => {
+      expect(isNativeOverlayDirectSceneSession(buildSession([
+        { id: 'video', kind: 'Video', source: '/tmp/video.mov' },
+        { id: 'audio-reactive', kind, source },
+      ]))).toBe(false);
+    }
+  );
 });
