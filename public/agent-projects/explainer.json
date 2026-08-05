@@ -13,8 +13,8 @@
     { "id": "background", "name": "背景" },
     { "id": "atmosphere", "name": "空気感" },
     { "id": "scene", "name": "シーン" },
-    { "id": "typography", "name": "文字" },
     { "id": "accents", "name": "アクセント" },
+    { "id": "typography", "name": "文字" },
     { "id": "foreground", "name": "前景" }
   ],
   "objects": [
