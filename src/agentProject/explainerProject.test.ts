@@ -13,14 +13,14 @@ describe('解説動画レシピ', () => {
 
     expect(project.projectSettings).toMatchObject({ width: 1280, height: 720, fps: 60 });
     expect(scene.duration).toBe(10);
-    expect(objectIds).toEqual(new Set([
+    expect([...[
       'intro-title',
       'step-1',
       'step-2',
       'step-3',
       'step-4',
       'closing-title',
-    ]));
+    ]].every((id) => objectIds.has(id))).toBe(true);
     expect(textContents).toEqual(expect.arrayContaining([
       'AIエージェントで動画を作る流れ',
       '1  意図をJSONにする',

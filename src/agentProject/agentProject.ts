@@ -323,7 +323,7 @@ const buildAgentObject = (
   }
 };
 
-export const buildAgentProjectFile = (input: AgentProjectSpec): ProjectFileV2 => {
+export const buildAgentProjectFile = (input: unknown): ProjectFileV2 => {
   const spec = parseAgentProjectSpec(input);
   const layerIndexById = new Map(spec.layers.map((layer, index) => [layer.id, index]));
   const objects = spec.objects.map((object) => {

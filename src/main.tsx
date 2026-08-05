@@ -40,7 +40,7 @@ if (agentProjectPath) {
       return response.json() as Promise<unknown>;
     })
     .then((payload) => {
-      const project = buildAgentProjectFile(payload as Parameters<typeof buildAgentProjectFile>[0]);
+      const project = buildAgentProjectFile(payload);
       const scenesRestored = project.scenes.map((scene) => ({
         ...scene,
         objects: scene.objects,
