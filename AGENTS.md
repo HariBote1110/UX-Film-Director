@@ -32,7 +32,7 @@ npm run agent:video -- public/agent-projects/ai-demo.json
 ### 背景をしっかり作り込む(グラデーション・ぼかし)
 
 - `kind: "shape"` に `gradient: { type: "linear" | "radial", colours: ["#rrggbb", ...], stops: [0, ..., 1], direction?: 度数 }` を指定すると、フラットな `fill` の代わりにグラデーション塗りになる。`colours` と `stops` は同じ件数にする。背景パネルを単色にせず、radialグラデーションで中心と外周に濃淡をつけると画面に奥行きが出る。
-- どのオブジェクトにも `filters: [{ "type": "blur", "strength": 数値(既定20), "quality": 数値1-4(既定2) }]` を付けられる。ハードエッジな図形を「光の演出」として使うときは、必ず `blur` を付けて輪郭を溶かすこと(付けないと固い縁が目立って不自然に見える)。
+- どのオブジェクトにも `filters: [{ "type": "blur", "strength": 数値(既定20), "quality": 数値1-4(既定2) }]` を付けられる。ハードエッジな図形を「光の演出」として使うときは、必ず `blur` を付けて輪郭を溶かすこと(付けないと固い縁が目立って不自然に見える)。ただしGPUアクセラレーションが効かない環境(`uxfdSharedRendererPresenterStatus` が `fallback`)では `strength` を大きくする・対象を大きくするほど書き出しが遅くなり、`agent:video` がタイムアウトしやすくなる。まずは `strength: 20〜30` 程度・対象サイズも画面の一部にとどめ、必要なら `UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS` で書き出しのタイムアウトを延長する。
 
 表現を増やす場合は `src/agentProject/agentProject.ts`、そのテスト(`src/agentProject/agentProject.test.ts`)、このガイド、`schema/agent-project.schema.json` を同じ変更で更新します。JSONを正しく読めるかは `agent:validate`、実際の見た目とMP4化は `agent:video` で確認します。
 

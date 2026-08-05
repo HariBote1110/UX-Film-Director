@@ -45,14 +45,14 @@
       "name": "背景の光",
       "start": 0,
       "duration": 12,
-      "x": 140,
-      "y": -80,
-      "width": 1000,
-      "height": 700,
+      "x": 240,
+      "y": -60,
+      "width": 800,
+      "height": 500,
       "shape": "ellipse",
       "fill": "#2a4468",
       "opacity": 0.55,
-      "filters": [{ "type": "blur", "strength": 60, "quality": 3 }]
+      "filters": [{ "type": "blur", "strength": 24, "quality": 2 }]
     },
     {
       "id": "atmosphere-grid",
