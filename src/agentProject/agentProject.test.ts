@@ -84,8 +84,8 @@ describe('agent project recipe', () => {
   });
 
   it('外部JSONのversionと必須フィールドを検証する', () => {
-    expect(parseAgentProjectSpec({ ...baseSpec, version: 2 })).toThrow('version は 1');
+    expect(() => parseAgentProjectSpec({ ...baseSpec, version: 2 })).toThrow('version は 1');
     expect(parseAgentProjectSpec({ ...baseSpec, objects: [] })).toMatchObject({ objects: [] });
-    expect(parseAgentProjectSpec({ ...baseSpec, project: { ...baseSpec.project, width: 0 } })).toThrow('project.width');
+    expect(() => parseAgentProjectSpec({ ...baseSpec, project: { ...baseSpec.project, width: 0 } })).toThrow('project.width');
   });
 });
