@@ -1,10 +1,12 @@
 import type {
+  AudioObject,
+  ImageObject,
   LayerState,
-  ObjectFilter,
   ProjectSettings,
   ShapeObject,
   TextObject,
   TimelineObject,
+  VideoObject,
 } from '../types';
 import type { EasingType } from '../utils/easings';
 import type { ProjectFileV2 } from '../utils/projectFile';
@@ -37,9 +39,26 @@ export interface AgentLayerSpec {
   locked?: boolean;
 }
 
+export interface AgentBlurFilterSpec {
+  type: 'blur';
+  strength?: number;
+  quality?: number;
+}
+
+export type AgentFilterSpec = AgentBlurFilterSpec;
+
+export interface AgentGradientSpec {
+  type: 'linear' | 'radial';
+  colours: string[];
+  stops: number[];
+  direction?: number;
+}
+
+const AGENT_OBJECT_KINDS_REQUIRING_SRC = new Set(['image', 'video', 'audio']);
+
 export interface AgentObjectBase {
   id: string;
-  kind: 'shape' | 'text' | 'particle' | 'dotField' | 'shatteredSphere';
+  kind: 'shape' | 'text' | 'particle' | 'dotField' | 'shatteredSphere' | 'image' | 'video' | 'audio';
   layer: string;
   name?: string;
   start: number;
@@ -54,7 +73,7 @@ export interface AgentObjectBase {
   opacity?: number;
   to?: { x: number; y: number };
   easing?: EasingType;
-  filters?: ObjectFilter[];
+  filters?: AgentFilterSpec[];
 }
 
 export type AgentObjectSpec =
@@ -63,6 +82,7 @@ export type AgentObjectSpec =
     shape: ShapeObject['shapeType'];
     fill: string;
     cornerRadius?: number;
+    gradient?: AgentGradientSpec;
   })
   | (AgentObjectBase & {
     kind: 'text';
@@ -98,6 +118,22 @@ export type AgentObjectSpec =
     kind: 'shatteredSphere';
     colour?: string;
     seed?: number;
+  })
+  | (AgentObjectBase & {
+    kind: 'image';
+    src: string;
+  })
+  | (AgentObjectBase & {
+    kind: 'video';
+    src: string;
+    volume?: number;
+    muted?: boolean;
+  })
+  | (AgentObjectBase & {
+    kind: 'audio';
+    src: string;
+    volume?: number;
+    muted?: boolean;
   });
 
 export interface AgentProjectSpec {
@@ -113,6 +149,9 @@ const AGENT_OBJECT_KINDS = new Set<AgentObjectSpec['kind']>([
   'particle',
   'dotField',
   'shatteredSphere',
+  'image',
+  'video',
+  'audio',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
@@ -152,6 +191,33 @@ const validateAgentObject = (value: unknown, index: number): void => {
     if (!isRecord(value.to)) throw new Error(`${path}.to は座標オブジェクトで指定してください。`);
     requireFiniteNumber(value.to.x, `${path}.to.x`);
     requireFiniteNumber(value.to.y, `${path}.to.y`);
+  }
+  if (AGENT_OBJECT_KINDS_REQUIRING_SRC.has(kind)) {
+    requireString(value.src, `${path}.src`);
+  }
+  if (value.gradient !== undefined) {
+    if (!isRecord(value.gradient)) throw new Error(`${path}.gradient はオブジェクトで指定してください。`);
+    const gradientType = requireString(value.gradient.type, `${path}.gradient.type`);
+    if (gradientType !== 'linear' && gradientType !== 'radial') {
+      throw new Error(`${path}.gradient.type は linear か radial で指定してください。`);
+    }
+    if (!Array.isArray(value.gradient.colours) || value.gradient.colours.length < 2) {
+      throw new Error(`${path}.gradient.colours は2件以上の配列で指定してください。`);
+    }
+    if (!Array.isArray(value.gradient.stops) || value.gradient.stops.length !== value.gradient.colours.length) {
+      throw new Error(`${path}.gradient.stops は colours と同じ件数の配列で指定してください。`);
+    }
+  }
+  if (value.filters !== undefined) {
+    if (!Array.isArray(value.filters)) throw new Error(`${path}.filters は配列で指定してください。`);
+    value.filters.forEach((filter, filterIndex) => {
+      const filterPath = `${path}.filters[${filterIndex}]`;
+      if (!isRecord(filter)) throw new Error(`${filterPath} はオブジェクトで指定してください。`);
+      const filterType = requireString(filter.type, `${filterPath}.type`);
+      if (filterType !== 'blur') {
+        throw new Error(`${filterPath}.type「${filterType}」は未対応です。`);
+      }
+    });
   }
 };
 
@@ -199,6 +265,24 @@ const buildLayers = (spec: AgentProjectSpec): LayerState[] => {
   return layers;
 };
 
+const buildFilters = (object: AgentObjectBase) => object.filters?.map((filter, index) => ({
+  id: `${object.id}-filter-${index}`,
+  type: 'blur' as const,
+  enabled: true,
+  params: {
+    strength: filter.strength ?? 20,
+    quality: filter.quality ?? 2,
+  },
+}));
+
+const buildGradient = (gradient: AgentGradientSpec | undefined) => (gradient === undefined ? undefined : {
+  enabled: true,
+  type: gradient.type,
+  colours: gradient.colours,
+  stops: gradient.stops,
+  direction: gradient.direction ?? 0,
+});
+
 const buildCommonObject = (object: AgentObjectBase, layer: number, project: AgentProjectSettings) => {
   const x = object.x ?? Math.round(project.width / 2);
   const y = object.y ?? Math.round(project.height / 2);
@@ -217,7 +301,7 @@ const buildCommonObject = (object: AgentObjectBase, layer: number, project: Agen
     endX: object.to?.x ?? x,
     endY: object.to?.y ?? y,
     easing: object.easing ?? 'linear',
-    filters: object.filters,
+    filters: buildFilters(object),
   };
   return common;
 };
@@ -241,7 +325,37 @@ const buildAgentObject = (
         shapeType: object.shape,
         fill: object.fill,
         cornerRadius: object.cornerRadius,
+        gradient: buildGradient(object.gradient),
       } satisfies ShapeObject;
+    case 'image':
+      return {
+        ...common,
+        type: 'image',
+        name,
+        src: object.src,
+        width: object.width ?? 320,
+        height: object.height ?? 180,
+      } satisfies ImageObject;
+    case 'video':
+      return {
+        ...common,
+        type: 'video',
+        name,
+        src: object.src,
+        width: object.width ?? 320,
+        height: object.height ?? 180,
+        volume: object.volume ?? 1,
+        muted: object.muted ?? false,
+      } satisfies VideoObject;
+    case 'audio':
+      return {
+        ...common,
+        type: 'audio',
+        name,
+        src: object.src,
+        volume: object.volume ?? 1,
+        muted: object.muted ?? false,
+      } satisfies AudioObject;
     case 'text':
       return {
         ...common,
