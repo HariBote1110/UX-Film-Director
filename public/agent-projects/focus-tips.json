@@ -30,22 +30,29 @@
       "width": 1280,
       "height": 720,
       "shape": "rect",
-      "fill": "#0a0f1a"
+      "fill": "#0a0f1a",
+      "gradient": {
+        "type": "radial",
+        "colours": ["#16233a", "#0a0f1a", "#05070d"],
+        "stops": [0, 0.55, 1],
+        "direction": 0
+      }
     },
     {
       "id": "atmosphere-halo",
       "kind": "shape",
-      "layer": "atmosphere",
+      "layer": "background",
       "name": "背景の光",
       "start": 0,
       "duration": 12,
-      "x": 200,
-      "y": 40,
-      "width": 880,
-      "height": 620,
+      "x": 140,
+      "y": -80,
+      "width": 1000,
+      "height": 700,
       "shape": "ellipse",
-      "fill": "#1a2f4a",
-      "opacity": 0.4
+      "fill": "#2a4468",
+      "opacity": 0.55,
+      "filters": [{ "type": "blur", "strength": 60, "quality": 3 }]
     },
     {
       "id": "atmosphere-grid",

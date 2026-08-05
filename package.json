@@ -20,7 +20,7 @@
     "test:native-overlay-live-readback:e2e": "UXFD_SHATTERED_SPHERE_LIVE_READBACK_E2E=1 node scripts/run-shattered-sphere-preview-e2e.mjs",
     "test:video-export:e2e": "node scripts/run-video-export-e2e.mjs",
     "test:video-export:quality": "node scripts/compare-video-export-quality.mjs",
-    "agent:validate": "node scripts/validate-agent-project.mjs",
+    "agent:validate": "VITEST=true vite-node scripts/validate-agent-project.mts",
     "agent:video": "node scripts/run-agent-video.mjs",
     "test:realistic-heavy-edit:e2e": "node scripts/run-realistic-heavy-edit-e2e.mjs",
     "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
