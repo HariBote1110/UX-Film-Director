@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -9,6 +9,15 @@ const DEBUG_PORT = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DEBUG_PORT ?? 9334);
 const VIDEO_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH
   ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH)
   : resolve(ROOT, 'perf/heavy-media/GX010052.MP4');
+const AGENT_PROJECT_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_AGENT_PROJECT_PATH
+  ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_AGENT_PROJECT_PATH)
+  : null;
+const AGENT_PROJECT_SPEC = AGENT_PROJECT_PATH && existsSync(AGENT_PROJECT_PATH)
+  ? JSON.parse(readFileSync(AGENT_PROJECT_PATH, 'utf8'))
+  : null;
+const AGENT_PROJECT_URL_PATH = AGENT_PROJECT_PATH
+  ? `/${relative(resolve(ROOT, 'public'), AGENT_PROJECT_PATH).replaceAll('\\', '/')}`
+  : null;
 const VIDEO_NAME = VIDEO_PATH.split('/').pop() ?? 'video';
 const OUTPUT_DIR = resolve(ROOT, '.codex/video-export-e2e');
 const OUTPUT_MP4 = resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
@@ -21,7 +30,11 @@ const USER_DATA_DIR = process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR
   ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR)
   : resolve(OUTPUT_DIR, `electron-profile-${process.pid}`);
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS ?? 180_000);
-const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS ?? 1);
+const EXPORT_DURATION_SECONDS = Number(
+  process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS
+    ?? AGENT_PROJECT_SPEC?.project?.duration
+    ?? 1,
+);
 const REPEAT_EXPORTS = Math.max(1, Math.min(3, Number(process.env.UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS ?? 1)));
 const EXPECT_REPEAT_SPEEDUP = process.env.UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP === '1';
 const EXPECT_ENCODER_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_EXPECT_ENCODER_PATH?.trim() || null;
@@ -36,7 +49,7 @@ const PSD_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH
   ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH)
   : resolve(ROOT, '葵ちゃん.psd');
 const AUDIO_WAV = resolve(OUTPUT_DIR, 'mixed-audio.wav');
-const PROJECT_FPS = 60;
+const PROJECT_FPS = Number(AGENT_PROJECT_SPEC?.project?.fps ?? 60);
 
 let vite = null;
 let electron = null;
@@ -756,7 +769,10 @@ const runVideoExportAttempt = async (client, attemptIndex) => {
 };
 
 const main = async () => {
-  if (!existsSync(VIDEO_PATH)) {
+  if (AGENT_PROJECT_PATH && (!existsSync(AGENT_PROJECT_PATH) || !AGENT_PROJECT_URL_PATH || AGENT_PROJECT_URL_PATH.startsWith('/..'))) {
+    throw new Error(`agent project must be a readable file under public/: ${AGENT_PROJECT_PATH}`);
+  }
+  if (!AGENT_PROJECT_PATH && !existsSync(VIDEO_PATH)) {
     throw new Error(`video fixture is missing: ${VIDEO_PATH}`);
   }
 
@@ -786,7 +802,7 @@ const main = async () => {
     cwd: ROOT,
     env: {
       ...process.env,
-      VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?videoExportE2e=1`,
+      VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?videoExportE2e=1${AGENT_PROJECT_URL_PATH ? `&agentProject=${encodeURIComponent(AGENT_PROJECT_URL_PATH)}` : ''}`,
       UXFD_VIDEO_EXPORT_E2E_SAVE_PATH: OUTPUT_MP4,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -807,7 +823,36 @@ const main = async () => {
   await client.send('Page.enable');
   await client.send('DOM.enable');
 
-  await client.evaluate(`
+  let loadResult = null;
+  let videoObject = null;
+  if (AGENT_PROJECT_PATH) {
+    loadResult = await client.evaluate(`
+      new Promise((resolve) => {
+        const started = Date.now();
+        const tick = () => {
+          const state = document.documentElement.dataset.uxfdAgentProject;
+          if (state === 'loaded') {
+            resolve({ ok: true, mode: 'agentProject' });
+            return;
+          }
+          if (state === 'error') {
+            resolve({ ok: false, reason: 'agentProjectLoadFailed', body: document.body.innerText });
+            return;
+          }
+          if (Date.now() - started > 30000) {
+            resolve({ ok: false, reason: 'agentProjectLoadTimeout', body: document.body.innerText });
+            return;
+          }
+          setTimeout(tick, 200);
+        };
+        tick();
+      })
+    `);
+    if (!loadResult?.ok) {
+      throw new Error(`エージェント用レシピの読み込みに失敗しました: ${JSON.stringify(loadResult)}`);
+    }
+  } else {
+    await client.evaluate(`
     new Promise((resolve) => {
       const started = Date.now();
       const tick = () => {
@@ -830,9 +875,9 @@ const main = async () => {
       };
       tick();
     })
-  `);
+    `);
 
-  const ready = await client.evaluate(`
+    const ready = await client.evaluate(`
     new Promise((resolve) => {
       const started = Date.now();
       const tick = () => {
@@ -848,20 +893,20 @@ const main = async () => {
       };
       tick();
     })
-  `);
-  if (!ready?.ok) throw new Error(`Video追加ボタンの表示待ちに失敗しました: ${JSON.stringify(ready)}`);
+    `);
+    if (!ready?.ok) throw new Error(`Video追加ボタンの表示待ちに失敗しました: ${JSON.stringify(ready)}`);
 
-  await client.evaluate(`document.querySelector('button[title="Video"]')?.click()`);
-  await sleep(300);
-  const inputNodeId = await client.querySelector('input[accept="video/*"]');
-  if (!inputNodeId) throw new Error('動画inputが見つかりません。');
-  log(`動画inputへ実ファイルを設定: ${VIDEO_PATH}`);
-  await client.send('DOM.setFileInputFiles', {
-    nodeId: inputNodeId,
-    files: [VIDEO_PATH],
-  });
+    await client.evaluate(`document.querySelector('button[title="Video"]')?.click()`);
+    await sleep(300);
+    const inputNodeId = await client.querySelector('input[accept="video/*"]');
+    if (!inputNodeId) throw new Error('動画inputが見つかりません。');
+    log(`動画inputへ実ファイルを設定: ${VIDEO_PATH}`);
+    await client.send('DOM.setFileInputFiles', {
+      nodeId: inputNodeId,
+      files: [VIDEO_PATH],
+    });
 
-  const loadResult = await client.evaluate(`
+    loadResult = await client.evaluate(`
     new Promise((resolve) => {
       const started = Date.now();
       const tick = () => {
@@ -890,27 +935,28 @@ const main = async () => {
       };
       tick();
     })
-  `);
-  if (!loadResult?.ok) {
-    throw new Error(`動画読み込みに失敗しました: ${JSON.stringify(loadResult)}`);
-  }
-  const durationShortened = await client.evaluate(`
-    window.__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? false
-  `);
-  if (!durationShortened) {
-    throw new Error('動画export E2E用の短尺化に失敗しました。');
-  }
-  if (VIDEO_PATCH) {
-    const patchApplied = await client.evaluate(`
-      window.__UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?.(${JSON.stringify(VIDEO_PATCH)}) ?? false
     `);
-    if (!patchApplied) {
-      throw new Error(`動画export E2E用の配置patchに失敗しました: ${JSON.stringify(VIDEO_PATCH)}`);
+    if (!loadResult?.ok) {
+      throw new Error(`動画読み込みに失敗しました: ${JSON.stringify(loadResult)}`);
     }
+    const durationShortened = await client.evaluate(`
+    window.__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? false
+    `);
+    if (!durationShortened) {
+      throw new Error('動画export E2E用の短尺化に失敗しました。');
+    }
+    if (VIDEO_PATCH) {
+      const patchApplied = await client.evaluate(`
+      window.__UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?.(${JSON.stringify(VIDEO_PATCH)}) ?? false
+      `);
+      if (!patchApplied) {
+        throw new Error(`動画export E2E用の配置patchに失敗しました: ${JSON.stringify(VIDEO_PATCH)}`);
+      }
+    }
+    videoObject = await client.evaluate(`
+      window.__UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__?.() ?? null
+    `);
   }
-  const videoObject = await client.evaluate(`
-    window.__UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__?.() ?? null
-  `);
   const mixedMediaResult = await addMixedMediaToTimeline(client);
   if (ADD_MIXED_MEDIA && !mixedMediaResult?.ok) {
     throw new Error(`混在メディア追加に失敗しました: ${JSON.stringify(mixedMediaResult)}`);
@@ -963,7 +1009,8 @@ const main = async () => {
       && runtimeErrors.length === 0
       && generatedEffectsFrameInspection?.ok !== false
     ),
-    videoPath: VIDEO_PATH,
+    videoPath: AGENT_PROJECT_PATH ? null : VIDEO_PATH,
+    agentProjectPath: AGENT_PROJECT_PATH,
     outputPath: OUTPUT_MP4,
     outputStat: lastAttempt.outputStat,
     exportDurationSeconds: EXPORT_DURATION_SECONDS,

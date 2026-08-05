@@ -8,10 +8,12 @@ import { buildGetColorDotFieldObject } from './utils/objectFactories/getColorDot
 import { buildHksyCheckerGridObject } from './utils/objectFactories/hksyCheckerGridObjectFactory'
 import { buildAviUtlShatteredSphereObject } from './utils/objectFactories/shatteredSphereObjectFactory'
 import type { AudioObject, AudioVisualizationObject, ParticleObject, ShapeObject } from './types'
+import { buildAgentProjectFile } from './agentProject/agentProject'
 
 schedulePerformanceHarness()
 
 const urlSearchParams = new URLSearchParams(window.location.search)
+const agentProjectPath = urlSearchParams.get('agentProject')
 
 if (
   urlSearchParams.has('videoLoadE2e')
@@ -27,6 +29,29 @@ if (
     sampleRate: 48000,
     editorMode: '2d',
   });
+}
+
+if (agentProjectPath) {
+  void fetch(agentProjectPath)
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Agent project fetch failed: ${response.status} ${response.statusText}`);
+      }
+      return response.json() as Promise<unknown>;
+    })
+    .then((payload) => {
+      const project = buildAgentProjectFile(payload as Parameters<typeof buildAgentProjectFile>[0]);
+      const scenesRestored = project.scenes.map((scene) => ({
+        ...scene,
+        objects: scene.objects,
+      }));
+      useStore.getState().loadProject(project.projectSettings, scenesRestored, project.activeSceneId);
+      document.documentElement.dataset.uxfdAgentProject = 'loaded';
+    })
+    .catch((error: unknown) => {
+      document.documentElement.dataset.uxfdAgentProject = 'error';
+      console.error('[agent-project] Failed to load project recipe:', error);
+    });
 }
 
 if (urlSearchParams.has('realisticHeavyEditE2e')) {

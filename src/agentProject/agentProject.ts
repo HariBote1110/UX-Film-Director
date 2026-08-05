@@ -1,5 +1,4 @@
 import type {
-  EasingType,
   LayerState,
   ObjectFilter,
   ProjectSettings,
@@ -7,6 +6,7 @@ import type {
   TextObject,
   TimelineObject,
 } from '../types';
+import type { EasingType } from '../utils/easings';
 import type { ProjectFileV2 } from '../utils/projectFile';
 import { buildGetColorDotFieldObject } from '../utils/objectFactories/getColorDotFieldObjectFactory';
 import { buildDefaultStandardParticleObject } from '../utils/objectFactories/particleObjectFactory';
