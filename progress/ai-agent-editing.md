@@ -13,6 +13,9 @@
 
 ## Constraints / Gotchas
 
-- 現在のレシピで使える `kind` は `shape`、`text`、`particle`、`dotField`、`shatteredSphere`。新しい種類はビルダーとテストを同時に更新する。
+- 現在のレシピで使える `kind` は `shape`、`text`、`particle`、`dotField`、`shatteredSphere`、`image`、`video`、`audio`(2026-08-05追加)。新しい種類はビルダーとテストを同時に更新する。
 - `agent:video` はレシピを `public/` 配下から読み込む。外部ファイルを使う場合は、まず `public/agent-projects/` に置く。
-- 動画出力の成果物は `.codex/video-export-e2e/video-export-e2e-output.mp4` に置かれ、Git管理対象外である。
+- 動画出力の成果物は `.codex/video-export-e2e/<レシピ名>-e2e-<pid>.mp4`(レシピ経由の実行時)、またはレシピ非経由の呼び出し(`test:video-export:e2e`等)は従来どおり `video-export-e2e-output.mp4` に置かれ、Git管理対象外である(2026-08-05: 固定ファイル名だと連続実行のたびに上書きされていた問題を修正)。
+- `agent:validate` は2026-08-05以降、独自の重複ロジックではなく `vite-node` 経由で `src/agentProject/agentProject.ts` の `parseAgentProjectSpec` を直接呼ぶ(`scripts/validate-agent-project.mts`)。CLIバリデーションとランタイムの実装が乖離する問題を解消した。
+- 参考用JSON Schemaを `schema/agent-project.schema.json` に置いた。ただし実行時の検証には使っておらず(ajv等の追加依存を避けた)、エディタ補完・AIの自己検証の補助に留まる。実装との乖離が起きたら `agentProject.ts` を正とする。
+- `shape` の `gradient` と、任意オブジェクトの `filters: [{type:"blur",...}]` を追加した。背景の光やハローを表現する際、不透明な前面レイヤーのオブジェクトに大部分を隠されると輪郭だけが「ドーム状」に露出して見える不具合的な見た目になる。`blur` で輪郭を溶かすと解決するが、GPU非対応のフォールバックレンダリング環境では `strength`/対象サイズを大きくするほど書き出しが極端に遅くなり、`agent:video` がタイムアウトする(400秒でも完走しないケースを確認)。実運用では `strength: 20〜30` 程度・対象を画面の一部にとどめるのが安全。
