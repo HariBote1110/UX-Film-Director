@@ -9,7 +9,9 @@ npm run agent:validate -- public/agent-projects/ai-demo.json
 npm run agent:video -- public/agent-projects/ai-demo.json
 ```
 
-動画は `.codex/video-export-e2e/video-export-e2e-output.mp4` に生成されます。レシピの再生時間は `project.duration`、フレームレートは `project.fps` で決まります。
+動画は `.codex/video-export-e2e/<レシピのファイル名(拡張子なし)>-e2e-<プロセスID>.mp4` に生成されます(例: `focus-tips.json` を実行した場合 `.codex/video-export-e2e/focus-tips-e2e-12345.mp4`)。実行のたびにファイル名が変わるため、同じレシピを繰り返し実行しても過去の出力を上書きせず、複数の実行結果を並べて比較できます。実際に生成された正確なパスは `npm run agent:video -- <レシピパス>` の標準出力ログ(`[video-export-e2e] 動画出力を開始(...): <パス>`)で確認してください。
+
+なお `test:video-export:e2e` など、レシピを指定しない他の呼び出しは従来どおり固定パス `.codex/video-export-e2e/video-export-e2e-output.mp4` に生成されます。
 
 ## レシピの編集規約
 

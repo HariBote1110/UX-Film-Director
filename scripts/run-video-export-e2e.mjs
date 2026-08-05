@@ -20,7 +20,17 @@ const AGENT_PROJECT_URL_PATH = AGENT_PROJECT_PATH
   : null;
 const VIDEO_NAME = VIDEO_PATH.split('/').pop() ?? 'video';
 const OUTPUT_DIR = resolve(ROOT, '.codex/video-export-e2e');
-const OUTPUT_MP4 = resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
+// エージェント用レシピ経由の実行(AGENT_PROJECT_PATH あり)は、実行のたびに一意なファイル名を使う。
+// これにより同じレシピを連続実行しても前回の出力を上書きせず、複数レシピの動画を並べて比較できる。
+// USER_DATA_DIR で既に使っている `electron-profile-${process.pid}` の一意化パターンに倣い、
+// レシピのベース名(拡張子なし) + プロセスID を組み合わせる(例: focus-tips-e2e-12345.mp4)。
+// レシピを伴わない他の呼び出し元(test:video-export:e2e 等)は、従来どおり固定パスを使い続ける。
+const AGENT_PROJECT_BASENAME = AGENT_PROJECT_PATH
+  ? AGENT_PROJECT_PATH.split('/').pop()?.replace(/\.[^./]+$/, '') ?? 'agent-project'
+  : null;
+const OUTPUT_MP4 = AGENT_PROJECT_PATH
+  ? resolve(OUTPUT_DIR, `${AGENT_PROJECT_BASENAME}-e2e-${process.pid}.mp4`)
+  : resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
 const OUTPUT_FRAME_RGBA = resolve(OUTPUT_DIR, 'video-export-e2e-frame0.rgba');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
@@ -776,7 +786,12 @@ const main = async () => {
     throw new Error(`video fixture is missing: ${VIDEO_PATH}`);
   }
 
-  rmSync(OUTPUT_DIR, { recursive: true, force: true });
+  // エージェント用レシピの実行では、OUTPUT_DIR 配下に過去の一意な出力 mp4 が残っている可能性があるため
+  // ディレクトリごと削除しない(結果としてレシピごとの出力を積み上げて比較できる)。
+  // 従来どおりの呼び出し元(固定パス運用)では、これまでと同じくディレクトリを丸ごと作り直す。
+  if (!AGENT_PROJECT_PATH) {
+    rmSync(OUTPUT_DIR, { recursive: true, force: true });
+  }
   mkdirSync(OUTPUT_DIR, { recursive: true });
   rmSync(USER_DATA_DIR, { recursive: true, force: true });
   mkdirSync(USER_DATA_DIR, { recursive: true });
