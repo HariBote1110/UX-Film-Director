@@ -45,10 +45,16 @@ export const createSharedRendererScenePreviewScheduler = ({
   rpc,
   onEvaluation,
   onFailure,
+  onRemoteReady,
 }: {
   rpc: SharedRendererScenePreviewSchedulerRpc;
   onEvaluation: (evaluation: SharedRendererSceneEvaluation) => void;
   onFailure?: (failure: SharedRendererScenePreviewSchedulerFailure) => void;
+  // scene.replaceが実際に反映され、かつそのrevisionが「現在の希望revision」と
+  // 一致しているときだけ呼ばれる。supersededなrevisionが遅れて解決しても
+  // reportされない。null は「常駐scene が現在の希望revisionと一致しない」状態
+  // （新しいsubmitRevision・replace失敗・invalidate）を表す。
+  onRemoteReady?: (ready: { sceneId: string; revision: number } | null) => void;
 }): SharedRendererScenePreviewScheduler => {
   const diagnostics: SharedRendererScenePreviewSchedulerDiagnostics = {
     requested: 0,
@@ -65,6 +71,19 @@ export const createSharedRendererScenePreviewScheduler = ({
   let pendingLatestFrame: number | null = null;
   let lastRequestedFrame: number | null = null;
   let failedRevisionKey: string | null = null;
+  let lastNotifiedRemoteReady: { sceneId: string; revision: number } | null = null;
+
+  const notifyRemoteReady = (ready: { sceneId: string; revision: number } | null) => {
+    if (!onRemoteReady) return;
+    const same = ready === null
+      ? lastNotifiedRemoteReady === null
+      : lastNotifiedRemoteReady !== null
+        && lastNotifiedRemoteReady.sceneId === ready.sceneId
+        && lastNotifiedRemoteReady.revision === ready.revision;
+    if (same) return;
+    lastNotifiedRemoteReady = ready;
+    onRemoteReady(ready);
+  };
 
   const blockAfterFailure = (failure: SharedRendererScenePreviewSchedulerFailure) => {
     desiredRevision = null;
@@ -72,6 +91,7 @@ export const createSharedRendererScenePreviewScheduler = ({
     pendingLatestFrame = null;
     lastRequestedFrame = null;
     failedRevisionKey = null;
+    notifyRemoteReady(null);
     onFailure?.(failure);
   };
 
@@ -105,6 +125,9 @@ export const createSharedRendererScenePreviewScheduler = ({
           return;
         }
         remoteReadyRevision = result.value;
+        const isStillDesired = desiredRevision?.sceneId === result.value.sceneId
+          && desiredRevision.revision === result.value.revision;
+        if (isStillDesired) notifyRemoteReady(result.value);
         pump();
       }).catch(() => {
         replaceInFlight = false;
@@ -172,6 +195,7 @@ export const createSharedRendererScenePreviewScheduler = ({
       if (!isNewerRevision) return;
       desiredRevision = payload;
       failedRevisionKey = null;
+      notifyRemoteReady(null);
       if (lastRequestedFrame !== null) queueLatestFrame(lastRequestedFrame);
       pump();
     },
@@ -188,6 +212,7 @@ export const createSharedRendererScenePreviewScheduler = ({
       pendingLatestFrame = null;
       lastRequestedFrame = null;
       failedRevisionKey = null;
+      notifyRemoteReady(null);
     },
     dispose: () => {
       disposed = true;
