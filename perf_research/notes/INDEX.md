@@ -2,6 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
+- [native-clock-optimistic-revision-race.md](native-clock-optimistic-revision-race.md) — **native playback clock が engage しなかった原因は楽観的revisionのレース（実測detailで確定）。適格性説は棄却。常駐revision確定を待つ修正で busyMs 919→493/506、presenter再起動 42→3、layoutCount 213→136/126。ただし engage は frame 83〜93 で前半はまだレンダラークロック**（2026-08-07）
 - [debug-backend-as-accidental-throttle.md](debug-backend-as-accidental-throttle.md) — harness の Rust backend は debug ビルドで、release にすると backend CPU は 93〜118% → 34.6% に下がる。**一度「release だと再起動が増える」と結論したが release-2 で撤回。真の支配変数は native playback clock が engage するかどうかで、engage すると busyMs 1032〜1745 → 463、presenter再起動 54〜133 → 3、Viewportコミット 63〜187 → 12**（2026-08-07）
 - [where-the-cpu-actually-goes.md](where-the-cpu-actually-goes.md) — **再生中のCPUはレンダラーではなく `uxfd-rust-backend`（93〜118%）で燃えている。レンダラーは27〜32% busy、scripting 191〜196ms/3.8秒。React最適化は投資対効果の観点で完了扱い。**ただし harness の backend は debug ビルド（2026-08-07）
 - [viewport-subtree-commit-attribution.md](viewport-subtree-commit-attribution.md) — Viewport subtree のコミット帰属。**「毎フレーム1回コミット」は485aでは再現しない（63〜94回/約180フレーム）。`SceneSelectionDecorationLayer` 犯人説は棄却。コミットは presenter フル再起動に連動**。commitCount が run 間で+49%動く落とし穴の発見を含む（2026-08-07）
