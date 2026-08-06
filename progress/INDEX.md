@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [native-playback-optimistic-revision-race.md](native-playback-optimistic-revision-race.md) — native再生開始effectが楽観的revisionでstartScenePlaybackを呼びscene.evaluateのrevision不一致でリトライ無く失敗していたレースを、scheduler側のonRemoteReady（常駐かつsupersededでないrevisionのみ通知）へのgate切り替えで解消（2026-08-07）
 - [ai-agent-editing.md](ai-agent-editing.md) — JSONレシピを正本にしたAIエージェント向け編集・検証・MP4出力導線。image/video/audio/gradient/blur追加、agent:validateのTS一本化、出力パスのユニーク化、参考JSON Schema追加（2026-08-05）
 - [native-overlay-media-readback-completion.md](native-overlay-media-readback-completion.md) — JPEG direct decoder、PSD active layer搬送・合成、main-owned複数Video／Video＋resident音声の一括提示、実CAMetalLayer readbackとoffscreen reference完全一致E2Eを完了（2026-07-28）
 - [audio-reactive-direct-overlay.md](audio-reactive-direct-overlay.md) — 動画なしの音声波形・音声球をrenderer側PCM抽出とshared RGBA生成から外し、Native Overlayのresident PCM＋GPU sourceで直接提示。Video混在はdecode前に拒否し、不正sourceは既存native media schemaでaddon呼び出し前に除外（2026-07-28）
