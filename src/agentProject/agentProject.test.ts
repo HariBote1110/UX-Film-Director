@@ -189,6 +189,96 @@ describe('agent project recipe', () => {
     });
   });
 
+  it('align.x/align.yでプロジェクト中央に配置する', () => {
+    const project = buildAgentProjectFile({
+      ...baseSpec,
+      objects: [{
+        id: 'centred',
+        kind: 'shape',
+        layer: 'background',
+        start: 0,
+        duration: 6,
+        width: 400,
+        height: 200,
+        shape: 'rect',
+        fill: '#ffffff',
+        align: { x: 'center', y: 'center' },
+      }],
+    });
+    const centred = project.scenes[0].objects.find((object) => object.id === 'centred');
+    expect(centred).toMatchObject({ x: 440, y: 260 });
+  });
+
+  it('align:startとpaddingで左上から余白を空けて配置する', () => {
+    const project = buildAgentProjectFile({
+      ...baseSpec,
+      objects: [{
+        id: 'padded',
+        kind: 'shape',
+        layer: 'background',
+        start: 0,
+        duration: 6,
+        width: 100,
+        height: 50,
+        shape: 'rect',
+        fill: '#ffffff',
+        align: { x: 'start', y: 'start' },
+        padding: 24,
+      }],
+    });
+    const padded = project.scenes[0].objects.find((object) => object.id === 'padded');
+    expect(padded).toMatchObject({ x: 24, y: 24 });
+  });
+
+  it('relativeToで先に定義したオブジェクトの内側に整列する', () => {
+    const project = buildAgentProjectFile({
+      ...baseSpec,
+      objects: [
+        {
+          id: 'card',
+          kind: 'shape',
+          layer: 'background',
+          start: 0,
+          duration: 6,
+          x: 100,
+          y: 100,
+          width: 800,
+          height: 400,
+          shape: 'rounded_rect',
+          fill: '#0c2033',
+        },
+        {
+          id: 'label',
+          kind: 'shape',
+          layer: 'title',
+          start: 0,
+          duration: 6,
+          width: 200,
+          height: 40,
+          shape: 'rect',
+          fill: '#ffffff',
+          align: { x: 'end', y: 'end' },
+          relativeTo: 'card',
+          padding: 20,
+        },
+      ],
+    });
+    const label = project.scenes[0].objects.find((object) => object.id === 'label');
+    expect(label).toMatchObject({ x: 680, y: 440 });
+  });
+
+  it('未定義または後方参照のrelativeToを日本語のエラーで拒否する', () => {
+    expect(() => buildAgentProjectFile({
+      ...baseSpec,
+      objects: [{
+        ...baseSpec.objects[0],
+        id: 'orphan',
+        align: { x: 'center' },
+        relativeTo: 'missing-card',
+      }],
+    })).toThrow('relativeTo「missing-card」が見つかりません');
+  });
+
   it('blurフィルターを展開する', () => {
     const project = buildAgentProjectFile({
       ...baseSpec,
