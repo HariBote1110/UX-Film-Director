@@ -706,6 +706,12 @@ const Viewport: React.FC = () => {
 
   const [renderTick, setRenderTick] = useState(0);
   const [rustTimelineSceneRevision, setRustTimelineSceneRevision] = useState<number | null>(null);
+  // schedulerのonRemoteReadyから届く「Rust側で実際に反映済み、かつsupersededでは
+  // ない」revision。rustTimelineSceneRevisionは楽観値（submitRevision直後に確定）
+  // なので、native再生開始のように「present中の画がこのrevisionである」ことを
+  // 前提にする経路はこちらを使う（diag-debug-1で計測したrevision不一致による
+  // native再生失敗の再発防止）。
+  const [rustTimelineSceneResidentRevision, setRustTimelineSceneResidentRevision] = useState<number | null>(null);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0';
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
@@ -1520,6 +1526,7 @@ const Viewport: React.FC = () => {
       rustTimelineScenePreviewControllerRef.current?.dispose();
       rustTimelineScenePreviewControllerRef.current = null;
       setRustTimelineSceneRevision(null);
+      setRustTimelineSceneResidentRevision(null);
       setNativePlaybackActive(false);
       writeRustTimelineSceneRpcDiagnostics({ status: 'disabled', projectId: projectId ?? null });
       return;
@@ -1571,6 +1578,9 @@ const Viewport: React.FC = () => {
           detail: `${failure.operation}: ${failure.reason} (${failure.detail})`,
           ...scheduler.diagnostics,
         });
+      },
+      onRemoteReady: (ready) => {
+        setRustTimelineSceneResidentRevision(ready ? ready.revision : null);
       },
     });
     const controller = createEditableRustScenePreviewController({
@@ -1661,7 +1671,7 @@ const Viewport: React.FC = () => {
   ]);
 
   useEffect(() => {
-    if (!rustTimelineSceneRpcEnabled || rustTimelineSceneRevision === null) {
+    if (!rustTimelineSceneRpcEnabled || rustTimelineSceneResidentRevision === null) {
       if (useStore.getState().nativePlaybackActive) {
         void window.rustBackend.stopScenePlayback();
         setNativePlaybackActive(false);
@@ -1694,7 +1704,7 @@ const Viewport: React.FC = () => {
       }
       const result = await window.rustBackend.startScenePlayback({
         sceneId: 'viewport-rust-timeline',
-        revision: rustTimelineSceneRevision,
+        revision: rustTimelineSceneResidentRevision,
         fps: projectSettings.fps,
         startTimeSeconds,
         durationSeconds: duration,
@@ -1714,7 +1724,7 @@ const Viewport: React.FC = () => {
     duration,
     isPlaying,
     projectSettings.fps,
-    rustTimelineSceneRevision,
+    rustTimelineSceneResidentRevision,
     rustTimelineSceneRpcEnabled,
     setNativePlaybackActive,
     setTime,
