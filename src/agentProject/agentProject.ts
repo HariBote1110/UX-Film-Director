@@ -56,6 +56,11 @@ export interface AgentGradientSpec {
 
 const AGENT_OBJECT_KINDS_REQUIRING_SRC = new Set(['image', 'video', 'audio']);
 
+export interface AgentAlignSpec {
+  x?: 'start' | 'center' | 'end';
+  y?: 'start' | 'center' | 'end';
+}
+
 export interface AgentObjectBase {
   id: string;
   kind: 'shape' | 'text' | 'particle' | 'dotField' | 'shatteredSphere' | 'image' | 'video' | 'audio';
@@ -74,6 +79,12 @@ export interface AgentObjectBase {
   to?: { x: number; y: number };
   easing?: EasingType;
   filters?: AgentFilterSpec[];
+  /** 指定すると x/y の代わりに整列基準で位置を決める。基準枠は relativeTo 未指定ならプロジェクト全体。 */
+  align?: AgentAlignSpec;
+  /** 整列の基準にする、objects配列内で先に定義したオブジェクトのid。 */
+  relativeTo?: string;
+  /** align:start/end のときに基準枠の端から空ける距離(px)。既定0。 */
+  padding?: number;
 }
 
 export type AgentObjectSpec =
@@ -218,6 +229,22 @@ const validateAgentObject = (value: unknown, index: number): void => {
         throw new Error(`${filterPath}.type「${filterType}」は未対応です。`);
       }
     });
+  }
+  if (value.align !== undefined) {
+    if (!isRecord(value.align)) throw new Error(`${path}.align はオブジェクトで指定してください。`);
+    const validAlignments = new Set(['start', 'center', 'end']);
+    if (value.align.x !== undefined && !validAlignments.has(value.align.x as string)) {
+      throw new Error(`${path}.align.x は start/center/end のいずれかで指定してください。`);
+    }
+    if (value.align.y !== undefined && !validAlignments.has(value.align.y as string)) {
+      throw new Error(`${path}.align.y は start/center/end のいずれかで指定してください。`);
+    }
+  }
+  if (value.relativeTo !== undefined) {
+    requireString(value.relativeTo, `${path}.relativeTo`);
+  }
+  if (value.padding !== undefined) {
+    requireFiniteNumber(value.padding, `${path}.padding`);
   }
 };
 
@@ -437,15 +464,76 @@ const buildAgentObject = (
   }
 };
 
+const LAYOUT_DEFAULT_WIDTH = 320;
+const LAYOUT_DEFAULT_HEIGHT = 180;
+
+interface LayoutBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const resolveAlignedAxis = (
+  alignment: 'start' | 'center' | 'end' | undefined,
+  frameStart: number,
+  frameSize: number,
+  ownSize: number,
+  padding: number,
+  explicit: number | undefined,
+  projectCentre: number,
+): number => {
+  if (alignment === 'start') return frameStart + padding;
+  if (alignment === 'end') return frameStart + frameSize - ownSize - padding;
+  if (alignment === 'center') return Math.round(frameStart + frameSize / 2 - ownSize / 2);
+  return explicit ?? projectCentre;
+};
+
+const resolveObjectPosition = (
+  object: AgentObjectBase,
+  layoutById: Map<string, LayoutBox>,
+  project: AgentProjectSettings,
+): { x: number; y: number } => {
+  const projectCentreX = Math.round(project.width / 2);
+  const projectCentreY = Math.round(project.height / 2);
+  if (object.align === undefined) {
+    return { x: object.x ?? projectCentreX, y: object.y ?? projectCentreY };
+  }
+  const width = object.width ?? LAYOUT_DEFAULT_WIDTH;
+  const height = object.height ?? LAYOUT_DEFAULT_HEIGHT;
+  const padding = object.padding ?? 0;
+  let frame: LayoutBox = { x: 0, y: 0, width: project.width, height: project.height };
+  if (object.relativeTo !== undefined) {
+    const reference = layoutById.get(object.relativeTo);
+    if (reference === undefined) {
+      throw new Error(`オブジェクト「${object.id}」のrelativeTo「${object.relativeTo}」が見つかりません。relativeToはobjects配列内で先に定義したIDのみ参照できます。`);
+    }
+    frame = reference;
+  }
+  return {
+    x: resolveAlignedAxis(object.align.x, frame.x, frame.width, width, padding, object.x, projectCentreX),
+    y: resolveAlignedAxis(object.align.y, frame.y, frame.height, height, padding, object.y, projectCentreY),
+  };
+};
+
 export const buildAgentProjectFile = (input: unknown): ProjectFileV2 => {
   const spec = parseAgentProjectSpec(input);
   const layerIndexById = new Map(spec.layers.map((layer, index) => [layer.id, index]));
+  const layoutById = new Map<string, LayoutBox>();
   const objects = spec.objects.map((object) => {
     const layer = layerIndexById.get(object.layer);
     if (layer === undefined) {
       throw new Error(`オブジェクト「${object.id}」のレイヤー「${object.layer}」が見つかりません。`);
     }
-    return buildAgentObject(object, layer, spec.project);
+    const position = resolveObjectPosition(object, layoutById, spec.project);
+    const resolvedObject = { ...object, x: position.x, y: position.y };
+    layoutById.set(object.id, {
+      x: position.x,
+      y: position.y,
+      width: object.width ?? LAYOUT_DEFAULT_WIDTH,
+      height: object.height ?? LAYOUT_DEFAULT_HEIGHT,
+    });
+    return buildAgentObject(resolvedObject, layer, spec.project);
   });
   const settings: ProjectSettings = {
     width: spec.project.width,
