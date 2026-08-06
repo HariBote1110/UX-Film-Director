@@ -1,0 +1,5 @@
+external/
+*.log
+*.trace.json
+chromium-renderer-trace*.json
+results/
