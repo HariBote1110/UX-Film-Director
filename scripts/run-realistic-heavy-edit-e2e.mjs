@@ -23,7 +23,10 @@ import {
   diffChromiumPerformanceMetrics,
   summariseChromiumRendererTrace,
 } from './lib/chromium-renderer-trace.mjs';
-import { parseClearSelectionBeforePlaybackOption } from './lib/realistic-heavy-edit-options.mjs';
+import {
+  parseClearSelectionBeforePlaybackOption,
+  resolveRealisticHeavyEditRustBackendBinaryProfile,
+} from './lib/realistic-heavy-edit-options.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_DIR = resolve(ROOT, '.codex/realistic-heavy-edit-e2e');
@@ -508,6 +511,7 @@ const main = async () => {
     line.includes('wgpu uncaptured error')
     || line.includes('Shader validation error')
   ));
+  const rustBackendBinaryPath = process.env.UXFD_RUST_BACKEND_BIN ?? null;
   const result = {
     passed: seed?.ok === true
       && exercise?.ok === true
@@ -529,6 +533,10 @@ const main = async () => {
       screenshot: SCREENSHOT_PATH,
       export: SKIP_EXPORT ? null : EXPORT_PATH,
       chromiumRendererTrace: COLLECT_CHROMIUM_TRACE ? CHROMIUM_TRACE_PATH : null,
+    },
+    rustBackendBinary: {
+      path: rustBackendBinaryPath,
+      profile: resolveRealisticHeavyEditRustBackendBinaryProfile(rustBackendBinaryPath),
     },
     seed,
     exercise,

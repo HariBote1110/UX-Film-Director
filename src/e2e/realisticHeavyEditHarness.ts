@@ -65,14 +65,25 @@ const percentile = (values: number[], ratio: number): number => {
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))];
 };
 
-const collectRafDeltas = async (durationMs: number): Promise<number[]> => {
+type RafSampling = {
+  deltas: number[];
+  // 各rAFサンプルの瞬間に nativePlaybackActive がtrueだったかどうか。
+  // shouldRunRendererPlaybackClock（isPlaying && !nativePlaybackActive）が
+  // どちらのクロックに再生を委ねていたかをRunごとに再構成できるようにする。
+  // 計測対象を乱さないよう、1サンプルあたりストア読み取り+boolean push のみを行う。
+  nativePlaybackActiveFlags: boolean[];
+};
+
+const collectRafDeltas = async (durationMs: number): Promise<RafSampling> => {
   const deltas: number[] = [];
+  const nativePlaybackActiveFlags: boolean[] = [];
   let last = performance.now();
   const deadline = last + durationMs;
   await new Promise<void>((resolve) => {
     const tick = () => {
       const now = performance.now();
       deltas.push(now - last);
+      nativePlaybackActiveFlags.push(useStore.getState().nativePlaybackActive);
       last = now;
       if (now >= deadline) {
         resolve();
@@ -82,7 +93,10 @@ const collectRafDeltas = async (durationMs: number): Promise<number[]> => {
     };
     requestAnimationFrame(tick);
   });
-  return deltas.slice(1);
+  return {
+    deltas: deltas.slice(1),
+    nativePlaybackActiveFlags: nativePlaybackActiveFlags.slice(1),
+  };
 };
 
 const activeProjectFile = () => {
@@ -145,6 +159,13 @@ const snapshot = (): HarnessResult => {
     nativeOverlayAttempt: document.documentElement.dataset.uxfdNativeOverlayAttempt ?? null,
     nativeOverlayFailureReason: document.documentElement.dataset.uxfdNativeOverlayFailureReason ?? null,
     hasMissingSourceText: bodyText.includes('MissingSource'),
+    // nativePlaybackActive（ネイティブ再生クロック）がRunによって発火有無が
+    // 分かれる問題を切り分けるための計測。rustPlaybackClockOwner/Status/Detailは
+    // Viewport.tsxの再生クロック切替エフェクトが失敗時にのみ書き込むdataset。
+    nativePlaybackActive: state.nativePlaybackActive,
+    rustPlaybackClockOwner: document.documentElement.dataset.uxfdRustPlaybackClockOwner ?? null,
+    rustPlaybackStatus: document.documentElement.dataset.uxfdRustPlaybackStatus ?? null,
+    rustPlaybackDetail: document.documentElement.dataset.uxfdRustPlaybackDetail ?? null,
   };
 };
 
@@ -249,7 +270,7 @@ const exercise = async (
   const presenterStartCountBeforePlayback =
     document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
   useStore.getState().setIsPlaying(true);
-  const rafDeltas = await collectRafDeltas(playbackMs);
+  const { deltas: rafDeltas, nativePlaybackActiveFlags } = await collectRafDeltas(playbackMs);
   useStore.getState().setIsPlaying(false);
   observer?.disconnect();
   await waitForPaint();
@@ -266,6 +287,17 @@ const exercise = async (
   const rafMeanMs = rafDeltas.length > 0
     ? rafDeltas.reduce((total, value) => total + value, 0) / rafDeltas.length
     : 0;
+  // nativePlaybackActive がRunによって発火有無が分かれる問題を切り分けるため、
+  // 再生計測区間中のサンプルごとにネイティブ再生クロック稼働状況を集計する。
+  const nativePlaybackFrameCount = nativePlaybackActiveFlags
+    .filter((active) => active).length;
+  const nativePlaybackFirstActiveFrameIndexRaw = nativePlaybackActiveFlags.indexOf(true);
+  const nativePlaybackFirstActiveFrameIndex = nativePlaybackFirstActiveFrameIndexRaw === -1
+    ? null
+    : nativePlaybackFirstActiveFrameIndexRaw;
+  const nativePlaybackActiveAtPlaybackStart = nativePlaybackActiveFlags[0] ?? false;
+  const nativePlaybackActiveAtPlaybackEnd =
+    nativePlaybackActiveFlags[nativePlaybackActiveFlags.length - 1] ?? false;
   // Electronウィンドウが他アプリに隠れる等でrAFがスロットリングされると、
   // 回数系の性能指標が桁違いに悪化するのに総合PASSしてしまう罠がある
   // （詳細はrealisticHeavyEditPlaybackClockHealth.tsのdocコメントを参照）。
@@ -312,6 +344,10 @@ const exercise = async (
     reactProfile,
     playbackClockHealth,
     presenterRestarts,
+    nativePlaybackFrameCount,
+    nativePlaybackFirstActiveFrameIndex,
+    nativePlaybackActiveAtPlaybackStart,
+    nativePlaybackActiveAtPlaybackEnd,
   };
 };
 
