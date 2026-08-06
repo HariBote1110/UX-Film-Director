@@ -66,4 +66,30 @@ describe('Rust scene native playback境界', () => {
     expect(requestEffect).toMatch(/\}, \[\s*isExporting,\s*isPlaying,/);
     expect(requestEffect).toContain('sharedRendererExternalVideoFrameReadyTick,');
   });
+
+  it('native再生開始は楽観的revisionではなくRust側が確定させた常駐revisionを待つ', () => {
+    // 計測（diag-debug-1）: replaceScene()はRPC完了前にローカルrevisionを返し、
+    // それをそのままstartScenePlaybackへ渡すとscene.evaluateがrevision不一致で
+    // 失敗する（"requested revision does not match resident revision"）。
+    // リトライも無いため、この1回の失敗でnative再生クロックへの以後の遷移が
+    // 事実上失われる。schedulerのonRemoteReadyが「replaceが実際に反映され、かつ
+    // supersededでない」revisionだけを通知するので、native再生開始effectは
+    // そのrustTimelineSceneResidentRevisionをgate/引数に使う契約とする。
+    const viewport = read('src/components/Viewport.tsx');
+    const marker = 'const startGeneration = rustNativePlaybackStartGenerationRef.current + 1;';
+    const markerIndex = viewport.indexOf(marker);
+    expect(markerIndex).toBeGreaterThan(-1);
+    const effectStart = viewport.lastIndexOf('useEffect(() => {', markerIndex);
+    const effectEnd = viewport.indexOf('\n  }, [', markerIndex);
+    const effectEndClose = viewport.indexOf(']);', effectEnd);
+    const effectBody = viewport.slice(effectStart, effectEndClose);
+
+    // gate: 常駐revisionが確定するまでnative再生開始を試みない。
+    expect(effectBody).toContain('rustTimelineSceneResidentRevision === null');
+    // startScenePlaybackへ渡すrevisionも常駐revisionを使う（楽観値を使わない）。
+    expect(effectBody).toContain('revision: rustTimelineSceneResidentRevision,');
+    // deps配列にも常駐revisionを含め、確定次第effectが再実行される
+    // （＝取りこぼしの自動リトライになる）。
+    expect(effectBody).toContain('rustTimelineSceneResidentRevision,');
+  });
 });
