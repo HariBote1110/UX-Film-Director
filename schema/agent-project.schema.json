@@ -107,6 +107,23 @@
         "filters": {
           "type": "array",
           "items": { "$ref": "#/$defs/filter" }
+        },
+        "align": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "string", "enum": ["start", "center", "end"] },
+            "y": { "type": "string", "enum": ["start", "center", "end"] }
+          },
+          "description": "指定するとx/yの代わりに整列で位置を決める。基準枠はrelativeTo未指定ならproject全体。widthとheight(省略時320x180)を自分のサイズとして使う。"
+        },
+        "relativeTo": {
+          "type": "string",
+          "description": "整列の基準にする、objects配列内で先に定義したオブジェクトのid。"
+        },
+        "padding": {
+          "type": "number",
+          "description": "align:start/endのとき基準枠の端から空ける距離(px)。既定0。"
         }
       }
     },
