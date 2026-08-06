@@ -179,4 +179,100 @@ describe('sharedRendererScenePreviewScheduler', () => {
     expect(failures).toEqual(['evaluate:renderer unavailable']);
     expect(scheduler.diagnostics).toMatchObject({ requested: 1, failed: 1 });
   });
+
+  it('replaceが成功し常駐revisionが現在の希望revisionと一致したときだけonRemoteReadyへ通知する', async () => {
+    const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc,
+      onEvaluation: () => {},
+      onRemoteReady: (ready) => remoteReadyEvents.push(ready),
+    });
+
+    scheduler.submitRevision(revision(1));
+    await flush();
+    expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 1 }]);
+
+    scheduler.submitRevision(revision(2));
+    expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 1 }, null]);
+    await flush();
+    expect(remoteReadyEvents).toEqual([
+      { sceneId: 'preview:main', revision: 1 },
+      null,
+      { sceneId: 'preview:main', revision: 2 },
+    ]);
+  });
+
+  it('replace r1の解決がr3提出後にずれ込んでも、supersededなr1をonRemoteReadyへreportしない', async () => {
+    const replaces: Array<{ input: { revision: number }; deferred: Deferred<any> }> = [];
+    const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: (input) => {
+        const next = deferred<any>();
+        replaces.push({ input, deferred: next });
+        return next.promise;
+      },
+      evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc,
+      onEvaluation: () => {},
+      onRemoteReady: (ready) => remoteReadyEvents.push(ready),
+    });
+
+    scheduler.submitRevision(revision(1));
+    scheduler.requestFrame(5);
+    scheduler.submitRevision(revision(2));
+    scheduler.submitRevision(revision(3));
+    // r1の解決時点ではr3がdesiredなので、r1はreportされない。
+    replaces[0].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1 } });
+    await flush();
+    expect(remoteReadyEvents).toEqual([]);
+
+    expect(replaces.map((entry) => entry.input.revision)).toEqual([1, 3]);
+    replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 3 } });
+    await flush();
+    expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 3 }]);
+  });
+
+  it('scene RPC失敗時はonRemoteReadyへnullを通知する', async () => {
+    const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      evaluateScene: async () => ({ ok: false, reason: 'backendFailure', detail: 'renderer unavailable' }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc,
+      onEvaluation: () => {},
+      onRemoteReady: (ready) => remoteReadyEvents.push(ready),
+    });
+
+    scheduler.submitRevision(revision(1));
+    scheduler.requestFrame(1);
+    await flush();
+    expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 1 }, null]);
+  });
+
+  it('invalidate後はonRemoteReadyへnullを通知する', async () => {
+    const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc,
+      onEvaluation: () => {},
+      onRemoteReady: (ready) => remoteReadyEvents.push(ready),
+    });
+
+    scheduler.submitRevision(revision(1));
+    await flush();
+    expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 1 }]);
+
+    scheduler.invalidate();
+    expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 1 }, null]);
+  });
 });
