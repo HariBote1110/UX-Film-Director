@@ -44,6 +44,11 @@ const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_X: &str = "contractViewX";
 const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y: &str = "contractViewY";
 const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH: &str = "contractViewWidth";
 const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT: &str = "contractViewHeight";
+/// resync observer の ivar 名: observer がまだ有効か（`NSWindowWillCloseNotification`
+/// で `NO` に落とされていないか）。`parentView` / `childWindow` ivar は retain 済みで
+/// メモリとしては生存し続けるが、対象ウィンドウが close 済みなら resync 本体を
+/// 実行してはならない。late notification に対する構造的なガードとして使う。
+const RESYNC_OBSERVER_IVAR_VALID: &str = "valid";
 
 /// `NSWindowStyleMaskBorderless`（AppKit 定数、値 0）。
 const NS_WINDOW_STYLE_MASK_BORDERLESS: usize = 0;
@@ -238,6 +243,44 @@ unsafe fn overlay_passthrough_view_class() -> Result<&'static Class, &'static st
     Ok(declaration.register())
 }
 
+/// resync 本体（msg_send 群）を実行してよいかどうかを判定する純関数。
+/// objc ランタイムに一切依存しないため実機無しでユニットテスト可能。
+///
+/// - `observer_valid` が `false`（`NSWindowWillCloseNotification` で無効化
+///   済み）なら実行しない。
+/// - `parent_view_ptr` / `child_window_ptr` が `0`（null 化された、または
+///   そもそも未設定）でも実行しない。
+///
+/// これは「解放済みメモリを触らない」ことを保証するものではない
+/// （それは呼び出し側で parent_view / child_window を retain することで
+/// 担保する）。本関数が保証するのは「観測対象が論理的に無効だとわかって
+/// いる場合は、そのメモリが有効であっても手を出さない」という上位の
+/// 安全性である。
+fn should_perform_geometry_resync(
+    observer_valid: bool,
+    parent_view_ptr: usize,
+    child_window_ptr: usize,
+) -> bool {
+    observer_valid && parent_view_ptr != 0 && child_window_ptr != 0
+}
+
+/// `NSWindowWillCloseNotification` 受信時に呼ばれ、observer の
+/// `RESYNC_OBSERVER_IVAR_VALID` を `NO` に落とす。parent window・child window
+/// のどちらの close でも呼ばれるよう両方に登録する（`register_geometry_resync_observer`
+/// 参照）。以降 `resync_child_window_geometry` は
+/// `should_perform_geometry_resync` の判定により早期リターンする。
+extern "C" fn invalidate_geometry_resync_observer(this: &Object, _cmd: Sel, _notification: *mut Object) {
+    unsafe {
+        // `extern "C" fn(&Object, ...)` は ObjC のインスタンスメソッド実装の
+        // 慣例で `&Object` を受け取るが、ivar 書き込みには `&mut Object` が
+        // 要る。self が指すオブジェクトを可変に書き換えてよいのは ObjC の
+        // メソッド呼び出しとして当然のため、ここでのポインタキャストは安全。
+        let this_mut = (this as *const Object as *mut Object).as_mut()
+            .expect("resync observer self pointer must not be null inside its own method");
+        this_mut.set_ivar(RESYNC_OBSERVER_IVAR_VALID, NO);
+    }
+}
+
 /// `NSWindowDidMoveNotification` / `NSWindowDidResizeNotification` 受信時に
 /// 呼ばれ、observer の ivar（parentView / childWindow / contract 由来の view
 /// rect）から geometry を再計算して child window の frame に反映する。
@@ -249,15 +292,30 @@ unsafe fn overlay_passthrough_view_class() -> Result<&'static Class, &'static st
 /// 確立した contract のオフセット付き view rect を ivar に保持し、それを
 /// `resolve_view_local_rect_for_parent_bounds`（attach と共通）で解決してから
 /// 変換することで、attach 直後の位置関係を移動・リサイズ後も維持する。
+///
+/// 実測クラッシュ（`EXC_BAD_ACCESS` / `objc_msgSend`、同一 faulting stack が
+/// 5件）— アプリ終了時、AppKit が window を破棄する過程で
+/// `NSWindowDidMoveNotification` / `NSWindowDidResizeNotification` が本
+/// observer にまだ配送され得る。以前は ivar が生ポインタの `usize` 化のみで
+/// `is_null()` しか見ておらず、解放済み（≠ null）ポインタを素通しして
+/// `objc_msgSend` が dangling pointer を dereference していた。
+/// `register_geometry_resync_observer` が parent_view / child_window を
+/// retain するようになったため対象オブジェクトのメモリ自体は observer の
+/// 生存中は解放されないが、それでも「論理的に close 済みの window に対して
+/// geometry を書き込む」のは正しくない。`RESYNC_OBSERVER_IVAR_VALID` は
+/// `NSWindowWillCloseNotification` で `NO` に落とされ、
+/// `should_perform_geometry_resync` がそれを最初に検査することで、
+/// late notification を安全に無視できるようにする。
 extern "C" fn resync_child_window_geometry(this: &Object, _cmd: Sel, _notification: *mut Object) {
     unsafe {
+        let observer_valid: BOOL = *this.get_ivar(RESYNC_OBSERVER_IVAR_VALID);
         let parent_view_ivar: usize = *this.get_ivar(RESYNC_OBSERVER_IVAR_PARENT_VIEW);
         let child_window_ivar: usize = *this.get_ivar(RESYNC_OBSERVER_IVAR_CHILD_WINDOW);
-        let parent_view = parent_view_ivar as *mut Object;
-        let child_window = child_window_ivar as *mut Object;
-        if parent_view.is_null() || child_window.is_null() {
+        if !should_perform_geometry_resync(observer_valid == YES, parent_view_ivar, child_window_ivar) {
             return;
         }
+        let parent_view = parent_view_ivar as *mut Object;
+        let child_window = child_window_ivar as *mut Object;
 
         let parent_window: *mut Object = msg_send![parent_view, window];
         if parent_window.is_null() {
@@ -302,9 +360,14 @@ unsafe fn geometry_resync_observer_class() -> Result<&'static Class, &'static st
     declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y);
     declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH);
     declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT);
+    declaration.add_ivar::<BOOL>(RESYNC_OBSERVER_IVAR_VALID);
     declaration.add_method(
         sel!(resyncChildWindowGeometry:),
         resync_child_window_geometry as extern "C" fn(&Object, Sel, *mut Object),
+    );
+    declaration.add_method(
+        sel!(invalidateGeometryResyncObserver:),
+        invalidate_geometry_resync_observer as extern "C" fn(&Object, Sel, *mut Object),
     );
     Ok(declaration.register())
 }
@@ -339,6 +402,17 @@ unsafe fn register_geometry_resync_observer(
     (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y, contract.view_y);
     (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH, contract.view_width);
     (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT, contract.view_height);
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_VALID, YES);
+
+    // クラッシュ実測（同一 faulting stack の EXC_BAD_ACCESS が5件）— 以前は
+    // parent_view / child_window を生ポインタの `usize` 化のみで保持しており、
+    // AppKit がこれらを close/dealloc した後に届いた late notification が
+    // dangling pointer を dereference していた。observer の生存期間中は
+    // 明示的に retain し、たとえ論理的に close 済みでもメモリとしては
+    // observer が生きている間 dealloc されないようにする（対称的な release
+    // は unregister_geometry_resync_observer 側）。
+    let _retained_parent_view: *mut Object = msg_send![parent_view, retain];
+    let _retained_child_window: *mut Object = msg_send![child_window, retain];
 
     let notification_centre_class = appkit_class("NSNotificationCenter")?;
     let default_centre: *mut Object = msg_send![notification_centre_class, defaultCenter];
@@ -359,6 +433,27 @@ unsafe fn register_geometry_resync_observer(
         selector: selector
         name: resize_notification_name
         object: parent_window
+    ];
+
+    // detach（before-quit を含む）が呼ばれずに parent window / child window の
+    // どちらかが単独で close された場合に備えたフォールバック。retain により
+    // メモリ自体は生存し続けるが、close 済みの window に対して geometry を
+    // 書き込み続けるべきではないため、observer を明示的に無効化する。
+    let will_close_notification_name = ns_string("NSWindowWillCloseNotification")?;
+    let invalidate_selector = sel!(invalidateGeometryResyncObserver:);
+    let () = msg_send![
+        default_centre,
+        addObserver: observer
+        selector: invalidate_selector
+        name: will_close_notification_name
+        object: parent_window
+    ];
+    let () = msg_send![
+        default_centre,
+        addObserver: observer
+        selector: invalidate_selector
+        name: will_close_notification_name
+        object: child_window
     ];
 
     Ok(observer)
@@ -383,9 +478,35 @@ unsafe fn unregister_geometry_resync_observer(parent_view: *mut Object) -> Resul
         return Ok(());
     }
 
+    // 以降 late notification が届いても resync 本体を実行させない
+    // （register_geometry_resync_observer が retain した parent_view /
+    // child_window をこの後 release するため、なおさら触らせてはならない）。
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_VALID, NO);
+
     let notification_centre_class = appkit_class("NSNotificationCenter")?;
     let default_centre: *mut Object = msg_send![notification_centre_class, defaultCenter];
     let () = msg_send![default_centre, removeObserver: observer];
+
+    // register_geometry_resync_observer が取った retain（parent_view /
+    // child_window）を対称的に release する。retain していなければここで
+    // release すると over-release になるため、register と unregister は
+    // 必ずペアで通ること（このレジストリの生成・削除自体がそれを担保する）。
+    let parent_view_ivar: usize = *(*observer).get_ivar(RESYNC_OBSERVER_IVAR_PARENT_VIEW);
+    let child_window_ivar: usize = *(*observer).get_ivar(RESYNC_OBSERVER_IVAR_CHILD_WINDOW);
+    if parent_view_ivar != 0 {
+        let retained_parent_view = parent_view_ivar as *mut Object;
+        let () = msg_send![retained_parent_view, release];
+    }
+    if child_window_ivar != 0 {
+        let retained_child_window = child_window_ivar as *mut Object;
+        let () = msg_send![retained_child_window, release];
+    }
+
+    // alloc/init（register_geometry_resync_observer）で得た +1 の所有権を
+    // release する。NSNotificationCenter は observer を弱参照でしか保持
+    // していないため、ここで release しないと observer 自体が永久にリーク
+    // していた（このバグ修正以前から存在していた既存のリーク）。
+    let () = msg_send![observer, release];
 
     Ok(())
 }
