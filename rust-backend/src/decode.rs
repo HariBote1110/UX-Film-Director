@@ -43,6 +43,31 @@ pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendSta
         return response_error(id, -32602, "sourceRate must be a positive rational");
     }
     if let Some(session) = state.decode_sessions.get(&parsed.job_id) {
+        // jobId is derived from mediaId+size+rate only (see the various
+        // `buildViewport*DecodeJob` helpers on the TS side); it does not
+        // include slotCount. Two independent callers (e.g. native playback,
+        // which asks for a deep buffer, and export, which asks for a
+        // shallow one) can therefore legitimately request the same jobId
+        // with different slotCounts. Silently handing back the already-active
+        // session here would let the caller believe its own requested
+        // slotCount was honoured, when the underlying POSIX ring actually has
+        // a different slot count -- the caller then attaches to the ring
+        // (e.g. in render.nativeSharedFrame) with the wrong slotCount and
+        // hits SlotCountMismatch deep inside `attach_with_retry_for_layout`,
+        // producing a corrupt export output. Fail loudly and immediately
+        // here instead.
+        if session.start_response.slot_count != parsed.slot_count {
+            return response_error(
+                id,
+                -32055,
+                &format!(
+                    "Decode session already active for jobId={} with slotCount={}, but this \
+                     request asked for slotCount={}. jobId must be scoped by slotCount when \
+                     callers can disagree on it.",
+                    parsed.job_id, session.start_response.slot_count, parsed.slot_count
+                ),
+            );
+        }
         return RpcResponse {
             id,
             ok: true,
