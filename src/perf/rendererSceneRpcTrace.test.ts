@@ -77,6 +77,41 @@ describe('Renderer scene RPC trace', () => {
     });
   });
 
+  it('carries the main-process startTimingDiagnostics field through to the recorded sample untouched', () => {
+    const collector = createRendererSceneRpcCollector({
+      enabled: true,
+      maxSamples: 4,
+    });
+    collector.record({
+      operation: 'startPlayback',
+      sceneId: 'viewport-rust-timeline',
+      revision: 2,
+      startedAtMs: 37,
+      durationMs: 8,
+      ok: true,
+      startTimingDiagnostics: {
+        totalMs: 8,
+        evaluateSceneMs: 5,
+        presentSceneMs: 2,
+        otherMs: 1,
+        isFirstStartSinceLaunch: true,
+      },
+    });
+
+    expect(collector.snapshot().samples).toEqual([
+      expect.objectContaining({
+        operation: 'startPlayback',
+        startTimingDiagnostics: {
+          totalMs: 8,
+          evaluateSceneMs: 5,
+          presentSceneMs: 2,
+          otherMs: 1,
+          isFirstStartSinceLaunch: true,
+        },
+      }),
+    ]);
+  });
+
   it('is a no-op outside the diagnostic run and resets between runs', () => {
     const disabled = createRendererSceneRpcCollector({
       enabled: false,
