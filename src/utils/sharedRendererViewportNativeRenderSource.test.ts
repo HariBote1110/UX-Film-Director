@@ -1483,4 +1483,88 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       copyOutState: 'rendererUploadAborted',
     }]);
   });
+
+  it('scopes the native render decode jobId by slotCount so a differently-buffered caller cannot collide with an already-active decode session for the same media/size/rate', async () => {
+    // Root cause of the intermittent export corruption recorded in
+    // progress/native-render-source-slot-count-collision.md: native playback
+    // requests SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT (6) for the same
+    // media/size/rate that export requests with the default slotCount (2).
+    // Before this fix both resolved to the exact same jobId, so once
+    // playback's 6-slot decode session was alive, export's 2-slot request
+    // for "the same" jobId either silently reused the 6-slot session (Rust)
+    // or, after the decode.start slotCount guard, hit the "already active"
+    // recovery path -- either way the export source ended up describing a
+    // slotCount that did not match the real shared-memory ring, and
+    // read_native_render_source_frame's attach failed with
+    // SlotCountMismatch { expected: 2, actual: 6 }.
+    const jobIds: string[] = [];
+    const frame = sharedFrame();
+    const decodeRequestBuilder = () => ({
+      ok: true as const,
+      requestCount: 1,
+      requests: [{
+        clipId: 'clip-video-1',
+        mediaId: 'video-1',
+        source: '/tmp/video-1.mp4',
+        sourceFrame: 12,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+        timelineFrame: 2,
+        width: 4,
+        height: 4,
+        format: 'rgba8Srgb' as const,
+        colour: 'rec709SrgbFullRange' as const,
+      }],
+    });
+    const bridgeFor = (): Parameters<typeof prepareSharedRendererViewportNativeRenderSources>[0]['rustBackendBridge'] => ({
+      startVideoDecode: async (payload) => {
+        jobIds.push(payload.jobId);
+        return { success: true };
+      },
+      requestVideoDecodeFrame: async (payload) => ({
+        success: true,
+        result: {
+          accepted: true,
+          jobId: payload.jobId,
+          requestId: payload.requestId,
+          frameIndex: payload.frameIndex,
+          mode: payload.mode,
+          frame,
+          verification: {
+            frameIndex: payload.frameIndex,
+            checksum: {
+              algorithm: 'crc32',
+              valueHex: '00000000',
+              byteLen: frame.descriptor.byteLen,
+            },
+            status: 'withinTolerance',
+          },
+        },
+      }),
+      releaseVideoDecodeFrame: async () => ({ success: true }),
+      stopVideoDecode: async () => ({ success: true }),
+    });
+
+    await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 101,
+      slotCount: 6,
+      activeJobs: [],
+      rustBackendBridge: bridgeFor(),
+      decodeRequestBuilder,
+    });
+    await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 102,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge: bridgeFor(),
+      decodeRequestBuilder,
+    });
+
+    expect(jobIds).toHaveLength(2);
+    expect(jobIds[0]).not.toEqual(jobIds[1]);
+  });
 });
