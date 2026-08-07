@@ -1159,6 +1159,61 @@ fn probe_video_input_metadata(
 mod tests {
     use super::*;
 
+    fn decode_start_params(job_id: &str, slot_count: u32) -> Value {
+        json!({
+            "jobId": job_id,
+            "source": "/dev/null",
+            "slotCount": slot_count,
+            "width": 4,
+            "height": 4,
+            "sourceRate": {"numerator": 30, "denominator": 1},
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full",
+            },
+        })
+    }
+
+    /// Root cause of the intermittent export corruption recorded in
+    /// progress/native-render-source-slot-count-collision.md: `jobId` is
+    /// derived from mediaId+size+rate only (not slotCount), so the native
+    /// playback path (slotCount=6, see
+    /// SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT) and the export path
+    /// (slotCount=2) can request the *same* jobId. Before this fix,
+    /// decode.start silently returned the already-active session's cached
+    /// response instead of validating the new request's slotCount, so the
+    /// caller believed it got slotCount=2 while the underlying POSIX ring
+    /// actually had 6 slots -- exactly the shape that later fails
+    /// `PosixSharedRing::attach_with_retry_for_layout` in
+    /// `read_native_render_source_frame` with
+    /// `SlotCountMismatch { expected: 2, actual: 6 }`.
+    #[test]
+    #[cfg(unix)]
+    fn decode_start_rejects_a_slot_count_that_disagrees_with_the_active_session_for_the_same_job_id(
+    ) {
+        let mut state = BackendState::default();
+        let job_id = "collision-job-id";
+
+        let first = handle_decode_start(1, decode_start_params(job_id, 6), &mut state);
+        assert!(
+            first.ok,
+            "first decode.start for a fresh jobId should succeed: {:?}",
+            first.error
+        );
+
+        let second = handle_decode_start(2, decode_start_params(job_id, 2), &mut state);
+        assert!(
+            !second.ok,
+            "decode.start must reject a slotCount that disagrees with the already-active \
+             session for the same jobId instead of silently returning the stale session's \
+             shape -- doing so is how a caller ends up attaching to the ring with the wrong \
+             slotCount and hitting SlotCountMismatch deep inside render.nativeSharedFrame"
+        );
+    }
+
     #[test]
     #[cfg(target_os = "macos")]
     fn streaming_decode_args_use_videotoolbox_before_input_on_macos() {
