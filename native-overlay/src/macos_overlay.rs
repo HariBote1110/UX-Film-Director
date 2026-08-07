@@ -788,6 +788,129 @@ mod geometry_tests {
 }
 
 #[cfg(test)]
+mod geometry_resync_teardown_safety_tests {
+    use super::*;
+
+    // クラッシュ実測（`~/Library/Logs/DiagnosticReports/Electron-*.ips`、同一
+    // faulting stack が5件）: アプリ終了時に
+    // `resync_child_window_geometry`（macos_overlay.rs:252 付近）が既に解放済み
+    // の child window ポインタへ `objc_msgSend` してSEGVする。原因は
+    // `RESYNC_OBSERVER_IVAR_PARENT_VIEW` / `RESYNC_OBSERVER_IVAR_CHILD_WINDOW`
+    // が生ポインタの `usize` 化のみで、参照先オブジェクトを retain していない
+    // ことに加え、`before-quit` で detach が呼ばれないため
+    // `unregister_geometry_resync_observer` も実行されないこと。
+    //
+    // 実機でのSEGVそのものは単体テストで再現できないため、ここでは
+    // 「late notification が届いても安全に無視できる」契約を、実際の objc
+    // ランタイムに依存しない純粋関数 `should_perform_geometry_resync` で
+    // 固定する。
+
+    #[test]
+    fn resync_is_skipped_when_observer_has_been_invalidated() {
+        // observer が invalid（NSWindowWillCloseNotification 経由で無効化済み）
+        // なら、parent/child ポインタが非ゼロでも resync 本体（msg_send 群）を
+        // 実行してはならない。
+        assert!(!should_perform_geometry_resync(false, 0x1000, 0x2000));
+    }
+
+    #[test]
+    fn resync_is_skipped_when_parent_view_pointer_is_zero() {
+        assert!(!should_perform_geometry_resync(true, 0, 0x2000));
+    }
+
+    #[test]
+    fn resync_is_skipped_when_child_window_pointer_is_zero() {
+        assert!(!should_perform_geometry_resync(true, 0x1000, 0));
+    }
+
+    #[test]
+    fn resync_proceeds_only_when_valid_and_both_pointers_are_non_zero() {
+        assert!(should_perform_geometry_resync(true, 0x1000, 0x2000));
+    }
+
+    #[test]
+    fn resync_checks_validity_before_any_further_dereference() {
+        // ソースレベル固定: resync_child_window_geometry の本体が
+        // should_perform_geometry_resync による早期リターンを、child_window
+        // への setFrame:display:（実際のジオメトリ書き込み）より前に置いている
+        // こと。順序を誤ると「無効化済みだが引き続き解放済みポインタへ触れる」
+        // リグレッションになる。
+        let source = include_str!("macos_overlay.rs");
+        let fn_start = source
+            .find("extern \"C\" fn resync_child_window_geometry")
+            .expect("resync_child_window_geometry must exist");
+        let fn_source = &source[fn_start..];
+        let guard_pos = fn_source
+            .find("should_perform_geometry_resync(")
+            .expect("resync_child_window_geometry must call should_perform_geometry_resync");
+        let set_frame_pos = fn_source
+            .find("setFrame: screen_rect display: YES")
+            .expect("resync_child_window_geometry must still set the child window frame");
+        assert!(
+            guard_pos < set_frame_pos,
+            "should_perform_geometry_resync must be checked before the child window is touched",
+        );
+    }
+
+    #[test]
+    fn register_retains_parent_view_and_child_window_for_observer_lifetime() {
+        // NSNotificationCenter は observer 引数を弱参照でしか保持しない
+        // （ファイル先頭のコメント参照）。しかし observer の ivar に積む
+        // parent_view / child_window 自体は、これまで一切 retain されて
+        // いなかった。AppKit 側がこれらを close/dealloc した後でも通知が
+        // 届き得るため（実測クラッシュの根本原因）、observer の生存期間中は
+        // 明示的に retain して、たとえ論理的に閉じられていてもメモリとしては
+        // 生存させ続ける必要がある。
+        let source = include_str!("macos_overlay.rs");
+        let fn_start = source
+            .find("unsafe fn register_geometry_resync_observer")
+            .expect("register_geometry_resync_observer must exist");
+        let fn_source = &source[fn_start..];
+        let fn_end = fn_source
+            .find("\nunsafe fn unregister_geometry_resync_observer")
+            .expect("register_geometry_resync_observer must precede unregister_geometry_resync_observer");
+        let fn_body = &fn_source[..fn_end];
+
+        assert!(
+            fn_body.contains("parent_view, retain]"),
+            "register_geometry_resync_observer must retain parent_view for the observer's lifetime",
+        );
+        assert!(
+            fn_body.contains("child_window, retain]"),
+            "register_geometry_resync_observer must retain child_window for the observer's lifetime",
+        );
+        assert!(
+            fn_body.contains("NSWindowWillCloseNotification"),
+            "register_geometry_resync_observer must also observe NSWindowWillCloseNotification so \
+             a closing window can proactively invalidate the observer instead of relying solely on \
+             explicit detach ordering",
+        );
+    }
+
+    #[test]
+    fn unregister_releases_the_retains_taken_at_register_time() {
+        // register で取った retain を detach 側で対称的に release しないと、
+        // 正常な detach → re-attach のたびに parent_view / child_window の
+        // retain count が積み上がるリークになる。
+        let source = include_str!("macos_overlay.rs");
+        let fn_start = source
+            .find("unsafe fn unregister_geometry_resync_observer")
+            .expect("unregister_geometry_resync_observer must exist");
+        let fn_source = &source[fn_start..];
+        let fn_end = fn_source
+            .find("\nfn attach_overlay_view_to_parent")
+            .expect("unregister_geometry_resync_observer must precede attach_overlay_view_to_parent");
+        let fn_body = &fn_source[..fn_end];
+
+        assert!(
+            fn_body.contains(", release]"),
+            "unregister_geometry_resync_observer must release the retains taken when the observer \
+             was registered (parent_view, child_window, and the observer object itself)",
+        );
+    }
+}
+
+#[cfg(test)]
 mod obstruction_order_tests {
     use super::*;
 
