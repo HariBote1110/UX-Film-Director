@@ -601,6 +601,16 @@ const main = async () => {
     log(`警告理由: ${playbackClockHealth.reason} / 実測 rafSampleCount=${exercise.rafSampleCount} rafMeanMs=${exercise.rafMeanMs}`);
     log('警告: 他アプリがElectronウィンドウを隠していないか・ウィンドウがバックグラウンドへ回っていないかを確認したうえで、この重量E2Eを測り直してください。');
   }
+  // engage遅延（startScenePlayback≒presentSceneMs）が起動時1回限りのコールド
+  // コストか再生開始毎の恒常コストかを切り分けるための計測。詳細は
+  // src/e2e/realisticHeavyEditSecondPlaybackStart.ts のファイル冒頭コメントを参照。
+  // PASS/FAIL判定には影響させない。
+  const secondPlaybackStart = exercise?.secondPlaybackStart ?? null;
+  if (secondPlaybackStart?.observed) {
+    log(`secondPlaybackStart: totalMs=${secondPlaybackStart.totalMs} presentSceneMs=${secondPlaybackStart.presentSceneMs} isFirstStartSinceLaunch=${secondPlaybackStart.isFirstStartSinceLaunch}`);
+  } else {
+    log('secondPlaybackStart: 観測されませんでした（2回目のstartPlaybackサンプルが記録されていません）。');
+  }
   stopProcesses();
   process.exit(result.passed ? 0 : 1);
 };

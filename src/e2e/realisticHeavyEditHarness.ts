@@ -11,6 +11,7 @@ import {
 } from './realisticHeavyEditScenario';
 import { evaluateRealisticHeavyEditPlaybackClockHealth } from './realisticHeavyEditPlaybackClockHealth';
 import { resolveRealisticHeavyEditPresenterRestarts } from './realisticHeavyEditPresenterRestarts';
+import { resolveRealisticHeavyEditSecondPlaybackStart } from './realisticHeavyEditSecondPlaybackStart';
 
 type HarnessResult = Record<string, unknown> & { ok: boolean };
 
@@ -58,6 +59,12 @@ const waitForPresenterSettled = async (timeoutMs = 15_000) => {
   }
   return lastStatus;
 };
+
+// 2回目のnative再生開始計測用の定数。1回目の計測区間（rafDeltas等）が
+// 完全に終わった後にのみ使う。1回目より短い窓で十分（起動タイミングの
+// 数値だけが欲しく、rAFの分布までは要らないため）。
+const SECOND_PLAYBACK_START_PAUSE_MS = 300;
+const SECOND_PLAYBACK_START_WINDOW_MS = 1_000;
 
 const percentile = (values: number[], ratio: number): number => {
   if (values.length === 0) return 0;
@@ -276,6 +283,23 @@ const exercise = async (
   observer?.disconnect();
   await waitForPaint();
 
+  // --- 2回目のnative再生開始計測 ---
+  // startScenePlayback（≒presentSceneMs、native-overlayアドオン呼び出し）が
+  // 起動時1回限りのコールドコスト（サーフェス生成・シェーダー構築等）なのか、
+  // 再生開始のたびに払う恒常コストなのかを切り分けるための計測。ここまでの
+  // E2Eは常に isFirstStartSinceLaunch: true の1回目しか観測できていなかった。
+  // 1回目の計測区間（rafDeltas/nativePlaybackActiveFlags、上のブロックで
+  // 完全に完了済み）には一切触れず、それより後にのみ実行する。
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, SECOND_PLAYBACK_START_PAUSE_MS);
+  });
+  useStore.getState().setIsPlaying(true);
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, SECOND_PLAYBACK_START_WINDOW_MS);
+  });
+  useStore.getState().setIsPlaying(false);
+  await waitForPaint();
+
   const after = snapshot();
   const reactProfile = window.__UXFD_REACT_PROFILE_TRACE__?.snapshot() ?? null;
   const sceneRpcTrace = window.__UXFD_SCENE_RPC_TRACE__?.snapshot() ?? null;
@@ -284,6 +308,12 @@ const exercise = async (
   const presenterRestarts = resolveRealisticHeavyEditPresenterRestarts(
     presenterStartCountBeforePlayback,
     presenterStartCountAfterPlayback,
+  );
+  // sceneRpcTrace.samplesは1回目・2回目の両方のstartPlaybackサンプルを
+  // 含む（間でreset()していないため）。2回目が実際に記録されたかどうかは
+  // 仮定せず、この純関数がsamplesを見て判定する。
+  const secondPlaybackStart = resolveRealisticHeavyEditSecondPlaybackStart(
+    sceneRpcTrace?.samples ?? null,
   );
   const rafSampleCount = rafDeltas.length;
   const rafMeanMs = rafDeltas.length > 0
@@ -347,6 +377,7 @@ const exercise = async (
     sceneRpcTrace,
     playbackClockHealth,
     presenterRestarts,
+    secondPlaybackStart,
     nativePlaybackFrameCount,
     nativePlaybackFirstActiveFrameIndex,
     nativePlaybackActiveAtPlaybackStart,
