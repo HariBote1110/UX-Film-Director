@@ -77,8 +77,52 @@ export interface RustScenePlaybackDiagnostics {
   uiNotifications: number;
 }
 
+/**
+ * 計測専用: `startScenePlayback`往復（renderer観測で~370ms、native native再生
+ * クロックのengage遅延を支配する区間）の内訳。制御フローには一切関与しない。
+ * evaluateScene/presentSceneが未計測（呼ばれる前に失敗した等）の場合は
+ * null。isFirstStartSinceLaunchはコントローラ生成後最初のstart()呼び出しか
+ * どうか（surface作成・decoder初期化・shader/pipelineコンパイルのような
+ * ほぼ一定コストの冷却経路を切り分ける仮説の検証用）。
+ */
+export interface RustScenePlaybackStartTimingDiagnostics {
+  totalMs: number;
+  evaluateSceneMs: number | null;
+  presentSceneMs: number | null;
+  otherMs: number | null;
+  isFirstStartSinceLaunch: boolean;
+}
+
+/**
+ * 純粋関数: 生の区間計測値からotherMs（evaluate/present以外に費やされた
+ * 時間）を導出する。壁時計へは触れないのでユニットテストで直接固定できる。
+ */
+export const computeRustScenePlaybackStartTimingDiagnostics = ({
+  totalMs,
+  evaluateSceneMs,
+  presentSceneMs,
+  isFirstStartSinceLaunch,
+}: {
+  totalMs: number;
+  evaluateSceneMs: number | undefined;
+  presentSceneMs: number | undefined;
+  isFirstStartSinceLaunch: boolean;
+}): RustScenePlaybackStartTimingDiagnostics => ({
+  totalMs,
+  evaluateSceneMs: evaluateSceneMs ?? null,
+  presentSceneMs: presentSceneMs ?? null,
+  otherMs: evaluateSceneMs !== undefined && presentSceneMs !== undefined
+    ? Math.max(0, totalMs - evaluateSceneMs - presentSceneMs)
+    : null,
+  isFirstStartSinceLaunch,
+});
+
 export type RustScenePlaybackStartResult =
-  | { active: true; frameIndex: number }
+  | {
+      active: true;
+      frameIndex: number;
+      startTimingDiagnostics: RustScenePlaybackStartTimingDiagnostics;
+    }
   | {
       active: false;
       reason: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
@@ -219,6 +263,11 @@ export const createRustScenePlaybackController = ({
   let clockStartedAtMs = 0;
   let lastPresentedFrame = -1;
   let lastUiNotificationAtMs = 0;
+  // 計測専用: このコントローラ生成（≒アプリ起動）後、最初のstart()呼び出し
+  // かどうか。surface作成・decoder初期化・shader/pipelineコンパイルのような
+  // 冷却経路の仮説を切り分けるためのフラグで、成否に関わらず最初の呼び出し
+  // で一度だけfalseへ倒す。
+  let hasStartedOnceSinceLaunch = false;
 
   const cancelTimer = () => {
     if (timer !== null) {
@@ -277,13 +326,25 @@ export const createRustScenePlaybackController = ({
     runGeneration: number,
     frameIndex: number,
     verifyEligibility: boolean,
-  ): Promise<RustScenePlaybackStartResult> => {
+    // 計測専用: start()からの初回callのみ渡される。設定されている場合、
+    // evaluateScene/presentSceneそれぞれの区間をnowMsで計測して書き込む。
+    // 制御フロー・awaitの順序には一切影響しない（読むだけの副作用）。
+    timingSink?: { evaluateSceneMs?: number; presentSceneMs?: number },
+  ): Promise<
+    | { active: true; frameIndex: number }
+    | {
+        active: false;
+        reason: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+        detail?: string;
+      }
+  > => {
     const request = active;
     if (!request || generation !== runGeneration) {
       return { active: false, reason: 'evaluationFailed' };
     }
     diagnostics.requestedFrames += 1;
     let evaluation: RustScenePlaybackEvaluation;
+    const evaluateStartedAtMs = timingSink ? nowMs() : 0;
     try {
       evaluation = await evaluateScene({
         sceneId: request.sceneId,
@@ -297,6 +358,9 @@ export const createRustScenePlaybackController = ({
         reason: 'evaluationFailed',
         detail: error instanceof Error ? error.message : String(error),
       };
+    }
+    if (timingSink) {
+      timingSink.evaluateSceneMs = nowMs() - evaluateStartedAtMs;
     }
     if (!active || generation !== runGeneration) {
       return { active: false, reason: 'evaluationFailed' };
@@ -317,6 +381,7 @@ export const createRustScenePlaybackController = ({
       };
     }
     let response: NativeOverlayResponse;
+    const presentStartedAtMs = timingSink ? nowMs() : 0;
     try {
       response = await presentScene({
         windowId: request.windowId,
@@ -347,6 +412,9 @@ export const createRustScenePlaybackController = ({
         reason: 'presentFailed',
         detail: error instanceof Error ? error.message : String(error),
       };
+    }
+    if (timingSink) {
+      timingSink.presentSceneMs = nowMs() - presentStartedAtMs;
     }
     if (!active || generation !== runGeneration) {
       return { active: false, reason: 'presentFailed' };
@@ -406,6 +474,15 @@ export const createRustScenePlaybackController = ({
 
   return {
     start: async (payload) => {
+      // 計測専用: engage遅延（~370ms観測）の内訳切り分け用。renderer側は
+      // このRPC全体を1個のブラックボックスとしてしか観測できないので、
+      // start()内部でevaluateScene/presentSceneそれぞれの区間と合計を計測
+      // する。制御フロー・awaitの順序は変更しない（読むだけの計測）。
+      const totalStartedAtMs = nowMs();
+      const isFirstStartSinceLaunch = !hasStartedOnceSinceLaunch;
+      hasStartedOnceSinceLaunch = true;
+      const timingSink: { evaluateSceneMs?: number; presentSceneMs?: number } = {};
+
       cancelTimer();
       generation += 1;
       active = null;
@@ -429,7 +506,7 @@ export const createRustScenePlaybackController = ({
       lastPresentedFrame = -1;
       const runGeneration = generation;
       const frameIndex = Math.floor(payload.startTimeSeconds * payload.fps);
-      const result = await renderFrame(runGeneration, frameIndex, true);
+      const result = await renderFrame(runGeneration, frameIndex, true, timingSink);
       if (!result.active) {
         active = null;
         generation += 1;
@@ -437,7 +514,15 @@ export const createRustScenePlaybackController = ({
       }
       emitState('started', payload.startTimeSeconds, true);
       scheduleNext(runGeneration);
-      return result;
+      return {
+        ...result,
+        startTimingDiagnostics: computeRustScenePlaybackStartTimingDiagnostics({
+          totalMs: nowMs() - totalStartedAtMs,
+          evaluateSceneMs: timingSink.evaluateSceneMs,
+          presentSceneMs: timingSink.presentSceneMs,
+          isFirstStartSinceLaunch,
+        }),
+      };
     },
     pause: () => {
       if (!active) return null;
