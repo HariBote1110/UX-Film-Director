@@ -105,6 +105,15 @@ backend を3倍遅くしても `startPlayback` がほとんど変わらなかっ
 `isFirstStartSinceLaunch` は全 run で true。このシナリオでは `start()` が1回しか
 呼ばれないため、**初回固有のコールドコストなのか毎回かかるのかは判定できていない。**
 区別するには同一セッションで2回目の start（一時停止→再生）を測る必要がある。
+
+## 次の一手 / 未検証事項
+
+- **最優先: `presentScene`（216〜324ms）の中身を分解する。** native addon の
+  `presentNativeOverlayScene` 内部で何に時間が溶けているか（サーフェス生成、
+  パイプライン構築、テクスチャアップロード、最初の drawable 取得待ち等）は未計測。
+  既存の `presentMs` 診断を `result.json` へ届かせるところから始めるのが安い。
+- **初回コールドか毎回かを判定する。** 同一セッションで一時停止→再生を行い
+  2回目の `startPlayback` を測る。毎回かかるなら再生開始のたびに 200ms 超の遅延がある。
 - **`startPlayback` 実行中のプレビュー評価を止める。** 競合が消えれば engage が早まる可能性。
   ただし効果量は未測定であり、370msの主因が別にあるなら効果は限定的。
 - CPU スロットリング（`UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE`）下での計測は未実施。
