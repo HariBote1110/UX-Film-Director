@@ -1724,6 +1724,9 @@ const Viewport: React.FC = () => {
           ok: result.active,
           reason: result.active ? undefined : result.reason,
           detail: result.active ? undefined : result.detail,
+          // 計測専用: main側start()の内訳（evaluateScene/presentScene区間）を
+          // そのまま素通しする。result.jsonのexercise.sceneRpcTraceへ乗る。
+          startTimingDiagnostics: result.active ? result.startTimingDiagnostics : undefined,
         });
       }
       if (rustNativePlaybackStartGenerationRef.current !== startGeneration) {

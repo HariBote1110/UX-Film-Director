@@ -6,6 +6,18 @@
 
 export type RendererSceneRpcOperation = 'replace' | 'evaluate' | 'startPlayback';
 
+// 計測専用: electron/rustScenePlaybackController.tsのstart()が計測した
+// engage遅延内訳（evaluateScene区間・presentScene区間・合計）。rendererは
+// この値を生成せず、IPC往復結果をそのまま素通しするだけ。'startPlayback'
+// 以外のoperationでは付与されない。
+export type RendererSceneRpcStartTimingDiagnostics = {
+  totalMs: number;
+  evaluateSceneMs: number | null;
+  presentSceneMs: number | null;
+  otherMs: number | null;
+  isFirstStartSinceLaunch: boolean;
+};
+
 export type RendererSceneRpcSample = {
   operation: RendererSceneRpcOperation;
   sceneId?: string;
@@ -16,6 +28,7 @@ export type RendererSceneRpcSample = {
   ok: boolean;
   reason?: string;
   detail?: string;
+  startTimingDiagnostics?: RendererSceneRpcStartTimingDiagnostics;
 };
 
 export type RendererSceneRpcOperationSummary = {

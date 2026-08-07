@@ -44,6 +44,14 @@ interface Window {
       frameIndex?: number;
       reason?: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
       detail?: string;
+      // 計測専用: electron main側で計測したengage遅延内訳（start()成功時のみ）。
+      startTimingDiagnostics?: {
+        totalMs: number;
+        evaluateSceneMs: number | null;
+        presentSceneMs: number | null;
+        otherMs: number | null;
+        isFirstStartSinceLaunch: boolean;
+      };
     }>;
     pauseScenePlayback: () => Promise<{
       status: string;
