@@ -97,12 +97,11 @@ backend の debug ビルドは release の約3倍遅いので、**そのまま�
 | fix-debug-2 | default-debug | 83 | 97/180 | 506 | 126 | main 35.1 / renderer 29.5 / backend 119.2 |
 | **fix-release-1** | **release** | **43** | **131/174** | **442** | **90** | main 75.5 / renderer 29.4 / backend 4.1 |
 
-**engage 遅延は backend 速度にほぼ比例する。** 約3倍速い backend で engage が
-frame 83〜93 → **43** へ約2倍早まり、native が担当するフレームが 85〜97 → **131** に増えた。
-
-含意（外挿であり実機計測ではない）: **M1 や A18 Pro のような遅い機械では engage が
-さらに遅れ、再生前半の高コストなレンダラークロック区間が伸びる。**
-弱いハードほど「frame 0 から engage させる」ことの価値が大きい。
+この時点では「engage 遅延は backend 速度にほぼ比例する」と読んだ。
+**この読みは後の RPC 内訳計測で否定された。**
+→ [engage-delay-breakdown.md](engage-delay-breakdown.md) の訂正節を参照。
+engage 遅延を支配しているのは backend 速度に依存しない約370msの定数項であり、
+上表の 83/93 vs 43 の差は replace レイテンシのばらつきを比例と誤読したものだった。
 
 またコストの所在も移動している。native clock が担当している間、backend は **4.1%** まで
 落ち、代わりに Electron main が **75.5%** へ上がる（main が再生時計と native overlay の
