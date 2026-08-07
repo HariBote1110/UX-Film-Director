@@ -416,11 +416,20 @@ const buildViewportNativeRenderDecodeJob = (
 ): SharedRendererViewportVideoDecodeJob => {
   const size = resolveViewportVideoDecodeSize(request, maxDecodeEdge);
   return {
+    // slotCount is part of the id, not just a field on the job: native
+    // playback (SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT=6) and export
+    // (default 2) can request the same media/size/rate with different
+    // slotCounts. Without the slotCount segment both callers resolve to the
+    // same jobId, so whichever one runs second can attach to a POSIX ring
+    // that was actually created with the other's slot count -- see
+    // progress/native-render-source-slot-count-collision.md for the
+    // SlotCountMismatch this produced in read_native_render_source_frame.
     jobId: [
       'shared-renderer-video',
       sanitiseJobPart(request.mediaId),
       `${size.width}x${size.height}`,
       `${request.sourceRate.numerator}over${request.sourceRate.denominator}`,
+      `slot${slotCount}`,
     ].join('-'),
     source: request.source,
     slotCount,

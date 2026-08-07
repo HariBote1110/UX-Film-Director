@@ -95,7 +95,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
             success: true,
             result: {
               accepted: true,
-              jobId: 'shared-renderer-video-video-1-4x4-60over1',
+              jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
               requestId: 99,
               frameIndex: 12,
               mode: 'latestWins',
@@ -145,7 +145,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     expect(result).toMatchObject({
       ok: true,
       activeJobs: [{
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -157,7 +157,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }],
       sources: [{
         mediaId: 'video-1',
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         slotCount: 2,
         frame,
       }],
@@ -171,7 +171,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     expect(source.releaseAfterNativeRenderAbort).toEqual(expect.any(Function));
     expect(calls).toEqual([
       ['startVideoDecode', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -189,7 +189,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
       }],
       ['requestVideoDecodeFrame', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         requestId: 99,
         frameIndex: 12,
         mode: 'latestWins',
@@ -202,7 +202,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
 
     expect(calls).toEqual([
       ['startVideoDecode', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -220,13 +220,13 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
       }],
       ['requestVideoDecodeFrame', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         requestId: 99,
         frameIndex: 12,
         mode: 'latestWins',
       }],
       ['releaseVideoDecodeFrame', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         slotIndex: 0,
         generation: 4,
         copyOutState: 'gpuUploadFenceSignalled',
@@ -253,7 +253,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
             success: true,
             result: {
               accepted: true,
-              jobId: 'shared-renderer-video-video-1-3840x2160-60over1',
+              jobId: 'shared-renderer-video-video-1-3840x2160-60over1-slot2',
               requestId: 100,
               frameIndex: 12,
               mode: 'latestWins',
@@ -302,7 +302,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
 
     expect(result.ok).toBe(true);
     expect(calls[0]).toEqual(['startVideoDecode', {
-      jobId: 'shared-renderer-video-video-1-3840x2160-60over1',
+      jobId: 'shared-renderer-video-video-1-3840x2160-60over1-slot2',
       source: '/tmp/original-4k.mp4',
       slotCount: 2,
       width: 3840,
@@ -326,7 +326,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     const frame = sharedFrame();
     let requestCount = 0;
     const activeJob = {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
       source: '/tmp/video-1.mp4',
       slotCount: 2,
       width: 4,
@@ -417,13 +417,13 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     });
     expect(calls).toEqual([
       ['requestVideoDecodeFrame', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         requestId: 100,
         frameIndex: 12,
         mode: 'latestWins',
       }],
       ['startVideoDecode', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -441,7 +441,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
       }],
       ['requestVideoDecodeFrame', {
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         requestId: 100,
         frameIndex: 12,
         mode: 'latestWins',
@@ -454,7 +454,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     const frame = sharedFrame();
     let requestCount = 0;
     const activeJob = {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
       source: '/tmp/video-1.mp4',
       slotCount: 2,
       width: 4,
@@ -550,7 +550,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       'requestVideoDecodeFrame',
     ]);
     expect(calls).toContainEqual(['stopVideoDecode', {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
     }]);
   });
 
@@ -725,7 +725,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     expect(result).toMatchObject({
       ok: true,
       activeJobs: [{
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -759,7 +759,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
           success: true,
           result: {
             accepted: true,
-            jobId: 'shared-renderer-video-video-1-4x4-60over1',
+            jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
             requestId: 99,
             frameIndex: 12,
             mode: 'latestWins',
@@ -822,7 +822,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
           success: true,
           result: {
             accepted: true,
-            jobId: 'shared-renderer-video-video-1-4x4-60over1',
+            jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
             requestId: 98,
             frameIndex: 12,
             mode: 'latestWins',
@@ -870,7 +870,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       reason: 'staleDecodeReleaseFailed',
       detail: 'stale native render source release failed',
       activeJobs: [{
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -901,7 +901,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
             success: true,
             result: {
               accepted: true,
-              jobId: 'shared-renderer-video-stale-video-4x4-60over1',
+              jobId: 'shared-renderer-video-stale-video-4x4-60over1-slot2',
               requestId: payload.requestId,
               frameIndex: payload.frameIndex,
               mode: 'latestWins',
@@ -953,7 +953,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       reason: 'staleDecodeResponse',
       detail: 'Rust backend returned a decoded frame for a stale job id. clip=clip-video-1 media=video-1',
       activeJobs: [{
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -965,7 +965,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }],
     });
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-stale-video-4x4-60over1',
+      jobId: 'shared-renderer-video-stale-video-4x4-60over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
@@ -990,7 +990,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
         requestVideoDecodeFrame: async (payload) => {
           calls.push(['requestVideoDecodeFrame', payload]);
-          const isFirstVideo = payload.jobId === 'shared-renderer-video-video-1-4x4-60over1';
+          const isFirstVideo = payload.jobId === 'shared-renderer-video-video-1-4x4-60over1-slot2';
           const frame = isFirstVideo ? firstFrame : staleSecondFrame;
           return {
             success: true,
@@ -998,7 +998,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
               accepted: true,
               jobId: isFirstVideo
                 ? payload.jobId
-                : 'shared-renderer-video-stale-video-2-80x45-30over1',
+                : 'shared-renderer-video-stale-video-2-80x45-30over1-slot2',
               requestId: payload.requestId,
               frameIndex: payload.frameIndex,
               mode: 'latestWins',
@@ -1068,7 +1068,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       detail: 'Rust backend returned a decoded frame for a stale job id. clip=clip-video-2 media=video-2',
       activeJobs: [
         {
-          jobId: 'shared-renderer-video-video-1-4x4-60over1',
+          jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
           source: '/tmp/video-1.mp4',
           slotCount: 2,
           width: 4,
@@ -1079,7 +1079,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
           },
         },
         {
-          jobId: 'shared-renderer-video-video-2-80x45-30over1',
+          jobId: 'shared-renderer-video-video-2-80x45-30over1-slot2',
           source: '/tmp/video-2.mp4',
           slotCount: 2,
           width: 80,
@@ -1092,13 +1092,13 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       ],
     });
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-stale-video-2-80x45-30over1',
+      jobId: 'shared-renderer-video-stale-video-2-80x45-30over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
     }]);
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
@@ -1119,7 +1119,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
         requestVideoDecodeFrame: async (payload) => {
           calls.push(['requestVideoDecodeFrame', payload]);
-          if (payload.jobId === 'shared-renderer-video-video-2-80x45-30over1') {
+          if (payload.jobId === 'shared-renderer-video-video-2-80x45-30over1-slot2') {
             return {
               success: false,
               error: 'second native render decode failed',
@@ -1199,7 +1199,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       detail: 'second native render decode failed',
       activeJobs: [
         {
-          jobId: 'shared-renderer-video-video-1-4x4-60over1',
+          jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
           source: '/tmp/video-1.mp4',
           slotCount: 2,
           width: 4,
@@ -1210,7 +1210,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
           },
         },
         {
-          jobId: 'shared-renderer-video-video-2-80x45-30over1',
+          jobId: 'shared-renderer-video-video-2-80x45-30over1-slot2',
           source: '/tmp/video-2.mp4',
           slotCount: 2,
           width: 80,
@@ -1223,7 +1223,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       ],
     });
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
@@ -1248,7 +1248,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
         requestVideoDecodeFrame: async (payload) => {
           calls.push(['requestVideoDecodeFrame', payload]);
-          const isFirstVideo = payload.jobId === 'shared-renderer-video-video-1-4x4-60over1';
+          const isFirstVideo = payload.jobId === 'shared-renderer-video-video-1-4x4-60over1-slot2';
           const frame = isFirstVideo ? firstFrame : staleSecondFrame;
           return {
             success: true,
@@ -1256,7 +1256,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
               accepted: true,
               jobId: isFirstVideo
                 ? payload.jobId
-                : 'shared-renderer-video-stale-video-2-80x45-30over1',
+                : 'shared-renderer-video-stale-video-2-80x45-30over1-slot2',
               requestId: payload.requestId,
               frameIndex: payload.frameIndex,
               mode: 'latestWins',
@@ -1275,7 +1275,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         },
         releaseVideoDecodeFrame: async (payload) => {
           calls.push(['releaseVideoDecodeFrame', payload]);
-          if (payload.jobId === 'shared-renderer-video-video-1-4x4-60over1') {
+          if (payload.jobId === 'shared-renderer-video-video-1-4x4-60over1-slot2') {
             return {
               success: false,
               error: 'prepared native render source abort release failed',
@@ -1332,7 +1332,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       detail: 'prepared native render source abort release failed',
       activeJobs: [
         {
-          jobId: 'shared-renderer-video-video-1-4x4-60over1',
+          jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
           source: '/tmp/video-1.mp4',
           slotCount: 2,
           width: 4,
@@ -1343,7 +1343,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
           },
         },
         {
-          jobId: 'shared-renderer-video-video-2-80x45-30over1',
+          jobId: 'shared-renderer-video-video-2-80x45-30over1-slot2',
           source: '/tmp/video-2.mp4',
           slotCount: 2,
           width: 80,
@@ -1356,13 +1356,13 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       ],
     });
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-stale-video-2-80x45-30over1',
+      jobId: 'shared-renderer-video-stale-video-2-80x45-30over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
     }]);
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
@@ -1379,7 +1379,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       rustBackendBridge: {
         startVideoDecode: async (payload) => {
           calls.push(['startVideoDecode', payload]);
-          if (payload.jobId === 'shared-renderer-video-video-2-80x45-30over1') {
+          if (payload.jobId === 'shared-renderer-video-video-2-80x45-30over1-slot2') {
             return {
               success: false,
               error: 'second native render decode start failed',
@@ -1465,7 +1465,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       reason: 'preparedNativeRenderSourceAbortReleaseFailed',
       detail: 'prepared source release after start failure failed',
       activeJobs: [{
-        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
         source: '/tmp/video-1.mp4',
         slotCount: 2,
         width: 4,
@@ -1477,7 +1477,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }],
     });
     expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
-      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      jobId: 'shared-renderer-video-video-1-4x4-60over1-slot2',
       slotIndex: 0,
       generation: 4,
       copyOutState: 'rendererUploadAborted',
