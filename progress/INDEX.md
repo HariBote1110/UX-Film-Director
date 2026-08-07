@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [native-render-source-slot-count-collision.md](native-render-source-slot-count-collision.md) — native再生(slotCount=6)とexport(slotCount=2)が同一jobIdを共有しうるためdecode.startセッションキャッシュが衝突し、SlotCountMismatchで48バイトの壊れたmp4を出力していた不具合。jobIdへslotCountを含めて衝突を根絶し、decode.rs側にslotCount不一致を拒否するガードを保険として追加（2026-08-07）
 - [native-playback-start-engage-timing-instrumentation.md](native-playback-start-engage-timing-instrumentation.md) — `startScenePlayback`往復(~370ms)の内訳を`evaluateScene`区間・`presentScene`区間・合計・初回起動フラグとして計測専用フィールド化し、既存の`sceneRpcTrace`素通し経路で`result.json`へ乗せた。制御フロー・`active:false`側の既存契約は不変（2026-08-07）
 - [native-playback-optimistic-revision-race.md](native-playback-optimistic-revision-race.md) — native再生開始effectが楽観的revisionでstartScenePlaybackを呼びscene.evaluateのrevision不一致でリトライ無く失敗していたレースを、scheduler側のonRemoteReady（常駐かつsupersededでないrevisionのみ通知）へのgate切り替えで解消（2026-08-07）
 - [ai-agent-editing.md](ai-agent-editing.md) — JSONレシピを正本にしたAIエージェント向け編集・検証・MP4出力導線。image/video/audio/gradient/blur追加、agent:validateのTS一本化、出力パスのユニーク化、参考JSON Schema追加（2026-08-05）
