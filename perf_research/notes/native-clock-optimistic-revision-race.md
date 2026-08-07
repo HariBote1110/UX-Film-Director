@@ -86,6 +86,28 @@ scheduler に `onRemoteReady` を追加し、再生開始 effect の gate・引�
 2 run とも再現。**busyMs 約 -46%、presenter フル再起動 42 → 3、layoutCount -36%。**
 `rafMeanMs` は変わらず 60fps を維持しており、体感を犠牲にした改善ではない。
 
+### backend 速度に対する engage 遅延の感度（弱いハード想定の代用実験）
+
+backend の debug ビルドは release の約3倍遅いので、**そのまま「遅い機械」のプロキシ**になる。
+同じ修正済みコードで backend profile だけを変えて比較した。
+
+| | backend profile | engage フレーム | native フレーム数 | busyMs | layoutCount | 再生中CPU |
+|---|---|---|---|---|---|---|
+| fix-debug-1 | default-debug | 93 | 85/178 | 493 | 136 | main 37.5 / renderer 42.2 / backend 104.3 |
+| fix-debug-2 | default-debug | 83 | 97/180 | 506 | 126 | main 35.1 / renderer 29.5 / backend 119.2 |
+| **fix-release-1** | **release** | **43** | **131/174** | **442** | **90** | main 75.5 / renderer 29.4 / backend 4.1 |
+
+**engage 遅延は backend 速度にほぼ比例する。** 約3倍速い backend で engage が
+frame 83〜93 → **43** へ約2倍早まり、native が担当するフレームが 85〜97 → **131** に増えた。
+
+含意（外挿であり実機計測ではない）: **M1 や A18 Pro のような遅い機械では engage が
+さらに遅れ、再生前半の高コストなレンダラークロック区間が伸びる。**
+弱いハードほど「frame 0 から engage させる」ことの価値が大きい。
+
+またコストの所在も移動している。native clock が担当している間、backend は **4.1%** まで
+落ち、代わりに Electron main が **75.5%** へ上がる（main が再生時計と native overlay の
+提示を持つため）。**弱いハードでは main プロセスのコストが次のボトルネック候補になる。**
+
 ## 結論
 
 - H3 棄却、H4 採択。原因は**楽観的 revision による競合**であり、実測の detail 文字列で確定した。

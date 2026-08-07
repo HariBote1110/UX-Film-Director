@@ -1,0 +1,811 @@
+{
+  "passed": true,
+  "paths": {
+    "video": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+    "proxy": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+    "image": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+    "audio": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-bed.wav",
+    "project": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit.uxfd.json",
+    "screenshot": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/viewport.png",
+    "export": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-preview.mp4",
+    "chromiumRendererTrace": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/chromium-renderer-trace.json"
+  },
+  "rustBackendBinary": {
+    "path": "/Users/yuki/GitHub/UX-Film-Director/rust-backend/target/release/uxfd-rust-backend",
+    "profile": "release"
+  },
+  "seed": {
+    "ok": true,
+    "stage": "seeded",
+    "inspection": {
+      "ok": true,
+      "errors": [],
+      "sceneCount": 3,
+      "objectCount": 58,
+      "uniqueObjectIdCount": 58,
+      "nonFiniteNumberCount": 0,
+      "danglingReferenceCount": 0
+    },
+    "snapshot": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 36,
+      "totalObjectCount": 58,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 0,
+      "duration": 24,
+      "timelineItemCount": 36,
+      "presenterStatus": "ready",
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "pending",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false,
+      "nativePlaybackActive": false,
+      "rustPlaybackClockOwner": null,
+      "rustPlaybackStatus": null,
+      "rustPlaybackDetail": null
+    }
+  },
+  "exercise": {
+    "ok": true,
+    "errors": [],
+    "before": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 36,
+      "totalObjectCount": 58,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 0,
+      "duration": 24,
+      "timelineItemCount": 36,
+      "presenterStatus": "ready",
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "ready",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false,
+      "nativePlaybackActive": false,
+      "rustPlaybackClockOwner": null,
+      "rustPlaybackStatus": null,
+      "rustPlaybackDetail": null
+    },
+    "after": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 45,
+      "totalObjectCount": 67,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 3.0115828749999998,
+      "duration": 24,
+      "timelineItemCount": 45,
+      "presenterStatus": "ready",
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "ready",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false,
+      "nativePlaybackActive": false,
+      "rustPlaybackClockOwner": "renderer",
+      "rustPlaybackStatus": "paused",
+      "rustPlaybackDetail": null
+    },
+    "scrubIterations": 360,
+    "scrubDurationMs": 518.4000000000233,
+    "clearedSelectionBeforePlayback": false,
+    "duplicatedObjectCount": 45,
+    "undoObjectCount": 36,
+    "redoObjectCount": 45,
+    "playbackMs": 3000,
+    "rafSampleCount": 174,
+    "rafMeanMs": 17.22801724137958,
+    "rafP95Ms": 24.085000000020955,
+    "rafMaxMs": 32.83499999996275,
+    "longTaskCount": 1,
+    "longTaskMaxMs": 51,
+    "reactProfile": {
+      "enabled": true,
+      "sampleCount": 34,
+      "droppedSampleCount": 0,
+      "components": [
+        {
+          "id": "Viewport",
+          "commitCount": 18,
+          "totalActualDurationMs": 3.400000000197906,
+          "maxActualDurationMs": 0.35499999998137355,
+          "totalBaseDurationMs": 2.8750000001164153,
+          "meanActualDurationMs": 0.18888888889988367
+        },
+        {
+          "id": "PropertyPanel",
+          "commitCount": 9,
+          "totalActualDurationMs": 1.9500000000698492,
+          "maxActualDurationMs": 0.2550000000046566,
+          "totalBaseDurationMs": 1.585000000311993,
+          "meanActualDurationMs": 0.2166666666744277
+        },
+        {
+          "id": "Timeline",
+          "commitCount": 7,
+          "totalActualDurationMs": 18.890000000305008,
+          "maxActualDurationMs": 4.404999999969732,
+          "totalBaseDurationMs": 13.804999997955747,
+          "meanActualDurationMs": 2.698571428615001
+        }
+      ],
+      "samples": [
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.27000000001862645,
+          "baseDuration": 0.21000000002095476,
+          "startTime": 6851.479999999981,
+          "commitTime": 6851.780000000028
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.22000000003026798,
+          "baseDuration": 0.1849999999976717,
+          "startTime": 6960.715000000026,
+          "commitTime": 6960.960000000021
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2800000000279397,
+          "baseDuration": 0.2300000000395812,
+          "startTime": 7056.119999999995,
+          "commitTime": 7056.445000000007
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.23500000004423782,
+          "baseDuration": 0.18500000005587935,
+          "startTime": 7159.289999999979,
+          "commitTime": 7159.544999999984
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000000001164153,
+          "baseDuration": 0.15500000002793968,
+          "startTime": 7164.219999999972,
+          "commitTime": 7164.440000000002
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.13499999995110556,
+          "baseDuration": 0.125,
+          "startTime": 7182.210000000021,
+          "commitTime": 7185.674999999988
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.21500000008381903,
+          "baseDuration": 0.17000000004190952,
+          "startTime": 7182.349999999977,
+          "commitTime": 7185.674999999988
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 2.8999999999650754,
+          "baseDuration": 1.565000000060536,
+          "startTime": 7182.590000000026,
+          "commitTime": 7185.674999999988
+        },
+        {
+          "id": "Viewport",
+          "phase": "nested-update",
+          "actualDuration": 0.21500000002561137,
+          "baseDuration": 0.17499999998835847,
+          "startTime": 7188.109999999986,
+          "commitTime": 7191.369999999995
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "nested-update",
+          "actualDuration": 0.2099999999627471,
+          "baseDuration": 0.15000000002328306,
+          "startTime": 7188.330000000016,
+          "commitTime": 7191.369999999995
+        },
+        {
+          "id": "Timeline",
+          "phase": "nested-update",
+          "actualDuration": 2.620000000053551,
+          "baseDuration": 1.6849999998812564,
+          "startTime": 7188.554999999993,
+          "commitTime": 7191.369999999995
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.35499999998137355,
+          "baseDuration": 0.24000000004889444,
+          "startTime": 7195.799999999988,
+          "commitTime": 7196.505000000005
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.23499999998603016,
+          "baseDuration": 0.2449999999953434,
+          "startTime": 7196.169999999984,
+          "commitTime": 7196.505000000005
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25,
+          "baseDuration": 0.21000000002095476,
+          "startTime": 7214.590000000026,
+          "commitTime": 7219.770000000019
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.2550000000046566,
+          "baseDuration": 0.18500000005587935,
+          "startTime": 7214.849999999977,
+          "commitTime": 7219.770000000019
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 4.404999999969732,
+          "baseDuration": 2.2849999998579733,
+          "startTime": 7215.109999999986,
+          "commitTime": 7219.770000000019
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2550000000046566,
+          "baseDuration": 0.2000000000698492,
+          "startTime": 7226.974999999977,
+          "commitTime": 7227.469999999972
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.14500000001862645,
+          "baseDuration": 0.17000000004190952,
+          "startTime": 7227.234999999986,
+          "commitTime": 7227.469999999972
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.17000000004190952,
+          "baseDuration": 0.14000000001396984,
+          "startTime": 7247.229999999981,
+          "commitTime": 7250.085000000021
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.22000000008847564,
+          "baseDuration": 0.1600000001490116,
+          "startTime": 7247.409999999974,
+          "commitTime": 7250.085000000021
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 2.2650000000721775,
+          "baseDuration": 2.024999999324791,
+          "startTime": 7247.645000000019,
+          "commitTime": 7250.085000000021
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.22000000003026798,
+          "baseDuration": 0.16999999998370185,
+          "startTime": 7344.044999999984,
+          "commitTime": 7344.289999999979
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.13500000000931323,
+          "baseDuration": 0.11499999999068677,
+          "startTime": 7998.825000000012,
+          "commitTime": 8001.515000000014
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.2099999999627471,
+          "baseDuration": 0.15499999996973202,
+          "startTime": 7998.965000000026,
+          "commitTime": 8001.515000000014
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 2.185000000114087,
+          "baseDuration": 2.1099999995785765,
+          "startTime": 7999.184999999998,
+          "commitTime": 8001.515000000014
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.11499999999068677,
+          "startTime": 8003.710000000021,
+          "commitTime": 8003.849999999977
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.14000000001396984,
+          "baseDuration": 0.08999999996740371,
+          "startTime": 8004.294999999984,
+          "commitTime": 8004.450000000012
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.08999999996740371,
+          "startTime": 8095.445000000007,
+          "commitTime": 8095.570000000007
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.1849999999976717,
+          "baseDuration": 0.13999999995576218,
+          "startTime": 10261.315000000002,
+          "commitTime": 10264.304999999993
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.2449999999953434,
+          "baseDuration": 0.1849999999976717,
+          "startTime": 10261.505000000005,
+          "commitTime": 10264.304999999993
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 2.3750000001164153,
+          "baseDuration": 2.089999999734573,
+          "startTime": 10261.755000000005,
+          "commitTime": 10264.304999999993
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.13500000000931323,
+          "baseDuration": 0.09999999997671694,
+          "startTime": 10280.11499999999,
+          "commitTime": 10282.804999999993
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.2149999999674037,
+          "baseDuration": 0.1650000000372529,
+          "startTime": 10280.26000000001,
+          "commitTime": 10282.804999999993
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 2.14000000001397,
+          "baseDuration": 2.0449999995180406,
+          "startTime": 10280.479999999981,
+          "commitTime": 10282.804999999993
+        }
+      ]
+    },
+    "playbackClockHealth": {
+      "healthy": true,
+      "expectedMinRafSampleCount": 90
+    },
+    "presenterRestarts": {
+      "before": 6,
+      "after": 9,
+      "duringPlayback": 3
+    },
+    "nativePlaybackFrameCount": 131,
+    "nativePlaybackFirstActiveFrameIndex": 43,
+    "nativePlaybackActiveAtPlaybackStart": false,
+    "nativePlaybackActiveAtPlaybackEnd": true
+  },
+  "roundTrip": {
+    "ok": true,
+    "fingerprintBefore": "201b1775",
+    "fingerprintAfter": "201b1775",
+    "stable": true,
+    "objectCount": 67,
+    "uniqueIdCount": 67,
+    "snapshot": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 45,
+      "totalObjectCount": 67,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 0,
+      "duration": 24,
+      "timelineItemCount": 45,
+      "presenterStatus": "ready",
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "ready",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false,
+      "nativePlaybackActive": false,
+      "rustPlaybackClockOwner": "renderer",
+      "rustPlaybackStatus": "paused",
+      "rustPlaybackDetail": null
+    }
+  },
+  "exportPreparation": {
+    "ok": true,
+    "duration": 2,
+    "objectCount": 45,
+    "videoCount": 2,
+    "expectedDurationSeconds": 2.24,
+    "expectedFrameCount": 135
+  },
+  "exportRun": {
+    "ok": true,
+    "durationMs": 27554,
+    "dialog": {
+      "type": "alert",
+      "message": "エクスポート完了！\nコーデック: ffmpegRawRgba\nフレーム: 135\n保存先: /Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-preview.mp4"
+    }
+  },
+  "exportedFile": {
+    "exists": true,
+    "size": 2401499,
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "nb_frames": "134"
+        }
+      ],
+      "format": {
+        "duration": "2.240000"
+      }
+    },
+    "expectedDurationSeconds": 2.24,
+    "expectedFrameCount": 135,
+    "actualDurationSeconds": 2.24,
+    "actualFrameCount": 134,
+    "geometryMatches": true,
+    "durationMatches": true,
+    "frameCountMatches": true,
+    "ok": true
+  },
+  "finalSnapshot": {
+    "ok": true,
+    "activeSceneId": "realistic-heavy-main",
+    "activeObjectCount": 45,
+    "totalObjectCount": 67,
+    "sceneCount": 3,
+    "selectedObjectCount": 0,
+    "currentTime": 0,
+    "duration": 2,
+    "timelineItemCount": 45,
+    "presenterStatus": "ready",
+    "presenterFailureReason": null,
+    "rustTimelineStatus": "ready",
+    "rustTimelineDetail": null,
+    "planMode": "sharedRenderer",
+    "surfaceGate": "ok",
+    "nativeOverlayAttempt": null,
+    "nativeOverlayFailureReason": null,
+    "hasMissingSourceText": false,
+    "nativePlaybackActive": false,
+    "rustPlaybackClockOwner": "renderer",
+    "rustPlaybackStatus": "paused",
+    "rustPlaybackDetail": null,
+    "settled": true,
+    "settleWaitMs": 0
+  },
+  "screenshotInspection": {
+    "ok": true,
+    "width": 2560,
+    "height": 1600,
+    "visiblePixelCount": 9424,
+    "colourfulPixelCount": 2298
+  },
+  "processesDuringPlayback": [
+    "2457  2235   0.0  0.0   2352 /bin/zsh -c source /Users/yuki/.claude/shell-snapshots/snapshot-zsh-1786065466670-ryyo0f.sh 2>/dev/null || true && setopt NO_EXTENDED_GLOB NO_BARE_GLOB_QUAL 2>/dev/null || true && { \\builtin unalias -- 'unsetenv'; \\builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'UXFD_RUST_BACKEND_BIN=/Users/yuki/GitHub/UX-Film-Director/rust-backend/target/release/uxfd-rust-backend UXFD_REALISTIC_HEAVY_EDIT_TIMEOUT_MS=540000 npm run test:realistic-heavy-edit:e2e > /private/tmp/claude-501/-Users-yuki-GitHub-UX-Film-Director/bc4c380e-e379-49fa-a891-198751d2dfd4/scratchpad/fix-release-1.log 2>&1; echo \"exit=$?\"; mkdir -p perf_research/runs/fix-release-1 && cp .codex/realistic-heavy-edit-e2e/result.json perf_research/runs/fix-release-1/result.json' < /dev/null && pwd -P >| /tmp/claude-28ad-cwd",
+    "2687  2479   0.0  0.1  49008 node /Users/yuki/GitHub/UX-Film-Director/node_modules/.bin/electron --remote-debugging-port=9344 --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-2479 .",
+    "2688  2687  75.5  0.9 306672 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --remote-debugging-port=9344 --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-2479 .",
+    "2691  2688   0.0  0.2  51680 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=network.mojom.NetworkService --lang=ja --service-sandbox-type=network --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-2479 --shared-files --field-trial-handle=1718379636,r,7910999114899501486,6261581372052233269,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version --seatbelt-client=36",
+    "2719  2688  29.4  1.3 436112 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer) --type=renderer --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-2479 --app-path=/Users/yuki/GitHub/UX-Film-Director --no-sandbox --no-zygote --enable-unsafe-webgpu --remote-debugging-port=9344 --lang=ja --num-raster-threads=4 --enable-zero-copy --enable-gpu-memory-buffer-compositor-resources --enable-main-frame-before-activation --renderer-client-id=5 --time-ticks-at-unix-epoch=-1786065124000296 --launch-time-ticks=352035106 --shared-files --field-trial-handle=1718379636,r,7910999114899501486,6261581372052233269,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version",
+    "2725  2688   4.1  0.6 191328 /Users/yuki/GitHub/UX-Film-Director/rust-backend/target/release/uxfd-rust-backend",
+    "2730  2688   0.0  0.1  37472 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=tracing.mojom.TracingService --lang=ja --service-sandbox-type=service --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-2479 --shared-files --field-trial-handle=1718379636,r,7910999114899501486,6261581372052233269,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version --seatbelt-client=70",
+    "2731  2688   0.3  0.1  46160 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=audio.mojom.AudioService --lang=ja --service-sandbox-type=audio --message-loop-type-ui --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-2479 --shared-files --field-trial-handle=1718379636,r,7910999114899501486,6261581372052233269,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version --seatbelt-client=70"
+  ],
+  "chromiumRendererTrace": {
+    "collected": true,
+    "traceEventCount": 71051,
+    "path": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/chromium-renderer-trace.json",
+    "performanceMetrics": {
+      "taskMs": 462.585,
+      "scriptMs": 61.15,
+      "layoutMs": 19.04,
+      "recalcStyleMs": 10.907,
+      "layoutCount": 90,
+      "recalcStyleCount": 96,
+      "jsHeapUsedBytesDelta": 3755340,
+      "nodeCountDelta": 86
+    },
+    "rendererMainThread": {
+      "pid": 2719,
+      "tid": 259
+    },
+    "wallDurationMs": 3629.824,
+    "busyMs": 441.9,
+    "busyRatio": 0.12174143980534594,
+    "categories": {
+      "scriptingMs": 110.784,
+      "renderingMs": 78.379,
+      "gcMs": 18.861
+    },
+    "topEvents": [
+      {
+        "name": "RunTask",
+        "totalMs": 474.477,
+        "count": 3870,
+        "maxMs": 33.627
+      },
+      {
+        "name": "ThreadControllerImpl::RunTask",
+        "totalMs": 417.602,
+        "count": 3466,
+        "maxMs": 33.611
+      },
+      {
+        "name": "v8.callFunction",
+        "totalMs": 187.646,
+        "count": 332,
+        "maxMs": 33.58
+      },
+      {
+        "name": "FireAnimationFrame",
+        "totalMs": 83.312,
+        "count": 255,
+        "maxMs": 12.602
+      },
+      {
+        "name": "FunctionCall",
+        "totalMs": 68.009,
+        "count": 346,
+        "maxMs": 10.147
+      },
+      {
+        "name": "HandlePostMessage",
+        "totalMs": 65.58,
+        "count": 22,
+        "maxMs": 33.608
+      },
+      {
+        "name": "SimpleWatcher::OnHandleReady",
+        "totalMs": 52.755,
+        "count": 336,
+        "maxMs": 4.551
+      },
+      {
+        "name": "Receive mojo reply",
+        "totalMs": 36.636,
+        "count": 84,
+        "maxMs": 5.093
+      },
+      {
+        "name": "Layout",
+        "totalMs": 18.477,
+        "count": 90,
+        "maxMs": 1.565
+      },
+      {
+        "name": "Layerize",
+        "totalMs": 18.342,
+        "count": 193,
+        "maxMs": 0.47
+      },
+      {
+        "name": "Paint",
+        "totalMs": 17.57,
+        "count": 91,
+        "maxMs": 0.557
+      },
+      {
+        "name": "BlinkScheduler_PerformMicrotaskCheckpoint",
+        "totalMs": 13.748,
+        "count": 1654,
+        "maxMs": 4.239
+      },
+      {
+        "name": "Commit",
+        "totalMs": 13.711,
+        "count": 211,
+        "maxMs": 1.31
+      },
+      {
+        "name": "PrePaint",
+        "totalMs": 12.85,
+        "count": 211,
+        "maxMs": 0.406
+      },
+      {
+        "name": "Receive mojo message",
+        "totalMs": 12.57,
+        "count": 68,
+        "maxMs": 4.545
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "totalMs": 10.486,
+        "count": 92,
+        "maxMs": 0.634
+      },
+      {
+        "name": "MajorGC",
+        "totalMs": 8.159,
+        "count": 3,
+        "maxMs": 3.936
+      },
+      {
+        "name": "V8.GCFinalizeMC",
+        "totalMs": 8.105,
+        "count": 3,
+        "maxMs": 3.924
+      },
+      {
+        "name": "V8.GC_MARK_COMPACTOR",
+        "totalMs": 8.083,
+        "count": 3,
+        "maxMs": 3.92
+      },
+      {
+        "name": "V8.GCIncrementalMarking",
+        "totalMs": 6.314,
+        "count": 161,
+        "maxMs": 0.192
+      }
+    ],
+    "topFunctions": [
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/node_modules/.vite/deps/chunk-6W5FFVKH.js?v=99e81adf",
+        "lineNumber": 18625,
+        "totalMs": 32.782,
+        "callCount": 7,
+        "maxMs": 10.147
+      },
+      {
+        "functionName": "animate",
+        "url": "http://localhost:5312/src/hooks/useAppLogic.ts",
+        "lineNumber": 51,
+        "totalMs": 10.476,
+        "callCount": 44,
+        "maxMs": 0.362
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "",
+        "lineNumber": null,
+        "totalMs": 8.831,
+        "callCount": 14,
+        "maxMs": 4.524
+      },
+      {
+        "functionName": "performWorkUntilDeadline",
+        "url": "http://localhost:5312/node_modules/.vite/deps/chunk-6W5FFVKH.js?v=99e81adf",
+        "lineNumber": 377,
+        "totalMs": 7.305,
+        "callCount": 14,
+        "maxMs": 1.107
+      },
+      {
+        "functionName": "tick",
+        "url": "http://localhost:5312/src/e2e/realisticHeavyEditHarness.ts",
+        "lineNumber": 46,
+        "totalMs": 4.939,
+        "callCount": 175,
+        "maxMs": 0.14
+      },
+      {
+        "functionName": "dispatchEvent",
+        "url": "http://localhost:5312/node_modules/.vite/deps/chunk-6W5FFVKH.js?v=99e81adf",
+        "lineNumber": 5467,
+        "totalMs": 1.079,
+        "callCount": 2,
+        "maxMs": 0.697
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/src/components/Viewport.tsx",
+        "lineNumber": 498,
+        "totalMs": 0.962,
+        "callCount": 8,
+        "maxMs": 0.339
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/src/e2e/realisticHeavyEditHarness.ts",
+        "lineNumber": 14,
+        "totalMs": 0.676,
+        "callCount": 36,
+        "maxMs": 0.133
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "/Users/yuki/GitHub/UX-Film-Director/dist-electron/preload.js",
+        "lineNumber": 254,
+        "totalMs": 0.529,
+        "callCount": 22,
+        "maxMs": 0.1
+      },
+      {
+        "functionName": "onMessage",
+        "url": "http://localhost:5312/src/utils/sharedVideoFrameUploadBridge.ts",
+        "lineNumber": 209,
+        "totalMs": 0.275,
+        "callCount": 22,
+        "maxMs": 0.062
+      },
+      {
+        "functionName": "fireOnce",
+        "url": "http://localhost:5312/src/utils/sharedRendererExternalVideoSource.ts",
+        "lineNumber": 47,
+        "totalMs": 0.098,
+        "callCount": 1,
+        "maxMs": 0.098
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/src/e2e/realisticHeavyEditHarness.ts",
+        "lineNumber": 189,
+        "totalMs": 0.057,
+        "callCount": 1,
+        "maxMs": 0.057
+      }
+    ],
+    "userTimings": []
+  },
+  "runtimeErrors": [],
+  "missingSourceLines": [],
+  "nativeRenderErrorLines": [],
+  "dialogs": [
+    {
+      "type": "alert",
+      "message": "エクスポート完了！\nコーデック: ffmpegRawRgba\nフレーム: 135\n保存先: /Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-preview.mp4"
+    }
+  ]
+}
