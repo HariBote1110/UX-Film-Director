@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRustScenePlaybackController } from '../../electron/rustScenePlaybackController';
+import {
+  computeRustScenePlaybackStartTimingDiagnostics,
+  createRustScenePlaybackController,
+} from '../../electron/rustScenePlaybackController';
 
 const audioWaveformSource =
   '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
@@ -636,5 +639,147 @@ describe('RustScenePlaybackController', () => {
       reason: 'presentFailed',
       detail: 'diagnostic presentation failure',
     });
+  });
+
+  it('start()成功時にengage遅延内訳（計測専用診断）をevaluate/presentの区間ごとに返す', async () => {
+    let clock = 500;
+    const evaluateScene = vi.fn(async ({ frameIndex }: { frameIndex: number }) => {
+      clock += 100;
+      return evaluation(frameIndex);
+    });
+    const presentScene = vi.fn(async () => {
+      clock += 50;
+      return { success: true, attached: true };
+    });
+    const controller = createRustScenePlaybackController({
+      evaluateScene,
+      presentScene,
+      emit: vi.fn(),
+      nowMs: () => clock,
+      schedule: vi.fn(() => 1),
+      cancel: vi.fn(),
+    });
+
+    const result = await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    });
+
+    expect(result.active).toBe(true);
+    if (!result.active) throw new Error('unreachable');
+    expect(result.startTimingDiagnostics).toEqual({
+      totalMs: 150,
+      evaluateSceneMs: 100,
+      presentSceneMs: 50,
+      otherMs: 0,
+      isFirstStartSinceLaunch: true,
+    });
+  });
+
+  it('2回目以降のstart()ではisFirstStartSinceLaunchをfalseにする（コールドパス切り分け用）', async () => {
+    let clock = 0;
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => {
+        clock += 10;
+        return evaluation(frameIndex);
+      },
+      presentScene: async () => {
+        clock += 10;
+        return { success: true, attached: true };
+      },
+      emit: vi.fn(),
+      nowMs: () => clock,
+      schedule: vi.fn(() => 1),
+      cancel: vi.fn(),
+    });
+
+    const firstResult = await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    });
+    const secondResult = await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    });
+
+    if (!firstResult.active || !secondResult.active) throw new Error('unreachable');
+    expect(firstResult.startTimingDiagnostics.isFirstStartSinceLaunch).toBe(true);
+    expect(secondResult.startTimingDiagnostics.isFirstStartSinceLaunch).toBe(false);
+  });
+
+  it('failed（active: false）の結果には診断フィールドを含めず既存契約を保つ', async () => {
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async () => {
+        throw new Error('rust backend unreachable');
+      },
+      presentScene: vi.fn(),
+      emit: vi.fn(),
+    });
+
+    await expect(controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+    })).resolves.toEqual({
+      active: false,
+      reason: 'evaluationFailed',
+      detail: 'rust backend unreachable',
+    });
+  });
+});
+
+describe('computeRustScenePlaybackStartTimingDiagnostics（純粋関数）', () => {
+  it('evaluate/presentの区間からotherMsを差分計算する', () => {
+    expect(computeRustScenePlaybackStartTimingDiagnostics({
+      totalMs: 370,
+      evaluateSceneMs: 300,
+      presentSceneMs: 50,
+      isFirstStartSinceLaunch: false,
+    })).toEqual({
+      totalMs: 370,
+      evaluateSceneMs: 300,
+      presentSceneMs: 50,
+      otherMs: 20,
+      isFirstStartSinceLaunch: false,
+    });
+  });
+
+  it('evaluate/presentの区間が未計測（undefined）ならotherMsもnullにする', () => {
+    expect(computeRustScenePlaybackStartTimingDiagnostics({
+      totalMs: 10,
+      evaluateSceneMs: undefined,
+      presentSceneMs: undefined,
+      isFirstStartSinceLaunch: true,
+    })).toEqual({
+      totalMs: 10,
+      evaluateSceneMs: null,
+      presentSceneMs: null,
+      otherMs: null,
+      isFirstStartSinceLaunch: true,
+    });
+  });
+
+  it('計測誤差でsub区間合計がtotalMsをわずかに超えてもotherMsは0未満にしない', () => {
+    expect(computeRustScenePlaybackStartTimingDiagnostics({
+      totalMs: 100,
+      evaluateSceneMs: 60,
+      presentSceneMs: 45,
+      isFirstStartSinceLaunch: false,
+    }).otherMs).toBe(0);
   });
 });
