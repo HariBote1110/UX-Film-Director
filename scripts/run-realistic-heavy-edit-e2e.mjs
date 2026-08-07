@@ -25,6 +25,7 @@ import {
 } from './lib/chromium-renderer-trace.mjs';
 import {
   parseClearSelectionBeforePlaybackOption,
+  parseCpuThrottleRateOption,
   resolveRealisticHeavyEditRustBackendBinaryProfile,
 } from './lib/realistic-heavy-edit-options.mjs';
 
@@ -59,6 +60,10 @@ const SKIP_EXPORT = process.env.UXFD_REALISTIC_HEAVY_EDIT_SKIP_EXPORT === '1';
 // IPC発生源（選択デコレーション送信経路 vs. presentフレーム本体経路）を切り分ける
 // ための計測専用オプション。既定はfalseで従来どおり選択を維持したまま再生する。
 const CLEAR_SELECTION_BEFORE_PLAYBACK = parseClearSelectionBeforePlaybackOption(process.env);
+// CPUスロットリング倍率（既定1=スロットリングなし）。低スペック機での余裕度を
+// 測るための任意オプション。詳細な制約はparseCpuThrottleRateOptionのコメントと
+// 適用箇所（Emulation.setCPUThrottlingRate呼び出し）のコメントを参照。
+const CPU_THROTTLE_RATE = parseCpuThrottleRateOption(process.env);
 const COLLECT_CHROMIUM_TRACE =
   process.env.UXFD_REALISTIC_HEAVY_EDIT_CHROMIUM_TRACE !== '0';
 const USER_DATA_DIR = resolve(
@@ -441,6 +446,18 @@ const main = async () => {
   await client.send('Page.enable');
   await client.send('DOM.enable');
 
+  // NOTE: Emulation.setCPUThrottlingRate はrenderer processのmain threadのみを
+  // 遅くするCDPコマンドである。Electron main process・Rust backendプロセス・
+  // GPUはこれによって一切遅くならないため、「遅い実機のシミュレーション」には
+  // ならない。あくまでrenderer main threadの余裕度だけを狙い撃ちで測るための
+  // 限定的な手段であり、CPU_THROTTLE_RATE!==1で測った結果を「低スペック機で
+  // どう動くか」の答えとして扱ってはならない。measured exerciseの前、CDP接続
+  // 確立後というできるだけ早いタイミングで適用する。
+  if (CPU_THROTTLE_RATE !== 1) {
+    log(`CPUスロットリングを適用: rate=${CPU_THROTTLE_RATE}（renderer main threadのみ、他プロセス・GPUは対象外）`);
+    await client.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE_RATE });
+  }
+
   const ready = await waitForHarness();
   if (!ready?.ok) throw new Error(`renderer harness did not become ready: ${JSON.stringify(ready)}`);
 
@@ -537,6 +554,14 @@ const main = async () => {
     rustBackendBinary: {
       path: rustBackendBinaryPath,
       profile: resolveRealisticHeavyEditRustBackendBinaryProfile(rustBackendBinaryPath),
+    },
+    // scope: 'rendererMainThreadOnly' — Emulation.setCPUThrottlingRateはrenderer
+    // processのmain threadのみを遅くし、Electron main process・Rust backend・
+    // GPUは対象外である。rate!==1の結果を「低スペック機の再現」として読んでは
+    // ならない。詳細はCDP呼び出し箇所とparseCpuThrottleRateOptionのコメントを参照。
+    cpuThrottle: {
+      rate: CPU_THROTTLE_RATE,
+      scope: 'rendererMainThreadOnly',
     },
     seed,
     exercise,

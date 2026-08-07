@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-486a",
+  "version": "0.1.1-Beta-486b",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/dev-native-overlay.mjs",
@@ -23,6 +23,7 @@
     "agent:validate": "VITEST=true vite-node scripts/validate-agent-project.mts",
     "agent:video": "node scripts/run-agent-video.mjs",
     "test:realistic-heavy-edit:e2e": "node scripts/run-realistic-heavy-edit-e2e.mjs",
+    "test:realistic-heavy-edit:e2e:cpu-throttle": "UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE=4 node scripts/run-realistic-heavy-edit-e2e.mjs",
     "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
     "build": "tsc && vite build && npm run remote-deck:build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
