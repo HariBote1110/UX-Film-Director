@@ -78,12 +78,33 @@ engage 遅延 ＝「replace の残り」＋「約370msの定数項」であり�
 0.4〜94 ms なので、この膨張は競合由来と見てよい。再生が始まればプレビュー評価は
 不要になるのに、開始要求と同じ backend を奪い合っている。
 
-## 次の一手 / 未検証事項
+## 追記: `startPlayback` の内訳（main プロセス内部を計測、版 `0.1.1-Beta-486d` 以降）
 
-- **最優先: `startPlayback` の約370msを main プロセス内部で分解する。**
-  `electron/rustScenePlaybackController.ts` の `scene.evaluate` と
-  `nativeOverlayBridge.presentScene` のどちらが支配的かを計測する。
-  ここが分からない限り、弱いハードでの挙動は推測にしかならない。
+`electron/rustScenePlaybackController.ts` の `start()` に計測を入れた。この経路の await は
+`evaluateScene` と `presentScene` の**2つだけ**で、first-frame 待ちもサーフェス attach も
+デコーダのウォームアップも存在しない。
+
+| run | totalMs | `evaluateSceneMs` | **`presentSceneMs`** | otherMs |
+|---|---|---|---|---|
+| startbreak-release-1 | 225.4 | 4.08 | **220.3** | 0.98 |
+| startbreak-release-2 | 247.0 | 0.40 | **245.7** | 0.86 |
+| verify-1 | 325.8 | 0.63 | **324.3** | 0.82 |
+| verify-2 | 218.1 | 0.36 | **216.9** | 0.81 |
+
+**engage 遅延の実体は `presentScene`（native overlay の addon 呼び出し）である。**
+Rust への `scene.evaluate` は 0.36〜4.08 ms しかかかっておらず無罪。
+backend を3倍遅くしても `startPlayback` がほとんど変わらなかった理由もこれで説明がつく
+（Rust の計算ではなく、native overlay への提示そのものが重い）。
+
+`presentScene` は `electron/nativeOverlayMainBridge.ts:338-376` の
+`await addon.presentNativeOverlayScene(payload)` 1本。**既に `presentMs` という診断を
+持っていたが、trace 用の環境変数を立てたときだけ `console.info` へ出す実装で、
+`result.json` には一度も届いていなかった。** 370ms が長く見えなかった理由は
+計測が無かったからではなく、計測結果が捨てられていたためである。
+
+`isFirstStartSinceLaunch` は全 run で true。このシナリオでは `start()` が1回しか
+呼ばれないため、**初回固有のコールドコストなのか毎回かかるのかは判定できていない。**
+区別するには同一セッションで2回目の start（一時停止→再生）を測る必要がある。
 - **`startPlayback` 実行中のプレビュー評価を止める。** 競合が消えれば engage が早まる可能性。
   ただし効果量は未測定であり、370msの主因が別にあるなら効果は限定的。
 - CPU スロットリング（`UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE`）下での計測は未実施。
@@ -92,3 +113,15 @@ engage 遅延 ＝「replace の残り」＋「約370msの定数項」であり�
   スロットリングでは見えない。
 - **計測規約への追加**: engage フレームは run 間で 21〜93 と大きくばらつく。
   単発の engage フレームを指標に使わないこと。内訳（`sceneRpcTrace`）を必ず併記する。
+
+## 副産物: 書き出しの間欠失敗（修正済み）
+
+engage が確実になった副作用として、`SlotCountMismatch { expected: 2, actual: 6 }` で
+書き出しが壊れる不具合が顕在化した（7 run 中1回）。native 再生が `slotCount=6` を、
+書き出しが `slotCount=2` を要求するのに **jobId に slotCount が含まれておらず**、
+backend が既存セッションをスロット数未検証で使い回していた。
+詳細と修正は `progress/native-render-source-slot-count-collision.md`。
+
+**教訓**: 「engage しない」状態で安定していた経路は、engage するようになると
+未踏の状態遷移を踏む。性能改善が正しさの問題を掘り起こすことがあるので、
+E2E の総合判定（`passed`）を性能指標と同じ重みで見ること。

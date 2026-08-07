@@ -2,7 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
-- [engage-delay-breakdown.md](engage-delay-breakdown.md) — **engage 遅延の内訳。`replace` は2本65msで無罪、支配項は `startPlayback` の361.7ms。しかもこれは backend を3倍遅くしても +6% しか増えず、「engage 遅延は backend 速度に比例」という前の結論を棄却。開始要求とプレビュー評価の競合も発見**（2026-08-07）
+- [engage-delay-breakdown.md](engage-delay-breakdown.md) — **engage 遅延の内訳。支配項は `presentScene`（native overlay addon 呼び出し）で 216〜324ms、`scene.evaluate` は 0.4〜4ms で無罪。`replace` は2本65msで無罪、支配項は `startPlayback` の361.7ms。しかもこれは backend を3倍遅くしても +6% しか増えず、「engage 遅延は backend 速度に比例」という前の結論を棄却。開始要求とプレビュー評価の競合も発見**（2026-08-07）
 - [native-clock-optimistic-revision-race.md](native-clock-optimistic-revision-race.md) — **native playback clock が engage しなかった原因は楽観的revisionのレース（実測detailで確定）。適格性説は棄却。常駐revision確定を待つ修正で busyMs 919→493/506、presenter再起動 42→3、layoutCount 213→136/126。ただし engage は frame 83〜93 で前半はまだレンダラークロック**（2026-08-07）
 - [debug-backend-as-accidental-throttle.md](debug-backend-as-accidental-throttle.md) — harness の Rust backend は debug ビルドで、release にすると backend CPU は 93〜118% → 34.6% に下がる。**一度「release だと再起動が増える」と結論したが release-2 で撤回。真の支配変数は native playback clock が engage するかどうかで、engage すると busyMs 1032〜1745 → 463、presenter再起動 54〜133 → 3、Viewportコミット 63〜187 → 12**（2026-08-07）
 - [where-the-cpu-actually-goes.md](where-the-cpu-actually-goes.md) — **再生中のCPUはレンダラーではなく `uxfd-rust-backend`（93〜118%）で燃えている。レンダラーは27〜32% busy、scripting 191〜196ms/3.8秒。React最適化は投資対効果の観点で完了扱い。**ただし harness の backend は debug ビルド（2026-08-07）
