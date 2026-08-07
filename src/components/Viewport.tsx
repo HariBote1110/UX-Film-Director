@@ -84,6 +84,7 @@ import {
 } from '../utils/nativeOverlayAttachPolling';
 import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDecoration';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
+import { rendererSceneRpcCollector } from '../perf/rendererSceneRpcTrace';
 
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
 // 一時停止時にヘッドを表示フレームへスナップする最小デルタ（秒）。これ未満は
@@ -1702,6 +1703,10 @@ const Viewport: React.FC = () => {
           setTime(startTimeSeconds);
         }
       }
+      // 計測専用: engage遅延の内訳切り分け用にnative再生開始RPCの往復時間を
+      // 記録する。enabled===falseなら performance.now() すら呼ばず制御フローも
+      // 変えない。
+      const startPlaybackStartedAtMs = rendererSceneRpcCollector.enabled ? performance.now() : 0;
       const result = await window.rustBackend.startScenePlayback({
         sceneId: 'viewport-rust-timeline',
         revision: rustTimelineSceneResidentRevision,
@@ -1709,6 +1714,18 @@ const Viewport: React.FC = () => {
         startTimeSeconds,
         durationSeconds: duration,
       });
+      if (rendererSceneRpcCollector.enabled) {
+        rendererSceneRpcCollector.record({
+          operation: 'startPlayback',
+          sceneId: 'viewport-rust-timeline',
+          revision: rustTimelineSceneResidentRevision,
+          startedAtMs: startPlaybackStartedAtMs,
+          durationMs: performance.now() - startPlaybackStartedAtMs,
+          ok: result.active,
+          reason: result.active ? undefined : result.reason,
+          detail: result.active ? undefined : result.detail,
+        });
+      }
       if (rustNativePlaybackStartGenerationRef.current !== startGeneration) {
         return;
       }

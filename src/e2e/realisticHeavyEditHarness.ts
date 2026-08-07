@@ -199,6 +199,7 @@ const exercise = async (
   } = {},
 ): Promise<HarnessResult> => {
   window.__UXFD_REACT_PROFILE_TRACE__?.reset();
+  window.__UXFD_SCENE_RPC_TRACE__?.reset();
   const scrubIterations = Math.max(60, Math.min(1_200, options.scrubIterations ?? 360));
   const playbackMs = Math.max(1_000, Math.min(10_000, options.playbackMs ?? 3_000));
   // 再生中のmojo IPC(Receive mojo reply)発生源を切り分けるための計測オプション。
@@ -277,6 +278,7 @@ const exercise = async (
 
   const after = snapshot();
   const reactProfile = window.__UXFD_REACT_PROFILE_TRACE__?.snapshot() ?? null;
+  const sceneRpcTrace = window.__UXFD_SCENE_RPC_TRACE__?.snapshot() ?? null;
   const presenterStartCountAfterPlayback =
     document.documentElement.dataset.uxfdSharedRendererPresenterStartCount;
   const presenterRestarts = resolveRealisticHeavyEditPresenterRestarts(
@@ -342,6 +344,7 @@ const exercise = async (
     longTaskCount: longTaskDurations.length,
     longTaskMaxMs: Math.max(0, ...longTaskDurations),
     reactProfile,
+    sceneRpcTrace,
     playbackClockHealth,
     presenterRestarts,
     nativePlaybackFrameCount,

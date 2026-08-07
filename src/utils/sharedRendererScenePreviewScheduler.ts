@@ -6,6 +6,7 @@ import type {
   RustBackendSceneReplaceResult,
   RustBackendSceneRpcResult,
 } from './rustBackendSceneControl';
+import { rendererSceneRpcCollector } from '../perf/rendererSceneRpcTrace';
 
 export type SharedRendererSceneEvaluation = RustBackendSceneEvaluation;
 
@@ -116,8 +117,23 @@ export const createSharedRendererScenePreviewScheduler = ({
     if (!isRemoteReady) {
       if (replaceInFlight || failedRevisionKey === desiredKey) return;
       replaceInFlight = true;
+      // 計測専用: engage遅延の内訳切り分け用にreplace RPCの往復時間を記録する。
+      // enabled===falseなら performance.now() すら呼ばず制御フローも変えない。
+      const replaceStartedAtMs = rendererSceneRpcCollector.enabled ? performance.now() : 0;
       void rpc.replaceScene(desired).then((result) => {
         replaceInFlight = false;
+        if (rendererSceneRpcCollector.enabled) {
+          rendererSceneRpcCollector.record({
+            operation: 'replace',
+            sceneId: desired.sceneId,
+            revision: desired.revision,
+            startedAtMs: replaceStartedAtMs,
+            durationMs: performance.now() - replaceStartedAtMs,
+            ok: result.ok,
+            reason: result.ok ? undefined : result.reason,
+            detail: result.ok ? undefined : result.detail,
+          });
+        }
         if (disposed) return;
         if (!result.ok) {
           diagnostics.failed += 1;
@@ -131,6 +147,18 @@ export const createSharedRendererScenePreviewScheduler = ({
         pump();
       }).catch(() => {
         replaceInFlight = false;
+        if (rendererSceneRpcCollector.enabled) {
+          rendererSceneRpcCollector.record({
+            operation: 'replace',
+            sceneId: desired.sceneId,
+            revision: desired.revision,
+            startedAtMs: replaceStartedAtMs,
+            durationMs: performance.now() - replaceStartedAtMs,
+            ok: false,
+            reason: 'backendFailure',
+            detail: 'Rust scene.replace rejected unexpectedly.',
+          });
+        }
         if (disposed) return;
         diagnostics.failed += 1;
         blockAfterFailure({
@@ -152,8 +180,24 @@ export const createSharedRendererScenePreviewScheduler = ({
       revision: desired.revision,
       frameIndex,
     };
+    // 計測専用: engage遅延の内訳切り分け用にevaluate RPCの往復時間を記録する。
+    // enabled===falseなら performance.now() すら呼ばず制御フローも変えない。
+    const evaluateStartedAtMs = rendererSceneRpcCollector.enabled ? performance.now() : 0;
     void rpc.evaluateScene(requested).then((result) => {
       evaluateInFlight = false;
+      if (rendererSceneRpcCollector.enabled) {
+        rendererSceneRpcCollector.record({
+          operation: 'evaluate',
+          sceneId: requested.sceneId,
+          revision: requested.revision,
+          frameIndex: requested.frameIndex,
+          startedAtMs: evaluateStartedAtMs,
+          durationMs: performance.now() - evaluateStartedAtMs,
+          ok: result.ok,
+          reason: result.ok ? undefined : result.reason,
+          detail: result.ok ? undefined : result.detail,
+        });
+      }
       if (disposed) return;
       if (!result.ok) {
         diagnostics.failed += 1;
@@ -175,6 +219,19 @@ export const createSharedRendererScenePreviewScheduler = ({
       pump();
     }).catch(() => {
       evaluateInFlight = false;
+      if (rendererSceneRpcCollector.enabled) {
+        rendererSceneRpcCollector.record({
+          operation: 'evaluate',
+          sceneId: requested.sceneId,
+          revision: requested.revision,
+          frameIndex: requested.frameIndex,
+          startedAtMs: evaluateStartedAtMs,
+          durationMs: performance.now() - evaluateStartedAtMs,
+          ok: false,
+          reason: 'backendFailure',
+          detail: 'Rust scene.evaluate rejected unexpectedly.',
+        });
+      }
       if (disposed) return;
       diagnostics.failed += 1;
       blockAfterFailure({
