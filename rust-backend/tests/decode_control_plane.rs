@@ -1262,6 +1262,41 @@ fn encode_transcode_video_reuses_static_psd_overlay_cache() {
 }
 
 #[test]
+fn psd_parse_meta_returns_nodes_without_spawning_blob_write() {
+    let temp_dir = TestTempDir::new("psd-parse-meta");
+    let psd_path = temp_dir.path().join("standing.psd");
+    write_single_layer_psd_fixture(&psd_path, 2, 2, [0, 255, 0, 255]);
+    let mut backend = BackendProcess::start();
+
+    let response = backend.request(json!({
+        "id": 1,
+        "method": "psd.parseMeta",
+        "params": {
+            "filePath": psd_path.to_string_lossy()
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    let nodes = response["result"]["nodes"]
+        .as_array()
+        .expect("psd.parseMeta returns a nodes array");
+    assert!(!nodes.is_empty(), "{response}");
+    assert!(
+        response["result"].get("tmpFile").is_none(),
+        "psd.parseMeta must not hand out a blob temp file: {response}"
+    );
+
+    // No blob write was ever scheduled, so awaiting one must fail rather than
+    // hang waiting on state left over from psd.parse.
+    let await_blob = backend.request(json!({
+        "id": 2,
+        "method": "psd.await_blob",
+        "params": {}
+    }));
+    assert_eq!(await_blob["ok"], false, "{await_blob}");
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();
