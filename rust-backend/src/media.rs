@@ -314,6 +314,76 @@ pub(crate) fn handle_psd_parse(id: u64, params: Value, state: &mut BackendState)
     }
 }
 
+/// Metadata-only counterpart to `psd.parse`: returns the same layer-tree
+/// `nodes` JSON but skips the RGBA blob write entirely (no background
+/// thread, no `state.psd_blob_result`, no temp file). Preview rendering
+/// stays untouched — it already re-decodes the PSD independently via
+/// `source_frames.rs`, so ag-psd's pixel bitmaps were dead data for display.
+pub(crate) fn handle_psd_parse_meta(id: u64, params: Value, _state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<PsdParseParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid psd.parseMeta params: {error}"));
+        }
+    };
+
+    if parsed.file_path.trim().is_empty() {
+        return response_error(id, -32602, "filePath must not be empty");
+    }
+
+    let bytes = match fs::read(&parsed.file_path) {
+        Ok(b) => b,
+        Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
+    };
+
+    let result = match psd_fast::parse_psd_fast(&bytes) {
+        Ok(r) => r,
+        Err(e) => return response_error(id, -32021, &format!("Failed to parse PSD: {e}")),
+    };
+
+    let nodes: Vec<Value> = result
+        .layers
+        .iter()
+        .enumerate()
+        .map(|(idx, layer)| {
+            let psd_id: Value = if layer.is_group {
+                layer.own_group_id.map(|v| json!(v)).unwrap_or(json!(idx))
+            } else {
+                json!(idx)
+            };
+
+            let parent_psd_id: Value = layer
+                .parent_group_id
+                .map(|v| json!(v))
+                .unwrap_or(Value::Null);
+
+            json!({
+                "psdId": psd_id,
+                "parentPsdId": parent_psd_id,
+                "isGroup": layer.is_group,
+                "name": layer.name,
+                "width": layer.width,
+                "height": layer.height,
+                "top": layer.top,
+                "left": layer.left,
+                "defaultVisible": layer.visible,
+                "order": idx,
+            })
+        })
+        .collect();
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "width": result.width,
+            "height": result.height,
+            "nodes": nodes,
+        })),
+        error: None,
+    }
+}
+
 pub(crate) fn handle_psd_await_blob(id: u64, state: &mut BackendState) -> RpcResponse {
     let shared = match state.psd_blob_result.take() {
         Some(s) => s,
