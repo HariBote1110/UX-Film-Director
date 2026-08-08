@@ -1777,4 +1777,191 @@ mod tests {
         assert_eq!(psd.layers[5].name, "!髪 色");
         assert_eq!(psd.layers[5].parent_group_id, Some(2));
     }
+
+    // ── DISPLAY経路: parse_psd_fast_for_display の合成パリティ／スキップ証明 ──
+    // vm_tuning_research/notes/display-path-phase-split.md の昇格。
+    // select_psd_composite_frame が実際に読むレイヤーだけをデコードする
+    // 新エントリポイントが、フルデコード経路と「合成結果は完全一致」
+    // 「除外レイヤーは本当にデコードをスキップしている」の両方を満たすこと
+    // を、ネストしたグループ・非表示リーフ・activeLayerIds 上書き
+    // （デフォルト非表示レイヤーをON、デフォルト表示レイヤーをOFF）を含む
+    // 手書き PSD バイト列で確認する。
+
+    /// 任意個数の `FixtureLayer` をファイル格納順（下→上）のまま連結し、
+    /// 1枚の PSD バイト列に組み立てる（`group_and_leaf_psd_bytes` の汎用版）。
+    fn build_psd_from_fixture_layers(
+        doc_width: u32,
+        doc_height: u32,
+        layers_in_file_order: &[FixtureLayer],
+    ) -> Vec<u8> {
+        let mut layer_records_bytes = Vec::new();
+        let mut channel_data_bytes = Vec::new();
+        for layer in layers_in_file_order {
+            let (record, cdata) = build_layer_record_and_data(layer);
+            layer_records_bytes.extend_from_slice(&record);
+            channel_data_bytes.extend_from_slice(&cdata);
+        }
+
+        let layer_info_len = 2 + layer_records_bytes.len() + channel_data_bytes.len();
+        let layer_and_mask_len = 4 + layer_info_len;
+
+        let mut psd = Vec::new();
+        psd.extend_from_slice(b"8BPS");
+        push_u16_be(&mut psd, 1);
+        psd.extend_from_slice(&[0; 6]);
+        push_u16_be(&mut psd, 4);
+        push_u32_be(&mut psd, doc_height);
+        push_u32_be(&mut psd, doc_width);
+        push_u16_be(&mut psd, 8);
+        push_u16_be(&mut psd, 3);
+        push_u32_be(&mut psd, 0); // colour mode data length
+        push_u32_be(&mut psd, 0); // image resources length
+        push_u32_be(&mut psd, layer_and_mask_len as u32);
+        push_u32_be(&mut psd, layer_info_len as u32);
+        push_i16_be(&mut psd, layers_in_file_order.len() as i16); // layer count
+        psd.extend_from_slice(&layer_records_bytes);
+        psd.extend_from_slice(&channel_data_bytes);
+        psd
+    }
+
+    /// root = [base, G1{g1_hidden, g1_visible}, G2{g2_child}], 4×1 canvas,
+    /// each leaf occupies a distinct non-overlapping 1×1 pixel column so the
+    /// composited canvas records exactly which leaves were painted:
+    ///   - base (visible, col0, red): always in the default chain.
+    ///   - g1_visible (visible, col1, blue): in the default chain (G1 visible).
+    ///   - g1_hidden (hidden, col2, green): NOT in the default chain (own bit).
+    ///   - g2_child (visible, col3, yellow): NOT in the default chain
+    ///     (ancestor group G2 is hidden) — this is the "default-hidden via
+    ///     ancestor" case an activeLayerIds override can turn on.
+    fn nested_groups_display_fixture_bytes() -> Vec<u8> {
+        let px = |r: u8, g: u8, b: u8| vec![(0i16, vec![r]), (1i16, vec![g]), (2i16, vec![b]), (-1i16, vec![255u8])];
+        let leaf_at = |left: i32, name: &'static str, visible: bool, colour: (u8, u8, u8)| FixtureLayer {
+            top: 0,
+            left,
+            bottom: 1,
+            right: left + 1,
+            visible,
+            name,
+            channels: px(colour.0, colour.1, colour.2),
+            lsct: None,
+        };
+        let divider = || FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            visible: true,
+            name: "</Layer group>",
+            channels: vec![],
+            lsct: Some(3),
+        };
+        let group_header = |name: &'static str, visible: bool| FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            visible,
+            name,
+            channels: vec![],
+            lsct: Some(2),
+        };
+
+        let layers = vec![
+            leaf_at(0, "base", true, (255, 0, 0)),
+            divider(),
+            leaf_at(2, "g1_hidden", false, (0, 255, 0)),
+            leaf_at(1, "g1_visible", true, (0, 0, 255)),
+            group_header("G1", true),
+            divider(),
+            leaf_at(3, "g2_child", true, (255, 255, 0)),
+            group_header("G2", false),
+        ];
+        build_psd_from_fixture_layers(4, 1, &layers)
+    }
+
+    fn find_layer<'a>(psd: &'a PsdFastResult, name: &str) -> &'a PsdFastLayer {
+        psd.layers
+            .iter()
+            .find(|l| l.name == name)
+            .unwrap_or_else(|| panic!("fixture layer '{name}' must exist"))
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_default_selection_matches_full_parse_composite_and_skips_excluded_leaves(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+
+        let full = parse_psd_fast(&bytes).expect("full parse");
+        let display = parse_psd_fast_for_display(&bytes, None).expect("display parse");
+
+        // 合成パリティ: select_psd_composite_frame(None) の出力が完全一致。
+        let full_frame = select_psd_composite_frame(&full, None).expect("full composite");
+        let display_frame = select_psd_composite_frame(&display, None).expect("display composite");
+        assert_eq!(full_frame.width, display_frame.width);
+        assert_eq!(full_frame.height, display_frame.height);
+        assert_eq!(full_frame.pixels, display_frame.pixels);
+        // base + g1_visible のみが不透明で描かれ、g1_hidden/g2_child の列は
+        // 透明（キャンバス初期値 0）のまま — デフォルトチェーンの中身を実測。
+        assert_eq!(
+            full_frame.pixels,
+            vec![
+                255, 0, 0, 255, // col0 base
+                0, 0, 255, 255, // col1 g1_visible
+                0, 0, 0, 0, // col2 g1_hidden (excluded)
+                0, 0, 0, 0, // col3 g2_child (excluded, ancestor hidden)
+            ]
+        );
+
+        // スキップ証明: デフォルトチェーン外のリーフはデコードされていない。
+        assert!(find_layer(&display, "base").rgba.is_some());
+        assert!(find_layer(&display, "g1_visible").rgba.is_some());
+        assert!(find_layer(&display, "g1_hidden").rgba.is_none());
+        assert!(find_layer(&display, "g2_child").rgba.is_none());
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_active_override_matches_full_parse_composite_and_skips_excluded_leaves(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+
+        // フルパースで実測した stable_id から activeLayerIds を組み立てる
+        // （pre-order 採番をハードコードしない）。デフォルト非表示の
+        // g2_child を ON、デフォルト表示の g1_visible を OFF にする上書き。
+        let full_for_ids = parse_psd_fast(&bytes).expect("full parse for ids");
+        let active_ids: Vec<String> = vec![
+            find_layer(&full_for_ids, "base").stable_id.clone(),
+            full_for_ids
+                .layers
+                .iter()
+                .find(|l| l.name == "G2")
+                .expect("G2 group exists")
+                .stable_id
+                .clone(),
+            find_layer(&full_for_ids, "g2_child").stable_id.clone(),
+        ];
+
+        let full = parse_psd_fast(&bytes).expect("full parse");
+        let display =
+            parse_psd_fast_for_display(&bytes, Some(active_ids.as_slice())).expect("display parse");
+
+        let full_frame = select_psd_composite_frame(&full, Some(active_ids.as_slice()))
+            .expect("full composite");
+        let display_frame = select_psd_composite_frame(&display, Some(active_ids.as_slice()))
+            .expect("display composite");
+        assert_eq!(full_frame.pixels, display_frame.pixels);
+        assert_eq!(
+            full_frame.pixels,
+            vec![
+                255, 0, 0, 255, // col0 base (active)
+                0, 0, 0, 0, // col1 g1_visible (now OFF: not in active set)
+                0, 0, 0, 0, // col2 g1_hidden (never active)
+                255, 255, 0, 255, // col3 g2_child (now ON via G2 + itself active)
+            ]
+        );
+
+        assert!(find_layer(&display, "base").rgba.is_some());
+        assert!(find_layer(&display, "g2_child").rgba.is_some());
+        assert!(find_layer(&display, "g1_visible").rgba.is_none());
+        assert!(find_layer(&display, "g1_hidden").rgba.is_none());
+    }
 }
