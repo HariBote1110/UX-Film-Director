@@ -1190,7 +1190,7 @@ describe('createSharedRendererWebGpuPresenter', () => {
       planeCount: 1,
     });
 
-    expect(importedSources).toEqual([{ source: externalVideoSource }]);
+    expect(importedSources).toEqual([{ source: externalVideoSource, colorSpace: 'srgb' }]);
     expect(writtenTextures).toEqual([]);
     expect(shaderModules.some((module) => module.code?.includes('texture_external'))).toBe(true);
     expect(bindGroups).toEqual([
