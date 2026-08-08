@@ -1310,3 +1310,397 @@ pub fn parse_psd_fast_instrumented(
         },
     ))
 }
+
+// ── Display-path experiment (vm_tuning_research/notes/display-path-phase-split.md) ──
+//
+// Vendored from `rust-backend/src/psd_fast.rs` at commit
+// 3a892c860788f9341a8fb932e49c29dd95527f87 (same commit as the header note
+// above): a faithful copy of `RgbaFrame` (normally from the crate-internal
+// `uxfd-golden-harness` crate, minimal reimplementation here),
+// `select_psd_composite_frame`, `composite_visible_psd_layers`,
+// `composite_visible_psd_layers_with_filter`, `composite_layer_source_over`
+// and `source_over_pixel`, plus a new `parse_psd_fast_active_chain` entry
+// point that decodes ONLY the leaf layers `select_psd_composite_frame`
+// would actually composite under the default (`active_layer_ids = None`)
+// selection — i.e. a leaf's own `visible` bit AND every ancestor group's
+// `visible` bit, not just the leaf's own bit (unlike the pre-existing
+// `-visible` mode above, which only checks the leaf's own bit and is a
+// strict superset).
+
+/// Minimal `RgbaFrame` reimplementation (the real type lives in
+/// `uxfd-golden-harness`, which this standalone bench does not depend on).
+pub struct RgbaFrame {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
+impl RgbaFrame {
+    pub fn from_rgba8(width: u32, height: u32, pixels: Vec<u8>) -> Result<Self, String> {
+        let expected_len = (width as usize)
+            .checked_mul(height as usize)
+            .and_then(|p| p.checked_mul(4))
+            .ok_or_else(|| "RgbaFrame dimension overflow".to_string())?;
+        if pixels.len() != expected_len {
+            return Err(format!(
+                "RgbaFrame byte length mismatch: expected={expected_len}, actual={}",
+                pixels.len()
+            ));
+        }
+        Ok(Self {
+            width,
+            height,
+            pixels,
+        })
+    }
+}
+
+pub fn composite_visible_psd_layers(psd: &PsdFastResult) -> Result<RgbaFrame, String> {
+    composite_visible_psd_layers_with_filter(psd, None)
+}
+
+pub fn composite_visible_psd_layers_with_active_layer_ids(
+    psd: &PsdFastResult,
+    active_layer_ids: &[String],
+) -> Result<RgbaFrame, String> {
+    if active_layer_ids.is_empty() {
+        return composite_visible_psd_layers(psd);
+    }
+    composite_visible_psd_layers_with_filter(psd, Some(active_layer_ids))
+}
+
+pub fn select_psd_composite_frame(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
+    match active_layer_ids {
+        Some(ids) if !ids.is_empty() => {
+            composite_visible_psd_layers_with_active_layer_ids(psd, ids)
+        }
+        _ => composite_visible_psd_layers(psd),
+    }
+}
+
+fn composite_visible_psd_layers_with_filter(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
+    let canvas_len = usize::try_from(psd.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(psd.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
+    let mut canvas = vec![0u8; canvas_len];
+
+    let groups: std::collections::HashMap<u32, &PsdFastLayer> = psd
+        .layers
+        .iter()
+        .filter_map(|layer| layer.own_group_id.map(|id| (id, layer)))
+        .collect();
+
+    let ancestors_all = |mut parent: Option<u32>, predicate: &dyn Fn(&PsdFastLayer) -> bool| {
+        let mut remaining = psd.layers.len();
+        while let Some(group_id) = parent {
+            let Some(group) = groups.get(&group_id) else {
+                break;
+            };
+            if !predicate(group) {
+                return false;
+            }
+            parent = group.parent_group_id;
+            remaining = remaining.saturating_sub(1);
+            if remaining == 0 {
+                break;
+            }
+        }
+        true
+    };
+
+    for layer in psd.layers.iter() {
+        if layer.is_group {
+            continue;
+        }
+        let included = match active_layer_ids {
+            Some(active_layer_ids) => {
+                let is_active =
+                    |candidate: &PsdFastLayer| active_layer_ids.contains(&candidate.stable_id);
+                is_active(layer) && ancestors_all(layer.parent_group_id, &is_active)
+            }
+            None => layer.visible && ancestors_all(layer.parent_group_id, &|g| g.visible),
+        };
+        if !included {
+            continue;
+        }
+        let Some(rgba) = layer.rgba.as_ref() else {
+            continue;
+        };
+        let layer_len = usize::try_from(layer.width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(layer.height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(|| format!("PSD layer '{}' byte length overflows", layer.name))?;
+        if rgba.len() != layer_len {
+            return Err(format!(
+                "PSD layer '{}' RGBA byte length mismatch: expected={}, actual={}",
+                layer.name,
+                layer_len,
+                rgba.len()
+            ));
+        }
+
+        composite_layer_source_over(&mut canvas, psd.width, psd.height, layer, rgba);
+    }
+
+    RgbaFrame::from_rgba8(psd.width, psd.height, canvas)
+        .map_err(|error| format!("PSD composite frame is invalid: {error:?}"))
+}
+
+fn composite_layer_source_over(
+    canvas: &mut [u8],
+    canvas_width: u32,
+    canvas_height: u32,
+    layer: &PsdFastLayer,
+    rgba: &[u8],
+) {
+    let canvas_width_i32 = i32::try_from(canvas_width).unwrap_or(i32::MAX);
+    let canvas_height_i32 = i32::try_from(canvas_height).unwrap_or(i32::MAX);
+    let canvas_width_usize = usize::try_from(canvas_width).unwrap_or(0);
+    let layer_width_usize = usize::try_from(layer.width).unwrap_or(0);
+
+    for y in 0..layer.height {
+        let canvas_y = layer.top + i32::try_from(y).unwrap_or(i32::MAX);
+        if canvas_y < 0 || canvas_y >= canvas_height_i32 {
+            continue;
+        }
+        for x in 0..layer.width {
+            let canvas_x = layer.left + i32::try_from(x).unwrap_or(i32::MAX);
+            if canvas_x < 0 || canvas_x >= canvas_width_i32 {
+                continue;
+            }
+
+            let src_index = ((usize::try_from(y).unwrap_or(0) * layer_width_usize)
+                + usize::try_from(x).unwrap_or(0))
+                * 4;
+            let dst_index = ((usize::try_from(canvas_y).unwrap_or(0) * canvas_width_usize)
+                + usize::try_from(canvas_x).unwrap_or(0))
+                * 4;
+            source_over_pixel(
+                &mut canvas[dst_index..dst_index + 4],
+                &rgba[src_index..src_index + 4],
+            );
+        }
+    }
+}
+
+fn source_over_pixel(dst: &mut [u8], src: &[u8]) {
+    let src_alpha = f32::from(src[3]) / 255.0;
+    if src_alpha <= 0.0 {
+        return;
+    }
+    let dst_alpha = f32::from(dst[3]) / 255.0;
+    let out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha);
+    if out_alpha <= 0.0 {
+        dst.copy_from_slice(&[0, 0, 0, 0]);
+        return;
+    }
+
+    for channel in 0..3 {
+        let src_channel = f32::from(src[channel]) / 255.0;
+        let dst_channel = f32::from(dst[channel]) / 255.0;
+        let out_channel =
+            (src_channel * src_alpha + dst_channel * dst_alpha * (1.0 - src_alpha)) / out_alpha;
+        dst[channel] = (out_channel * 255.0).round().clamp(0.0, 255.0) as u8;
+    }
+    dst[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
+}
+
+/// Walks `records` (bottom-to-top file order, pre-`build_layer_tree`) and
+/// returns, indexed by `record_idx`, whether that leaf would be composited
+/// by `select_psd_composite_frame(psd, None)` — i.e. the leaf's own
+/// `visible` bit AND every ancestor group's `visible` bit. Group/divider
+/// records get `false` (composite skips `is_group` entries outright).
+fn compute_default_composite_flags(records: &[LayerRecord]) -> Vec<bool> {
+    let roots = build_layer_tree(records);
+    let mut flags = vec![false; records.len()];
+
+    fn walk(nodes: &[TreeNode], ancestors_visible: bool, records: &[LayerRecord], flags: &mut [bool]) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    flags[*record_idx] = ancestors_visible && records[*record_idx].visible;
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let group_visible = ancestors_visible && records[*record_idx].visible;
+                    walk(children, group_visible, records, flags);
+                }
+            }
+        }
+    }
+
+    walk(&roots, true, records, &mut flags);
+    flags
+}
+
+/// Like `parse_psd_fast_instrumented`, but the layer-decode filter is the
+/// true default-composite chain (`compute_default_composite_flags`) instead
+/// of the leaf's own `visible` bit — this is what "active-only" means for
+/// the display-path experiment: decode exactly the bytes
+/// `select_psd_composite_frame(psd, None)` will actually read, no more.
+pub fn parse_psd_fast_active_chain(
+    bytes: &[u8],
+    num_threads: Option<usize>,
+) -> Result<(PsdFastResult, PhaseTimings), String> {
+    let mut c = Cursor::new(bytes);
+
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?;
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        let result = PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        };
+        return Ok((
+            result,
+            PhaseTimings {
+                parse_records_ms: 0.0,
+                decode_layers_ms: 0.0,
+                tree_build_ms: 0.0,
+            },
+        ));
+    }
+
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        let result = PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        };
+        return Ok((
+            result,
+            PhaseTimings {
+                parse_records_ms: 0.0,
+                decode_layers_ms: 0.0,
+                tree_build_ms: 0.0,
+            },
+        ));
+    }
+
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    let t_parse = Instant::now();
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+    let parse_records_ms = t_parse.elapsed().as_secs_f64() * 1000.0;
+
+    let t_decode = Instant::now();
+    let ranges = compute_leaf_ranges(&mut c, &records)?;
+    // Active-only: drop the range for any leaf that is not on the default
+    // composite chain (own bit + all ancestor groups visible), computed
+    // from `records` alone (tree structure only, no pixel bytes touched).
+    let default_composite = compute_default_composite_flags(&records);
+    let ranges: Vec<Option<LeafRange>> = ranges
+        .into_iter()
+        .enumerate()
+        .map(|(idx, r)| if default_composite[idx] { r } else { None })
+        .collect();
+    let pixel_data: Vec<Option<Vec<u8>>> = match num_threads {
+        None => records
+            .iter()
+            .zip(ranges.iter())
+            .map(|(rec, range)| match range {
+                Some(r) => decode_from_range(bytes, r, &rec.channels, depth, is_psb),
+                None => None,
+            })
+            .collect(),
+        Some(n) => {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(n)
+                .build()
+                .map_err(|e| e.to_string())?;
+            pool.install(|| {
+                records
+                    .par_iter()
+                    .zip(ranges.par_iter())
+                    .map(|(rec, range)| match range {
+                        Some(r) => decode_from_range(bytes, r, &rec.channels, depth, is_psb),
+                        None => None,
+                    })
+                    .collect()
+            })
+        }
+    };
+    let decode_layers_ms = t_decode.elapsed().as_secs_f64() * 1000.0;
+
+    let t_tree = Instant::now();
+    let roots = build_layer_tree(&records);
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    let mut pixel_data = pixel_data;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
+    let tree_build_ms = t_tree.elapsed().as_secs_f64() * 1000.0;
+
+    Ok((
+        PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers,
+        },
+        PhaseTimings {
+            parse_records_ms,
+            decode_layers_ms,
+            tree_build_ms,
+        },
+    ))
+}

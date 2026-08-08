@@ -175,11 +175,119 @@ fn run_dump_meta(path: &str) -> ! {
     std::process::exit(0);
 }
 
+/// `display <path> [iters] [threads|serial] [--active-only]`: measures the
+/// production display path (`build_native_psd_source_frame` in
+/// `rust-backend/src/lib.rs`) phase by phase — file_read / decode /
+/// composite / total — for `vm_tuning_research/notes/display-path-phase-split.md`.
+/// `threads|serial`: "serial" for single-thread decode (no rayon pool), or a
+/// positive integer thread count for a rayon pool of that size.
+/// `--active-only`: decode only the leaves `select_psd_composite_frame(psd, None)`
+/// would actually composite (see `parse_psd_fast_active_chain`); omitted =
+/// full decode of every leaf (`parse_psd_fast_instrumented(.., visible_only=false)`).
+/// Prints per-iteration phase timings plus a correctness checksum
+/// (dimensions + sum of all RGBA bytes) so serial/N=8/active-only runs on
+/// the same file can be diffed for parity.
+fn run_display(args: &[String]) -> ! {
+    let path = args.first().cloned().unwrap_or_else(|| {
+        eprintln!("usage: psd-native-bench display <path-to-psd> [iterations] [threads|serial] [--active-only]");
+        std::process::exit(1);
+    });
+    let iterations: usize = args
+        .get(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
+    let warmup = 2usize.min(iterations.saturating_sub(1));
+    let threads_arg = args.get(2).cloned().unwrap_or_else(|| "serial".to_string());
+    let threads: Option<usize> = match threads_arg.as_str() {
+        "serial" => None,
+        n => match n.parse::<usize>() {
+            Ok(t) if t >= 1 => Some(t),
+            _ => {
+                eprintln!("invalid threads {threads_arg:?}: expected \"serial\" or a positive integer");
+                std::process::exit(1);
+            }
+        },
+    };
+    let active_only = args.iter().any(|a| a == "--active-only");
+    let mode_label = format!(
+        "{}-{}",
+        threads.map(|t| format!("{t}")).unwrap_or_else(|| "serial".to_string()),
+        if active_only { "active" } else { "full" }
+    );
+
+    let mut file_read_ms_samples: Vec<f64> = Vec::with_capacity(iterations);
+    let mut decode_ms_samples: Vec<f64> = Vec::with_capacity(iterations);
+    let mut composite_ms_samples: Vec<f64> = Vec::with_capacity(iterations);
+    let mut total_ms_samples: Vec<f64> = Vec::with_capacity(iterations);
+    let mut last_width = 0u32;
+    let mut last_height = 0u32;
+    let mut last_checksum: u64 = 0;
+
+    println!("input: {path}, mode = {mode_label}, iterations = {iterations}");
+
+    for i in 0..iterations {
+        let t_total = Instant::now();
+
+        let t_read = Instant::now();
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| {
+            eprintln!("failed to read {path}: {e}");
+            std::process::exit(1);
+        });
+        let file_read_ms = t_read.elapsed().as_secs_f64() * 1000.0;
+
+        let t_decode = Instant::now();
+        let result = if active_only {
+            psd_fast::parse_psd_fast_active_chain(&bytes, threads)
+                .expect("parse_psd_fast_active_chain failed")
+                .0
+        } else {
+            psd_fast::parse_psd_fast_instrumented(&bytes, threads, false)
+                .expect("parse_psd_fast_instrumented failed")
+                .0
+        };
+        let decode_ms = t_decode.elapsed().as_secs_f64() * 1000.0;
+
+        let t_composite = Instant::now();
+        let frame = psd_fast::select_psd_composite_frame(&result, None)
+            .expect("select_psd_composite_frame failed");
+        let composite_ms = t_composite.elapsed().as_secs_f64() * 1000.0;
+
+        let total_ms = t_total.elapsed().as_secs_f64() * 1000.0;
+
+        last_width = frame.width;
+        last_height = frame.height;
+        last_checksum = frame.pixels.iter().map(|&b| b as u64).sum();
+
+        let tag = if i < warmup { "warmup" } else { "measured" };
+        println!(
+            "iter {:>2} [{tag}]: total={total_ms:.3} ms  (file_read={file_read_ms:.3} decode={decode_ms:.3} composite={composite_ms:.3})",
+            i + 1
+        );
+
+        if i >= warmup {
+            file_read_ms_samples.push(file_read_ms);
+            decode_ms_samples.push(decode_ms);
+            composite_ms_samples.push(composite_ms);
+            total_ms_samples.push(total_ms);
+        }
+    }
+
+    println!();
+    println!("width = {last_width}, height = {last_height}, checksum(sum of rgba bytes) = {last_checksum}");
+    print_stats("phase:file_read", &file_read_ms_samples);
+    print_stats("phase:decode", &decode_ms_samples);
+    print_stats("phase:composite", &composite_ms_samples);
+    print_stats("total", &total_ms_samples);
+
+    std::process::exit(0);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let path = args.next().unwrap_or_else(|| {
         eprintln!("usage: psd-native-bench <path-to-psd> [iterations] [mode]");
         eprintln!("       psd-native-bench dump-meta <path-to-psd>");
+        eprintln!("       psd-native-bench display <path-to-psd> [iterations] [threads|serial] [--active-only]");
         std::process::exit(1);
     });
 
@@ -189,6 +297,11 @@ fn main() {
             std::process::exit(1);
         });
         run_dump_meta(&psd_path);
+    }
+
+    if path == "display" {
+        let rest: Vec<String> = args.collect();
+        run_display(&rest);
     }
     let iterations: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(15);
     let warmup = 3usize.min(iterations.saturating_sub(1));
