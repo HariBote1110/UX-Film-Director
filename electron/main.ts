@@ -1193,6 +1193,49 @@ app.whenReady().then(() => {
     };
   });
 
+  // ── PSD metadata-only parsing via Rust backend (path B prototype) ───────
+  // Unlike 'parse-psd' above, this calls psd.parseMeta, which never spawns
+  // the background pixel-blob write on the Rust side — so there is nothing
+  // to await_blob or read back here. Preview rendering is unaffected: it
+  // already re-decodes the PSD independently from its file path.
+  ipcMain.handle('parse-psd-meta', async (_event, payload: { filePath?: string }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) {
+      return { success: false, error: 'filePath が必要です。' };
+    }
+
+    type RustMetaNode = {
+      psdId: number;
+      parentPsdId: number | null;
+      isGroup: boolean;
+      name: string;
+      width: number;
+      height: number;
+      top: number;
+      left: number;
+      defaultVisible: boolean;
+      order: number;
+    };
+
+    let rustResult: { width: number; height: number; nodes: RustMetaNode[] };
+
+    try {
+      rustResult = (await callRustBackend('psd.parseMeta', { filePath }, 60_000)) as typeof rustResult;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    return {
+      success: true,
+      width: rustResult.width,
+      height: rustResult.height,
+      nodes: rustResult.nodes,
+    };
+  });
+
   // ── PSD composite RGBA via Rust backend ──────────────────────────────────
   // 3D ステージの PSD ビルボード用。旧 Pixi 実装は app.renderer.extract で
   // ラスタライズしていたが撤去済みのため、rust-backend の
