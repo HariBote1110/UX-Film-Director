@@ -1522,6 +1522,208 @@ fn source_over_pixel(dst: &mut [u8], src: &[u8]) {
     dst[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
 }
 
+// ── Row-band parallel composite (research code for
+// `notes/composite-parallelisation.md`) ─────────────────────────────────────
+//
+// `composite_layer_source_over` above always loops `0..layer.height` /
+// `0..layer.width` and relies on a per-pixel `canvas_x`/`canvas_y` bounds
+// check to discard rows/columns outside the canvas — it does *not*
+// precompute the intersection of the layer's rect with anything, so every
+// layer's full own rectangle is walked regardless of how much of it lands on
+// canvas. For row-band parallelism this precompute becomes necessary (not
+// just an optimisation): each band must only touch rows that intersect it,
+// otherwise every band would redundantly walk every layer's full height.
+//
+// Source-over is per-pixel independent, but layers must still be applied in
+// order for a given pixel, so the only safe parallel axis is CANVAS ROWS —
+// each band composites *all* selected layers, in the same order as the
+// serial path, restricted to the rows the band owns. This is expected to be
+// byte-identical to the serial path (verified by checksum in
+// `composite-bench`), because each pixel is still touched by the same
+// layers in the same order; only which thread performs the arithmetic
+// differs.
+
+/// Collect the ordered list of (layer, rgba) pairs that the *default*
+/// selection (`active_layer_ids = None`) would composite, doing the same
+/// validation `composite_visible_psd_layers_with_filter` does up front so
+/// band workers below never need to re-validate per layer.
+fn collect_default_composite_layers(psd: &PsdFastResult) -> Result<Vec<(&PsdFastLayer, &[u8])>, String> {
+    let groups: std::collections::HashMap<u32, &PsdFastLayer> = psd
+        .layers
+        .iter()
+        .filter_map(|layer| layer.own_group_id.map(|id| (id, layer)))
+        .collect();
+
+    let ancestors_all = |mut parent: Option<u32>, predicate: &dyn Fn(&PsdFastLayer) -> bool| {
+        let mut remaining = psd.layers.len();
+        while let Some(group_id) = parent {
+            let Some(group) = groups.get(&group_id) else {
+                break;
+            };
+            if !predicate(group) {
+                return false;
+            }
+            parent = group.parent_group_id;
+            remaining = remaining.saturating_sub(1);
+            if remaining == 0 {
+                break;
+            }
+        }
+        true
+    };
+
+    let mut selected = Vec::new();
+    for layer in psd.layers.iter() {
+        if layer.is_group {
+            continue;
+        }
+        let included = layer.visible && ancestors_all(layer.parent_group_id, &|g| g.visible);
+        if !included {
+            continue;
+        }
+        let Some(rgba) = layer.rgba.as_ref() else {
+            continue;
+        };
+        let layer_len = usize::try_from(layer.width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(layer.height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(|| format!("PSD layer '{}' byte length overflows", layer.name))?;
+        if rgba.len() != layer_len {
+            return Err(format!(
+                "PSD layer '{}' RGBA byte length mismatch: expected={}, actual={}",
+                layer.name,
+                layer_len,
+                rgba.len()
+            ));
+        }
+        selected.push((layer, rgba.as_slice()));
+    }
+    Ok(selected)
+}
+
+/// Composite every selected layer, in order, into `band` — a mutable slice
+/// covering canvas rows `[band_top, band_top + band_height)` only (row-major
+/// RGBA8, `canvas_width` pixels wide). Each layer's absolute row range is
+/// intersected with the band's row range up front; only the intersecting
+/// rows are visited. Horizontal clipping is still a per-pixel bounds check
+/// (unchanged from `composite_layer_source_over`) since a layer can extend
+/// past the canvas left/right edges independently of the row band.
+fn composite_band(
+    band: &mut [u8],
+    band_top: u32,
+    band_height: u32,
+    canvas_width: u32,
+    layers: &[(&PsdFastLayer, &[u8])],
+) {
+    let canvas_width_i32 = i32::try_from(canvas_width).unwrap_or(i32::MAX);
+    let canvas_width_usize = usize::try_from(canvas_width).unwrap_or(0);
+    let band_top_i32 = i32::try_from(band_top).unwrap_or(i32::MAX);
+    let band_bottom_i32 = band_top_i32.saturating_add(i32::try_from(band_height).unwrap_or(0));
+
+    for (layer, rgba) in layers {
+        let layer_width_usize = usize::try_from(layer.width).unwrap_or(0);
+        let layer_top = layer.top;
+        let layer_bottom = layer_top.saturating_add(i32::try_from(layer.height).unwrap_or(0));
+
+        // Intersection of the layer's absolute row range with this band's
+        // absolute row range — replaces the per-pixel `canvas_y` bounds
+        // check `composite_layer_source_over` does (a band's rows are
+        // already known to be inside `[0, canvas_height)`).
+        let y_start = layer_top.max(band_top_i32);
+        let y_end = layer_bottom.min(band_bottom_i32);
+        if y_start >= y_end {
+            continue;
+        }
+
+        for canvas_y in y_start..y_end {
+            let layer_y = usize::try_from(canvas_y - layer_top).unwrap_or(0);
+            let local_row = usize::try_from(canvas_y - band_top_i32).unwrap_or(0);
+            for x in 0..layer.width {
+                let canvas_x = layer.left + i32::try_from(x).unwrap_or(i32::MAX);
+                if canvas_x < 0 || canvas_x >= canvas_width_i32 {
+                    continue;
+                }
+                let src_index =
+                    (layer_y * layer_width_usize + usize::try_from(x).unwrap_or(0)) * 4;
+                let dst_index =
+                    (local_row * canvas_width_usize + usize::try_from(canvas_x).unwrap_or(0)) * 4;
+                source_over_pixel(&mut band[dst_index..dst_index + 4], &rgba[src_index..src_index + 4]);
+            }
+        }
+    }
+}
+
+/// Row-band parallel composite of the *default* selection
+/// (`active_layer_ids = None`, matching `select_psd_composite_frame(psd,
+/// None)`). `num_threads`:
+///   - `None`      → single band covering the whole canvas, composited on
+///                   the calling thread with no rayon pool at all (isolates
+///                   the row-band code path itself from thread-pool
+///                   overhead — this is the "N=1 band, no pool" baseline,
+///                   distinct from but expected to be byte-identical to the
+///                   original `composite_visible_psd_layers`).
+///   - `Some(n)`   → split the canvas into `n` horizontal row bands and
+///                   composite them on a rayon pool of `n` threads, one
+///                   band per thread.
+pub fn composite_visible_psd_layers_row_bands(
+    psd: &PsdFastResult,
+    num_threads: Option<usize>,
+) -> Result<RgbaFrame, String> {
+    let width = psd.width;
+    let height = psd.height;
+    let canvas_len = usize::try_from(width)
+        .ok()
+        .and_then(|w| usize::try_from(height).ok().and_then(|h| w.checked_mul(h)))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
+    let mut canvas = vec![0u8; canvas_len];
+
+    let selected = collect_default_composite_layers(psd)?;
+
+    match num_threads {
+        None => {
+            composite_band(&mut canvas, 0, height, width, &selected);
+        }
+        Some(n) => {
+            let n = n.max(1);
+            let row_bytes = usize::try_from(width).unwrap_or(0) * 4;
+            let band_rows = if n == 0 {
+                usize::try_from(height).unwrap_or(0)
+            } else {
+                (usize::try_from(height).unwrap_or(0) + n - 1) / n
+            };
+            let band_chunk_bytes = band_rows.saturating_mul(row_bytes).max(row_bytes.max(1));
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(n)
+                .build()
+                .map_err(|e| e.to_string())?;
+            pool.install(|| {
+                canvas
+                    .par_chunks_mut(band_chunk_bytes)
+                    .enumerate()
+                    .for_each(|(band_idx, band_slice)| {
+                        let band_top = u32::try_from(band_idx * band_rows).unwrap_or(u32::MAX);
+                        let band_height_rows = if row_bytes == 0 {
+                            0
+                        } else {
+                            band_slice.len() / row_bytes
+                        };
+                        let band_height = u32::try_from(band_height_rows).unwrap_or(0);
+                        composite_band(band_slice, band_top, band_height, width, &selected);
+                    });
+            });
+        }
+    }
+
+    RgbaFrame::from_rgba8(width, height, canvas)
+        .map_err(|error| format!("PSD composite frame is invalid: {error:?}"))
+}
+
 /// Walks `records` (bottom-to-top file order, pre-`build_layer_tree`) and
 /// returns, indexed by `record_idx`, whether that leaf would be composited
 /// by `select_psd_composite_frame(psd, None)` — i.e. the leaf's own

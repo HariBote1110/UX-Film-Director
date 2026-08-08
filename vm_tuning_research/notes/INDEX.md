@@ -3,6 +3,7 @@
 借用 VM（i5-13400F / GPU 無し）上で、自前実装の重い経路（PSD 解析・映像まわり）を
 チューニングする研究。新しいものを上に置く。1行1ノート。
 
+- [composite-parallelisation.md](composite-parallelisation.md) — PSD合成（source-over）のrow-band並列化を開発機macOS(M4)で計測。H-1（N=8で対serial1.5倍超）は3ファイルすべてで採用（葵ちゃん6.23倍・茜ver0.7 4.08倍・或窓式2.75倍、点予測「約2倍」は葵ちゃん・茜ver0.7で上振れ）、H-2（矩形交差クリップ）は独立最適化ではなくrow-band実装に必須の前提として最初から内包し単独測定は不実施。3ファイル×4構成=12通り全てで元のserial実装とチェックサム完全一致。本実装昇格はrow-band×N=8をデコード側N=8既定と揃える構成を推奨（2026-08-09）
 - [display-path-toggle-redecode.md](display-path-toggle-redecode.md) — トグル1枚で全リーフ再解凍が確定（per-layerキャッシュ不在、activeフィルタは合成段のみ）。ビルボード経路はサーバキャッシュ皆無で最悪。挿入点3つ（並列化/active-only前倒し/per-layer解凍キャッシュ）を特定（2026-08-09）
 - [display-path-phase-split.md](display-path-phase-split.md) — DISPLAY経路（fs::read→parse→composite）をフェーズ分割計測。H-A（composite<20%）棄却（葵ちゃん25%・茜ver0.7 32%）、H-B（N=8がそのまま転移）は2/3ファイルで棄却（compositeが固定コストとして残り頭打ち）、H-C（active-only+N=8最速）は採用。3ファイル全てで4モード間のcomposite出力チェックサム完全一致。或窓式(162MB)はserial-full 1361ms→8-active 85ms（-94%）まで短縮見込み、副産物としてactive-only+N=8適用後はcomposite自体が新たな支配区間になることを発見（2026-08-09）
 - [tachie-corpus-parity.md](tachie-corpus-parity.md)（追記） — 最大立ち絵・琴葉茜ver0.7(50.8MB/デコード1.57GB)でも完全一致。メタのみ0.094ms、全量N=8は286msで対ag-psd 4.4倍速。可視限定は可視率86%のため効果薄という設計知見（2026-08-09）

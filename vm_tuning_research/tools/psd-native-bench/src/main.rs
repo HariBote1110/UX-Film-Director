@@ -282,12 +282,106 @@ fn run_display(args: &[String]) -> ! {
     std::process::exit(0);
 }
 
+/// `composite-bench <path> [iters] [threads|serial]`: measures
+/// `composite_visible_psd_layers_row_bands` ONLY — the file is decoded once
+/// (full decode, all leaves) before the timing loop starts, and every
+/// iteration re-runs just the composite step against the same decoded
+/// `PsdFastResult`, for `vm_tuning_research/notes/composite-parallelisation.md`.
+/// `threads|serial`: "serial" → single row-band covering the whole canvas,
+/// no rayon pool (see `composite_visible_psd_layers_row_bands` doc); a
+/// positive integer N → N row bands on a rayon pool of N threads.
+/// Before the timing loop, also runs the original vendored
+/// `composite_visible_psd_layers` once and compares its checksum against the
+/// row-band path's first iteration — this is the byte-parity check against
+/// the pre-existing serial implementation, not just self-consistency between
+/// thread counts of the new code.
+fn run_composite_bench(args: &[String]) -> ! {
+    let path = args.first().cloned().unwrap_or_else(|| {
+        eprintln!("usage: psd-native-bench composite-bench <path-to-psd> [iterations] [threads|serial]");
+        std::process::exit(1);
+    });
+    let iterations: usize = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(10);
+    let warmup = 2usize.min(iterations.saturating_sub(1));
+    let threads_arg = args.get(2).cloned().unwrap_or_else(|| "serial".to_string());
+    let threads: Option<usize> = match threads_arg.as_str() {
+        "serial" => None,
+        n => match n.parse::<usize>() {
+            Ok(t) if t >= 1 => Some(t),
+            _ => {
+                eprintln!("invalid threads {threads_arg:?}: expected \"serial\" or a positive integer");
+                std::process::exit(1);
+            }
+        },
+    };
+    let mode_label = threads.map(|t| format!("{t}")).unwrap_or_else(|| "serial".to_string());
+
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| {
+        eprintln!("failed to read {path}: {e}");
+        std::process::exit(1);
+    });
+
+    // Decode ONCE, outside the timing loop — this bench measures composite
+    // only. Decode mode/threads used here are irrelevant to composite
+    // timing (composite always walks the same `PsdFastResult`).
+    let result = psd_fast::parse_psd_fast_instrumented(&bytes, None, false)
+        .expect("parse_psd_fast_instrumented failed")
+        .0;
+
+    // Byte-parity reference: the original vendored per-pixel serial
+    // composite, run once, outside the timing loop.
+    let reference = psd_fast::composite_visible_psd_layers(&result)
+        .expect("composite_visible_psd_layers (reference) failed");
+    let reference_checksum: u64 = reference.pixels.iter().map(|&b| b as u64).sum();
+
+    println!(
+        "input: {path}, mode = {mode_label}, iterations = {iterations}, canvas = {}x{}",
+        reference.width, reference.height
+    );
+    println!(
+        "reference (original composite_visible_psd_layers): checksum = {reference_checksum}"
+    );
+
+    let mut composite_ms_samples: Vec<f64> = Vec::with_capacity(iterations);
+    let mut last_checksum: u64 = 0;
+    let mut last_width = 0u32;
+    let mut last_height = 0u32;
+
+    for i in 0..iterations {
+        let t = Instant::now();
+        let frame = psd_fast::composite_visible_psd_layers_row_bands(&result, threads)
+            .expect("composite_visible_psd_layers_row_bands failed");
+        let ms = t.elapsed().as_secs_f64() * 1000.0;
+
+        last_width = frame.width;
+        last_height = frame.height;
+        last_checksum = frame.pixels.iter().map(|&b| b as u64).sum();
+
+        let tag = if i < warmup { "warmup" } else { "measured" };
+        println!("iter {:>2} [{tag}]: composite={ms:.3} ms", i + 1);
+
+        if i >= warmup {
+            composite_ms_samples.push(ms);
+        }
+    }
+
+    println!();
+    println!("width = {last_width}, height = {last_height}, checksum(sum of rgba bytes) = {last_checksum}");
+    let parity = last_checksum == reference_checksum
+        && last_width == reference.width
+        && last_height == reference.height;
+    println!("parity vs reference (original serial composite): {}", if parity { "MATCH" } else { "MISMATCH" });
+    print_stats("phase:composite", &composite_ms_samples);
+
+    std::process::exit(0);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let path = args.next().unwrap_or_else(|| {
         eprintln!("usage: psd-native-bench <path-to-psd> [iterations] [mode]");
         eprintln!("       psd-native-bench dump-meta <path-to-psd>");
         eprintln!("       psd-native-bench display <path-to-psd> [iterations] [threads|serial] [--active-only]");
+        eprintln!("       psd-native-bench composite-bench <path-to-psd> [iterations] [threads|serial]");
         std::process::exit(1);
     });
 
@@ -302,6 +396,11 @@ fn main() {
     if path == "display" {
         let rest: Vec<String> = args.collect();
         run_display(&rest);
+    }
+
+    if path == "composite-bench" {
+        let rest: Vec<String> = args.collect();
+        run_composite_bench(&rest);
     }
     let iterations: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(15);
     let warmup = 3usize.min(iterations.saturating_sub(1));
