@@ -8,6 +8,10 @@ cosmic-text = "0.19.0"
 crc32fast = "1.5"
 flate2 = "1"
 pollster = "0.3"
+# Bounded thread pool for the DISPLAY-path parallel PSD leaf decode
+# (parse_psd_fast_for_display). See
+# vm_tuning_research/notes/display-path-phase-split.md.
+rayon = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uxfd-golden-harness = { path = "../golden-harness" }

@@ -446,7 +446,11 @@ pub(crate) fn handle_psd_render_composite(
         Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
     };
 
-    let psd = match psd_fast::parse_psd_fast(&bytes) {
+    // DISPLAY path: decode only the leaves the composite below will actually
+    // read (parallel + active-only — see
+    // vm_tuning_research/notes/display-path-phase-split.md).
+    let psd = match psd_fast::parse_psd_fast_for_display(&bytes, parsed.active_layer_ids.as_deref())
+    {
         Ok(r) => r,
         Err(e) => return response_error(id, -32021, &format!("Failed to parse PSD: {e}")),
     };

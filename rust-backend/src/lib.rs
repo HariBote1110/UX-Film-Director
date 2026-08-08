@@ -102,12 +102,17 @@ pub fn build_native_psd_source_frame(
             media.id
         )
     })?;
-    let psd = psd_fast::parse_psd_fast(&bytes).map_err(|error| {
-        format!(
-            "Invalid Psd media '{}': failed to parse PSD source: {error}",
-            media.id
-        )
-    })?;
+    // DISPLAY path: decode only the leaves select_psd_composite_frame will
+    // actually read (parallel + active-only — see
+    // vm_tuning_research/notes/display-path-phase-split.md), not a full
+    // serial decode of every leaf.
+    let psd = psd_fast::parse_psd_fast_for_display(&bytes, Some(&media.active_layer_ids))
+        .map_err(|error| {
+            format!(
+                "Invalid Psd media '{}': failed to parse PSD source: {error}",
+                media.id
+            )
+        })?;
     if psd.width != media.width || psd.height != media.height {
         return Err(format!(
             "Psd media '{}' dimensions {}x{} do not match decoded PSD {}x{}",
