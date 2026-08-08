@@ -3,6 +3,7 @@
 借用 VM（i5-13400F / GPU 無し）上で、自前実装の重い経路（PSD 解析・映像まわり）を
 チューニングする研究。新しいものを上に置く。1行1ノート。
 
+- [e2e-path-b-rust-metadata-import.md](e2e-path-b-rust-metadata-import.md) — path B（ag-psdを一切経由せずrust-backendのメタデータのみでPSDをimportする試作、`psdRustImport=1`）のend-to-end計測。仮説「parsedがms一桁〜数十msへ」「支配区間がevaluateReady側へシフト」はいずれも棄却（`psd_fast::parse_psd_fast`がメタデータのみ経路でも依然フルpixelデコードしており、input→parsedがend-to-endの81.5〜84.6%を占め続けた）。ただしpixel搬送・ImageBitmap化の除去自体は実用勝利で、end-to-end中央値は1回目3.06倍速・2回目1.93倍速。葵ちゃん.psdのレイヤー木はag-psdと総ノード数171（グループ28・リーフ143）で完全一致。16bit/ラジオグループ等の網羅性は未検証（2026-08-08）
 - [e2e-path-a-baseline.md](e2e-path-a-baseline.md) — path A（現行PSDインポート）のend-to-end計測。支配区間はinput→parsed(ag-psdデコード)で全体の7〜9割、1回目は2回目よりinput→parsed区間が平均+328ms遅い一回性コールドコストあり。T5(native present)は`prepareNativeRenderUpload`がViewport.tsxから未配線のため到達せず、evaluateReadyが事実上の終端信号（2026-08-08）
 - [double-decode-discovery.md](double-decode-discovery.md) — 重大発見: 現行インポートは二重デコードで、ag-psdのImageBitmapは表示に未使用の死にデータ。表示は rust-backend が独自再デコード済み。path B は「ag-psdスキップ+メタデータをRustから」だけで成立する（2026-08-08）
 - [macos-calibration.md](macos-calibration.md) — VM(i5-13400F)数値を開発機macOS(Apple M4)で同一プロトコル較正。時間は全構成でMacが同等以上に速く並列+可視限定ほど乖離拡大（native N=8可視限定 median 40ms、VM比-42.0%）、一方ピークRSSは逆転しnative側ほど高い（同構成でVM比+39.1%）——実験3(end-to-end)の期待値はこのmacOS実測値を基準にする（2026-08-08）
