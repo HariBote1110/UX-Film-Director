@@ -2910,4 +2910,147 @@ mod tests {
             "追い出されたリーフは再パース時にミスとして再デコードされるはず"
         );
     }
+
+    // ── Stage 3: 行バンド並列合成の正当性 ────────────────────────────────────
+    // vm_tuning_research/notes/composite-parallelisation.md の昇格。
+    // select_psd_composite_frame（＝全呼び出し元が到達する内部シーム
+    // composite_visible_psd_layers_with_filter）は行バンド並列で合成する。
+    // composite_visible_psd_layers_with_filter_serial（cfg(test)専用の
+    // オリジナル単一パス実装、独立したオラクル）と byte-identical であること
+    // を、ネストしたグループ＋選択上書き・キャンバス外にはみ出すレイヤー・
+    // 1px高キャンバス（バンド数>行数）・空選択の各フィクスチャで固定する。
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_nested_groups_and_selection_override() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+        let active_ids = g2_on_g1_visible_off_active_ids(&bytes);
+
+        for selection in [None, Some(active_ids.as_slice())] {
+            let parallel = select_psd_composite_frame(&psd, selection).expect("parallel composite");
+            let serial = composite_visible_psd_layers_with_filter_serial(&psd, selection)
+                .expect("serial oracle composite");
+            assert_eq!(parallel.width, serial.width);
+            assert_eq!(parallel.height, serial.height);
+            assert_eq!(
+                parallel.pixels, serial.pixels,
+                "selection {selection:?} の並列合成は直列オラクルと一致するはず"
+            );
+        }
+    }
+
+    /// 4×4 キャンバス、A: left=-2,top=-2,right=2,bottom=2（左上がキャンバス外
+    /// にはみ出す赤）、B: left=2,top=2,right=6,bottom=6（右下がキャンバス外
+    /// にはみ出す青）。行バンド分割後も per-pixel の水平クリップと
+    /// 行レンジ交差の垂直クリップが両方生き残ることを確認する。
+    fn edge_overflow_layers_fixture_bytes() -> Vec<u8> {
+        let px = |r: u8, g: u8, b: u8| vec![(0i16, vec![r; 16]), (1i16, vec![g; 16]), (2i16, vec![b; 16]), (-1i16, vec![255u8; 16])];
+        let layer_a = FixtureLayer {
+            top: -2,
+            left: -2,
+            bottom: 2,
+            right: 2,
+            visible: true,
+            name: "overflow_top_left",
+            channels: px(255, 0, 0),
+            lsct: None,
+        };
+        let layer_b = FixtureLayer {
+            top: 2,
+            left: 2,
+            bottom: 6,
+            right: 6,
+            visible: true,
+            name: "overflow_bottom_right",
+            channels: px(0, 0, 255),
+            lsct: None,
+        };
+        build_psd_from_fixture_layers(4, 4, &[layer_a, layer_b])
+    }
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_layers_overflowing_canvas_bounds() {
+        let bytes = edge_overflow_layers_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+
+        let parallel = select_psd_composite_frame(&psd, None).expect("parallel composite");
+        let serial =
+            composite_visible_psd_layers_with_filter_serial(&psd, None).expect("serial oracle");
+        assert_eq!(parallel.pixels, serial.pixels);
+        // 実際にクリップが効いていることも直接確認する: 左上2×2は赤、
+        // 右下2×2は青、それ以外は透明のまま。
+        assert_eq!(
+            parallel.pixels,
+            vec![
+                255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, //
+                255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, //
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 255, 255, //
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 255, 255, //
+            ]
+        );
+    }
+
+    /// doc_height=1（バンド数がスレッド数min(8,コア数)まで増えても行数を
+    /// 上回るエッジケース）、幅5に2枚の非重複リーフ。
+    fn one_pixel_tall_canvas_fixture_bytes() -> Vec<u8> {
+        let px = |r: u8, g: u8, b: u8| vec![(0i16, vec![r]), (1i16, vec![g]), (2i16, vec![b]), (-1i16, vec![255u8])];
+        let left_leaf = FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 1,
+            right: 1,
+            visible: true,
+            name: "left",
+            channels: px(255, 0, 0),
+            lsct: None,
+        };
+        let right_leaf = FixtureLayer {
+            top: 0,
+            left: 3,
+            bottom: 1,
+            right: 4,
+            visible: true,
+            name: "right",
+            channels: px(0, 0, 255),
+            lsct: None,
+        };
+        build_psd_from_fixture_layers(5, 1, &[left_leaf, right_leaf])
+    }
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_one_pixel_tall_canvas() {
+        let bytes = one_pixel_tall_canvas_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+
+        let parallel = select_psd_composite_frame(&psd, None).expect("parallel composite");
+        let serial =
+            composite_visible_psd_layers_with_filter_serial(&psd, None).expect("serial oracle");
+        assert_eq!(parallel.width, 5);
+        assert_eq!(parallel.height, 1);
+        assert_eq!(parallel.pixels, serial.pixels);
+        assert_eq!(
+            parallel.pixels,
+            vec![
+                255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0,
+            ]
+        );
+    }
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_selection_matching_no_layers() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+        let empty_selection = vec!["definitely-not-a-real-stable-id".to_string()];
+
+        let parallel = select_psd_composite_frame(&psd, Some(empty_selection.as_slice()))
+            .expect("parallel composite");
+        let serial =
+            composite_visible_psd_layers_with_filter_serial(&psd, Some(empty_selection.as_slice()))
+                .expect("serial oracle");
+        assert_eq!(parallel.pixels, serial.pixels);
+        assert!(
+            parallel.pixels.iter().all(|&byte| byte == 0),
+            "一致するレイヤーが無ければキャンバスは全透明のまま"
+        );
+    }
 }
