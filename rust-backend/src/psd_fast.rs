@@ -895,6 +895,202 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
 mod tests {
     use super::*;
 
+    // ── メタデータ専用パースの契約 ────────────────────────────────────────────
+    // `parse_psd_meta_only` は `parse_psd_fast` と同じレイヤーツリー
+    // （id・名前・座標・可視性・親子構造・並び順）を返すが、チャンネル画像
+    // データの伸長は一切行わない（全レイヤーの `rgba` が常に `None`）。
+    // 手書きの最小 PSD バイト列（グループ1つ＋子リーフ1つ）で両関数を実PSD
+    // バイトに対して実行し、メタデータが完全一致すること・ピクセルの有無が
+    // 意図通りに異なることを確認する。
+
+    fn push_u16_be(bytes: &mut Vec<u8>, value: u16) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    fn push_i16_be(bytes: &mut Vec<u8>, value: i16) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    fn push_u32_be(bytes: &mut Vec<u8>, value: u32) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    fn push_i32_be(bytes: &mut Vec<u8>, value: i32) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+
+    struct FixtureLayer {
+        top: i32,
+        left: i32,
+        bottom: i32,
+        right: i32,
+        visible: bool,
+        name: &'static str,
+        /// (channel_id, raw pixel plane). Written with compression type 0 (raw).
+        channels: Vec<(i16, Vec<u8>)>,
+        /// `lsct` additional-layer-info value: 1/2 = group header (open/closed),
+        /// 3 = bounding section divider. `None` = ordinary leaf layer.
+        lsct: Option<u32>,
+    }
+
+    fn build_layer_record_and_data(layer: &FixtureLayer) -> (Vec<u8>, Vec<u8>) {
+        let mut record = Vec::new();
+        push_i32_be(&mut record, layer.top);
+        push_i32_be(&mut record, layer.left);
+        push_i32_be(&mut record, layer.bottom);
+        push_i32_be(&mut record, layer.right);
+        push_u16_be(&mut record, layer.channels.len() as u16);
+
+        let mut channel_data = Vec::new();
+        for (channel_id, plane) in &layer.channels {
+            let channel_len = 2 + plane.len() as u32; // +2 for the raw compression-type prefix
+            push_i16_be(&mut record, *channel_id);
+            push_u32_be(&mut record, channel_len);
+            push_u16_be(&mut channel_data, 0); // compression = raw
+            channel_data.extend_from_slice(plane);
+        }
+
+        record.extend_from_slice(b"8BIM");
+        record.extend_from_slice(b"norm");
+        record.push(255); // opacity
+        record.push(0); // clipping
+        record.push(if layer.visible { 0 } else { 2 }); // flags: bit1 set = hidden
+        record.push(0); // filler
+
+        let mut extra = Vec::new();
+        push_u32_be(&mut extra, 0); // layer mask data length
+        push_u32_be(&mut extra, 0); // layer blending ranges length
+        let name_bytes = layer.name.as_bytes();
+        extra.push(name_bytes.len() as u8);
+        extra.extend_from_slice(name_bytes);
+        let used = 1 + name_bytes.len();
+        let pad = (4 - (used & 3)) & 3;
+        extra.resize(extra.len() + pad, 0);
+        if let Some(lsct_value) = layer.lsct {
+            extra.extend_from_slice(b"8BIM");
+            extra.extend_from_slice(b"lsct");
+            push_u32_be(&mut extra, 4);
+            push_u32_be(&mut extra, lsct_value);
+        }
+
+        push_u32_be(&mut record, extra.len() as u32);
+        record.extend_from_slice(&extra);
+
+        (record, channel_data)
+    }
+
+    /// One group ("Group 1") containing one leaf ("Child Leaf", 2×2 RGBA),
+    /// stored in file order (bottom→top): divider, child, group header —
+    /// matching `build_layer_tree`'s expectations documented above `flatten`.
+    fn group_and_leaf_psd_bytes() -> Vec<u8> {
+        let plane = |v: u8| vec![v; 4]; // 2×2 = 4 pixels
+        let divider = FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            visible: true,
+            name: "</Layer group>",
+            channels: vec![],
+            lsct: Some(3),
+        };
+        let child = FixtureLayer {
+            top: 1,
+            left: 1,
+            bottom: 3,
+            right: 3,
+            visible: true,
+            name: "Child Leaf",
+            channels: vec![
+                (0i16, plane(10)),
+                (1i16, plane(20)),
+                (2i16, plane(30)),
+                (-1i16, plane(255)),
+            ],
+            lsct: None,
+        };
+        let group_header = FixtureLayer {
+            top: 1,
+            left: 1,
+            bottom: 3,
+            right: 3,
+            visible: true,
+            name: "Group 1",
+            channels: vec![],
+            lsct: Some(2), // closed group
+        };
+
+        let mut layer_records_bytes = Vec::new();
+        let mut channel_data_bytes = Vec::new();
+        for layer in [&divider, &child, &group_header] {
+            let (record, cdata) = build_layer_record_and_data(layer);
+            layer_records_bytes.extend_from_slice(&record);
+            channel_data_bytes.extend_from_slice(&cdata);
+        }
+
+        let layer_info_len = 2 + layer_records_bytes.len() + channel_data_bytes.len();
+        let layer_and_mask_len = 4 + layer_info_len;
+
+        let mut psd = Vec::new();
+        psd.extend_from_slice(b"8BPS");
+        push_u16_be(&mut psd, 1);
+        psd.extend_from_slice(&[0; 6]);
+        push_u16_be(&mut psd, 4);
+        push_u32_be(&mut psd, 4); // doc height
+        push_u32_be(&mut psd, 4); // doc width
+        push_u16_be(&mut psd, 8);
+        push_u16_be(&mut psd, 3);
+        push_u32_be(&mut psd, 0); // colour mode data length
+        push_u32_be(&mut psd, 0); // image resources length
+        push_u32_be(&mut psd, layer_and_mask_len as u32);
+        push_u32_be(&mut psd, layer_info_len as u32);
+        push_i16_be(&mut psd, 3); // layer count
+        psd.extend_from_slice(&layer_records_bytes);
+        psd.extend_from_slice(&channel_data_bytes);
+        psd
+    }
+
+    /// Every field except `rgba` — the one field meta-only is allowed to differ on.
+    fn layer_metadata_key(
+        layer: &PsdFastLayer,
+    ) -> (&str, &str, i32, i32, u32, u32, bool, Option<u32>, bool, Option<u32>) {
+        (
+            &layer.stable_id,
+            &layer.name,
+            layer.top,
+            layer.left,
+            layer.width,
+            layer.height,
+            layer.visible,
+            layer.parent_group_id,
+            layer.is_group,
+            layer.own_group_id,
+        )
+    }
+
+    #[test]
+    fn parse_psd_meta_only_matches_full_parse_metadata_without_decoding_pixels() {
+        let bytes = group_and_leaf_psd_bytes();
+
+        let full = parse_psd_fast(&bytes).expect("full parse succeeds");
+        let meta = parse_psd_meta_only(&bytes).expect("meta-only parse succeeds");
+
+        assert_eq!(full.width, meta.width);
+        assert_eq!(full.height, meta.height);
+        assert_eq!(full.layers.len(), meta.layers.len());
+        assert_eq!(full.layers.len(), 2, "divider must not become an output entry");
+
+        let full_keys: Vec<_> = full.layers.iter().map(layer_metadata_key).collect();
+        let meta_keys: Vec<_> = meta.layers.iter().map(layer_metadata_key).collect();
+        assert_eq!(full_keys, meta_keys, "metadata must be identical between the two parsers");
+
+        // The full parse actually decoded the child leaf's pixels...
+        let full_leaf = full.layers.iter().find(|l| !l.is_group).expect("full leaf");
+        assert_eq!(full_leaf.rgba.as_ref().map(|d| d.len()), Some(4 * 4));
+
+        // ...while the metadata-only parse never touched channel image data.
+        for layer in &meta.layers {
+            assert!(layer.rgba.is_none(), "meta-only parse must not decode any pixels");
+        }
+    }
+
     // ── 契約メモ ──────────────────────────────────────────────────────────────
     // `PsdFastResult::layers` は ag-psd worker（src/utils/psdAgPsdWorker.ts の
     // walkLayers）と同じ「pre-order DFS のフラット列」でなければならない:
