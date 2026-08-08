@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [psd-layer-decode-cache.md](psd-layer-decode-cache.md) — (ファイル同一性,レイヤーID)→Arc<RGBA>の512MB LRUを新設し表示3経路をcached入口へ切替(版491b)。ウォームトグルは合成のみ(葵~70ms/或窓~40ms)。次の支配項は合成本体（2026-08-09）
 - [psd-display-decode-promotion.md](psd-display-decode-promotion.md) — 表示3経路のPSDデコードを並列(rayon共有プールN≤8)+active-only解凍へ昇格(版491a)。合成バイト一致を契約テストで固定。クリッピング/調整レイヤー未サポートが等価性の前提という制約を明記（2026-08-09）
 - [external-video-colour-mismatch.md](external-video-colour-mismatch.md) — 外部ビデオ経路の色崩れ診断。エンコード/リニア不一致説は棄却、最有力はタグ無し素材でのmatrix/rangeヒューリスティック不一致（Rust側1280px閾値 vs Chromium推測）。ffmpegフォールバックのin_color_matrix明示化とimportExternalTextureのcolorSpace明示固定を実施。実証には再現素材のffprobeが必要（2026-08-08）
 - [native-overlay-quit-segv-fix.md](native-overlay-quit-segv-fix.md) — アプリ終了時に同一faulting stackで5件連続していたSEGV。geometry resync observerがparent_view/child_windowを生ポインタのまま保持しretainしていなかったのが原因。observer生存中のretainとNSWindowWillCloseNotificationによるvalid無効化で、dangling pointerへのobjc_msgSendを構造的に防止（2026-08-07）
