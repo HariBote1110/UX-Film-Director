@@ -18,6 +18,12 @@
   画素比較テストで固定する。
 - 備考: プレビューと export の色が食い違う状態は他の見た目の判断すべてを狂わせるため、
   UI 整理や機能追加より優先する価値がある。
+- **進捗（2026-08-08）**: 診断完了（[progress/external-video-colour-mismatch.md](../progress/external-video-colour-mismatch.md)）。
+  エンコード/リニア不一致説は棄却。契約違反2件を修正済み：
+  ffmpeg フォールバックの `in_color_matrix` 明示化（`c922644d`）と
+  `importExternalTexture` の `colorSpace: 'srgb'` 明示固定（`cfe29058`、版 488b）。
+  残り: 再現素材の ffprobe による H1（タグ無し素材のヒューリスティック不一致）実証待ち。
+  素材が bt709 タグ付きなら transfer 微差説（H2）へ移行する。
 
 ### 1-2. テキストの縁取り・影がプレーン境界でクリップされる（優先度: 中〜高）
 
