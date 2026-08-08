@@ -20,10 +20,14 @@
 ///   - 32-bit float depth
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 use uxfd_golden_harness::RgbaFrame;
 
 use rayon::prelude::*;
+
+use crate::psd_layer_cache::{
+    global_psd_layer_cache, CachedPsdLayer, PsdFileIdentity, PsdLayerCache, PsdLayerCacheKey,
+};
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 
@@ -2457,5 +2461,154 @@ mod tests {
         assert!(find_layer(&display, "g2_child").rgba.is_some());
         assert!(find_layer(&display, "g1_visible").rgba.is_none());
         assert!(find_layer(&display, "g1_hidden").rgba.is_none());
+    }
+
+    // ── Stage 2: レイヤー単位デコード済みRGBAキャッシュ ──────────────────────
+    // vm_tuning_research/notes/display-path-toggle-redecode.md の昇格。
+    // レイヤートグルは activeLayerIds だけを変える操作なので、ファイル
+    // identity（path, mtime_nanos, file_len）が同じ限り、選択が変わっても
+    // 既にデコード済みのリーフは再デコードせず Arc 共有で再利用されること、
+    // かつ合成結果はキャッシュの有無に関わらず byte-identical であることを
+    // 固定する。
+
+    fn test_psd_identity(bytes: &[u8], mtime_nanos: i128) -> PsdFileIdentity {
+        PsdFileIdentity {
+            path: "test-fixture.psd".to_string(),
+            mtime_nanos,
+            file_len: bytes.len() as u64,
+        }
+    }
+
+    /// stage 1 フィクスチャ（base / G1{g1_hidden, g1_visible} / G2{g2_child}）
+    /// に対する「デフォルト非表示の g2_child を ON、デフォルト表示の
+    /// g1_visible を OFF、base は維持」という stage 1 と同じ上書き選択の
+    /// stable_id を、フルパースの実測値から組み立てる。
+    fn g2_on_g1_visible_off_active_ids(bytes: &[u8]) -> Vec<String> {
+        let full_for_ids = parse_psd_fast(bytes).expect("full parse for ids");
+        vec![
+            find_layer(&full_for_ids, "base").stable_id.clone(),
+            full_for_ids
+                .layers
+                .iter()
+                .find(|l| l.name == "G2")
+                .expect("G2 group exists")
+                .stable_id
+                .clone(),
+            find_layer(&full_for_ids, "g2_child").stable_id.clone(),
+        ]
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_decodes_only_newly_required_leaves_on_selection_change(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+        let identity = test_psd_identity(&bytes, 1);
+        let cache = Mutex::new(PsdLayerCache::with_budget(64 * 1024 * 1024));
+
+        // 1回目: デフォルト選択（base + g1_visible の2枚）。
+        let first = parse_psd_fast_for_display_with_cache(&bytes, None, &identity, &cache)
+            .expect("first cached parse");
+        assert!(find_layer(&first, "base").rgba.is_some());
+        assert!(find_layer(&first, "g1_visible").rgba.is_some());
+        {
+            let stats = cache.lock().unwrap().stats();
+            assert_eq!(stats.decodes, 2, "初回は base + g1_visible の2枚をデコード");
+            assert_eq!(stats.hits, 0);
+            assert_eq!(stats.misses, 2);
+        }
+
+        // 2回目: g2_child を ON、g1_visible を OFF、base は active のまま
+        // （前回デコード済みなのでキャッシュヒットするはず）。
+        let active_ids = g2_on_g1_visible_off_active_ids(&bytes);
+        let second = parse_psd_fast_for_display_with_cache(
+            &bytes,
+            Some(active_ids.as_slice()),
+            &identity,
+            &cache,
+        )
+        .expect("second cached parse");
+        assert!(find_layer(&second, "base").rgba.is_some());
+        assert!(find_layer(&second, "g2_child").rgba.is_some());
+        assert!(find_layer(&second, "g1_visible").rgba.is_none());
+
+        let stats = cache.lock().unwrap().stats();
+        assert_eq!(stats.decodes, 3, "2回目は g2_child の1枚だけ追加デコード");
+        assert_eq!(stats.hits, 1, "base はキャッシュヒットするはず");
+        assert_eq!(stats.misses, 3, "累計ミスは初回2 + g2_child 1");
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_matches_uncached_stage1_composite_across_two_selections(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+        let identity = test_psd_identity(&bytes, 1);
+        let cache = Mutex::new(PsdLayerCache::with_budget(64 * 1024 * 1024));
+        let active_ids = g2_on_g1_visible_off_active_ids(&bytes);
+
+        for selection in [None, Some(active_ids.as_slice())] {
+            let cached = parse_psd_fast_for_display_with_cache(&bytes, selection, &identity, &cache)
+                .expect("cached parse");
+            let uncached =
+                parse_psd_fast_for_display(&bytes, selection).expect("uncached stage1 parse");
+
+            let cached_frame =
+                select_psd_composite_frame(&cached, selection).expect("cached composite");
+            let uncached_frame =
+                select_psd_composite_frame(&uncached, selection).expect("uncached composite");
+            assert_eq!(cached_frame.width, uncached_frame.width);
+            assert_eq!(cached_frame.height, uncached_frame.height);
+            assert_eq!(
+                cached_frame.pixels, uncached_frame.pixels,
+                "selection {selection:?} の合成結果はキャッシュ有無に関わらず一致するはず"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_full_redecodes_when_file_identity_mtime_changes() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let cache = Mutex::new(PsdLayerCache::with_budget(64 * 1024 * 1024));
+
+        let identity_a = test_psd_identity(&bytes, 1);
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity_a, &cache)
+            .expect("first parse");
+
+        // mtime_nanos だけ変わった別 identity（ファイル更新をシミュレート）。
+        let identity_b = test_psd_identity(&bytes, 2);
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity_b, &cache)
+            .expect("second parse under new identity");
+
+        let stats = cache.lock().unwrap().stats();
+        assert_eq!(stats.hits, 0, "identity が変わったキーは一致しないため常にミス");
+        assert_eq!(stats.misses, 4, "2回とも base+g1_visible の2枚ずつフルミス");
+        assert_eq!(stats.decodes, 4);
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_evicts_lru_entries_beyond_injected_byte_budget() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let identity = test_psd_identity(&bytes, 1);
+        // 各リーフは 1×1 RGBA = 4 bytes。予算を1枚分だけに絞り、2枚目の
+        // 挿入で1枚目（LRU）が追い出されることを確認する。
+        let cache = Mutex::new(PsdLayerCache::with_budget(4));
+
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity, &cache)
+            .expect("parse decodes base then g1_visible, evicting the older one");
+
+        {
+            let mut guard = cache.lock().unwrap();
+            assert_eq!(guard.len(), 1, "予算超過分は追い出され1枚だけ残る");
+            let stats = guard.stats();
+            assert!(stats.evictions >= 1, "少なくとも1回はLRU追い出しが起きるはず");
+        }
+
+        let stats_before = cache.lock().unwrap().stats();
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity, &cache)
+            .expect("re-parse after eviction");
+        let stats_after = cache.lock().unwrap().stats();
+        assert!(
+            stats_after.misses > stats_before.misses,
+            "追い出されたリーフは再パース時にミスとして再デコードされるはず"
+        );
     }
 }
