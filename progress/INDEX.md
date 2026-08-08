@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [psd-composite-row-band-parallel.md](psd-composite-row-band-parallel.md) — 合成を行バンド並列化(版491c)。唯一の内部継ぎ目で切替し公開APIは無変更、シリアルオラクル一致テスト4本で固定。3部作到達点: 或窓式トグル~1400ms→~15ms、茜ver0.7初回~1117ms→~290ms（2026-08-09）
 - [psd-layer-decode-cache.md](psd-layer-decode-cache.md) — (ファイル同一性,レイヤーID)→Arc<RGBA>の512MB LRUを新設し表示3経路をcached入口へ切替(版491b)。ウォームトグルは合成のみ(葵~70ms/或窓~40ms)。次の支配項は合成本体（2026-08-09）
 - [psd-display-decode-promotion.md](psd-display-decode-promotion.md) — 表示3経路のPSDデコードを並列(rayon共有プールN≤8)+active-only解凍へ昇格(版491a)。合成バイト一致を契約テストで固定。クリッピング/調整レイヤー未サポートが等価性の前提という制約を明記（2026-08-09）
 - [external-video-colour-mismatch.md](external-video-colour-mismatch.md) — 外部ビデオ経路の色崩れ診断。エンコード/リニア不一致説は棄却、最有力はタグ無し素材でのmatrix/rangeヒューリスティック不一致（Rust側1280px閾値 vs Chromium推測）。ffmpegフォールバックのin_color_matrix明示化とimportExternalTextureのcolorSpace明示固定を実施。実証には再現素材のffprobeが必要（2026-08-08）
