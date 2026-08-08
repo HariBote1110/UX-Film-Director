@@ -37,10 +37,12 @@ const PSD_NAME = PSD_PATH.split('/').pop() ?? 'standing.psd';
 // path B(rust-backend psd.parseMetaのみ、ピクセルなし)を計測する。
 const rawMode = (process.argv[2] ?? process.env.UXFD_PSD_IMPORT_E2E_MODE ?? 'a').trim().toLowerCase();
 const IS_PATH_B = ['b', 'pathb', 'path-b'].includes(rawMode);
-const OUTPUT_DIR = resolve(
-  ROOT,
-  IS_PATH_B ? 'vm_tuning_research/e2e-path-b' : 'vm_tuning_research/e2e-path-a-baseline'
-);
+// UXFD_PSD_IMPORT_E2E_OUTPUT_DIR overrides the default per-mode directory —
+// used to keep successive path B experiments (e.g. metadata-only vs the
+// original blob-skip prototype) from overwriting each other's results.
+const OUTPUT_DIR = process.env.UXFD_PSD_IMPORT_E2E_OUTPUT_DIR
+  ? resolve(process.env.UXFD_PSD_IMPORT_E2E_OUTPUT_DIR)
+  : resolve(ROOT, IS_PATH_B ? 'vm_tuning_research/e2e-path-b' : 'vm_tuning_research/e2e-path-a-baseline');
 const RESULT_JSON = resolve(OUTPUT_DIR, `result-${process.pid}.json`);
 const RESULT_LOG = resolve(OUTPUT_DIR, `result-${process.pid}.log`);
 const ELECTRON_MAIN_BUNDLE = resolve(ROOT, 'dist-electron/main.js');
