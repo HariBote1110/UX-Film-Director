@@ -6,6 +6,11 @@ publish = false
 
 [dependencies]
 flate2 = "1"
+# Chosen for experiment 2 (parallel-layer-decode-scaling.md): rayon gives a
+# ready-made scoped thread pool with a configurable thread count
+# (ThreadPoolBuilder::num_threads), which is simpler than hand-rolling
+# std::thread chunking for an even work split across independent layers.
+rayon = "1"
 
 [profile.release]
 opt-level = 3

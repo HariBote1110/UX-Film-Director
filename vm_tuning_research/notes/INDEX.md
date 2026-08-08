@@ -4,6 +4,7 @@
 チューニングする研究。新しいものを上に置く。1行1ノート。
 
 - [pixel-handoff-inventory.md](pixel-handoff-inventory.md) — 現行3経路の搬送コスト棚卸し。ag-psd Worker経路は搬送は薄くデコードが支配、Electron Rustフォールバックはフルコピー5回+ディスク往復2回で反面教師、native overlayのin-processパターンが目標形。end-to-end実験の計測点を設計（2026-08-08）
+- [parallel-layer-decode-scaling.md](parallel-layer-decode-scaling.md) — psd_fast.rs のレイヤー並列デコードをrayonスレッドプールでスケーリング計測。N=8で頭打ち（対serial約2.05倍、median≈104〜109ms、対ag-psd約3.8〜3.9倍速）、期待していた「8〜12スレッドでmedian≦60ms」には届かず仮説は棄却（メモリ帯域幅律速の状況証拠）（2026-08-08）
 - [native-psd-fast-single-thread.md](native-psd-fast-single-thread.md) — psd_fast.rs をネイティブ単一スレッドでビルドして計測。median ≈ 220ms で ag-psd (b) 405ms の壁を約46%短縮して突破（仮説採用、WASM実行オーバーヘッドが主因説を支持）（2026-08-08）
 - [practical-victory-criteria.md](practical-victory-criteria.md) — 合格ラインを「実用面でag-psdを超える」に設定。体感インポート時間・メインスレッド阻害・メモリピーク・スケーラビリティ・段階的表示の5指標（2026-08-08）
 - [agpsd-baseline.md](agpsd-baseline.md) — ag-psd 29.1.0 の VM 上ベースライン（readPsd median ≈ 405〜460ms、自前実装が超えるべき壁）（2026-08-08）

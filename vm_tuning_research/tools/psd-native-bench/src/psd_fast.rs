@@ -31,6 +31,9 @@
 ///   - CMYK, Lab, Grayscale, Bitmap colour modes
 ///   - 32-bit float depth
 use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::time::Instant;
+
+use rayon::prelude::*;
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 
@@ -588,18 +591,40 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         }
     }
 
-    // ── Phase 3: rebuild the group tree from file order ──────────────────────
-    // PSD stores layer records bottom-to-top.  A group is encoded as:
-    //   [bounding section divider (type 3)]  ← below the group's content
-    //   [child layers …]
-    //   [group header (type 1/2)]            ← the visible group entry
-    // So, scanning in file order, a type-3 divider OPENS a group's content and
-    // the header CLOSES it.
-    enum TreeNode {
-        Leaf { record_idx: usize },
-        Group { record_idx: usize, children: Vec<TreeNode> },
-    }
+    // ── Phase 3+4: rebuild the group tree and flatten pre-order ──────────────
+    let roots = build_layer_tree(&records);
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
 
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        layers,
+    })
+}
+
+// ── Group-tree reconstruction (shared by serial and parallel entry points) ──
+
+// PSD stores layer records bottom-to-top.  A group is encoded as:
+//   [bounding section divider (type 3)]  ← below the group's content
+//   [child layers …]
+//   [group header (type 1/2)]            ← the visible group entry
+// So, scanning in file order, a type-3 divider OPENS a group's content and
+// the header CLOSES it.
+enum TreeNode {
+    Leaf { record_idx: usize },
+    Group { record_idx: usize, children: Vec<TreeNode> },
+}
+
+fn build_layer_tree(records: &[LayerRecord]) -> Vec<TreeNode> {
     let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
     for (i, rec) in records.iter().enumerate() {
         match rec.layer_type {
@@ -634,77 +659,288 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
             .expect("root accumulator always present")
             .extend(orphan);
     }
-    let roots = stack.pop().unwrap_or_default();
+    stack.pop().unwrap_or_default()
+}
 
-    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk ───────────
-    // The UI (src/utils/psdAgPsdWorker.ts walkLayers) flattens the layer tree
-    // pre-order: group node first, then its children, siblings in file order
-    // (bottom-to-top).  layerIndex is the flattened index (dividers excluded)
-    // and ownGroupId is assigned pre-order.  stable ids MUST reproduce that
-    // numbering, otherwise activeLayerIds from the UI never match.
-    fn flatten(
-        nodes: Vec<TreeNode>,
-        parent_group_id: Option<u32>,
-        records: &[LayerRecord],
-        pixel_data: &mut [Option<Vec<u8>>],
-        group_id_counter: &mut u32,
-        layers: &mut Vec<PsdFastLayer>,
-    ) {
-        for node in nodes {
-            match node {
-                TreeNode::Leaf { record_idx } => {
-                    let rec = &records[record_idx];
-                    let flat_idx = layers.len();
-                    layers.push(PsdFastLayer {
-                        stable_id: stable_layer_id(flat_idx, false, None),
-                        name: rec.name.clone(),
-                        top: rec.top,
-                        left: rec.left,
-                        width: (rec.right - rec.left).max(0) as u32,
-                        height: (rec.bottom - rec.top).max(0) as u32,
-                        visible: rec.visible,
-                        parent_group_id,
-                        is_group: false,
-                        own_group_id: None,
-                        rgba: pixel_data[record_idx].take(),
-                    });
-                }
-                TreeNode::Group {
-                    record_idx,
+// Flatten in pre-order, matching the ag-psd UI walk.  The UI
+// (src/utils/psdAgPsdWorker.ts walkLayers) flattens the layer tree
+// pre-order: group node first, then its children, siblings in file order
+// (bottom-to-top).  layerIndex is the flattened index (dividers excluded)
+// and ownGroupId is assigned pre-order.  stable ids MUST reproduce that
+// numbering, otherwise activeLayerIds from the UI never match.
+fn flatten(
+    nodes: Vec<TreeNode>,
+    parent_group_id: Option<u32>,
+    records: &[LayerRecord],
+    pixel_data: &mut [Option<Vec<u8>>],
+    group_id_counter: &mut u32,
+    layers: &mut Vec<PsdFastLayer>,
+) {
+    for node in nodes {
+        match node {
+            TreeNode::Leaf { record_idx } => {
+                let rec = &records[record_idx];
+                let flat_idx = layers.len();
+                layers.push(PsdFastLayer {
+                    stable_id: stable_layer_id(flat_idx, false, None),
+                    name: rec.name.clone(),
+                    top: rec.top,
+                    left: rec.left,
+                    width: (rec.right - rec.left).max(0) as u32,
+                    height: (rec.bottom - rec.top).max(0) as u32,
+                    visible: rec.visible,
+                    parent_group_id,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: pixel_data[record_idx].take(),
+                });
+            }
+            TreeNode::Group {
+                record_idx,
+                children,
+            } => {
+                let rec = &records[record_idx];
+                let own_group_id = *group_id_counter;
+                *group_id_counter += 1;
+                let flat_idx = layers.len();
+                layers.push(PsdFastLayer {
+                    stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                    name: rec.name.clone(),
+                    top: rec.top,
+                    left: rec.left,
+                    width: (rec.right - rec.left).max(0) as u32,
+                    height: (rec.bottom - rec.top).max(0) as u32,
+                    visible: rec.visible,
+                    parent_group_id,
+                    is_group: true,
+                    own_group_id: Some(own_group_id),
+                    rgba: None,
+                });
+                flatten(
                     children,
-                } => {
-                    let rec = &records[record_idx];
-                    let own_group_id = *group_id_counter;
-                    *group_id_counter += 1;
-                    let flat_idx = layers.len();
-                    layers.push(PsdFastLayer {
-                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
-                        name: rec.name.clone(),
-                        top: rec.top,
-                        left: rec.left,
-                        width: (rec.right - rec.left).max(0) as u32,
-                        height: (rec.bottom - rec.top).max(0) as u32,
-                        visible: rec.visible,
-                        parent_group_id,
-                        is_group: true,
-                        own_group_id: Some(own_group_id),
-                        rgba: None,
-                    });
-                    flatten(
-                        children,
-                        Some(own_group_id),
-                        records,
-                        pixel_data,
-                        group_id_counter,
-                        layers,
-                    );
-                }
+                    Some(own_group_id),
+                    records,
+                    pixel_data,
+                    group_id_counter,
+                    layers,
+                );
             }
         }
     }
+}
 
+// ── Phase-timed / thread-pool-parallel entry point (experiment 2) ───────────
+//
+// Adds a per-phase timing split and an optional rayon thread pool for the
+// per-layer decode phase, on top of the same parsing/decoding/tree-building
+// logic used by `parse_psd_fast` above. `parse_psd_fast` itself is left
+// untouched so it remains a faithful "original serial path" for A/B
+// comparison against the thread-pool path run with `num_threads = Some(1)`.
+
+/// Per-phase wall-clock timing (milliseconds) for one `parse_psd_fast_instrumented` run.
+pub struct PhaseTimings {
+    /// Phase 1: parsing all layer records (metadata only — coordinates,
+    /// visibility, group structure, channel lengths). No pixel bytes touched.
+    pub parse_records_ms: f64,
+    /// Phase 2: per-layer channel decompression (PackBits/ZIP/raw) + RGBA
+    /// interleave. Includes the cheap byte-range precompute pass.
+    pub decode_layers_ms: f64,
+    /// Phase 3+4: group-tree reconstruction from file order + pre-order
+    /// flattening into the public `PsdFastLayer` list.
+    pub tree_build_ms: f64,
+}
+
+/// Byte range (into the original `bytes` slice) holding one leaf layer's
+/// channel image data, plus the pixel dimensions needed to decode it.
+struct LeafRange {
+    start: usize,
+    end: usize,
+    w: u32,
+    h: u32,
+}
+
+/// Walk the channel-image-data section computing each leaf layer's byte
+/// range without decompressing anything (cheap: cursor arithmetic only,
+/// using the already-known per-channel `data_len`). This lets the decode
+/// step run independently per layer — serially or on a thread pool — since
+/// each layer's input slice and output `Vec<u8>` are now known up front.
+fn compute_leaf_ranges(
+    c: &mut Cursor<&[u8]>,
+    records: &[LayerRecord],
+) -> R<Vec<Option<LeafRange>>> {
+    let mut ranges = Vec::with_capacity(records.len());
+    for rec in records {
+        match rec.layer_type {
+            0 => {
+                let w = (rec.right - rec.left).max(0) as u32;
+                let h = (rec.bottom - rec.top).max(0) as u32;
+                let start = c.position() as usize;
+                let total_len: u64 = rec.channels.iter().map(|ch| ch.data_len).sum();
+                skip(c, total_len)?;
+                let end = c.position() as usize;
+                if w == 0 || h == 0 {
+                    ranges.push(None);
+                } else {
+                    ranges.push(Some(LeafRange { start, end, w, h }));
+                }
+            }
+            _ => {
+                for ch in &rec.channels {
+                    skip(c, ch.data_len)?;
+                }
+                ranges.push(None);
+            }
+        }
+    }
+    Ok(ranges)
+}
+
+/// Decode one leaf layer from its precomputed byte range. Sub-slicing
+/// `bytes` gives each call an independent `Cursor`, which is what makes the
+/// per-layer decode safe to run across threads with no shared mutable state.
+fn decode_from_range(
+    bytes: &[u8],
+    range: &LeafRange,
+    channels: &[ChannelInfo],
+    depth: u16,
+    is_psb: bool,
+) -> Option<Vec<u8>> {
+    let mut sub = Cursor::new(&bytes[range.start..range.end]);
+    decode_layer_rgba(&mut sub, channels, range.w, range.h, depth, is_psb)
+}
+
+/// Parse a PSD/PSB file with a per-phase timing breakdown, optionally
+/// decoding layers on a rayon thread pool.
+///
+/// `num_threads`:
+///   - `None`    → decode layers serially on the calling thread, but still
+///                 routed through the byte-range-precompute pipeline shared
+///                 with the parallel path (so `Some(1)` and `None` isolate
+///                 thread-pool overhead from each other, not from an
+///                 unrelated code path).
+///   - `Some(n)` → build a rayon thread pool with `n` threads and decode
+///                 layers with `par_iter`. `n = 1` is legal and deliberately
+///                 still goes through the pool (see
+///                 `notes/parallel-layer-decode-scaling.md`, step 4).
+pub fn parse_psd_fast_instrumented(
+    bytes: &[u8],
+    num_threads: Option<usize>,
+) -> Result<(PsdFastResult, PhaseTimings), String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header (identical to parse_psd_fast) ────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        let result = PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        };
+        return Ok((
+            result,
+            PhaseTimings {
+                parse_records_ms: 0.0,
+                decode_layers_ms: 0.0,
+                tree_build_ms: 0.0,
+            },
+        ));
+    }
+
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        let result = PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        };
+        return Ok((
+            result,
+            PhaseTimings {
+                parse_records_ms: 0.0,
+                decode_layers_ms: 0.0,
+                tree_build_ms: 0.0,
+            },
+        ));
+    }
+
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records ──────────────────────────────────────
+    let t_parse = Instant::now();
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+    let parse_records_ms = t_parse.elapsed().as_secs_f64() * 1000.0;
+
+    // ── Phase 2: byte-range precompute + per-layer decode (serial or pooled) ──
+    let t_decode = Instant::now();
+    let ranges = compute_leaf_ranges(&mut c, &records)?;
+    let pixel_data: Vec<Option<Vec<u8>>> = match num_threads {
+        None => records
+            .iter()
+            .zip(ranges.iter())
+            .map(|(rec, range)| match range {
+                Some(r) => decode_from_range(bytes, r, &rec.channels, depth, is_psb),
+                None => None,
+            })
+            .collect(),
+        Some(n) => {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(n)
+                .build()
+                .map_err(|e| e.to_string())?;
+            pool.install(|| {
+                records
+                    .par_iter()
+                    .zip(ranges.par_iter())
+                    .map(|(rec, range)| match range {
+                        Some(r) => decode_from_range(bytes, r, &rec.channels, depth, is_psb),
+                        None => None,
+                    })
+                    .collect()
+            })
+        }
+    };
+    let decode_layers_ms = t_decode.elapsed().as_secs_f64() * 1000.0;
+
+    // ── Phase 3+4: tree reconstruction + pre-order flatten ────────────────────
+    let t_tree = Instant::now();
+    let roots = build_layer_tree(&records);
     let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
     let mut group_id_counter = 0u32;
+    let mut pixel_data = pixel_data;
     flatten(
         roots,
         None,
@@ -713,10 +949,18 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         &mut group_id_counter,
         &mut layers,
     );
+    let tree_build_ms = t_tree.elapsed().as_secs_f64() * 1000.0;
 
-    Ok(PsdFastResult {
-        width: doc_width,
-        height: doc_height,
-        layers,
-    })
+    Ok((
+        PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers,
+        },
+        PhaseTimings {
+            parse_records_ms,
+            decode_layers_ms,
+            tree_build_ms,
+        },
+    ))
 }
