@@ -3,6 +3,7 @@
 借用 VM（i5-13400F / GPU 無し）上で、自前実装の重い経路（PSD 解析・映像まわり）を
 チューニングする研究。新しいものを上に置く。1行1ノート。
 
+- [e2e-path-a-baseline.md](e2e-path-a-baseline.md) — path A（現行PSDインポート）のend-to-end計測。支配区間はinput→parsed(ag-psdデコード)で全体の7〜9割、1回目は2回目よりinput→parsed区間が平均+328ms遅い一回性コールドコストあり。T5(native present)は`prepareNativeRenderUpload`がViewport.tsxから未配線のため到達せず、evaluateReadyが事実上の終端信号（2026-08-08）
 - [double-decode-discovery.md](double-decode-discovery.md) — 重大発見: 現行インポートは二重デコードで、ag-psdのImageBitmapは表示に未使用の死にデータ。表示は rust-backend が独自再デコード済み。path B は「ag-psdスキップ+メタデータをRustから」だけで成立する（2026-08-08）
 - [macos-calibration.md](macos-calibration.md) — VM(i5-13400F)数値を開発機macOS(Apple M4)で同一プロトコル較正。時間は全構成でMacが同等以上に速く並列+可視限定ほど乖離拡大（native N=8可視限定 median 40ms、VM比-42.0%）、一方ピークRSSは逆転しnative側ほど高い（同構成でVM比+39.1%）——実験3(end-to-end)の期待値はこのmacOS実測値を基準にする（2026-08-08）
 - [psd-challenge-scoreboard.md](psd-challenge-scoreboard.md) — VMフェーズ総括。可視限定N=8で対ag-psd 5.9倍速・RSS-52%、メタデータ0.07ms。確定した本実装仕様と棄却記録、残る実験3（end-to-end）の設計（2026-08-08）
