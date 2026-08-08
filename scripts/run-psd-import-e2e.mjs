@@ -13,6 +13,12 @@
 // 同一セッションで2回importして両方を別々に記録する(削除ではなく2枚目の
 // 同一PSDを追加する方式。store削除APIはmain.tsx側のe2eフック配線が必要で
 // 本タスクの担当範囲外のため採用しない)。
+//
+// path B計測: 第1引数または UXFD_PSD_IMPORT_E2E_MODE=b で、
+// VITE_DEV_SERVER_URLへ `psdRustImport=1` を追加する。src/utils/psdParser.ts
+// のフラグ判定に従い、ag-psd(Workerパス)を経由せずrust-backendの
+// psd.parseMeta(メタデータのみ、pixelなし)でインポートする経路を測る。
+// 結果の出力先もpath Aと混ざらないよう分ける。
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -26,7 +32,15 @@ const PSD_PATH = process.env.UXFD_PSD_IMPORT_E2E_PSD_PATH
   ? resolve(process.env.UXFD_PSD_IMPORT_E2E_PSD_PATH)
   : resolve(ROOT, '葵ちゃん.psd');
 const PSD_NAME = PSD_PATH.split('/').pop() ?? 'standing.psd';
-const OUTPUT_DIR = resolve(ROOT, 'vm_tuning_research/e2e-path-a-baseline');
+
+// path A(現行, ag-psd Worker経由)がデフォルト。'b'/'pathb'/'path-b'を渡すと
+// path B(rust-backend psd.parseMetaのみ、ピクセルなし)を計測する。
+const rawMode = (process.argv[2] ?? process.env.UXFD_PSD_IMPORT_E2E_MODE ?? 'a').trim().toLowerCase();
+const IS_PATH_B = ['b', 'pathb', 'path-b'].includes(rawMode);
+const OUTPUT_DIR = resolve(
+  ROOT,
+  IS_PATH_B ? 'vm_tuning_research/e2e-path-b' : 'vm_tuning_research/e2e-path-a-baseline'
+);
 const RESULT_JSON = resolve(OUTPUT_DIR, `result-${process.pid}.json`);
 const RESULT_LOG = resolve(OUTPUT_DIR, `result-${process.pid}.log`);
 const ELECTRON_MAIN_BUNDLE = resolve(ROOT, 'dist-electron/main.js');
@@ -386,7 +400,8 @@ const main = async () => {
   await waitForPort(VITE_PORT);
   await waitForElectronBundle(viteStartedAtMs);
 
-  log(`Electron 起動: remote-debugging-port=${DEBUG_PORT}`);
+  const devServerUrl = `http://localhost:${VITE_PORT}/?psdImportTrace=1${IS_PATH_B ? '&psdRustImport=1' : ''}`;
+  log(`Electron 起動: remote-debugging-port=${DEBUG_PORT} mode=${IS_PATH_B ? 'pathB' : 'pathA'} url=${devServerUrl}`);
   electron = spawn(resolve(ROOT, 'node_modules/.bin/electron'), [
     `--remote-debugging-port=${DEBUG_PORT}`,
     `--user-data-dir=${USER_DATA_DIR}`,
@@ -395,7 +410,7 @@ const main = async () => {
     cwd: ROOT,
     env: {
       ...process.env,
-      VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?psdImportTrace=1`,
+      VITE_DEV_SERVER_URL: devServerUrl,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -476,6 +491,7 @@ const main = async () => {
   const runtimeErrors = collectRuntimeErrors(client);
   const result = {
     passed: Boolean(firstImport.ok && secondImport.ok && runtimeErrors.length === 0),
+    mode: IS_PATH_B ? 'pathB' : 'pathA',
     psdPath: PSD_PATH,
     firstImport,
     secondImport,
