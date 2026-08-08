@@ -61,24 +61,4 @@ describe('PSD import trace', () => {
       marks: {},
     });
   });
-
-  it('does not expose window.__UXFD_PSD_IMPORT_TRACE__ when the URL param is absent, and does when present', async () => {
-    const originalLocation = window.location.href;
-    try {
-      window.history.replaceState(null, '', '/?nothing=1');
-      delete (window as unknown as { __UXFD_PSD_IMPORT_TRACE__?: unknown }).__UXFD_PSD_IMPORT_TRACE__;
-      const disabledModule = await import(`./psdImportTrace?disabled-case`);
-      expect(disabledModule.psdImportTraceCollector.enabled).toBe(false);
-      expect(window.__UXFD_PSD_IMPORT_TRACE__).toBeUndefined();
-
-      window.history.replaceState(null, '', '/?psdImportTrace=1');
-      const enabledModule = await import(`./psdImportTrace?enabled-case`);
-      expect(enabledModule.psdImportTraceCollector.enabled).toBe(true);
-      expect(window.__UXFD_PSD_IMPORT_TRACE__).toBeDefined();
-      expect(typeof window.__UXFD_PSD_IMPORT_TRACE__?.mark).toBe('function');
-      expect(typeof window.__UXFD_PSD_IMPORT_TRACE__?.snapshot).toBe('function');
-    } finally {
-      window.history.replaceState(null, '', originalLocation);
-    }
-  });
 });

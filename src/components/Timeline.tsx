@@ -18,6 +18,7 @@ import {
 } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 import { isPointerInTimelineTrackColumn, timeFromTimelineContentX, timeFromTimelineViewportClientX } from '../utils/timelineSeek';
+import { psdImportTraceCollector } from '../perf/psdImportTrace';
 
 const Timeline: React.FC = () => {
   const { 
@@ -438,12 +439,14 @@ const Timeline: React.FC = () => {
 
     const filePath = getElectronFilePath(file);
     try {
+      psdImportTraceCollector.mark('input');
       const { psdObject } = await parsePsdAsObject(
         file,
         target.time,
         projectSettings.width,
         projectSettings.height
       );
+      psdImportTraceCollector.mark('parsed');
 
       const newPsd: TimelineObject = {
         ...psdObject,
@@ -453,6 +456,7 @@ const Timeline: React.FC = () => {
       };
 
       addObject(newPsd);
+      psdImportTraceCollector.mark('objectAdded');
       selectObject(newPsd.id);
     } catch (error) {
       console.error('Failed to parse PSD file', error);

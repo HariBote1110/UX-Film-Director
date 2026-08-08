@@ -11,6 +11,7 @@ import {
   resolveVideoMetadataForFilePath,
 } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
+import { psdImportTraceCollector } from '../perf/psdImportTrace';
 
 const VIDEO_FILE_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'];
 
@@ -77,6 +78,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
 
         if (lowerName.endsWith('.psd')) {
             try {
+                psdImportTraceCollector.mark('input');
                 const filePath = getElectronFilePath(file);
                 const { psdObject } = await parsePsdAsObject(
                     file,
@@ -84,6 +86,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                     projectSettings.width,
                     projectSettings.height
                 );
+                psdImportTraceCollector.mark('parsed');
 
                 const newPsd: TimelineObject = {
                     ...psdObject,
@@ -92,6 +95,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                     startTime: dropTime,
                 };
                 addObject(newPsd);
+                psdImportTraceCollector.mark('objectAdded');
             } catch (error) {
                 console.error('Failed to parse dropped PSD file', error);
             }

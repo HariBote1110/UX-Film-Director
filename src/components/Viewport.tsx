@@ -76,6 +76,7 @@ import {
 } from '../utils/sharedRendererExternalVideoMasterClock';
 import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRendererPresenterRestartSession';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
+import { psdImportTraceCollector } from '../perf/psdImportTrace';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
 import {
   NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS,
@@ -1563,6 +1564,7 @@ const Viewport: React.FC = () => {
           projectId: useStore.getState().activeSceneId ?? null,
           ...scheduler.diagnostics,
         });
+        psdImportTraceCollector.mark('evaluateReady');
         publishSharedRendererPreviewSessionRef.current(
           evaluation.frameIndex / currentSettings.fps,
           latestObjectsRef.current,
