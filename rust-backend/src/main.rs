@@ -11,6 +11,7 @@ mod native_shared;
 mod params;
 mod proxy;
 mod psd_fast;
+mod psd_layer_cache;
 mod rpc;
 mod rpc_dispatch;
 mod scene;

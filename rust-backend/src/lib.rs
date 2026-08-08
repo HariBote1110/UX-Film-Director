@@ -1,5 +1,6 @@
 mod generated;
 mod psd_fast;
+mod psd_layer_cache;
 
 use generated::*;
 use std::fs;
@@ -96,23 +97,32 @@ pub fn build_native_psd_source_frame(
         ));
     }
     let source_path = local_media_source_path(&media.source, "Psd")?;
+    // DISPLAY path: decode only the leaves select_psd_composite_frame will
+    // actually read (parallel + active-only — see
+    // vm_tuning_research/notes/display-path-phase-split.md), reusing any
+    // leaf already decoded for this exact file from the per-layer cache so a
+    // layer toggle pays only for the newly-selected leaves + composite (see
+    // vm_tuning_research/notes/display-path-toggle-redecode.md).
+    let file_identity = psd_layer_cache::build_psd_file_identity(&source_path).map_err(|error| {
+        format!("Invalid Psd media '{}': {error}", media.id)
+    })?;
     let bytes = fs::read(&source_path).map_err(|error| {
         format!(
             "Invalid Psd media '{}': failed to read source: {error}",
             media.id
         )
     })?;
-    // DISPLAY path: decode only the leaves select_psd_composite_frame will
-    // actually read (parallel + active-only — see
-    // vm_tuning_research/notes/display-path-phase-split.md), not a full
-    // serial decode of every leaf.
-    let psd = psd_fast::parse_psd_fast_for_display(&bytes, Some(&media.active_layer_ids))
-        .map_err(|error| {
-            format!(
-                "Invalid Psd media '{}': failed to parse PSD source: {error}",
-                media.id
-            )
-        })?;
+    let psd = psd_fast::parse_psd_fast_for_display_cached(
+        &bytes,
+        Some(&media.active_layer_ids),
+        &file_identity,
+    )
+    .map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to parse PSD source: {error}",
+            media.id
+        )
+    })?;
     if psd.width != media.width || psd.height != media.height {
         return Err(format!(
             "Psd media '{}' dimensions {}x{} do not match decoded PSD {}x{}",

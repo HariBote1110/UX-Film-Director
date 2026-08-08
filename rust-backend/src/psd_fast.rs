@@ -479,7 +479,11 @@ pub struct PsdFastLayer {
     pub own_group_id: Option<u32>,
     /// RGBA pixel data (`width × height × 4` bytes).  `None` for groups,
     /// section-end dividers, invisible-but-empty layers, or decode failures.
-    pub rgba: Option<Vec<u8>>,
+    /// `Arc`-wrapped so a stage-2 per-layer cache hit
+    /// (`parse_psd_fast_for_display_with_cache`) can share the decoded
+    /// buffer across calls without a deep copy; `parse_psd_fast`/
+    /// `parse_psd_fast_for_display` simply wrap a freshly decoded `Vec<u8>`.
+    pub rgba: Option<Arc<Vec<u8>>>,
 }
 
 pub struct PsdFastResult {
@@ -844,7 +848,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
                         parent_group_id,
                         is_group: false,
                         own_group_id: None,
-                        rgba: pixel_data[record_idx].take(),
+                        rgba: pixel_data[record_idx].take().map(Arc::new),
                     });
                 }
                 TreeNode::Group {
@@ -1459,6 +1463,11 @@ pub fn parse_psd_fast_for_display(
             })
             .collect()
     });
+    // Arc-wrap once up front so `flatten` below (shared shape with the
+    // stage-2 cached entry point) never needs to know whether a buffer came
+    // from a fresh decode or a cache hit.
+    let mut pixel_data: Vec<Option<Arc<Vec<u8>>>> =
+        pixel_data.into_iter().map(|opt| opt.map(Arc::new)).collect();
 
     // ── Phase 3+4: rebuild the group tree + flatten pre-order (identical
     // logic to parse_psd_fast, duplicated so that function stays untouched).
@@ -1509,7 +1518,297 @@ pub fn parse_psd_fast_for_display(
         nodes: Vec<TreeNode>,
         parent_group_id: Option<u32>,
         records: &[LayerRecord],
-        pixel_data: &mut [Option<Vec<u8>>],
+        pixel_data: &mut [Option<Arc<Vec<u8>>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take(),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    let mut pixel_data = pixel_data;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        layers,
+    })
+}
+
+// ── DISPLAY-path decode: per-layer decoded-RGBA cache (stage 2) ─────────────
+//
+// Promotion of vm_tuning_research/notes/display-path-toggle-redecode.md.
+// Stage 1 (`parse_psd_fast_for_display` above) already skips leaves outside
+// the selection, but a layer *toggle* only changes which leaves are
+// selected — the underlying file is untouched — so every toggle still pays
+// a full re-decode of whatever just became selected. This section adds a
+// (file identity, layer stable_id) → decoded-RGBA cache
+// (`crate::psd_layer_cache`) so a toggle reuses any leaf it already decoded
+// and pays only for the newly-selected leaves plus the composite.
+
+/// Parse a PSD/PSB file for the DISPLAY path using the process-wide shared
+/// per-layer cache (`psd_layer_cache::global_psd_layer_cache`). Semantically
+/// identical to `parse_psd_fast_for_display` (same selection rules, same
+/// composite parity), but a leaf already decoded for this exact
+/// `file_identity` (same path/mtime/size) is reused from the cache instead
+/// of being re-decoded, regardless of what selection requested it.
+pub fn parse_psd_fast_for_display_cached(
+    bytes: &[u8],
+    selection: Option<&[String]>,
+    file_identity: &PsdFileIdentity,
+) -> Result<PsdFastResult, String> {
+    parse_psd_fast_for_display_with_cache(bytes, selection, file_identity, global_psd_layer_cache())
+}
+
+/// Cache-parametrised implementation behind `parse_psd_fast_for_display_cached`.
+/// Kept separate (and cache-injectable) so tests can exercise cache
+/// behaviour — hit/miss/decode/eviction counts, a small injected byte
+/// budget — without touching the process-wide singleton.
+fn parse_psd_fast_for_display_with_cache(
+    bytes: &[u8],
+    selection: Option<&[String]>,
+    file_identity: &PsdFileIdentity,
+    cache: &Mutex<PsdLayerCache>,
+) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header (identical to parse_psd_fast) ────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
+    }
+
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
+    }
+
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 1.5: selection metadata (stable ids / group chain) + flags ──────
+    let meta = compute_display_layer_meta(&records);
+    let selected = compute_display_selection_flags(&records, &meta, selection);
+
+    // ── Phase 1.75: cache lookup for every selected leaf, before any channel
+    // bytes are touched. Locked once for the whole lookup batch and released
+    // before decoding, so the parallel decode phase never blocks on it.
+    let mut pixel_data: Vec<Option<Arc<Vec<u8>>>> = (0..records.len()).map(|_| None).collect();
+    let mut miss_keys: Vec<Option<PsdLayerCacheKey>> = (0..records.len()).map(|_| None).collect();
+    {
+        let mut cache_guard = cache.lock().expect("PSD layer cache mutex poisoned");
+        for (idx, is_selected) in selected.iter().enumerate() {
+            if !is_selected {
+                continue;
+            }
+            let Some(layer_meta) = meta[idx].as_ref() else {
+                continue;
+            };
+            let key = PsdLayerCacheKey::new(file_identity, &layer_meta.stable_id);
+            match cache_guard.get(&key) {
+                Some(cached) => pixel_data[idx] = Some(Arc::clone(&cached.rgba)),
+                None => miss_keys[idx] = Some(key),
+            }
+        }
+    }
+
+    // ── Phase 2: byte-range precompute (whole file, cursor must walk every
+    // leaf regardless of selection) + parallel decode of cache misses only.
+    let ranges = compute_display_leaf_ranges(&mut c, &records)?;
+    let ranges: Vec<Option<DisplayLeafRange>> = ranges
+        .into_iter()
+        .enumerate()
+        .map(|(idx, r)| if miss_keys[idx].is_some() { r } else { None })
+        .collect();
+
+    let decoded: Vec<Option<Vec<u8>>> = display_decode_pool().install(|| {
+        records
+            .par_iter()
+            .zip(ranges.par_iter())
+            .map(|(rec, range)| match range {
+                Some(r) => decode_display_leaf_from_range(bytes, r, &rec.channels, depth, is_psb),
+                None => None,
+            })
+            .collect()
+    });
+
+    // ── Phase 2.5: insert newly decoded leaves into the cache and fill in
+    // the remaining pixel_data slots.
+    {
+        let mut cache_guard = cache.lock().expect("PSD layer cache mutex poisoned");
+        for (idx, maybe_rgba) in decoded.into_iter().enumerate() {
+            let (Some(rgba), Some(key)) = (maybe_rgba, miss_keys[idx].take()) else {
+                continue;
+            };
+            let rec = &records[idx];
+            let width = (rec.right - rec.left).max(0) as u32;
+            let height = (rec.bottom - rec.top).max(0) as u32;
+            let arc_rgba = Arc::new(rgba);
+            cache_guard.insert(
+                key,
+                Arc::new(CachedPsdLayer {
+                    width,
+                    height,
+                    rgba: Arc::clone(&arc_rgba),
+                }),
+            );
+            pixel_data[idx] = Some(arc_rgba);
+        }
+    }
+
+    // ── Phase 3+4: rebuild the group tree + flatten pre-order (identical
+    // logic to parse_psd_fast, duplicated so that function stays untouched).
+    enum TreeNode {
+        Leaf {
+            record_idx: usize,
+        },
+        Group {
+            record_idx: usize,
+            children: Vec<TreeNode>,
+        },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Arc<Vec<u8>>>],
         group_id_counter: &mut u32,
         layers: &mut Vec<PsdFastLayer>,
     ) {
@@ -1814,7 +2113,7 @@ mod tests {
             parent_group_id,
             is_group: false,
             own_group_id: None,
-            rgba: Some(rgba),
+            rgba: Some(Arc::new(rgba)),
         }
     }
 

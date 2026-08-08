@@ -2,6 +2,7 @@
 use crate::native_shared::read_native_render_source_frame;
 use crate::params::NativeRenderSharedFrameSource;
 use crate::psd_fast;
+use crate::psd_layer_cache;
 #[cfg(unix)]
 use crate::sessions::DecodeSession;
 use crate::state::{SourceFrameCache, SourceFrameCacheKey};
@@ -332,22 +333,31 @@ fn decode_psd_source_frame(
     media: &SceneMediaReference,
     source_path: &str,
 ) -> Result<RgbaFrame, String> {
+    // DISPLAY path: decode only the leaves the composite below will actually
+    // read (parallel + active-only — see
+    // vm_tuning_research/notes/display-path-phase-split.md), reused from the
+    // per-layer cache when this exact file already decoded them, so a layer
+    // toggle pays only for the newly-selected leaves + composite (see
+    // vm_tuning_research/notes/display-path-toggle-redecode.md).
+    let file_identity = psd_layer_cache::build_psd_file_identity(source_path)
+        .map_err(|error| format!("Invalid Psd media '{}': {error}", media.id))?;
     let bytes = fs::read(source_path).map_err(|error| {
         format!(
             "Invalid Psd media '{}': failed to read source: {error}",
             media.id
         )
     })?;
-    // DISPLAY path: decode only the leaves the composite below will actually
-    // read (parallel + active-only — see
-    // vm_tuning_research/notes/display-path-phase-split.md).
-    let psd = psd_fast::parse_psd_fast_for_display(&bytes, Some(&media.active_layer_ids))
-        .map_err(|error| {
-            format!(
-                "Invalid Psd media '{}': failed to parse PSD source: {error}",
-                media.id
-            )
-        })?;
+    let psd = psd_fast::parse_psd_fast_for_display_cached(
+        &bytes,
+        Some(&media.active_layer_ids),
+        &file_identity,
+    )
+    .map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to parse PSD source: {error}",
+            media.id
+        )
+    })?;
     if psd.width != media.width || psd.height != media.height {
         return Err(format!(
             "Psd media '{}' dimensions {}x{} do not match decoded PSD {}x{}",

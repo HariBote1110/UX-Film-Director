@@ -8,6 +8,7 @@ use crate::params::{
     AudioWaveformSamplesParams, MediaProbeParams, PsdParseParams, PsdRenderCompositeParams,
 };
 use crate::psd_fast;
+use crate::psd_layer_cache;
 use crate::rpc::{response_error, RpcResponse};
 use crate::state::{BackendState, BlobWriteResult};
 
@@ -441,6 +442,10 @@ pub(crate) fn handle_psd_render_composite(
         return response_error(id, -32602, "filePath must not be empty");
     }
 
+    let file_identity = match psd_layer_cache::build_psd_file_identity(&parsed.file_path) {
+        Ok(v) => v,
+        Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
+    };
     let bytes = match fs::read(&parsed.file_path) {
         Ok(b) => b,
         Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
@@ -448,9 +453,15 @@ pub(crate) fn handle_psd_render_composite(
 
     // DISPLAY path: decode only the leaves the composite below will actually
     // read (parallel + active-only — see
-    // vm_tuning_research/notes/display-path-phase-split.md).
-    let psd = match psd_fast::parse_psd_fast_for_display(&bytes, parsed.active_layer_ids.as_deref())
-    {
+    // vm_tuning_research/notes/display-path-phase-split.md), reused from the
+    // per-layer cache when this exact file already decoded them, so a layer
+    // toggle pays only for the newly-selected leaves + composite (see
+    // vm_tuning_research/notes/display-path-toggle-redecode.md).
+    let psd = match psd_fast::parse_psd_fast_for_display_cached(
+        &bytes,
+        parsed.active_layer_ids.as_deref(),
+        &file_identity,
+    ) {
         Ok(r) => r,
         Err(e) => return response_error(id, -32021, &format!("Failed to parse PSD: {e}")),
     };
