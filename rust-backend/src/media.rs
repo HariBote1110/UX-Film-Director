@@ -336,7 +336,10 @@ pub(crate) fn handle_psd_parse_meta(id: u64, params: Value, _state: &mut Backend
         Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
     };
 
-    let result = match psd_fast::parse_psd_fast(&bytes) {
+    // Metadata-only: skips all channel decompression/RGBA interleave (see
+    // parse_psd_meta_only's doc comment). parse_psd_fast (full pixel decode)
+    // stays reserved for psd.parse / the render-composite path.
+    let result = match psd_fast::parse_psd_meta_only(&bytes) {
         Ok(r) => r,
         Err(e) => return response_error(id, -32021, &format!("Failed to parse PSD: {e}")),
     };
