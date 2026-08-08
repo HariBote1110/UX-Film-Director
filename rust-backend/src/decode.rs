@@ -1265,19 +1265,75 @@ mod tests {
 
     #[test]
     fn streaming_decode_filter_uses_scale_vt_and_hwdownload_for_hardware_scale() {
-        let filter = build_streaming_decode_filter(60, 1, 1280, 720, "tv", true);
+        let filter = build_streaming_decode_filter(60, 1, 1280, 720, "tv", "bt709", true);
         assert_eq!(
             filter,
-            "fps=60/1,scale_vt=w=1280:h=720,hwdownload,format=nv12,scale=in_range=tv:out_range=pc,format=rgba"
+            "fps=60/1,scale_vt=w=1280:h=720,hwdownload,format=nv12,scale=in_range=tv:in_color_matrix=bt709:out_range=pc,format=rgba"
         );
     }
 
     #[test]
     fn streaming_decode_filter_uses_cpu_scale_for_software_scale() {
-        let filter = build_streaming_decode_filter(60, 1, 1280, 720, "tv", false);
+        let filter = build_streaming_decode_filter(60, 1, 1280, 720, "tv", "bt601", false);
         assert_eq!(
             filter,
-            "fps=60/1,scale=w=1280:h=720:in_range=tv:out_range=pc,format=rgba"
+            "fps=60/1,scale=w=1280:h=720:in_range=tv:in_color_matrix=bt601:out_range=pc,format=rgba"
+        );
+    }
+
+    // The ffmpeg fallback path must explicitly select the YUV->RGB matrix
+    // rather than leaving it to ffmpeg's internal guess (see
+    // markdown/architecture/03-colour-pipeline.md, "ffmpeg 任せの既定値を避ける").
+    // `resolve_streaming_colour_matrix` mirrors the tag-priority +
+    // dimension-heuristic policy already used by the in-process decode path
+    // (inprocess_decode.rs / macos-video-decode/src/colour.rs:24-37).
+    #[test]
+    fn resolve_streaming_colour_matrix_honours_explicit_bt709_tag() {
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some("bt709"), 320, 180),
+            "bt709"
+        );
+    }
+
+    #[test]
+    fn resolve_streaming_colour_matrix_honours_explicit_bt601_family_tags() {
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some("smpte170m"), 1920, 1080),
+            "bt601"
+        );
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some("bt470bg"), 1920, 1080),
+            "bt601"
+        );
+    }
+
+    #[test]
+    fn resolve_streaming_colour_matrix_falls_back_to_bt601_for_untagged_small_dimensions() {
+        assert_eq!(resolve_streaming_colour_matrix(None, 640, 480), "bt601");
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some("unknown"), 1279, 100),
+            "bt601"
+        );
+    }
+
+    #[test]
+    fn resolve_streaming_colour_matrix_falls_back_to_bt709_for_untagged_hd_dimensions() {
+        assert_eq!(resolve_streaming_colour_matrix(None, 1280, 720), "bt709");
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some(""), 1920, 1080),
+            "bt709"
+        );
+    }
+
+    #[test]
+    fn resolve_streaming_colour_matrix_approximates_bt2020_and_unrecognised_tags_as_bt709() {
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some("bt2020nc"), 320, 180),
+            "bt709"
+        );
+        assert_eq!(
+            resolve_streaming_colour_matrix(Some("something-unrecognised"), 320, 180),
+            "bt709"
         );
     }
 
