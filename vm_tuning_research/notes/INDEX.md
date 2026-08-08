@@ -3,6 +3,7 @@
 借用 VM（i5-13400F / GPU 無し）上で、自前実装の重い経路（PSD 解析・映像まわり）を
 チューニングする研究。新しいものを上に置く。1行1ノート。
 
+- [macos-calibration.md](macos-calibration.md) — VM(i5-13400F)数値を開発機macOS(Apple M4)で同一プロトコル較正。時間は全構成でMacが同等以上に速く並列+可視限定ほど乖離拡大（native N=8可視限定 median 40ms、VM比-42.0%）、一方ピークRSSは逆転しnative側ほど高い（同構成でVM比+39.1%）——実験3(end-to-end)の期待値はこのmacOS実測値を基準にする（2026-08-08）
 - [psd-challenge-scoreboard.md](psd-challenge-scoreboard.md) — VMフェーズ総括。可視限定N=8で対ag-psd 5.9倍速・RSS-52%、メタデータ0.07ms。確定した本実装仕様と棄却記録、残る実験3（end-to-end）の設計（2026-08-08）
 - [lazy-visible-only-decode.md](lazy-visible-only-decode.md) — デフォルト可視のリーフレイヤー（27/143、可視バイト比率46.88%）だけをデコードする遅延デコードを計測。ピークRSSは予測どおり比例して下がりN=8でag-psd比-51.7%（criterion3の劣勢を解消）、一方デコード時間の削減率は予測の半分程度（非可視レイヤーが平均的に小さくレイヤーあたり固定コストが支配）——線形バイト比例モデルは時間について棄却、RSSについては採用（2026-08-08）
 - [memory-peak-comparison.md](memory-peak-comparison.md) — ag-psd vs native psd_fast のピークRSS比較（`/usr/bin/time -v`）。native serialは ag-psd比-21.18%で仮説採用、だが最速のnative N=8は-3.22%で棄却——並列デコードが速度とメモリピークのトレードオフを生み、criterion3とcriterion4は現行設計で同時最良化できない（2026-08-08）
