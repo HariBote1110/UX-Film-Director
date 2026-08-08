@@ -17,10 +17,25 @@
 //!         <integer N> — decode layers on a rayon thread pool with N
 //!                       threads (N=1 included on purpose, to expose pool
 //!                       overhead versus "serial"/"pool0").
+//!         any of the above with a "-visible" suffix (e.g.
+//!                       "serial-visible", "8-visible") — lazy (visible-only)
+//!                       decode mode for `notes/lazy-visible-only-decode.md`:
+//!                       only default-visible leaf layers are decoded, all
+//!                       other leaves get `rgba = None` without their
+//!                       channel bytes ever being decompressed.
+//!                       "serial-visible" is routed through the pool0 path
+//!                       (no rayon pool) since `parse_psd_fast` (the
+//!                       original serial fn) has no visible_only parameter;
+//!                       `parallel-layer-decode-scaling.md` established
+//!                       pool0 ≈ serial timing, so this is a faithful
+//!                       single-thread comparison point.
 //!
 //! Every mode prints the phase-timing breakdown (parse / decode / tree) for
 //! each measured iteration in addition to the overall wall time, so a
 //! single run always yields both the scaling number and the phase split.
+//! "-visible" modes additionally print visible_leaf_count and
+//! visible_decoded_rgba_bytes each iteration (correctness check: must be
+//! stable across iterations/runs).
 
 #[path = "psd_fast.rs"]
 mod psd_fast;
@@ -42,13 +57,18 @@ fn main() {
     let warmup = 3usize.min(iterations.saturating_sub(1));
 
     let mode_arg = args.next().unwrap_or_else(|| "serial".to_string());
-    let mode = match mode_arg.as_str() {
-        "serial" => Mode::Serial,
+    let (mode_core, visible_only) = match mode_arg.strip_suffix("-visible") {
+        Some(core) => (core.to_string(), true),
+        None => (mode_arg.clone(), false),
+    };
+    let mode = match mode_core.as_str() {
+        "serial" if !visible_only => Mode::Serial,
+        "serial" => Mode::Pooled(None), // "serial-visible": no visible_only param on parse_psd_fast, route via pool0
         "pool0" => Mode::Pooled(None),
         n => match n.parse::<usize>() {
             Ok(threads) if threads >= 1 => Mode::Pooled(Some(threads)),
             _ => {
-                eprintln!("invalid mode {n:?}: expected \"serial\", \"pool0\", or a positive integer thread count");
+                eprintln!("invalid mode {mode_arg:?}: expected \"serial\", \"pool0\", a positive integer thread count, or one of those with a \"-visible\" suffix");
                 std::process::exit(1);
             }
         },
@@ -57,6 +77,11 @@ fn main() {
         Mode::Serial => "serial".to_string(),
         Mode::Pooled(None) => "pool0".to_string(),
         Mode::Pooled(Some(n)) => format!("pool{n}"),
+    };
+    let mode_label = if visible_only {
+        format!("{mode_label}-visible")
+    } else {
+        mode_label
     };
 
     let bytes = std::fs::read(&path).unwrap_or_else(|e| {
@@ -71,6 +96,9 @@ fn main() {
     let mut tree_ms_samples: Vec<f64> = Vec::with_capacity(iterations);
     let mut last_layer_count = 0usize;
     let mut last_total_decoded_bytes = 0usize;
+    let mut last_visible_leaf_count = 0usize;
+    let mut last_visible_decoded_bytes = 0usize;
+    let mut last_total_leaf_count = 0usize;
 
     for i in 0..iterations {
         let start = Instant::now();
@@ -80,8 +108,9 @@ fn main() {
                 (result, None)
             }
             Mode::Pooled(threads) => {
-                let (result, t) = psd_fast::parse_psd_fast_instrumented(&bytes, threads)
-                    .expect("parse_psd_fast_instrumented failed");
+                let (result, t) =
+                    psd_fast::parse_psd_fast_instrumented(&bytes, threads, visible_only)
+                        .expect("parse_psd_fast_instrumented failed");
                 (result, Some(t))
             }
         };
@@ -95,6 +124,25 @@ fn main() {
             .filter_map(|l| l.rgba.as_ref())
             .map(|v| v.len())
             .sum();
+        // Correctness check for lazy decode: leaf layers whose own
+        // `visible` bit is set AND that actually got decoded (rgba present
+        // — excludes zero-size leaves, which stay None regardless).
+        last_visible_leaf_count = result
+            .layers
+            .iter()
+            .filter(|l| !l.is_group && l.visible && l.rgba.is_some())
+            .count();
+        last_visible_decoded_bytes = result
+            .layers
+            .iter()
+            .filter(|l| !l.is_group && l.visible)
+            .filter_map(|l| l.rgba.as_ref())
+            .map(|v| v.len())
+            .sum();
+        // Total leaf count (visible or not, decoded or not) — denominator
+        // for the "how many of the N layers are default-visible leaves"
+        // question. Present regardless of mode/visible_only.
+        last_total_leaf_count = result.layers.iter().filter(|l| !l.is_group).count();
 
         let tag = if i < warmup { "warmup" } else { "measured" };
         if let Some(t) = &timings {
@@ -107,6 +155,11 @@ fn main() {
             );
         } else {
             println!("iter {:>2} [{tag}]: {ms:.3} ms", i + 1);
+        }
+        if visible_only {
+            println!(
+                "         visible_leaf_count = {last_visible_leaf_count}, visible_decoded_rgba_bytes = {last_visible_decoded_bytes}"
+            );
         }
 
         if i >= warmup {
@@ -121,7 +174,12 @@ fn main() {
 
     println!();
     println!("layer_count = {last_layer_count}");
+    println!("total_leaf_count = {last_total_leaf_count}");
     println!("total_decoded_rgba_bytes = {last_total_decoded_bytes}");
+    if visible_only {
+        println!("visible_leaf_count = {last_visible_leaf_count}");
+        println!("visible_decoded_rgba_bytes = {last_visible_decoded_bytes}");
+    }
 
     print_stats("overall", &durations_ms);
     if !parse_ms_samples.is_empty() {

@@ -822,9 +822,20 @@ fn decode_from_range(
 ///                 layers with `par_iter`. `n = 1` is legal and deliberately
 ///                 still goes through the pool (see
 ///                 `notes/parallel-layer-decode-scaling.md`, step 4).
+/// `visible_only`: when `true`, only leaf layers whose own `visible` bit is
+/// set (`rec.visible`, i.e. ag-psd's `layer.hidden !== true` — matches the
+/// production `defaultVisible` definition in `psdAgPsdWorker.ts`, own-layer
+/// bit only, no ancestor-group visibility folded in) are decoded; all other
+/// leaves get `rgba = None` without ever touching their channel bytes
+/// (research code for `notes/lazy-visible-only-decode.md`). Metadata parsing
+/// and tree building are unaffected — every layer (visible or not, leaf or
+/// group) still appears in the returned `layers` list with correct
+/// dimensions/visibility/tree position, only `rgba` is withheld for hidden
+/// leaves.
 pub fn parse_psd_fast_instrumented(
     bytes: &[u8],
     num_threads: Option<usize>,
+    visible_only: bool,
 ) -> Result<(PsdFastResult, PhaseTimings), String> {
     let mut c = Cursor::new(bytes);
 
@@ -907,6 +918,21 @@ pub fn parse_psd_fast_instrumented(
     // ── Phase 2: byte-range precompute + per-layer decode (serial or pooled) ──
     let t_decode = Instant::now();
     let ranges = compute_leaf_ranges(&mut c, &records)?;
+    // Lazy (visible-only) mode: a hidden leaf's range is dropped to `None`
+    // *before* the decode step below ever sees it, so `decode_from_range` is
+    // never called for hidden layers — their channel bytes are skipped
+    // (already accounted for by `compute_leaf_ranges`'s cursor walk) but
+    // never decompressed/interleaved. Group/section-end/zero-size entries
+    // are already `None` from `compute_leaf_ranges` regardless of this flag.
+    let ranges: Vec<Option<LeafRange>> = if visible_only {
+        ranges
+            .into_iter()
+            .zip(records.iter())
+            .map(|(r, rec)| if rec.visible { r } else { None })
+            .collect()
+    } else {
+        ranges
+    };
     let pixel_data: Vec<Option<Vec<u8>>> = match num_threads {
         None => records
             .iter()
