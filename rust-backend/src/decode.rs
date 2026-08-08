@@ -936,6 +936,7 @@ fn start_streaming_decode_process(
     let width = session.start_response.width;
     let height = session.start_response.height;
     let range = input_metadata.range;
+    let matrix = input_metadata.matrix;
 
     // When VideoToolbox decode is available, prefer keeping the decoded
     // frame on the GPU for the resize (`scale_vt`) and only pulling it back
@@ -948,8 +949,15 @@ fn start_streaming_decode_process(
     // what runs when VideoToolbox is disabled entirely via
     // `UXFD_DISABLE_VIDEOTOOLBOX_DECODE=1`.
     if streaming_decode_scale_vt_enabled() {
-        let hardware_filter =
-            build_streaming_decode_filter(numerator, denominator, width, height, range, true);
+        let hardware_filter = build_streaming_decode_filter(
+            numerator,
+            denominator,
+            width,
+            height,
+            range,
+            matrix,
+            true,
+        );
         let hardware_args = build_streaming_decode_args_with_hwaccel(
             &session.source,
             seek_seconds,
@@ -975,7 +983,7 @@ fn start_streaming_decode_process(
     }
 
     let cpu_filter =
-        build_streaming_decode_filter(numerator, denominator, width, height, range, false);
+        build_streaming_decode_filter(numerator, denominator, width, height, range, matrix, false);
     let cpu_args = build_streaming_decode_args(&session.source, seek_seconds, &cpu_filter);
     spawn_streaming_decode_process(&session.ffmpeg_path, &cpu_args, frame_index, expected_len)
 }
@@ -1040,16 +1048,48 @@ fn build_streaming_decode_filter(
     width: u32,
     height: u32,
     range: &str,
+    matrix: &str,
     hardware_scale: bool,
 ) -> String {
     if hardware_scale {
         format!(
-            "fps={source_rate_numerator}/{source_rate_denominator},scale_vt=w={width}:h={height},hwdownload,format=nv12,scale=in_range={range}:out_range=pc,format=rgba"
+            "fps={source_rate_numerator}/{source_rate_denominator},scale_vt=w={width}:h={height},hwdownload,format=nv12,scale=in_range={range}:in_color_matrix={matrix}:out_range=pc,format=rgba"
         )
     } else {
         format!(
-            "fps={source_rate_numerator}/{source_rate_denominator},scale=w={width}:h={height}:in_range={range}:out_range=pc,format=rgba"
+            "fps={source_rate_numerator}/{source_rate_denominator},scale=w={width}:h={height}:in_range={range}:in_color_matrix={matrix}:out_range=pc,format=rgba"
         )
+    }
+}
+
+// Resolves the explicit `in_color_matrix` value for the ffmpeg fallback
+// decode path (markdown/architecture/03-colour-pipeline.md requires the
+// YUV->RGB matrix to always be stated explicitly, never left to ffmpeg's
+// internal guess). Mirrors the policy already applied by the in-process
+// decode path:
+//  - an explicit bt709 tag is honoured as-is;
+//  - the bt601 family (smpte170m / bt470bg) maps to bt601;
+//  - bt2020 and any other unrecognised tag is approximated as bt709, same as
+//    inprocess_decode.rs's `ColourMatrix::Bt709 | ColourMatrix::Bt2020` arm;
+//  - a missing/"unknown"/empty tag falls back to the dimension heuristic
+//    (longer edge >= 1280px -> bt709), matching
+//    macos-video-decode/src/colour.rs:24-37 `fallback_for_dimensions`.
+fn resolve_streaming_colour_matrix(
+    color_space: Option<&str>,
+    width: u32,
+    height: u32,
+) -> &'static str {
+    match color_space.map(str::trim) {
+        Some("bt709") => "bt709",
+        Some("smpte170m") | Some("bt470bg") => "bt601",
+        Some(tag) if !tag.is_empty() && tag != "unknown" => "bt709",
+        _ => {
+            if width.max(height) >= 1280 {
+                "bt709"
+            } else {
+                "bt601"
+            }
+        }
     }
 }
 
@@ -1125,6 +1165,7 @@ fn streaming_decode_scale_vt_enabled() -> bool {
 
 struct VideoInputMetadata {
     range: &'static str,
+    matrix: &'static str,
 }
 
 fn probe_video_input_metadata(
@@ -1137,7 +1178,7 @@ fn probe_video_input_metadata(
         .arg("-select_streams")
         .arg("v:0")
         .arg("-show_entries")
-        .arg("stream=color_range,color_primaries,color_transfer,color_space")
+        .arg("stream=color_range,color_primaries,color_transfer,color_space,width,height")
         .arg("-of")
         .arg("json")
         .arg(source)
@@ -1177,7 +1218,24 @@ fn probe_video_input_metadata(
         _ => "tv",
     };
 
-    Ok(VideoInputMetadata { range })
+    // Dimensions feed only the untagged-matrix heuristic below; a missing
+    // width/height (should not happen for a real video stream) simply falls
+    // through to the sub-HD branch of that heuristic rather than failing the
+    // probe outright.
+    let probe_width = stream
+        .get("width")
+        .and_then(Value::as_u64)
+        .map(|value| value as u32)
+        .unwrap_or(0);
+    let probe_height = stream
+        .get("height")
+        .and_then(Value::as_u64)
+        .map(|value| value as u32)
+        .unwrap_or(0);
+    let color_space = stream.get("color_space").and_then(Value::as_str);
+    let matrix = resolve_streaming_colour_matrix(color_space, probe_width, probe_height);
+
+    Ok(VideoInputMetadata { range, matrix })
 }
 
 #[cfg(test)]
