@@ -49,7 +49,7 @@ export interface SharedRendererWebGpuDeviceLike {
   createRenderPipeline?: (descriptor: unknown) => unknown;
   createBuffer?: (descriptor: { label?: string; size: number; usage: number }) => unknown;
   createTexture?: (descriptor: SharedRendererVideoTextureDescriptor) => unknown;
-  importExternalTexture?: (descriptor: { source: unknown }) => unknown;
+  importExternalTexture?: (descriptor: { source: unknown; colorSpace?: 'srgb' | 'display-p3' }) => unknown;
   createSampler?: (descriptor: SharedRendererVideoSamplerDescriptor) => unknown;
   createBindGroup?: (descriptor: SharedRendererVideoBindGroupDescriptor) => unknown;
   createCommandEncoder?: () => {
@@ -965,7 +965,11 @@ export const createSharedRendererWebGpuPresenter = async ({
       // available.
       let externalTexture: unknown;
       try {
-        externalTexture = device.importExternalTexture({ source: planeSource });
+        // The destination colour space must stay pinned to srgb per the
+        // colour-pipeline contract (markdown/architecture/03-colour-pipeline.md)
+        // rather than relying on the WebGPU implicit default, so a future
+        // browser default change can never silently alter preview colours.
+        externalTexture = device.importExternalTexture({ source: planeSource, colorSpace: 'srgb' });
       } catch {
         continue;
       }
