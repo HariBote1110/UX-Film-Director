@@ -1,16 +1,26 @@
 /// Minimal PSD pixel extractor.
 ///
 /// RESEARCH COPY (disposable): forked from
-/// `rust-backend/src/psd_fast.rs` at commit 9680117d911da05722d599cb518be264afc8317a
-/// for the standalone native single-thread benchmark in
-/// `vm_tuning_research/tools/psd-native-bench/`. The composite/RgbaFrame
-/// helpers (`composite_visible_psd_layers*`, `select_psd_composite_frame`,
-/// `composite_layer_source_over`, `source_over_pixel`) were removed because
-/// they depend on the crate-internal `uxfd-golden-harness` crate and are not
-/// exercised by this benchmark (parse + per-layer decompress + RGBA
-/// interleave only, matching the ag-psd skipComposite/skipThumbnail
-/// comparison target). Do not edit `rust-backend/src/psd_fast.rs` from here;
-/// this file is a one-way snapshot for measurement purposes only.
+/// `rust-backend/src/psd_fast.rs` at commit 3a892c860788f9341a8fb932e49c29dd95527f87
+/// (the commit that introduced `parse_psd_meta_only`, the true
+/// metadata-only parse used by `psd.parseMeta` — see
+/// `vm_tuning_research/notes/e2e-path-b-metadata-only.md`) for the
+/// standalone native benchmark in `vm_tuning_research/tools/psd-native-bench/`.
+/// The composite/RgbaFrame helpers (`composite_visible_psd_layers*`,
+/// `select_psd_composite_frame`, `composite_layer_source_over`,
+/// `source_over_pixel`) were removed because they depend on the
+/// crate-internal `uxfd-golden-harness` crate and are not exercised by this
+/// benchmark (parse + per-layer decompress + RGBA interleave, or metadata-only
+/// parse, matching the ag-psd comparison targets in
+/// `vm_tuning_research/tools/dump-psd-tree.mjs` and `bench-agpsd.mjs`).
+/// The phase-timed/thread-pool-parallel entry point
+/// (`parse_psd_fast_instrumented`, `PhaseTimings`, `compute_leaf_ranges`,
+/// `decode_from_range`) below is research-only code that was never promoted
+/// upstream (see `notes/parallel-layer-decode-scaling.md`,
+/// `notes/lazy-visible-only-decode.md`) — it is re-appended on top of each
+/// refresh from `rust-backend/src/psd_fast.rs`.
+/// Do not edit `rust-backend/src/psd_fast.rs` from here; this file is a
+/// one-way snapshot for measurement purposes only.
 ///
 /// The `psd` crate's `rgba()` allocates a *full-canvas* buffer for every layer
 /// (psd_width × psd_height × 4 bytes) and transforms pixel indices to canvas
@@ -502,115 +512,6 @@ fn stable_layer_id(layer_index: usize, is_group: bool, own_group_id: Option<u32>
     }
 }
 
-/// Parse a PSD/PSB file from raw bytes and return per-layer RGBA pixel data.
-pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
-    let mut c = Cursor::new(bytes);
-
-    // ── File header ──────────────────────────────────────────────────────────
-    let sig = read_tag(&mut c)?;
-    if &sig != b"8BPS" {
-        return Err("Not a PSD file (bad signature)".into());
-    }
-    let version = read_u16(&mut c)?;
-    if version != 1 && version != 2 {
-        return Err(format!("Unsupported PSD version: {version}"));
-    }
-    let is_psb = version == 2;
-    skip(&mut c, 6)?; // reserved
-    let _num_channels = read_u16(&mut c)?;
-    let doc_height = read_u32(&mut c)?;
-    let doc_width = read_u32(&mut c)?;
-    let depth = read_u16(&mut c)?;
-    let _color_mode = read_u16(&mut c)?;
-
-    // ── Skip colour mode data ─────────────────────────────────────────────────
-    let cml = read_u32(&mut c)? as u64;
-    skip(&mut c, cml)?;
-
-    // ── Skip image resources ──────────────────────────────────────────────────
-    let irl = read_u32(&mut c)? as u64;
-    skip(&mut c, irl)?;
-
-    // ── Layer and mask info ───────────────────────────────────────────────────
-    let lam_len = if is_psb {
-        read_u64(&mut c)?
-    } else {
-        read_u32(&mut c)? as u64
-    };
-    if lam_len == 0 {
-        return Ok(PsdFastResult {
-            width: doc_width,
-            height: doc_height,
-            layers: vec![],
-        });
-    }
-
-    // ── Layer info ────────────────────────────────────────────────────────────
-    let li_len = if is_psb {
-        read_u64(&mut c)?
-    } else {
-        read_u32(&mut c)? as u64
-    };
-    if li_len == 0 {
-        return Ok(PsdFastResult {
-            width: doc_width,
-            height: doc_height,
-            layers: vec![],
-        });
-    }
-
-    // Layer count (negative = merged image has alpha)
-    let raw_count = read_i16(&mut c)?;
-    let layer_count = raw_count.unsigned_abs() as usize;
-
-    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
-    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
-    for _ in 0..layer_count {
-        records.push(parse_layer_record(&mut c, is_psb)?);
-    }
-
-    // ── Phase 2: decode channel image data ────────────────────────────────────
-    // Channel image data follows the layer records in the same (file) order.
-    let mut pixel_data: Vec<Option<Vec<u8>>> = Vec::with_capacity(layer_count);
-    for rec in &records {
-        match rec.layer_type {
-            0 => {
-                // Leaf layer: decode pixels
-                let w = (rec.right - rec.left).max(0) as u32;
-                let h = (rec.bottom - rec.top).max(0) as u32;
-                let rgba = decode_layer_rgba(&mut c, &rec.channels, w, h, depth, is_psb);
-                pixel_data.push(rgba);
-            }
-            _ => {
-                // Group or section-end: skip all channel data
-                for ch in &rec.channels {
-                    skip(&mut c, ch.data_len)?;
-                }
-                pixel_data.push(None);
-            }
-        }
-    }
-
-    // ── Phase 3+4: rebuild the group tree and flatten pre-order ──────────────
-    let roots = build_layer_tree(&records);
-    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
-    let mut group_id_counter = 0u32;
-    flatten(
-        roots,
-        None,
-        &records,
-        &mut pixel_data,
-        &mut group_id_counter,
-        &mut layers,
-    );
-
-    Ok(PsdFastResult {
-        width: doc_width,
-        height: doc_height,
-        layers,
-    })
-}
-
 // ── Group-tree reconstruction (shared by serial and parallel entry points) ──
 
 // PSD stores layer records bottom-to-top.  A group is encoded as:
@@ -728,6 +629,425 @@ fn flatten(
         }
     }
 }
+
+
+pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header ──────────────────────────────────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    // ── Skip colour mode data ─────────────────────────────────────────────────
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    // ── Skip image resources ──────────────────────────────────────────────────
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    // ── Layer and mask info ───────────────────────────────────────────────────
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
+    }
+
+    // ── Layer info ────────────────────────────────────────────────────────────
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
+    }
+
+    // Layer count (negative = merged image has alpha)
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 2: decode channel image data ────────────────────────────────────
+    // Channel image data follows the layer records in the same (file) order.
+    let mut pixel_data: Vec<Option<Vec<u8>>> = Vec::with_capacity(layer_count);
+    for rec in &records {
+        match rec.layer_type {
+            0 => {
+                // Leaf layer: decode pixels
+                let w = (rec.right - rec.left).max(0) as u32;
+                let h = (rec.bottom - rec.top).max(0) as u32;
+                let rgba = decode_layer_rgba(&mut c, &rec.channels, w, h, depth, is_psb);
+                pixel_data.push(rgba);
+            }
+            _ => {
+                // Group or section-end: skip all channel data
+                for ch in &rec.channels {
+                    skip(&mut c, ch.data_len)?;
+                }
+                pixel_data.push(None);
+            }
+        }
+    }
+
+    // ── Phase 3: rebuild the group tree from file order ──────────────────────
+    // PSD stores layer records bottom-to-top.  A group is encoded as:
+    //   [bounding section divider (type 3)]  ← below the group's content
+    //   [child layers …]
+    //   [group header (type 1/2)]            ← the visible group entry
+    // So, scanning in file order, a type-3 divider OPENS a group's content and
+    // the header CLOSES it.
+    enum TreeNode {
+        Leaf { record_idx: usize },
+        Group { record_idx: usize, children: Vec<TreeNode> },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                // Malformed files may miss the matching divider; degrade to an
+                // empty group instead of corrupting the root level.
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    // Unmatched dividers: merge orphaned accumulators back into the root.
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk ───────────
+    // The UI (src/utils/psdAgPsdWorker.ts walkLayers) flattens the layer tree
+    // pre-order: group node first, then its children, siblings in file order
+    // (bottom-to-top).  layerIndex is the flattened index (dividers excluded)
+    // and ownGroupId is assigned pre-order.  stable ids MUST reproduce that
+    // numbering, otherwise activeLayerIds from the UI never match.
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Vec<u8>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take(),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        layers,
+    })
+}
+
+/// Parse a PSD/PSB file's layer *tree* only — same `PsdFastResult` shape as
+/// `parse_psd_fast` (ids, names, bounds, visibility, group structure, order),
+/// but every `rgba` is `None`. Channel image data is never decompressed:
+/// each layer's channel bytes are skipped by their already-known `data_len`
+/// (cursor arithmetic only), the same no-decompress trick as
+/// `vm_tuning_research/tools/psd-native-bench/src/psd_fast.rs`'s
+/// `compute_leaf_ranges`. Used by `psd.parseMeta`, which never needs pixels
+/// (see `media.rs::handle_psd_parse_meta` and
+/// `vm_tuning_research/notes/e2e-path-b-metadata-only.md`).
+///
+/// Deliberately a standalone function rather than a flag threaded through
+/// `parse_psd_fast`: keeps the pixel-carrying path (used by
+/// `source_frames.rs`'s independent re-decode, and `psd.parse`'s blob
+/// export) completely unchanged.
+pub fn parse_psd_meta_only(bytes: &[u8]) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header (identical to parse_psd_fast) ────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let _depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    // ── Skip colour mode data ─────────────────────────────────────────────────
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    // ── Skip image resources ──────────────────────────────────────────────────
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    // ── Layer and mask info ───────────────────────────────────────────────────
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
+    }
+
+    // ── Layer info ────────────────────────────────────────────────────────────
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
+    }
+
+    // Layer count (negative = merged image has alpha)
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 2 (skipped): jump over every layer's channel image data by its
+    // already-known `data_len` — no compression-type read, no decompress, no
+    // RGBA interleave. This is the whole of the "meta-only" saving.
+    for rec in &records {
+        for ch in &rec.channels {
+            skip(&mut c, ch.data_len)?;
+        }
+    }
+
+    // ── Phase 3: rebuild the group tree from file order (identical logic to
+    // parse_psd_fast; duplicated rather than shared so parse_psd_fast stays
+    // untouched — see module doc on this function). ───────────────────────────
+    enum TreeNode {
+        Leaf { record_idx: usize },
+        Group { record_idx: usize, children: Vec<TreeNode> },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk. `rgba` is
+    // always None — that is the entire point of this function.
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: None,
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(children, Some(own_group_id), records, group_id_counter, layers);
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(roots, None, &records, &mut group_id_counter, &mut layers);
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        layers,
+    })
+}
+
 
 // ── Phase-timed / thread-pool-parallel entry point (experiment 2) ───────────
 //

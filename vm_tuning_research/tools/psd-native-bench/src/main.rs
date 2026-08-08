@@ -47,12 +47,149 @@ enum Mode {
     Pooled(Option<usize>), // None = pool0 (no pool, range pipeline only)
 }
 
+/// One JSON tree node, matching the shape ag-psd side
+/// (`vm_tuning_research/tools/dump-psd-tree.mjs`) emits, so
+/// `compare-psd-parity.mjs` can diff the two node-by-node.
+struct DumpNode {
+    path: String,
+    name: String,
+    is_group: bool,
+    top: i32,
+    left: i32,
+    width: u32,
+    height: u32,
+    visible: bool,
+}
+
+/// Minimal JSON string escaper (control chars + `"` + `\`) — good enough for
+/// PSD layer names, which may contain arbitrary Unicode (including Shift-JIS
+/// mis-decoded mojibake when no `luni` block is present) but essentially
+/// never raw control characters in practice.
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// `dump-meta <path>`: runs `psd_fast::parse_psd_meta_only` once and prints
+/// a single-line JSON tree to stdout (see module doc). Exits the process
+/// directly — this mode does not participate in the iteration/stats
+/// machinery the rest of `main` uses for the pixel-decode benchmarks.
+fn run_dump_meta(path: &str) -> ! {
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            let escaped = json_escape(path);
+            println!(
+                "{{\"file\":\"{escaped}\",\"ok\":false,\"error\":\"read failed: {}\"}}",
+                json_escape(&e.to_string())
+            );
+            std::process::exit(0);
+        }
+    };
+    let file_size = bytes.len();
+
+    let t0 = Instant::now();
+    let result = psd_fast::parse_psd_meta_only(&bytes);
+    let ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+    let escaped_path = json_escape(path);
+    match result {
+        Err(e) => {
+            println!(
+                "{{\"file\":\"{escaped_path}\",\"fileSizeBytes\":{file_size},\"ok\":false,\"error\":\"{}\"}}",
+                json_escape(&e)
+            );
+        }
+        Ok(parsed) => {
+            // Rebuild slash-joined paths from the flat pre-order layer list:
+            // walk it maintaining a stack of open group paths keyed by
+            // own_group_id, mirroring the ag-psd-side recursive walk.
+            let mut group_paths: std::collections::HashMap<u32, String> =
+                std::collections::HashMap::new();
+            let mut nodes: Vec<DumpNode> = Vec::with_capacity(parsed.layers.len());
+            for layer in &parsed.layers {
+                let parent_path = layer
+                    .parent_group_id
+                    .and_then(|id| group_paths.get(&id))
+                    .cloned()
+                    .unwrap_or_default();
+                let path = if parent_path.is_empty() {
+                    layer.name.clone()
+                } else {
+                    format!("{parent_path}/{}", layer.name)
+                };
+                if layer.is_group {
+                    if let Some(id) = layer.own_group_id {
+                        group_paths.insert(id, path.clone());
+                    }
+                }
+                nodes.push(DumpNode {
+                    path,
+                    name: layer.name.clone(),
+                    is_group: layer.is_group,
+                    top: layer.top,
+                    left: layer.left,
+                    width: layer.width,
+                    height: layer.height,
+                    visible: layer.visible,
+                });
+            }
+
+            let nodes_json: Vec<String> = nodes
+                .iter()
+                .map(|n| {
+                    format!(
+                        "{{\"path\":\"{}\",\"name\":\"{}\",\"isGroup\":{},\"top\":{},\"left\":{},\"width\":{},\"height\":{},\"visible\":{}}}",
+                        json_escape(&n.path),
+                        json_escape(&n.name),
+                        n.is_group,
+                        n.top,
+                        n.left,
+                        n.width,
+                        n.height,
+                        n.visible
+                    )
+                })
+                .collect();
+
+            println!(
+                "{{\"file\":\"{escaped_path}\",\"fileSizeBytes\":{file_size},\"ok\":true,\"width\":{},\"height\":{},\"nodeCount\":{},\"parseMs\":{ms},\"nodes\":[{}]}}",
+                parsed.width,
+                parsed.height,
+                nodes.len(),
+                nodes_json.join(",")
+            );
+        }
+    }
+    std::process::exit(0);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let path = args.next().unwrap_or_else(|| {
         eprintln!("usage: psd-native-bench <path-to-psd> [iterations] [mode]");
+        eprintln!("       psd-native-bench dump-meta <path-to-psd>");
         std::process::exit(1);
     });
+
+    if path == "dump-meta" {
+        let psd_path = args.next().unwrap_or_else(|| {
+            eprintln!("usage: psd-native-bench dump-meta <path-to-psd>");
+            std::process::exit(1);
+        });
+        run_dump_meta(&psd_path);
+    }
     let iterations: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(15);
     let warmup = 3usize.min(iterations.saturating_sub(1));
 

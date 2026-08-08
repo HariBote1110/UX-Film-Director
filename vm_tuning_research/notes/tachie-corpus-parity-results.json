@@ -1,0 +1,761 @@
+[
+  {
+    "file": "/Users/yuki/doc/anybox/hibino式/ことのは(すわ)/ことのはあおい(すわ).psd",
+    "fileSizeBytes": 2613378,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2000,
+      "height": 2000,
+      "nodeCount": 101,
+      "parseMs": 0.3927500000000066
+    },
+    "rust": {
+      "ok": true,
+      "width": 2000,
+      "height": 2000,
+      "nodeCount": 101,
+      "parseMs": 0.07100000000000001
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/hibino式/ことのは(すわ)/ことのはあかね(すわ).psd",
+    "fileSizeBytes": 2679935,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2000,
+      "height": 2000,
+      "nodeCount": 101,
+      "parseMs": 0.8036249999999967
+    },
+    "rust": {
+      "ok": true,
+      "width": 2000,
+      "height": 2000,
+      "nodeCount": 101,
+      "parseMs": 0.054542
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/hibino式/ことのは(たち)(1)/ことのは(たち).psd",
+    "fileSizeBytes": 6671335,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2000,
+      "height": 2000,
+      "nodeCount": 81,
+      "parseMs": 2.174624999999999
+    },
+    "rust": {
+      "ok": true,
+      "width": 2000,
+      "height": 2000,
+      "nodeCount": 81,
+      "parseMs": 0.052
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/kino式/v2/茜さんver2.6/琴葉姉妹立ち絵ver2.6　茜さん.psd",
+    "fileSizeBytes": 129652013,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 980,
+      "parseMs": 5.831375000000008
+    },
+    "rust": {
+      "ok": true,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 980,
+      "parseMs": 0.427917
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/kino式/v2/葵さんver2.6/琴葉姉妹立ち絵ver2.6　葵さん.psd",
+    "fileSizeBytes": 129087746,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 982,
+      "parseMs": 6.804291000000006
+    },
+    "rust": {
+      "ok": true,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 982,
+      "parseMs": 0.44629199999999997
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/kino式/琴葉姉妹立ち絵ver1.８　茜さん.psd",
+    "fileSizeBytes": 60079322,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 348,
+      "parseMs": 2.5742079999999987
+    },
+    "rust": {
+      "ok": true,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 348,
+      "parseMs": 0.210208
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/kino式/琴葉姉妹立ち絵ver1.８　葵さん.psd",
+    "fileSizeBytes": 59764171,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 341,
+      "parseMs": 1.646917000000002
+    },
+    "rust": {
+      "ok": true,
+      "width": 2131,
+      "height": 2554,
+      "nodeCount": 341,
+      "parseMs": 0.19404200000000002
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/あるか式/akane.psd",
+    "fileSizeBytes": 7646001,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1024,
+      "height": 1256,
+      "nodeCount": 314,
+      "parseMs": 1.301667000000002
+    },
+    "rust": {
+      "ok": true,
+      "width": 1024,
+      "height": 1256,
+      "nodeCount": 314,
+      "parseMs": 0.162708
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/あるか式/aoi.psd",
+    "fileSizeBytes": 7644592,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1024,
+      "height": 1256,
+      "nodeCount": 314,
+      "parseMs": 1.8100000000000023
+    },
+    "rust": {
+      "ok": true,
+      "width": 1024,
+      "height": 1256,
+      "nodeCount": 314,
+      "parseMs": 0.163542
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/おみなえし式/茜配布用.psd",
+    "fileSizeBytes": 13228506,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 700,
+      "height": 1500,
+      "nodeCount": 246,
+      "parseMs": 0.5963330000000013
+    },
+    "rust": {
+      "ok": true,
+      "width": 700,
+      "height": 1500,
+      "nodeCount": 246,
+      "parseMs": 0.13924999999999998
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/おみなえし式/葵配布用.psd",
+    "fileSizeBytes": 12071860,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 700,
+      "height": 1500,
+      "nodeCount": 235,
+      "parseMs": 0.7417920000000038
+    },
+    "rust": {
+      "ok": true,
+      "width": 700,
+      "height": 1500,
+      "nodeCount": 235,
+      "parseMs": 0.127
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/かれい式/立ち絵琴葉茜_差分_縮小.psd",
+    "fileSizeBytes": 8587708,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 800,
+      "height": 1273,
+      "nodeCount": 251,
+      "parseMs": 0.4667080000000112
+    },
+    "rust": {
+      "ok": true,
+      "width": 800,
+      "height": 1273,
+      "nodeCount": 251,
+      "parseMs": 0.08650000000000001
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/かれい式/立ち絵琴葉葵_差分_縮小.psd",
+    "fileSizeBytes": 8619847,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 800,
+      "height": 1273,
+      "nodeCount": 243,
+      "parseMs": 0.42791700000000077
+    },
+    "rust": {
+      "ok": true,
+      "width": 800,
+      "height": 1273,
+      "nodeCount": 243,
+      "parseMs": 0.078875
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/茜/琴葉茜 - 私服(小).psd",
+    "fileSizeBytes": 12669667,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 449,
+      "parseMs": 1.9254999999999995
+    },
+    "rust": {
+      "ok": true,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 449,
+      "parseMs": 0.192709
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/茜/琴葉茜 - 私服.psd",
+    "fileSizeBytes": 34985637,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 449,
+      "parseMs": 2.195542000000003
+    },
+    "rust": {
+      "ok": true,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 449,
+      "parseMs": 0.165875
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/茜/琴葉茜 - 通常(小).psd",
+    "fileSizeBytes": 16245481,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 452,
+      "parseMs": 1.0572080000000028
+    },
+    "rust": {
+      "ok": true,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 452,
+      "parseMs": 0.16449999999999998
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/茜/琴葉茜 - 通常.psd",
+    "fileSizeBytes": 47246230,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 452,
+      "parseMs": 1.4761249999999961
+    },
+    "rust": {
+      "ok": true,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 452,
+      "parseMs": 0.19229100000000002
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/葵/琴葉葵 - 私服(小).psd",
+    "fileSizeBytes": 12438452,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 450,
+      "parseMs": 1.5074579999999997
+    },
+    "rust": {
+      "ok": true,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 450,
+      "parseMs": 0.23525
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/葵/琴葉葵 - 私服.psd",
+    "fileSizeBytes": 34353637,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 450,
+      "parseMs": 1.4419579999999996
+    },
+    "rust": {
+      "ok": true,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 450,
+      "parseMs": 0.153625
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/葵/琴葉葵 - 通常(小).psd",
+    "fileSizeBytes": 15447478,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 453,
+      "parseMs": 2.407167000000001
+    },
+    "rust": {
+      "ok": true,
+      "width": 1066,
+      "height": 1491,
+      "nodeCount": 453,
+      "parseMs": 0.167375
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/こーすけさんたまりあ式/葵/琴葉葵 - 通常.psd",
+    "fileSizeBytes": 44434580,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 453,
+      "parseMs": 1.8351670000000126
+    },
+    "rust": {
+      "ok": true,
+      "width": 2221,
+      "height": 3107,
+      "nodeCount": 453,
+      "parseMs": 0.217375
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/たそかれ式/たそかれ式_琴葉姉妹立ち絵/茜ちゃん.psd",
+    "fileSizeBytes": 31014545,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2700,
+      "height": 3700,
+      "nodeCount": 171,
+      "parseMs": 1.3355829999999997
+    },
+    "rust": {
+      "ok": true,
+      "width": 2700,
+      "height": 3700,
+      "nodeCount": 171,
+      "parseMs": 0.108792
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/たそかれ式/たそかれ式_琴葉姉妹立ち絵/葵ちゃん.psd",
+    "fileSizeBytes": 31181666,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2700,
+      "height": 3700,
+      "nodeCount": 171,
+      "parseMs": 1.2443330000000046
+    },
+    "rust": {
+      "ok": true,
+      "width": 2700,
+      "height": 3700,
+      "nodeCount": 171,
+      "parseMs": 0.087041
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/むにさが式/琴葉茜.psd",
+    "fileSizeBytes": 43328794,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2079,
+      "height": 2953,
+      "nodeCount": 253,
+      "parseMs": 1.7106250000000074
+    },
+    "rust": {
+      "ok": true,
+      "width": 2079,
+      "height": 2953,
+      "nodeCount": 253,
+      "parseMs": 0.111125
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/むにさが式/琴葉葵.psd",
+    "fileSizeBytes": 42179682,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2079,
+      "height": 2953,
+      "nodeCount": 253,
+      "parseMs": 2.225208000000009
+    },
+    "rust": {
+      "ok": true,
+      "width": 2079,
+      "height": 2953,
+      "nodeCount": 253,
+      "parseMs": 0.106542
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/ユメのオワリ式/琴葉茜立ち絵v01.09/琴葉茜立ち絵v01.09.psd",
+    "fileSizeBytes": 235554959,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1576,
+      "height": 2600,
+      "nodeCount": 1092,
+      "parseMs": 9.288875000000019
+    },
+    "rust": {
+      "ok": true,
+      "width": 1576,
+      "height": 2600,
+      "nodeCount": 1092,
+      "parseMs": 0.48654200000000003
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/ユメのオワリ式/琴葉葵立ち絵v01.09/琴葉葵立ち絵v01.09.psd",
+    "fileSizeBytes": 233853753,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1576,
+      "height": 2600,
+      "nodeCount": 1117,
+      "parseMs": 12.346124999999972
+    },
+    "rust": {
+      "ok": true,
+      "width": 1576,
+      "height": 2600,
+      "nodeCount": 1117,
+      "parseMs": 0.572625
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/夏樹テルー式/琴葉茜立ち絵統合用.psd",
+    "fileSizeBytes": 5053572,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1231,
+      "height": 1473,
+      "nodeCount": 70,
+      "parseMs": 0.3526249999999962
+    },
+    "rust": {
+      "ok": true,
+      "width": 1231,
+      "height": 1473,
+      "nodeCount": 70,
+      "parseMs": 0.043000000000000003
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/夏樹テルー式/琴葉葵立ち絵統合用.psd",
+    "fileSizeBytes": 4971071,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1231,
+      "height": 1473,
+      "nodeCount": 68,
+      "parseMs": 0.36412500000000136
+    },
+    "rust": {
+      "ok": true,
+      "width": 1231,
+      "height": 1473,
+      "nodeCount": 68,
+      "parseMs": 0.060042
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/琴葉姉妹立ち絵配布_でぃーえる_0.9/琴葉姉妹立ち絵配布_でぃーえる/琴葉茜立ち絵_DL式.psd",
+    "fileSizeBytes": 39315834,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2800,
+      "height": 3600,
+      "nodeCount": 167,
+      "parseMs": 0.5190839999999923
+    },
+    "rust": {
+      "ok": true,
+      "width": 2800,
+      "height": 3600,
+      "nodeCount": 167,
+      "parseMs": 0.090542
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/琴葉姉妹立ち絵配布_でぃーえる_0.9/琴葉姉妹立ち絵配布_でぃーえる/琴葉葵立ち絵_DL式.psd",
+    "fileSizeBytes": 45044180,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 2800,
+      "height": 3600,
+      "nodeCount": 166,
+      "parseMs": 0.4053339999999963
+    },
+    "rust": {
+      "ok": true,
+      "width": 2800,
+      "height": 3600,
+      "nodeCount": 166,
+      "parseMs": 0.08520900000000001
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/雪傘式/茜/Yukigasa_Akane_ver1.1.psd",
+    "fileSizeBytes": 141896957,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1200,
+      "height": 2100,
+      "nodeCount": 1386,
+      "parseMs": 4.341666000000004
+    },
+    "rust": {
+      "ok": true,
+      "width": 1200,
+      "height": 2100,
+      "nodeCount": 1386,
+      "parseMs": 0.7412080000000001
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  },
+  {
+    "file": "/Users/yuki/doc/anybox/雪傘式/葵/Yukigasa_Aoi_ver1.1.psd",
+    "fileSizeBytes": 144879593,
+    "agpsd": {
+      "ok": true,
+      "depth": 8,
+      "width": 1200,
+      "height": 2100,
+      "nodeCount": 1377,
+      "parseMs": 4.274749999999983
+    },
+    "rust": {
+      "ok": true,
+      "width": 1200,
+      "height": 2100,
+      "nodeCount": 1377,
+      "parseMs": 0.5499580000000001
+    },
+    "nodeCountMatch": true,
+    "dimsMatch": true,
+    "mismatches": [],
+    "fullMatch": true
+  }
+]
