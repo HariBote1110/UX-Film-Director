@@ -4162,6 +4162,64 @@ mod tests {
         let _ = std::fs::remove_file(psd_path);
     }
 
+    /// Fix 2 (beachball 対策)の前提となる契約: 事前 warm 呼び出し
+    /// （prepareNativeOverlaySources が使う経路）で PSD の fs::read+decode+composite
+    /// を済ませておけば、続く present 経路（load_overlay_native_sources_for_scene_cached_impl）
+    /// はキャッシュ hit のみで完結し、追加のデコードが発生しないことを保証する。
+    /// これが崩れると prepare を挟んでも main thread 側の present が重いままになる。
+    #[test]
+    fn psd_source_cache_warm_then_present_incurs_zero_additional_decode() {
+        let psd_path = unique_temp_path("overlay-prepare-warm", "psd");
+        std::fs::write(&psd_path, minimal_single_layer_psd_bytes())
+            .expect("write minimal PSD fixture");
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "psd-clip".to_string(),
+                    track_id: "track".to_string(),
+                    media_id: "psd-media".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "psd-media".to_string(),
+                kind: "Psd".to_string(),
+                source: psd_path.to_string_lossy().to_string(),
+                width: 2,
+                height: 2,
+                source_rate: None,
+                active_layer_ids: Vec::new(),
+            }],
+            canvas_width: 2,
+            canvas_height: 2,
+        };
+        let mut cache = NativeOverlaySourceCache::default();
+
+        // prepareNativeOverlaySources 相当: 初回 warm はキャッシュ miss で
+        // fs::read+decode+composite を実行する。
+        load_overlay_native_sources_for_scene_cached_impl(&scene, &mut cache, true)
+            .expect("warm call must decode the PSD source");
+        assert_eq!(cache.stats(), (0, 1), "warm call must be a single cache miss");
+
+        // presentNativeOverlayScene 相当: 同一シーンでの present はキャッシュ hit
+        // のみで完結し、追加のデコードは発生しない。
+        load_overlay_native_sources_for_scene_cached_impl(&scene, &mut cache, true)
+            .expect("present call must reuse the warmed PSD source");
+        assert_eq!(
+            cache.stats(),
+            (1, 1),
+            "present after warm must incur zero additional PSD decodes"
+        );
+
+        let _ = std::fs::remove_file(psd_path);
+    }
+
     #[test]
     fn overlay_native_source_loader_builds_getcolor_for_direct_mixed_scene_present() {
         let scene = NativeOverlaySceneSource {
