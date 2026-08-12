@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 
-use napi::bindgen_prelude::Buffer;
+use napi::bindgen_prelude::{AsyncTask, Buffer};
+use napi::{Env, Task};
 use napi_derive::napi;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1260,6 +1261,123 @@ pub fn present_native_overlay_scene(
         Ok(response) => response,
         Err(_) => failure("Native overlay scene present panicked."),
     }
+}
+
+/// beachball 対策 Fix 2: presentNativeOverlayScene が Electron main thread を
+/// 塞ぐ主因は PSD の fs::read+decode+composite（build_native_psd_source_frame）が
+/// 同期経路に乗っていること。AppKit/Metal の描画自体は main thread から動かせない
+/// ため、代わりに「重いソース構築だけ」を N-API の libuv threadpool
+/// （AsyncTask::compute）へ逃がし、対象 window の source cache を事前に温める。
+/// TS 側（electron/nativeOverlayMainBridge.ts）はこれを await してから
+/// presentNativeOverlayScene を呼ぶことで、present 経路はキャッシュ hit のみで
+/// 完結する（native-overlay/src/lib.rs の
+/// psd_source_cache_warm_then_present_incurs_zero_additional_decode がこの契約を保証する）。
+#[napi(js_name = "prepareNativeOverlaySources")]
+pub fn prepare_native_overlay_sources(
+    payload: NativeOverlayScenePresentPayload,
+) -> napi::Result<AsyncTask<PrepareNativeOverlaySourcesTask>> {
+    let window_id = payload.window_id;
+    let canvas_width = payload.snapshot.canvas_width;
+    let canvas_height = payload.snapshot.canvas_height;
+    let scene = match scene_snapshot_from_payload(payload.snapshot) {
+        Ok(snapshot) => NativeOverlaySceneSource {
+            snapshot,
+            media: payload
+                .media
+                .into_iter()
+                .map(scene_media_from_payload)
+                .collect(),
+            canvas_width,
+            canvas_height,
+        },
+        Err(reason) => return Ok(AsyncTask::new(PrepareNativeOverlaySourcesTask::failed(reason))),
+    };
+    Ok(AsyncTask::new(PrepareNativeOverlaySourcesTask::pending(
+        window_id, scene,
+    )))
+}
+
+pub struct PrepareNativeOverlaySourcesTask {
+    window_id: u32,
+    scene: Option<NativeOverlaySceneSource>,
+    immediate_failure: Option<String>,
+}
+
+impl PrepareNativeOverlaySourcesTask {
+    fn pending(window_id: u32, scene: NativeOverlaySceneSource) -> Self {
+        Self {
+            window_id,
+            scene: Some(scene),
+            immediate_failure: None,
+        }
+    }
+
+    fn failed(reason: String) -> Self {
+        Self {
+            window_id: 0,
+            scene: None,
+            immediate_failure: Some(reason),
+        }
+    }
+}
+
+impl Task for PrepareNativeOverlaySourcesTask {
+    type Output = NativeOverlayResponse;
+    type JsValue = NativeOverlayResponse;
+
+    fn compute(&mut self) -> napi::Result<Self::Output> {
+        if let Some(reason) = self.immediate_failure.take() {
+            return Ok(failure(&reason));
+        }
+        let scene = self
+            .scene
+            .take()
+            .expect("PrepareNativeOverlaySourcesTask::compute must run exactly once");
+        match catch_unwind(AssertUnwindSafe(|| {
+            warm_native_overlay_sources_for_window(self.window_id, &scene)
+        })) {
+            Ok(Ok(())) => Ok(NativeOverlayResponse {
+                success: true,
+                attached: true,
+                reason: None,
+                release_frame: None,
+                live_prepared_clip_count: None,
+                live_readback_non_transparent_pixels: None,
+                live_readback_checksum: None,
+                live_readback_export_max_channel_delta: None,
+            }),
+            Ok(Err(reason)) => Ok(failure(&reason)),
+            Err(_) => Ok(failure("Native overlay source prepare panicked.")),
+        }
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+/// 対象 window に attach 済みの live renderer が持つ source cache を、
+/// 実際の present と同じ経路（load_overlay_native_sources_for_scene_cached_impl）
+/// で事前に温める。AppKit/Metal のハンドルには一切触れず、cache フィールドへの
+/// 挿入のみを行うため libuv threadpool から呼び出しても安全（renderer 自体は
+/// `unsafe impl Send`、Mutex<HashMap<..>> は T: Send のみで Sync になる）。
+/// 対象 window がまだ attach されていない場合は何もせず成功扱いにする
+/// （その後の present 側で通常どおり同期的にデコードされるだけで、warm を
+/// 挟まなかった場合と同じ結果になる。エラーにすると起動直後の競合で
+/// beachball 対策のはずの prepare 自体が失敗要因になってしまう）。
+fn warm_native_overlay_sources_for_window(
+    window_id: u32,
+    scene: &NativeOverlaySceneSource,
+) -> Result<(), String> {
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let Some(renderer) = renderers.get_mut(&window_id) else {
+        return Ok(());
+    };
+    load_overlay_native_sources_for_scene_cached_impl(scene, &mut renderer.native_source_cache, true)
+        .map(|_sources| ())
 }
 
 #[napi(js_name = "getNativeOverlayCapabilities")]

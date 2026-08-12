@@ -130,6 +130,7 @@ export interface NativeOverlayAddon {
   attachNativeOverlay?: (payload: NativeOverlayAddonAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   detachNativeOverlay?: (payload: NativeOverlayAddonDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   presentNativeOverlayScene?: (payload: NativeOverlayScenePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  prepareNativeOverlaySources?: (payload: NativeOverlayScenePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   presentNativeOverlaySharedFrame?: (payload: NativeOverlayAddonSharedFramePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   clearNativeOverlayLiveSurface?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   setNativeOverlayObstructed?: (payload: NativeOverlaySetObstructedPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
@@ -346,6 +347,23 @@ export const createNativeOverlayMainBridge = ({
       }
 
       try {
+        // beachball 対策 Fix 2: presentNativeOverlayScene は Electron main thread
+        // 上で同期実行される（AppKit/Metal の描画自体を main thread から動かせない
+        // ため）。PSD の fs::read+decode+composite だけを先に libuv threadpool へ
+        // 逃がして対象 window の source cache を温めておくことで、直後の present
+        // 経路はキャッシュ hit のみで完結し main thread を長時間塞がなくなる
+        // （契約は native-overlay/src/lib.rs の
+        // psd_source_cache_warm_then_present_incurs_zero_additional_decode を参照）。
+        // prepare 自体が失敗しても present は通常どおり同期デコードにフォール
+        // バックできるため、prepare のエラーは無視して present を続行する。
+        if (typeof addon.prepareNativeOverlaySources === 'function') {
+          try {
+            await addon.prepareNativeOverlaySources(payload)
+          } catch {
+            // prepare は最適化のみが目的なので失敗は無視し、present の同期
+            // デコードにフォールバックする。
+          }
+        }
         const presentStartedAt = now()
         const response = await addon.presentNativeOverlayScene(payload)
         if (nativeOverlayTraceEnabled(env)) {

@@ -280,6 +280,65 @@ describe('createNativeOverlayMainBridge', () => {
     expect(nativeAddon.presentNativeOverlayScene).toHaveBeenCalledWith(payload);
   });
 
+  it('awaits prepareNativeOverlaySources before presentNativeOverlayScene when the addon exposes it (beachball 対策 Fix 2)', async () => {
+    const callOrder: string[] = [];
+    const nativeAddon = {
+      prepareNativeOverlaySources: vi.fn(async (suppliedPayload: unknown) => {
+        callOrder.push('prepare');
+        expect(suppliedPayload).toEqual(payload);
+        return { success: true, attached: true };
+      }),
+      presentNativeOverlayScene: vi.fn(async () => {
+        callOrder.push('present');
+        return { success: true, attached: true };
+      }),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+    const payload = {
+      windowId: 7,
+      snapshot: { frameIndex: 24, canvasWidth: 4, canvasHeight: 4 },
+      media: [{ id: 'psd-1', kind: 'Psd', source: '/tmp/scene.psd', width: 4, height: 4 }],
+    };
+
+    await expect(bridge.presentScene(payload)).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+    expect(nativeAddon.prepareNativeOverlaySources).toHaveBeenCalledWith(payload);
+    expect(callOrder).toEqual(['prepare', 'present']);
+  });
+
+  it('falls back to a synchronous present when prepareNativeOverlaySources rejects (beachball 対策 Fix 2)', async () => {
+    const nativeAddon = {
+      prepareNativeOverlaySources: vi.fn(() => Promise.reject(new Error('prepare boom'))),
+      presentNativeOverlayScene: vi.fn(() => ({ success: true, attached: true })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+    const payload = {
+      windowId: 7,
+      snapshot: { frameIndex: 24, canvasWidth: 4, canvasHeight: 4 },
+      media: [{ id: 'psd-1', kind: 'Psd', source: '/tmp/scene.psd', width: 4, height: 4 }],
+    };
+
+    await expect(bridge.presentScene(payload)).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+    expect(nativeAddon.presentNativeOverlayScene).toHaveBeenCalledWith(payload);
+  });
+
   it('includes live surface readback diagnostics in the direct scene trace', async () => {
     const diagnostics: Array<[string, unknown]> = [];
     const nativeAddon = {

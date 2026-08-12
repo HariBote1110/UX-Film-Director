@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [native-overlay-beachball-fix.md](native-overlay-beachball-fix.md) — PSDプレビューbeachball対策の2部作。Fix1: devビルドがnative-overlay/bridgeアドオンをdebugビルドしていた不整合をrelease統一(版491d)。Fix2: presentNativeOverlayScene内のPSD decode/compositeをnapi AsyncTaskでlibuvスレッドプールへ逃がすprepareNativeOverlaySourcesを新設、main threadは cache hit のみに(版491e)（2026-08-13）
 - [psd-composite-row-band-parallel.md](psd-composite-row-band-parallel.md) — 合成を行バンド並列化(版491c)。唯一の内部継ぎ目で切替し公開APIは無変更、シリアルオラクル一致テスト4本で固定。3部作到達点: 或窓式トグル~1400ms→~15ms、茜ver0.7初回~1117ms→~290ms（2026-08-09）
 - [psd-layer-decode-cache.md](psd-layer-decode-cache.md) — (ファイル同一性,レイヤーID)→Arc<RGBA>の512MB LRUを新設し表示3経路をcached入口へ切替(版491b)。ウォームトグルは合成のみ(葵~70ms/或窓~40ms)。次の支配項は合成本体（2026-08-09）
 - [psd-display-decode-promotion.md](psd-display-decode-promotion.md) — 表示3経路のPSDデコードを並列(rayon共有プールN≤8)+active-only解凍へ昇格(版491a)。合成バイト一致を契約テストで固定。クリッピング/調整レイヤー未サポートが等価性の前提という制約を明記（2026-08-09）
