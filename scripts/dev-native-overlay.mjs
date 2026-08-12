@@ -60,8 +60,8 @@ const buildRustBackendRelease = (onDone) => {
   runCommand('cargo', ['build', '--release', '--manifest-path', rustBackendManifest], onDone);
 };
 
-runCommand(process.execPath, [nativeOverlayBuildScript], () => {
-  runCommand(process.execPath, [bridgeBuildScript], () => {
+runCommand(process.execPath, [nativeOverlayBuildScript, '--release'], () => {
+  runCommand(process.execPath, [bridgeBuildScript, '--release'], () => {
     buildRustBackendRelease(startVite);
   });
 });
