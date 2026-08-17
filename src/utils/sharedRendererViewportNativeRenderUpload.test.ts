@@ -2035,4 +2035,36 @@ describe('prepareSharedRendererViewportNativeRenderOverlayPresent', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'nativeOverlayReleaseMismatch' });
   });
+
+  it('does not present a rendered shared-memory frame to the native overlay when a newer request superseded it while renderNativeSharedFrame was in flight, and releases the rendered output instead', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
+      session: mediaOnlySession,
+      requestId: 24,
+      isRequestCurrent: () => false,
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: renderResult,
+        };
+      },
+      nativeOverlayBridge: {
+        presentSharedFrame: async () => {
+          throw new Error('a superseded request must not present a stale frame to the native overlay.');
+        },
+      },
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return { success: true, result: { released: true, memoryId: payload.memoryId } };
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'supersededRequest' });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', expect.anything()],
+      ['releaseNativeSharedFrame', { memoryId: '/uxfd-pn-o' }],
+    ]);
+  });
 });

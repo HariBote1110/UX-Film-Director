@@ -85,6 +85,7 @@ import {
 } from '../utils/nativeOverlayAttachPolling';
 import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDecoration';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
+import { shouldPresentSharedRendererEmptyScenePresentation } from '../utils/sharedRendererViewportEmptyScenePresentation';
 import { rendererSceneRpcCollector } from '../perf/rendererSceneRpcTrace';
 
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
@@ -1208,6 +1209,23 @@ const Viewport: React.FC = () => {
     // presenter フル再起動時の present 対象の正本。reuse 経路（state 非更新）
     // 中でも毎 tick 最新化し、再起動が stale なフレームを出さないようにする。
     sharedRendererLatestPublishedPreviewSessionRef.current = session;
+    // WYSIWYG不変条件 — 評価された現在時刻にアクティブなクリップが1つも
+    // 無い（session.surfaceGate.snapshot.clips.length === 0）session は、
+    // 「空シーンの透明フレームをpresentする」ことそのものである。旧来の
+    // Bug D case (i) effect は timeline objects 全体の空集合（objects.length
+    // === 0）だけを見ており、「タイムラインの他の位置にはクリップがあるが
+    // 現在時刻にはアクティブなクリップが無い」ケース（図形クリップの範囲外
+    // シーク）を捉えられず、native overlay に前フレームのゴーストが
+    // 残り続けていた。ここで検知し、in-flight の古い present が後から
+    // 上書きしないよう requestId を先に進めてから透明clearを発行する。
+    if (shouldPresentSharedRendererEmptyScenePresentation({
+      session,
+      nativeOverlayPreviewEnabled,
+    })) {
+      sharedRendererVideoDecodeRequestIdRef.current += 1;
+      notifyNativeOverlaySceneCleared(0);
+      void window.nativeOverlay?.clearSurface({});
+    }
     // 症状B対策（本体フレームと選択枠 present が独立2チャネルのためズレる
     // 不具合）— native overlay の body co-delivery（video-only reuse present
     // 経路）が同梱する選択デコレーションを、body と全く同じ (currentObjects,
