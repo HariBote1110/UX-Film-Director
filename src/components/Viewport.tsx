@@ -945,11 +945,19 @@ const Viewport: React.FC = () => {
   // visual frame cache invalidator と Bug D の transparent clear を同じイベント源
   // から発火する。cache 消去（Bug C）だけでは drawable に present 済みの
   // 削除前フレームが残り続けるため、両方が必要。
+  //
+  // 注意 — objects.length === 0 は「プロジェクト全体が空になった」ケースだけを
+  // 捉える。「タイムラインの他の位置にはクリップがあるが現在時刻には
+  // アクティブなクリップが無い」ケース（例: 図形クリップの範囲外へのシーク）は
+  // objects.length が 0 にならないためこの effect では捉えられず、
+  // publishSharedRendererPreviewSession 内の
+  // shouldPresentSharedRendererEmptyScenePresentation（評価済み session の
+  // surfaceGate.snapshot.clips.length を見る）が別途担当する。この effect は
+  // 新しい評価 tick を伴わない「最後のオブジェクト削除」を拾うため、削除は
+  // せず残す。
   useEffect(() => {
     if (!nativeOverlayPreviewEnabled) return;
     if (objects.length !== 0) return;
-    // session.surfaceGate.snapshot.clips.length === 0 を代表する条件として
-    // timeline objects の空を用いる（objects が空なら surfaceGate も clips=[]）。
     notifyNativeOverlaySceneCleared(0);
     void window.nativeOverlay?.clearSurface({});
   }, [nativeOverlayPreviewEnabled, objects.length]);
