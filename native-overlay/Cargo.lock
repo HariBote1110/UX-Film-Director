@@ -1904,6 +1904,7 @@ dependencies = [
  "crc32fast",
  "flate2",
  "pollster",
+ "rayon",
  "serde",
  "serde_json",
  "uxfd-golden-harness",
