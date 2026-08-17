@@ -1447,18 +1447,28 @@ const Viewport: React.FC = () => {
               if (session.surfaceGate.ok) {
                 sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
               }
+              const nativeRenderOverlayRequestId = (sharedRendererVideoDecodeRequestIdRef.current += 1);
               const result = await prepareSharedRendererViewportNativeRenderOverlayPresent({
                 session,
-                requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+                requestId: nativeRenderOverlayRequestId,
                 nativeOverlayBridge: window.nativeOverlay,
                 selectionDecoration: sessionSelectionDecoration,
+                // クリップ削除等で presenter が再起動（requestId が進む）した後に
+                // この in-flight present が完了して削除済みフレームで overlay を
+                // 上書きするレースを防ぐ（video decode 経路と同じ契約）。
+                isRequestCurrent: () => sharedRendererVideoDecodeRequestIdRef.current === nativeRenderOverlayRequestId,
               });
               if (!result.ok) {
-                // overlay 未 attach 等の失敗は video-only 経路と同じ
-                // self-healing restart パターンで DOM canvas フォールバック
-                // （presentPreparedNativeRenderFrame）へ収束させる。
-                sharedRendererPresenterSessionKeyRef.current = null;
-                setSharedRendererPreviewSession(session);
+                if (result.reason === 'supersededRequest' || result.reason === 'supersededDecodeReleaseFailed') {
+                  // 追い越された tick は何もしない — presentation の所有権は
+                  // 新しい要求（再起動側）にある。
+                } else {
+                  // overlay 未 attach 等の失敗は video-only 経路と同じ
+                  // self-healing restart パターンで DOM canvas フォールバック
+                  // （presentPreparedNativeRenderFrame）へ収束させる。
+                  sharedRendererPresenterSessionKeyRef.current = null;
+                  setSharedRendererPreviewSession(session);
+                }
               }
               return;
             }

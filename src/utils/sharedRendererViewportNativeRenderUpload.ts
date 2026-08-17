@@ -403,6 +403,14 @@ export interface PrepareSharedRendererViewportNativeRenderOverlayPresentInput {
   releaseNativeSharedFrame?: SharedRendererViewportNativeSharedFrameReleaser;
   requestAudioWaveformSamples?: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
   selectionDecoration?: SelectionDecorationPayload;
+  /**
+   * decode 済みスロットを解放して present を抑止する（reason:
+   * 'supersededRequest'）。クリップ削除等で presenter が再起動（空セッション
+   * → 透明clear）した後に、in-flight の古い tick の present が完了して
+   * 削除済みフレームを overlay に上書きするレースを防ぐ（video decode 経路の
+   * prepareSharedRendererViewportNativeOverlayPresent と同じ契約）。
+   */
+  isRequestCurrent?: () => boolean;
 }
 
 export type PrepareSharedRendererViewportNativeRenderOverlayPresentResult =
@@ -415,7 +423,9 @@ export type PrepareSharedRendererViewportNativeRenderOverlayPresentResult =
         | 'nativeRenderFailed'
         | 'nativeOverlayPresentFailed'
         | 'nativeOverlayReleaseMismatch'
-        | 'nativeRenderOutputReleaseFailed';
+        | 'nativeRenderOutputReleaseFailed'
+        | 'supersededRequest'
+        | 'supersededDecodeReleaseFailed';
       detail: string;
     };
 
@@ -429,6 +439,7 @@ export const prepareSharedRendererViewportNativeRenderOverlayPresent = async ({
   releaseNativeSharedFrame = releaseRustBackendNativeSharedFrame,
   requestAudioWaveformSamples = requestRustBackendAudioWaveformSamples,
   selectionDecoration,
+  isRequestCurrent,
 }: PrepareSharedRendererViewportNativeRenderOverlayPresentInput): Promise<PrepareSharedRendererViewportNativeRenderOverlayPresentResult> => {
   if (!session.surfaceGate.ok) {
     return {
@@ -513,6 +524,31 @@ export const prepareSharedRendererViewportNativeRenderOverlayPresent = async ({
       ok: false,
       reason: 'nativeRenderFailed',
       detail: renderResponse.error ?? 'Rust backend native render failed.',
+    };
+  }
+
+  // 追い越し検知 — render の await 中に新しい presenter 要求（クリップ削除に
+  // よる再起動等）が始まっていたら、この present は overlay を古いフレームで
+  // 上書きしてしまう。レンダリング済み shared-memory 出力を解放して present
+  // せずに終了する。
+  if (isRequestCurrent && !isRequestCurrent()) {
+    const releaseFailure = await releaseNativeRenderOutputAfterAbort(async () => {
+      const response = await releaseNativeSharedFrame({ memoryId: renderMemoryId });
+      if (!response.success) {
+        throw new Error(response.error ?? 'Rust backend native render output release failed.');
+      }
+    });
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'supersededDecodeReleaseFailed',
+        detail: releaseFailure,
+      };
+    }
+    return {
+      ok: false,
+      reason: 'supersededRequest',
+      detail: 'A newer presenter request superseded this native overlay present; the rendered frame was released without presenting.',
     };
   }
 
