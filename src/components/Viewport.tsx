@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject, VideoObject } from '../types';
-import { ThreeStageViewport, type BillboardTextureEntry, type ThreeStageViewportHandle } from './ThreeStageViewport';
+import { OxidiseStageViewport, type BillboardTextureEntry, type OxidiseStageViewportHandle } from './OxidiseStageViewport';
 import {
   fetchPsdCompositeRgba,
   psdBillboardCacheKey,
@@ -654,7 +654,11 @@ export { isTransientExternalVideoPresentationFailure };
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportShellRef = useRef<HTMLDivElement>(null);
-  const threeStageRef = useRef<ThreeStageViewportHandle | null>(null);
+  const threeStageRef = useRef<OxidiseStageViewportHandle | null>(null);
+  // 3D ステージの export/snapshot 用: StageRenderer#readbackRgba(非同期)の
+  // 結果を都度描き込んでおく2Dキャンバス。WebGPU canvasはtoDataURLで空になり
+  // うるため、既存のtoDataURL/capture経路はこの2Dキャンバスを対象にする。
+  const stage3dSnapshotCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // PSD ビルボードの合成キャッシュ: cacheKey（filePath::activeLayerIds）→
   // 合成済み RGBA8。rust-backend への psd.renderComposite は非同期・IO束縛
   // のため、renderScene 同期呼び出しの中では「今あるキャッシュをそのまま
@@ -2144,6 +2148,32 @@ const Viewport: React.FC = () => {
     // ここへ届く。
   }, [isExporting, isPlaying, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
+  // 3D ステージの現在フレームを StageRenderer#readbackRgba で読み戻し、
+  // stage3dSnapshotCanvasRef の2Dキャンバスへ描き込む(export/snapshot用)。
+  // readback は非同期のため fire-and-forget で呼ぶ — getExportCanvas は
+  // 常にこのキャンバスの「直近の読み戻し結果」を同期的に返す(1フレーム分
+  // 遅延しうる点は実機検証が必要な既知の制約として申し送る)。
+  const refreshStage3dSnapshotCanvas = useCallback(async (): Promise<void> => {
+    const handle = threeStageRef.current;
+    if (!handle) return;
+    const snapshot = await handle.getSnapshotRgba();
+    if (!snapshot || snapshot.width <= 0 || snapshot.height <= 0) return;
+
+    let canvas = stage3dSnapshotCanvasRef.current;
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      stage3dSnapshotCanvasRef.current = canvas;
+    }
+    if (canvas.width !== snapshot.width || canvas.height !== snapshot.height) {
+      canvas.width = snapshot.width;
+      canvas.height = snapshot.height;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const clamped = new Uint8ClampedArray(snapshot.data);
+    ctx.putImageData(new ImageData(clamped, snapshot.width, snapshot.height), 0, 0);
+  }, []);
+
   // --- Main Render Logic ---
   // PixiJS 排除計画 Phase 4: 旧 Pixi シーングラフ描画は撤去した。ここでは
   // (1) 音声要素の生成・同期・後始末、(2) shared renderer への scene 発行、
@@ -2237,12 +2267,14 @@ const Viewport: React.FC = () => {
       }
 
       threeStageRef.current.syncBillboards(billboardEntries, useStore.getState().stageCamera3D);
+      void refreshStage3dSnapshotCanvas();
     }
   }, [
     isExporting,
     isPlaying,
     layers,
     publishSharedRendererPreviewSession,
+    refreshStage3dSnapshotCanvas,
     rustTimelineSceneRpcEnabled,
   ]);
 
@@ -2328,7 +2360,10 @@ const Viewport: React.FC = () => {
 
   const getExportCanvas = useCallback((): HTMLCanvasElement | null => {
     if (useStore.getState().projectSettings.editorMode === '3d_stage') {
-      return threeStageRef.current?.getCanvas() ?? null;
+      // WebGPU canvasはtoDataURL/captureで空になりうるため、StageRenderer#readbackRgba
+      // を都度2Dキャンバスへ焼き込んだstage3dSnapshotCanvasRefを返す
+      // (readback非同期のfire-and-forget更新のため最大1フレーム遅延しうる)。
+      return stage3dSnapshotCanvasRef.current ?? threeStageRef.current?.getCanvas() ?? null;
     }
     // PixiJS 排除計画 Phase 4: 旧 Pixi canvas の legacy export 経路は撤去。
     // 2D の export フレームは getRustExportFrameSource（Rust 経路）が正で、
@@ -2392,24 +2427,33 @@ const Viewport: React.FC = () => {
   useEffect(() => {
       if (!isSnapshotRequested) return;
 
+      const downloadPng = (canvas: HTMLCanvasElement) => {
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.download = `frame_${timestamp}.png`;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        finishSnapshot();
+      };
+
       const currentTime = useStore.getState().currentTime;
       const objects = useStore.getState().objects;
       const mode = useStore.getState().projectSettings.editorMode ?? '2d';
       if (mode === '3d_stage') {
         renderScene(currentTime, objects);
-        const canvas3d = threeStageRef.current?.getCanvas();
-        if (canvas3d) {
-          const dataUrl = canvas3d.toDataURL('image/png');
-          const link = document.createElement('a');
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          link.download = `frame_${timestamp}.png`;
-          link.href = dataUrl;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          finishSnapshot();
-          return;
-        }
+        // StageRenderer#readbackRgba は非同期のため、ここで明示的に await してから
+        // (fire-and-forgetのrefreshStage3dSnapshotCanvasを待たず)最新フレームを取得する。
+        void (async () => {
+          await refreshStage3dSnapshotCanvas();
+          const canvas3d = stage3dSnapshotCanvasRef.current;
+          if (canvas3d) {
+            downloadPng(canvas3d);
+          }
+        })();
+        return;
       }
 
       // PixiJS 排除計画 Phase 4: 2D スナップショットは Pixi canvas ではなく
@@ -2417,17 +2461,9 @@ const Viewport: React.FC = () => {
       // シーンでは surface が透明のことがある点は実機検証観点として報告済み）。
       const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
       if (surfaceCanvas) {
-          const dataUrl = surfaceCanvas.toDataURL('image/png');
-          const link = document.createElement('a');
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          link.download = `frame_${timestamp}.png`;
-          link.href = dataUrl;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          finishSnapshot();
+          downloadPng(surfaceCanvas);
       }
-  }, [isSnapshotRequested, finishSnapshot, renderScene]);
+  }, [isSnapshotRequested, finishSnapshot, refreshStage3dSnapshotCanvas, renderScene]);
 
   const previewW = projectSettings.width * displayScale;
   const previewH = projectSettings.height * displayScale;
@@ -2669,7 +2705,7 @@ const Viewport: React.FC = () => {
             </>
           )}
           {editorMode === '3d_stage' && (
-            <ThreeStageViewport
+            <OxidiseStageViewport
               ref={threeStageRef}
               width={projectSettings.width}
               height={projectSettings.height}
