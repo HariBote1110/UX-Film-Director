@@ -24,9 +24,11 @@ describe('translateGizmo axis drag', () => {
       const session = begin({ kind: 'axis', axis }, rayThrough(eye, target0), start);
       const result = drag(session, rayThrough(eye, target1));
 
+      // オブジェクトは「つかんだ点からの移動量」ぶんだけ動く（絶対座標が target1 に一致するわけではない）
       const changedKey = axis;
+      const expectedDelta = target1[changedKey] - target0[changedKey];
       const otherKeys = (['x', 'y', 'z'] as const).filter((k) => k !== changedKey);
-      expect(result[changedKey]).toBeCloseTo(target1[changedKey], 4);
+      expect(result[changedKey]).toBeCloseTo(start[changedKey] + expectedDelta, 4);
       for (const k of otherKeys) {
         expect(result[k]).toBeCloseTo(start[k], 6);
       }
@@ -40,8 +42,8 @@ describe('translateGizmo plane (XZ) drag', () => {
     const target1: Vec3 = { x: 4, y: 0, z: -2 };
     const session = begin({ kind: 'plane', plane: 'xz' }, rayThrough(eye, target0), start);
     const result = drag(session, rayThrough(eye, target1));
-    expect(result.x).toBeCloseTo(target1.x, 4);
-    expect(result.z).toBeCloseTo(target1.z, 4);
+    expect(result.x).toBeCloseTo(start.x + (target1.x - target0.x), 4);
+    expect(result.z).toBeCloseTo(start.z + (target1.z - target0.z), 4);
     expect(result.y).toBeCloseTo(start.y, 6);
   });
 
