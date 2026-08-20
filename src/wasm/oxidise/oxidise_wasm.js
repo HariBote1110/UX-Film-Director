@@ -47,7 +47,23 @@ export class StageRenderer {
      * `normalise_to_rgba`でBgra8系の場合はB/Rチャンネルを入れ替えてから
      * 返すため、呼び出し側(TypeScript)はチャンネル順を一切気にする必要が
      * ない。詳細は`progress/m2a-wasm-bindings.md`を参照。
-     * @returns {Promise<Uint8Array>}
+     *
+     * **再入可能性についての注意(重要):** この関数自体は`&self`を
+     * 同期的にしか借用しない — `RenderTarget`への描画(`self.renderer.render`)
+     * までを同期区間で終わらせ、実際に`.await`する読み戻しは`self`から
+     * 独立した所有値(`device`/`queue`のクローンと、`self`を参照しない
+     * `RenderTarget`)だけを捕まえた`async move`ブロックとして
+     * `wasm_bindgen_futures::future_to_promise`へ渡す。
+     * こうしないと、wasm-bindgenが生成する`&self`のランタイム借用チェックが
+     * `.await`をまたいで“借用中”のまま残ってしまい、その間にTS側のrAF
+     * ループが`setCamera`(`&mut self`)を呼ぶと
+     * `recursive use of an object detected which would lead to unsafe
+     * aliasing in rust`で毎回パニックしていた
+     * (`OxidiseStageViewport.tsx`のtick()が`readbackRgba`のfire-and-forget
+     * 呼び出しと同じ`StageRenderer`インスタンスへ`setCamera`を叩くため)。
+     * `device`/`queue`は`wgpu`内部で`Arc`相当のハンドルなので、クローンは
+     * 同じGPUデバイス/キューへの別ハンドルを作るだけで安価。
+     * @returns {Promise<any>}
      */
     readbackRgba() {
         const ret = wasm.stagerenderer_readbackRgba(this.__wbg_ptr);
@@ -1113,12 +1129,12 @@ function __wbg_get_imports() {
             arg0.writeTexture(arg1, arg2, arg3, arg4);
         }, arguments); },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 35, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 34, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h583aaaf058026732);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 70, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 69, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h53375256f4907ff1);
             return ret;
         },
@@ -1135,13 +1151,6 @@ function __wbg_get_imports() {
         __wbindgen_cast_0000000000000005: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
-            return ret;
-        },
-        __wbindgen_cast_0000000000000006: function(arg0, arg1) {
-            var v0 = getArrayU8FromWasm0(arg0, arg1).slice();
-            wasm.__wbindgen_free(arg0, arg1 * 1, 1);
-            // Cast intrinsic for `Vector(U8) -> Externref`.
-            const ret = v0;
             return ret;
         },
         __wbindgen_init_externref_table: function() {

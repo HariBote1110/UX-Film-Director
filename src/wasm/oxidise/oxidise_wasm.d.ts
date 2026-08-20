@@ -28,8 +28,24 @@ export class StageRenderer {
      * `normalise_to_rgba`でBgra8系の場合はB/Rチャンネルを入れ替えてから
      * 返すため、呼び出し側(TypeScript)はチャンネル順を一切気にする必要が
      * ない。詳細は`progress/m2a-wasm-bindings.md`を参照。
+     *
+     * **再入可能性についての注意(重要):** この関数自体は`&self`を
+     * 同期的にしか借用しない — `RenderTarget`への描画(`self.renderer.render`)
+     * までを同期区間で終わらせ、実際に`.await`する読み戻しは`self`から
+     * 独立した所有値(`device`/`queue`のクローンと、`self`を参照しない
+     * `RenderTarget`)だけを捕まえた`async move`ブロックとして
+     * `wasm_bindgen_futures::future_to_promise`へ渡す。
+     * こうしないと、wasm-bindgenが生成する`&self`のランタイム借用チェックが
+     * `.await`をまたいで“借用中”のまま残ってしまい、その間にTS側のrAF
+     * ループが`setCamera`(`&mut self`)を呼ぶと
+     * `recursive use of an object detected which would lead to unsafe
+     * aliasing in rust`で毎回パニックしていた
+     * (`OxidiseStageViewport.tsx`のtick()が`readbackRgba`のfire-and-forget
+     * 呼び出しと同じ`StageRenderer`インスタンスへ`setCamera`を叩くため)。
+     * `device`/`queue`は`wgpu`内部で`Arc`相当のハンドルなので、クローンは
+     * 同じGPUデバイス/キューへの別ハンドルを作るだけで安価。
      */
-    readbackRgba(): Promise<Uint8Array>;
+    readbackRgba(): Promise<any>;
     /**
      * ビルボードを取り外す(テクスチャも合わせて破棄する)。
      */
@@ -92,7 +108,6 @@ export interface InitOutput {
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_destroy_closure: (a: number, b: number) => void;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_start: () => void;
 }
