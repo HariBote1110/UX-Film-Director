@@ -11,6 +11,7 @@ import { hitTestBillboards, hitVolumeDepth, type OrientedBoxBillboard } from '..
 import {
   createOrbitCamera,
   getEyeLook,
+  isOrbitCameraSettled,
   pan,
   rotate,
   setState as setOrbitCameraState,
@@ -24,6 +25,7 @@ import {
   buildTranslateGizmoMesh,
   translateGeometry,
 } from '../utils/stage3d/stageMeshes';
+import { shouldApplyIncomingStageCamera } from '../utils/stage3d/stageCameraSyncPolicy';
 import {
   begin as beginGizmoDrag,
   drag as dragGizmo,
@@ -177,6 +179,16 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
     const userAdjustingRef = useRef(false);
     const dragModeRef = useRef<DragMode | null>(null);
     const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+    /** ドラッグ終了後、ダンピングの積み残しが収束(静止)し次第 store へ永続化する必要があるか。 */
+    const settlePendingRef = useRef(false);
+    /**
+     * 直近にローカルの軌道モデルへ適用済み、または store へ永続化済みの stageCamera3D。
+     * syncBillboards/props経由の再適用が必要かどうかの比較基準に使う
+     * (shouldApplyIncomingStageCamera 参照)。
+     */
+    const lastKnownStageCameraRef = useRef<StageCamera3D>(stageCamera3D);
+    const setStageCamera3DRef = useRef(setStageCamera3D);
+    setStageCamera3DRef.current = setStageCamera3D;
 
     const billboardSourceKeysRef = useRef<Map<string, string>>(new Map());
     const billboardPlacementsRef = useRef<Map<string, BillboardPlacementState>>(new Map());
@@ -207,6 +219,21 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
         cameraModelRef.current,
         sphericalFromEyeTarget(position, target)
       );
+      lastKnownStageCameraRef.current = { position: { ...position }, target: { ...target } };
+    };
+
+    /**
+     * incoming(store 由来)の stageCamera3D を、必要なときだけモデルへ適用する。
+     * ドラッグ中は無視し、直近に適用/永続化した値と実質同一なら no-op とすることで、
+     * 無関係な再レンダーがローカルの最新カメラ状態を巻き戻すのを防ぐ。
+     */
+    const applyIncomingStageCameraIfNeeded = (incoming: StageCamera3D) => {
+      if (
+        !shouldApplyIncomingStageCamera(lastKnownStageCameraRef.current, incoming, userAdjustingRef.current)
+      ) {
+        return;
+      }
+      applyCartesianCamera(incoming.position, incoming.target);
     };
 
     const uploadGizmoForSelection = () => {
@@ -231,7 +258,7 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
         const renderer = rendererRef.current;
         if (!renderer) return;
 
-        applyCartesianCamera(stageCamera.position, stageCamera.target);
+        applyIncomingStageCameraIfNeeded(stageCamera);
 
         const syncEntries: BillboardSyncEntry[] = entries.map((entry) => {
           const aspect = entry.heightPx > 0 ? entry.widthPx / entry.heightPx : 1;
@@ -328,6 +355,19 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
             const { eye, look } = getEyeLook(cameraModelRef.current);
             renderer.setCamera(eye.x, eye.y, eye.z, look.x, look.y, look.z, FOV_Y_RAD, NEAR, FAR);
             renderer.render();
+
+            // ドラッグ終了直後はダンピングの積み残しがまだ残っているため、その場で
+            // setStageCamera3D しても「最終」姿勢にはならない。積み残しが収束(静止)
+            // し切ってから、そのときの eye/target を確定値として store へ永続化する。
+            if (!userAdjustingRef.current && settlePendingRef.current && isOrbitCameraSettled(cameraModelRef.current)) {
+              settlePendingRef.current = false;
+              const settled: StageCamera3D = {
+                position: { x: eye.x, y: eye.y, z: eye.z },
+                target: { x: look.x, y: look.y, z: look.z },
+              };
+              lastKnownStageCameraRef.current = settled;
+              setStageCamera3DRef.current({ position: settled.position, target: settled.target });
+            }
           };
           rafRef.current = requestAnimationFrame(tick);
         })
@@ -366,10 +406,10 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedBillboardId, isExporting]);
 
-    // --- stageCamera3D(React state)からの反映。ユーザーがドラッグ中は上書きしない ---
+    // --- stageCamera3D(React state)からの反映。ユーザーがドラッグ中/書き出し中は上書きしない ---
     useEffect(() => {
-      if (userAdjustingRef.current || isExporting) return;
-      applyCartesianCamera(stageCamera3D.position, stageCamera3D.target);
+      if (isExporting) return;
+      applyIncomingStageCameraIfNeeded(stageCamera3D);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stageCamera3D, isExporting]);
 
@@ -384,10 +424,16 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
       const endCameraAdjust = () => {
         userAdjustingRef.current = false;
         const { eye, look } = currentEyeLook();
-        setStageCamera3D({
+        const current: StageCamera3D = {
           position: { x: eye.x, y: eye.y, z: eye.z },
           target: { x: look.x, y: look.y, z: look.z },
-        });
+        };
+        // ドラッグ終了直後の暫定値を即座に反映する(素早いフィードバック用)。
+        // ダンピングの積み残しがまだ残っている場合、これは最終姿勢ではない可能性が
+        // あるため、収束後に tick() 側で確定値を再度永続化する(settlePendingRef)。
+        lastKnownStageCameraRef.current = current;
+        setStageCamera3D({ position: current.position, target: current.target });
+        settlePendingRef.current = true;
       };
 
       const pickGizmoConstraint = (point: { x: number; y: number }): GizmoConstraint | null => {

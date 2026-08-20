@@ -215,6 +215,22 @@ export const sphericalFromEyeTarget = (eye: Vec3, target: Vec3): OrbitCameraSphe
 };
 
 /**
+ * ダンピングの積み残し(velocity)が実質ゼロまで収束し、静止したとみなせるかを判定する。
+ * ドラッグ終了直後は sphericalDelta 相当の velocity がまだ残っており、update() が
+ * 数フレームかけて反映し終えるまでは「最終的な」eye/target が確定しない。この関数は
+ * その収束完了を検出し、呼び出し側で setStageCamera3D への永続化タイミングを決めるのに使う。
+ */
+export const isOrbitCameraSettled = (model: OrbitCameraModel, epsilon = 1e-5): boolean => {
+  const { velocity } = model;
+  return (
+    Math.abs(velocity.theta) <= epsilon &&
+    Math.abs(velocity.phi) <= epsilon &&
+    Math.abs(velocity.panX) <= epsilon &&
+    Math.abs(velocity.panY) <= epsilon
+  );
+};
+
+/**
  * モデルの spherical state を外部から丸ごと差し替える（ダンピングの積み残し
  * velocity はそのまま維持する — OrbitControls.update() が毎回 camera.position から
  * spherical を再構成しつつ sphericalDelta の累積は温存するのと同じ挙動）。

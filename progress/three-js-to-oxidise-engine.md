@@ -104,3 +104,45 @@ threeStageViewportPsdDataTextureBoundary.test.ts / psdBillboardDataTexture.test.
   厳密には一致しない(視認上ほぼ同じ挙動になるはずだが未検証)。
 - `wasm-pack`が生成する`.gitignore`(`*`)は`src/wasm/rust-core`と同様に
   削除してコミット対象にした。
+
+### 追記: 3Dステージカメラのドラッグ結果が無関係な再レンダーで巻き戻るバグ(0.1.1-Beta-493b)
+
+**症状**: `OxidiseStageViewport`でオービットドラッグ中はカメラが正しく動くが、
+(a)ツールバー操作等の無関係な再レンダーでドラッグ前の角度に戻る、
+(b) 2D↔3Dステージのモード切替(コンポーネントのアンマウント/再マウントを
+伴う)でも直前の角度が失われ、旧`ThreeStageViewport`(store の
+`stageCamera3D`が生存期間を通じて角度を保持していた)と挙動が異なる。
+
+**根本原因は2つ複合していた**:
+1. `syncBillboards`(`useImperativeHandle`経由でViewport.tsxから毎フレーム
+   呼ばれる)が、`stageCamera3D`(React state/ドラッグガード付き)とは別経路で
+   `applyCartesianCamera(stageCamera.position, stageCamera.target)`を
+   **無条件に**呼んでいた。ドラッグ中かどうかのガード(`userAdjustingRef`)も、
+   「既に適用/永続化済みの値と同じなら無視する」という等価判定も存在せず、
+   store の`stageCamera3D`(＝Viewport.tsx側の`layers`/`isExporting`等の
+   変化で発火するeffectがstoreから読む値)が読まれるたびにローカルの
+   軌道モデルを強制的に上書きしていた。
+2. 軌道カメラは`enableDamping: true`で実装されており(`orbitCamera.ts`)、
+   `rotate()`/`pan()`はその場でstateへ反映されず`velocity`に積まれ、
+   `update()`が複数フレームかけて指数減衰させながら反映する。ポインタ
+   アップ時の`endCameraAdjust()`はその瞬間の`eye/target`を`setStageCamera3D`
+   していたが、ダンピングの積み残しがまだ収束していなければそれは
+   「最終」姿勢ではなく、後続の(1)の強制上書きと組み合わさることで
+   見た目のジャンプ/巻き戻りとして観測された。
+
+**採用した永続化ポリシー**:
+- `src/utils/stage3d/stageCameraSyncPolicy.ts`に
+  `shouldApplyIncomingStageCamera(lastApplied, incoming, isUserAdjusting, epsilon)`
+  を純関数として切り出した。ドラッグ中は常に適用しない、`incoming`が
+  直近の適用/永続化値と(epsilon以内で)実質同一ならno-op、それ以外
+  (プロジェクトロード・シーン切替などの外部要因)は適用する、という
+  3値の判定に単純化した。`syncBillboards`とstageCamera3D-driven effectの
+  両方の呼び出し口をこの関数経由に統一した。
+- `orbitCamera.ts`に`isOrbitCameraSettled(model, epsilon)`を追加し、
+  ダンピングの`velocity`が実質ゼロに収束したかを判定できるようにした。
+  ドラッグ終了(`pointerup`/`wheel`)時点でいったん暫定値を即時
+  `setStageCamera3D`しつつ`settlePendingRef`を立て、以後のrAFループ
+  (`tick()`)で収束を検知した時点の`eye/target`を「確定値」として
+  改めて`setStageCamera3D`する2段階の書き込みにした。即時書き込みは
+  体感の即応性のため、確定書き込みはダンピング減衰後の真の最終姿勢を
+  storeへ確実に反映するための安全網である。
