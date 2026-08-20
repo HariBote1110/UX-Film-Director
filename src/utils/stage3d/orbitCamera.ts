@@ -9,7 +9,7 @@
  *   z = radius * sin(phi) * cos(theta)
  * （three.js Vector3.setFromSpherical と同じ規約）
  */
-import { add, cross, normalize, scale, type Vec3 } from './vec3';
+import { add, cross, length, normalize, scale, sub, type Vec3 } from './vec3';
 
 export interface OrbitCameraSpherical {
   target: Vec3;
@@ -195,3 +195,31 @@ export const getEyeLook = (model: OrbitCameraModel): { eye: Vec3; look: Vec3 } =
   const { target } = model.state;
   return { eye: add(target, sphericalOffset(model.state)), look: { ...target } };
 };
+
+/**
+ * eye/target のカルテシアン座標から球面座標を逆算する（getEyeLook の逆変換）。
+ * OrbitControls.update() が毎回 offset = camera.position - target から spherical を
+ * 再構成するのと同じ規約（Y-up, three.js Vector3.setFromSpherical 相当）。
+ * eye と target がほぼ一致する縮退ケースでは、退化を避けるため微小な radius/正面向きの
+ * phi にフォールバックする。
+ */
+export const sphericalFromEyeTarget = (eye: Vec3, target: Vec3): OrbitCameraSpherical => {
+  const offset = sub(eye, target);
+  const radius = length(offset);
+  if (radius < 1e-9) {
+    return { target: { ...target }, radius: 1e-3, theta: 0, phi: Math.PI / 2 };
+  }
+  const phi = Math.acos(clamp(offset.y / radius, -1, 1));
+  const theta = Math.atan2(offset.x, offset.z);
+  return { target: { ...target }, radius, theta, phi };
+};
+
+/**
+ * モデルの spherical state を外部から丸ごと差し替える（ダンピングの積み残し
+ * velocity はそのまま維持する — OrbitControls.update() が毎回 camera.position から
+ * spherical を再構成しつつ sphericalDelta の累積は温存するのと同じ挙動）。
+ */
+export const setState = (model: OrbitCameraModel, state: OrbitCameraSpherical): OrbitCameraModel => ({
+  ...model,
+  state: clampState(state, model.config)
+});

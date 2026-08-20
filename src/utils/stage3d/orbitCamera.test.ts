@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createOrbitCamera, getEyeLook, pan, rotate, update, zoom } from './orbitCamera';
+import {
+  createOrbitCamera,
+  getEyeLook,
+  pan,
+  rotate,
+  setState,
+  sphericalFromEyeTarget,
+  update,
+  zoom,
+} from './orbitCamera';
 import { length, sub } from './vec3';
 
 const baseConfig = {
@@ -104,5 +113,39 @@ describe('orbitCamera', () => {
     expect(s1.state.phi).toBeLessThanOrEqual(2.8);
     const s2 = rotate(s0, 0, -10);
     expect(s2.state.phi).toBeGreaterThanOrEqual(0.2);
+  });
+});
+
+describe('sphericalFromEyeTarget / setState', () => {
+  it('round-trips with getEyeLook for an arbitrary eye/target pair', () => {
+    const eye = { x: 4, y: 7, z: -2 };
+    const target = { x: 1, y: 1, z: 1 };
+    const spherical = sphericalFromEyeTarget(eye, target);
+    const model = setState(
+      createOrbitCamera(spherical, { ...baseConfig, minDistance: 0, maxDistance: 1e6 }),
+      spherical
+    );
+    const { eye: recoveredEye, look: recoveredLook } = getEyeLook(model);
+    expect(recoveredEye.x).toBeCloseTo(eye.x, 6);
+    expect(recoveredEye.y).toBeCloseTo(eye.y, 6);
+    expect(recoveredEye.z).toBeCloseTo(eye.z, 6);
+    expect(recoveredLook).toEqual(target);
+  });
+
+  it('setState preserves velocity (damping in-flight is not reset)', () => {
+    let s = createOrbitCamera(
+      { target: { x: 0, y: 0, z: 0 }, radius: 10, theta: 0, phi: Math.PI / 2 },
+      baseConfig
+    );
+    s = rotate(s, 0.5, 0.1);
+    const rebased = setState(s, sphericalFromEyeTarget({ x: 0, y: 0, z: 5 }, { x: 0, y: 0, z: 0 }));
+    expect(rebased.velocity).toEqual(s.velocity);
+  });
+
+  it('falls back to a small non-degenerate radius when eye and target coincide', () => {
+    const spherical = sphericalFromEyeTarget({ x: 2, y: 2, z: 2 }, { x: 2, y: 2, z: 2 });
+    expect(spherical.radius).toBeGreaterThan(0);
+    expect(Number.isFinite(spherical.theta)).toBe(true);
+    expect(Number.isFinite(spherical.phi)).toBe(true);
   });
 });
