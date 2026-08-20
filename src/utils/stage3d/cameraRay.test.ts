@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { screenPointToRay } from './cameraRay';
-import { length, normalize, sub } from './vec3';
+import { screenPointToRay, worldToScreen } from './cameraRay';
+import { add, length, normalize, scale, sub } from './vec3';
 
 describe('screenPointToRay', () => {
   const eye = { x: 0, y: 0, z: 10 };
@@ -65,5 +65,42 @@ describe('screenPointToRay', () => {
       { eye: { x: 3, y: 4, z: 5 }, look: { x: -1, y: 2, z: -3 }, fovYDeg: 60 }
     );
     expect(length(ray.direction)).toBeCloseTo(1, 6);
+  });
+});
+
+describe('worldToScreen', () => {
+  const eye = { x: 0, y: 0, z: 10 };
+  const look = { x: 0, y: 0, z: 0 };
+  const canvas = { width: 800, height: 600 };
+  const fovYDeg = 45;
+
+  it('round-trips with screenPointToRay for arbitrary screen points', () => {
+    const points = [
+      { x: 400, y: 300 },
+      { x: 0, y: 0 },
+      { x: 800, y: 600 },
+      { x: 123, y: 45 },
+      { x: 640, y: 480 },
+    ];
+    for (const point of points) {
+      const ray = screenPointToRay(point, canvas, { eye, look, fovYDeg });
+      const worldPoint = add(ray.origin, scale(normalize(ray.direction), 5));
+      const projected = worldToScreen(worldPoint, canvas, { eye, look, fovYDeg });
+      expect(projected).not.toBeNull();
+      expect(projected!.x).toBeCloseTo(point.x, 3);
+      expect(projected!.y).toBeCloseTo(point.y, 3);
+    }
+  });
+
+  it('returns null for points behind the camera', () => {
+    const behind = worldToScreen({ x: 0, y: 0, z: 20 }, canvas, { eye, look, fovYDeg });
+    expect(behind).toBeNull();
+  });
+
+  it('maps the look target to the centre of the canvas', () => {
+    const projected = worldToScreen(look, canvas, { eye, look, fovYDeg });
+    expect(projected).not.toBeNull();
+    expect(projected!.x).toBeCloseTo(canvas.width / 2, 6);
+    expect(projected!.y).toBeCloseTo(canvas.height / 2, 6);
   });
 });
