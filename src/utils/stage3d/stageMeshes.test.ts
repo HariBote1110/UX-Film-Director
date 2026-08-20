@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAxisArrowMesh, buildGridFloorMesh, buildTranslateGizmoMesh } from './stageMeshes';
+import { buildAxisArrowMesh, buildGridFloorMesh, buildTranslateGizmoMesh, translateGeometry } from './stageMeshes';
 
 const assertValidGeometry = (geometry: { vertices: Float32Array; colours: Uint8Array; indices: Uint32Array }) => {
   const vertexCount = geometry.vertices.length / 3;
@@ -60,5 +60,20 @@ describe('buildTranslateGizmoMesh', () => {
     assertValidGeometry(geometry);
     const single = buildAxisArrowMesh('x');
     expect(geometry.vertices.length).toBe(single.vertices.length * 3);
+  });
+});
+
+describe('translateGeometry', () => {
+  it('offsets every vertex by the given world-space translation, leaving colours/indices untouched', () => {
+    const geometry = buildAxisArrowMesh('x', { length: 1 });
+    const offset = { x: 3, y: -2, z: 5 };
+    const translated = translateGeometry(geometry, offset);
+    for (let i = 0; i < geometry.vertices.length; i += 3) {
+      expect(translated.vertices[i]).toBeCloseTo(geometry.vertices[i] + offset.x, 6);
+      expect(translated.vertices[i + 1]).toBeCloseTo(geometry.vertices[i + 1] + offset.y, 6);
+      expect(translated.vertices[i + 2]).toBeCloseTo(geometry.vertices[i + 2] + offset.z, 6);
+    }
+    expect(translated.colours).toBe(geometry.colours);
+    expect(translated.indices).toBe(geometry.indices);
   });
 });

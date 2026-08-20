@@ -129,6 +129,20 @@ export const buildGridFloorMesh = (options: GridFloorOptions = {}): MeshChunkGeo
   return mergeGeometries(parts);
 };
 
+/** ジオメトリ全頂点をワールド空間オフセットぶん平行移動する(uploadMeshChunkは頂点位置に変換前提のため)。 */
+export const translateGeometry = (
+  geometry: MeshChunkGeometry,
+  offset: { x: number; y: number; z: number }
+): MeshChunkGeometry => {
+  const vertices = new Float32Array(geometry.vertices.length);
+  for (let i = 0; i < geometry.vertices.length; i += 3) {
+    vertices[i] = geometry.vertices[i] + offset.x;
+    vertices[i + 1] = geometry.vertices[i + 1] + offset.y;
+    vertices[i + 2] = geometry.vertices[i + 2] + offset.z;
+  }
+  return { vertices, colours: geometry.colours, indices: geometry.indices };
+};
+
 export type GizmoAxis = 'x' | 'y' | 'z';
 
 export interface AxisArrowOptions {
