@@ -35,3 +35,72 @@ CubicTransimにはテクスチャ/マテリアルシステムが存在しない(
 TransformControls/OrbitControls相当(減衰付きカメラ、ギズモ、レイキャスト)はThree.js examplesが肩代わりしていた分の自前実装が必要で、M2の主工数。
 
 threeStageViewportPsdDataTextureBoundary.test.ts / psdBillboardDataTexture.test.tsが現行境界(CanvasTexture不使用、fetchPsdCompositeRgba直接経路)を固定しており、M2ではこれらを新エンジン境界の等価テストに置き換える。
+
+## M2c: UX Film Director統合（実装済み、2026-08-21）
+
+### 実装内容
+
+- `npm run wasm:build:oxidise`(package.json)を追加。`../oxidise-engine`
+  (0.1.0-Alpha-3b、sibling checkout前提)の`crates/oxidise-wasm`を
+  `wasm-pack build --target web`し、`rust-core-wasm`と同じ規約で
+  `src/wasm/oxidise/`(oxidise_wasm.js/.wasm/.d.ts、コミット対象)へ出力する。
+  `wasm-pack`の`--out-dir`はクレートディレクトリ基準の相対パスとして解決される
+  (CWD基準ではない)点に注意——`../../../UX-Film-Director/src/wasm/oxidise`
+  という3階層上げの指定になっているのはそのため。
+- `src/components/OxidiseStageViewport.tsx`を新設し、
+  `ThreeStageViewport.tsx`と同一の命令的インターフェース
+  (`getCanvas`/`syncBillboards`)に加え、export/snapshot用の非同期
+  `getSnapshotRgba()`を追加した。three.js/OrbitControls/TransformControls
+  への依存を持たず、`src/utils/stage3d/`配下の純粋関数群
+  (`orbitCamera`/`cameraRay`/`hitTest`/`translateGizmo`/`stageMeshes`/
+  `billboardSyncPlan`)とoxidise-wasmの`StageRenderer`のみで構成する。
+- グリッド床面(旧`THREE.GridHelper(40,40)`相当)と移動ギズモの軸矢印は、
+  `StageRenderer#uploadMeshChunk`が三角形リストしか受け付けない
+  (GL_LINES相当のプリミティブが無い)ため、`stageMeshes.ts`で
+  「薄いquad」「四角錐」の三角形へ変換して生成する
+  (`buildGridFloorMesh`/`buildAxisArrowMesh`/`buildTranslateGizmoMesh`/
+  `translateGeometry`)。
+- ギズモ軸ピッキングは、`cameraRay.ts`に追加した`worldToScreen`
+  (`screenPointToRay`の逆変換)でギズモ各軸の始点・終点をスクリーン座標へ
+  射影し、クリック点とのスクリーン距離(px)で判定する簡易実装。
+  three.jsの`TransformControls`のような実メッシュへのレイキャストではない。
+- ビルボードのsource-key再利用判定(GPU再アップロード回避の意味論を
+  呼び出し側から観測できるようにする分類)は`billboardSyncPlan.ts`の
+  `computeBillboardSyncPlan`(純粋関数)に切り出した。ただし
+  `StageRenderer#syncBillboard`は毎回rgbaを引数に取るAPIのため、
+  呼び出し自体は`kind`に関わらず全エントリに対して毎フレーム行う
+  (実際のテクスチャ再アップロード回避はStageRenderer内部の
+  `TextureRegistry`のsource-key一致判定に一任している)。
+- **新規挙動(旧ThreeStageViewportには無かったもの)**:
+  キャンバス上でのビルボードクリック選択を追加した
+  (`screenPointToRay`→`hitTestBillboards`→`useStore.getState().selectObject`)。
+  旧実装は3Dキャンバス上でのクリック選択を持たず、選択はタイムライン/
+  リストパネル側の`selectedIds`/`selectedId`のみから`selectedBillboardId`
+  propへ渡っていた。hitTest.ts(`hitVolumeDepth`込み)が用意されていた
+  意図を汲んでこの挙動を追加したが、意図的な仕様追加であり要件定義書には
+  明記されていない点は申し送る。
+- Viewport.tsxの3Dステージexport/snapshot経路を、
+  `canvas.toDataURL()`直読みから`StageRenderer#readbackRgba()`→
+  `ImageData`→2Dキャンバス(`stage3dSnapshotCanvasRef`)経由へ変更した
+  (WebGPU canvasの`toDataURL`が空になりうる問題への対処)。
+
+### 既知の制約・申し送り
+
+- **ブラウザ実機での動作確認は一切していない**(oxidise-wasm側のM2aと同じ
+  スコープ外事項)。`npm test`/`tsc --noEmit`/`npx vite build`が通ることのみ
+  確認済み。カメラ操作(rotate/pan/zoom)・ギズモドラッグ・PSDビルボード表示・
+  export/snapshotの実際の見た目は未検証。
+- `getExportCanvas()`は同期APIのままだが、`readbackRgba()`は非同期。
+  fire-and-forgetで更新し続ける2Dキャンバス(`stage3dSnapshotCanvasRef`)の
+  「直近の読み戻し結果」を返す設計にしたため、動画export時の連番フレーム
+  キャプチャでは理論上1フレーム遅延しうる。手動スナップショット
+  (`isSnapshotRequested`)経路は`await refreshStage3dSnapshotCanvas()`を
+  挟んでいるため、その時点の最新フレームを取得できるはず(未検証)。
+  正しい同期を取るには`renderProjectExportFrame`側のフレームループ自体を
+  async-canvas対応へ拡張する必要があり、影響範囲が大きいため今回は
+  見送った。
+- ギズモ軸ピッキングはスクリーン距離ベースの簡易判定であり、
+  three.jsの`TransformControls`が行う実メッシュへのレイキャストとは
+  厳密には一致しない(視認上ほぼ同じ挙動になるはずだが未検証)。
+- `wasm-pack`が生成する`.gitignore`(`*`)は`src/wasm/rust-core`と同様に
+  削除してコミット対象にした。
