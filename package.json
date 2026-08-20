@@ -37,6 +37,7 @@
     "test:native-overlay-node": "npm run native-overlay:node:build && node scripts/test-native-overlay-addon.mjs",
     "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
     "wasm:build:rust-core": "wasm-pack build rust-core-wasm --target web --out-dir ../src/wasm/rust-core --out-name uxfd_rust_core_wasm",
+    "wasm:build:oxidise": "wasm-pack build ../oxidise-engine/crates/oxidise-wasm --target web --out-dir ../../../UX-Film-Director/src/wasm/oxidise --out-name oxidise_wasm",
     "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
   },
   "build": {

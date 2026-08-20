@@ -1,0 +1,16 @@
+{
+  "name": "oxidise-wasm",
+  "type": "module",
+  "description": "oxidise-engine: wasm-bindgen bindings that present the renderer onto a browser <canvas> (UX Film Director integration)",
+  "version": "0.1.0-Alpha-3b",
+  "files": [
+    "oxidise_wasm_bg.wasm",
+    "oxidise_wasm.js",
+    "oxidise_wasm.d.ts"
+  ],
+  "main": "oxidise_wasm.js",
+  "types": "oxidise_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
