@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [stage3d-pure-interaction-logic.md](stage3d-pure-interaction-logic.md) — M2b: OrbitControls/TransformControls/Raycaster相当の3Dステージ操作ロジックを`src/utils/stage3d/`配下にレンダラー非依存の純関数として先行実装(vec3, orbitCamera, cameraRay, hitTest, translateGizmo)。ThreeStageViewport.tsxは未変更、テスト34件green（2026-08-21）
 - [three-js-to-oxidise-engine.md](three-js-to-oxidise-engine.md) — 3DステージのThree.js(WebGL)をoxidise-engine(wgpu 24.0.5独立repo)へ置き換える決定。根拠: ビルボード表示+カメラ+ギズモ限定・NV12 zero-copy動作確認・外部時間駆動でスクラブ親和。M0〜M3段階計画、readback API、CubicTransim汎用化（2026-08-21）
 - [wysiwyg-empty-scene-present.md](wysiwyg-empty-scene-present.md) — 図形クリップの範囲外シーク/移動でnative overlayにゴーストが残るWYSIWYG違反を修正。評価済みsessionのclips空をshouldPresentSharedRendererEmptyScenePresentationで判定し透明clear、native-render-only present経路にisRequestCurrentガードを追加(版492a)（2026-08-18）
 - [native-overlay-beachball-fix.md](native-overlay-beachball-fix.md) — PSDプレビューbeachball対策の2部作。Fix1: devビルドがnative-overlay/bridgeアドオンをdebugビルドしていた不整合をrelease統一(版491d)。Fix2: presentNativeOverlayScene内のPSD decode/compositeをnapi AsyncTaskでlibuvスレッドプールへ逃がすprepareNativeOverlaySourcesを新設、main threadは cache hit のみに(版491e)（2026-08-13）
