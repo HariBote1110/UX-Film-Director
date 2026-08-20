@@ -60,8 +60,8 @@ describe('hitTestBillboards', () => {
   it('hits a yaw-rotated box using its local axes rather than world axes', () => {
     // 90度回転した板は元々 X 方向に width=2, depth=0.2 だったのが Z 方向に width、X 方向に depth になる
     const rotated = makeBox({ yawRadians: Math.PI / 2, width: 2, height: 2, depth: 0.2 });
-    // ワールド X 方向から見て、幅方向(回転後は薄い depth 方向)を通るレイは当たらないはず
-    const missingRay = { origin: { x: 10, y: 0, z: 0.9 }, direction: { x: -1, y: 0, z: 0 } };
+    // 回転後、元の width(半径1)は world Z 方向の範囲になる。範囲外(z=1.5)を通るレイは当たらない
+    const missingRay = { origin: { x: 10, y: 0, z: 1.5 }, direction: { x: -1, y: 0, z: 0 } };
     expect(hitTestBillboards(missingRay, [rotated])).toBeNull();
     // 回転後の厚み方向(元の depth=0.2 が X 方向)にはヒットする
     const hittingRay = { origin: { x: 10, y: 0, z: 0 }, direction: { x: -1, y: 0, z: 0 } };
