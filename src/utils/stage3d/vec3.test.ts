@@ -29,7 +29,9 @@ describe('vec3', () => {
   it('normalizes to a unit vector', () => {
     const n = normalize({ x: 3, y: 4, z: 0 });
     expect(length(n)).toBeCloseTo(1, 10);
-    expect(n).toEqual({ x: 0.6, y: 0.8, z: 0 });
+    expect(n.x).toBeCloseTo(0.6, 10);
+    expect(n.y).toBeCloseTo(0.8, 10);
+    expect(n.z).toBeCloseTo(0, 10);
   });
 
   it('normalizing a zero-length vector safely returns zero instead of NaN', () => {
