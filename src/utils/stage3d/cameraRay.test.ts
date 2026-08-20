@@ -45,12 +45,12 @@ describe('screenPointToRay', () => {
 
   it('widens the horizontal spread proportionally to aspect ratio (wider canvas => larger |x| at the same edge)', () => {
     const narrow = screenPointToRay(
-      { x: 400, y: 300 },
+      { x: 800, y: 300 },
       { width: 800, height: 600 },
       { eye, look, fovYDeg }
     );
     const wide = screenPointToRay(
-      { x: 800, y: 300 },
+      { x: 1600, y: 300 },
       { width: 1600, height: 600 },
       { eye, look, fovYDeg }
     );
