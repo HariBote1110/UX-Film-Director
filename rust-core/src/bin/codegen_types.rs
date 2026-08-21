@@ -15,7 +15,8 @@ use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
     Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl, MediaKind, MediaReference,
-    PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, SubjectCropAnimation,
+    PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, ShapeGradientFill,
+    ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType, SubjectCropAnimation,
     SubjectCropKeyframe, Track, Transform, WipeAnimation, WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
@@ -40,6 +41,7 @@ fn write_ts_bindings() {
     Project::export_all(&cfg).expect("Project の TS export に失敗しました");
     SceneSnapshot::export_all(&cfg).expect("SceneSnapshot の TS export に失敗しました");
     EvaluatedClip::export_all(&cfg).expect("EvaluatedClip の TS export に失敗しました");
+    ShapeObjectFields::export_all(&cfg).expect("ShapeObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -107,6 +109,11 @@ fn write_json_schemas() {
     write_schema::<Track>(&dir, "Track");
     write_schema::<GroupControl>(&dir, "GroupControl");
     write_schema::<Project>(&dir, "Project");
+    write_schema::<ShapeType>(&dir, "ShapeType");
+    write_schema::<ShapeGradientKind>(&dir, "ShapeGradientKind");
+    write_schema::<ShapeGradientScope>(&dir, "ShapeGradientScope");
+    write_schema::<ShapeGradientFill>(&dir, "ShapeGradientFill");
+    write_schema::<ShapeObjectFields>(&dir, "ShapeObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

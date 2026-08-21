@@ -1424,7 +1424,9 @@ const serialiseGeneratedShapeSource = (object: ShapeObject): string =>
       : 0,
   });
 
-const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
+const serialiseGeneratedGradientSource = (
+  gradient: Pick<GradientFill, 'type' | 'colours' | 'stops' | 'direction'>
+): string =>
   JSON.stringify({
     type: gradient.type === 'radial' ? 'radial' : 'linear',
     colours: Array.isArray(gradient.colours) && gradient.colours.length > 0

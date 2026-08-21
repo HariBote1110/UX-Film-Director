@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShapeGradientFill",
+  "description": "`src/types.ts` の手書き `GradientFill` と構造的に同じ形にした編集モデル用型。\n * `shape` 以外の kind でも同じ形を使うが、共有化は次の kind 移送時に検討する。",
+  "type": "object",
+  "properties": {
+    "colours": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "direction": {
+      "type": "number",
+      "format": "float"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShapeGradientScope"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stops": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "format": "float"
+      }
+    },
+    "type": {
+      "$ref": "#/$defs/ShapeGradientKind"
+    }
+  },
+  "required": [
+    "enabled",
+    "type",
+    "colours",
+    "stops",
+    "direction"
+  ],
+  "$defs": {
+    "ShapeGradientKind": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "radial"
+      ]
+    },
+    "ShapeGradientScope": {
+      "type": "string",
+      "enum": [
+        "group",
+        "connected"
+      ]
+    }
+  }
+}

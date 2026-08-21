@@ -1,5 +1,6 @@
 import { EasingType } from './utils/easings';
 import { LabPhoneme } from './utils/labParser';
+import type { ShapeObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -452,15 +453,11 @@ export interface TextObject extends BaseObject {
   textShadow?: TextShadow;
 }
 
-export interface ShapeObject extends BaseObject {
-  type: 'shape';
-  shapeType: 'rect' | 'rounded_rect' | 'circle' | 'ellipse' | 'triangle' | 'star' | 'pentagon' | 'diamond' | 'arrow' | 'heart' | 'cross';
-  width: number;
-  height: number;
-  fill: string;
-  gradient?: GradientFill;
-  cornerRadius?: number;
-}
+/**
+ * shape kind の正本は rust-core/src/schema.rs の `ShapeObjectFields`（R3）。
+ * `type` と `BaseObject` 由来のフィールドだけここで足す。
+ */
+export type ShapeObject = BaseObject & ShapeObjectFields & { type: 'shape' };
 
 export interface ImageObject extends BaseObject {
   type: 'image';

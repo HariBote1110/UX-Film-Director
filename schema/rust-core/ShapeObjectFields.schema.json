@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShapeObjectFields",
+  "description": "`ShapeObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、shape 固有部分。TS 側は `BaseObject & ShapeObjectFields & { type: 'shape' }`\nとして組み立てる。",
+  "type": "object",
+  "properties": {
+    "cornerRadius": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "fill": {
+      "type": "string"
+    },
+    "gradient": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShapeGradientFill"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "shapeType": {
+      "$ref": "#/$defs/ShapeType",
+      "default": "rect"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "fill"
+  ],
+  "$defs": {
+    "ShapeGradientFill": {
+      "description": "`src/types.ts` の手書き `GradientFill` と構造的に同じ形にした編集モデル用型。\n * `shape` 以外の kind でも同じ形を使うが、共有化は次の kind 移送時に検討する。",
+      "type": "object",
+      "properties": {
+        "colours": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "direction": {
+          "type": "number",
+          "format": "float"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShapeGradientScope"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stops": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/ShapeGradientKind"
+        }
+      },
+      "required": [
+        "enabled",
+        "type",
+        "colours",
+        "stops",
+        "direction"
+      ]
+    },
+    "ShapeGradientKind": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "radial"
+      ]
+    },
+    "ShapeGradientScope": {
+      "type": "string",
+      "enum": [
+        "group",
+        "connected"
+      ]
+    },
+    "ShapeType": {
+      "type": "string",
+      "enum": [
+        "rect",
+        "rounded_rect",
+        "circle",
+        "ellipse",
+        "triangle",
+        "star",
+        "pentagon",
+        "diamond",
+        "arrow",
+        "heart",
+        "cross"
+      ]
+    }
+  }
+}
