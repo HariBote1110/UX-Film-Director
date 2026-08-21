@@ -7,6 +7,7 @@ import os from 'node:os'
 import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
+import { validateProxyDuration } from '../src/utils/proxyValidation';
 import {
   abortRustVideoEncodeViaBackend,
   finishRustVideoEncodeViaBackend,
@@ -948,13 +949,49 @@ app.whenReady().then(() => {
     }
   });
 
-  // プロキシファイルが存在するか確認する（インポート時の自動検出用）
+  // 指定ファイルの再生時間（秒）を probe する。失敗時は null を返し、
+  // 呼び出し側で「検証できない＝旧来どおりフォールバック」を選べるようにする。
+  const probeDurationSecondsForValidation = async (filePath: string): Promise<number | null> => {
+    try {
+      const probed = await callRustBackend('media.probe', {
+        filePath,
+        ffprobePath: resolveDefaultFfprobePath(),
+      }, 15000) as { duration?: unknown } | null;
+      const duration = probed && typeof probed.duration === 'number' ? probed.duration : null;
+      return duration;
+    } catch (error) {
+      console.warn(`[proxy-validation] ffprobe によるプロキシ検証に失敗しました（フォールバックします）: ${filePath}`, error);
+      return null;
+    }
+  };
+
+  // プロキシファイルが存在するか確認する（インポート時の自動検出用）。
+  // 隣接する .proxy.mp4 は外部ツール製・古い生成物の可能性があるため、
+  // 再生時間がオリジナルと一致するかを検証してから採用する。
   ipcMain.handle('check-proxy', async (_event, payload: { filePath?: string }) => {
     const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
     if (!filePath) return { exists: false };
     const ext = path.extname(filePath);
     const proxyPath = filePath.slice(0, -ext.length) + '.proxy.mp4';
-    return { exists: fs.existsSync(proxyPath), proxyPath };
+    if (!fs.existsSync(proxyPath)) return { exists: false, proxyPath };
+
+    const [originalDurationSeconds, proxyDurationSeconds] = await Promise.all([
+      probeDurationSecondsForValidation(filePath),
+      probeDurationSecondsForValidation(proxyPath),
+    ]);
+
+    // どちらか probe できなかった場合は検証不能なため、従来どおり存在確認のみで採用する。
+    if (originalDurationSeconds === null || proxyDurationSeconds === null) {
+      return { exists: true, proxyPath };
+    }
+
+    const validation = validateProxyDuration({ originalDurationSeconds, proxyDurationSeconds });
+    if (!validation.valid) {
+      console.warn(`[proxy-validation] 不正なプロキシを拒否しました: ${proxyPath} (${validation.reason})`);
+      return { exists: false, invalidProxyPath: proxyPath, reason: validation.reason };
+    }
+
+    return { exists: true, proxyPath };
   });
 
   // プレビュー用プロキシを生成する（FFmpeg libx264、全Iフレーム、低解像度）
@@ -970,6 +1007,19 @@ app.whenReady().then(() => {
         width: payload?.width ?? 640,
         ffmpegPath: resolveDefaultFfmpegPath(),
       }, 600_000); // 最大 10 分
+
+      const [originalDurationSeconds, proxyDurationSeconds] = await Promise.all([
+        probeDurationSecondsForValidation(filePath),
+        probeDurationSecondsForValidation(proxyPath),
+      ]);
+      if (originalDurationSeconds !== null && proxyDurationSeconds !== null) {
+        const validation = validateProxyDuration({ originalDurationSeconds, proxyDurationSeconds });
+        if (!validation.valid) {
+          console.warn(`[proxy-validation] 生成直後のプロキシが検証に失敗しました: ${proxyPath} (${validation.reason})`);
+          return { success: false, error: `生成されたプロキシの再生時間が不正です: ${validation.reason}` };
+        }
+      }
+
       return { success: true, proxyPath, result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
