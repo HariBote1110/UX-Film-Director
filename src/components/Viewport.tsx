@@ -724,9 +724,10 @@ const Viewport: React.FC = () => {
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
-  // 常駐Rust scene RPC は段階的移行用の明示 opt-in。enabled 中は timeline の
-  // 評価を renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
-  const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC === '1';
+  // 常駐Rust scene RPC は既定で有効。enabled 中は timeline の評価を
+  // renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
+  // '0' 指定でレガシー経路へ opt-out できる。
+  const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC !== '0';
   const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';
   // 選択デコレーション（送信ロジック・SVG 透明化 state）は
   // SceneSelectionDecorationLayer.tsx へ移設済み。attach 成功 tick の bump
