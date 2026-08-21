@@ -4,11 +4,9 @@ use std::sync::Arc;
 use crate::frames::pad_rgba_rows;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_rust_core::{EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot};
-#[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{rgba8_srgb_ring_layout, ColourMetadata, SharedFrame};
 
-#[cfg(unix)]
 pub(crate) struct CpuSimpleVideoRenderReport {
     pub(crate) ring: PosixSharedRing,
     pub(crate) slot_count: u32,
@@ -16,7 +14,6 @@ pub(crate) struct CpuSimpleVideoRenderReport {
     pub(crate) shared_frame: SharedFrame,
 }
 
-#[cfg(unix)]
 pub(crate) fn try_render_simple_video_frame_to_shared_ring(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
@@ -61,7 +58,6 @@ pub(crate) fn try_render_simple_video_frame_to_shared_ring(
     }))
 }
 
-#[cfg(unix)]
 pub(crate) fn try_render_simple_video_frame(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
@@ -130,7 +126,6 @@ pub(crate) fn try_render_simple_video_frame(
         .map_err(|error| format!("CPU simple video output frame is invalid: {error:?}"))
 }
 
-#[cfg(unix)]
 fn is_simple_video_composite_clip(clip: &EvaluatedClip) -> bool {
     clip.effects.is_empty()
         && nearly_equal_f32(clip.opacity, 1.0)
@@ -141,7 +136,6 @@ fn is_simple_video_composite_clip(clip: &EvaluatedClip) -> bool {
         && nearly_equal_f32(clip.transform.rotation_degrees, 0.0)
 }
 
-#[cfg(unix)]
 fn blit_simple_video_source(
     source: &RgbaFrame,
     output: &mut [u8],
@@ -177,7 +171,6 @@ fn blit_simple_video_source(
     )
 }
 
-#[cfg(unix)]
 fn blit_unscaled_simple_video_source(
     source: &RgbaFrame,
     output: &mut [u8],
@@ -237,7 +230,6 @@ fn blit_unscaled_simple_video_source(
     Ok(())
 }
 
-#[cfg(unix)]
 fn blit_scaled_simple_video_source(
     source: &RgbaFrame,
     output: &mut [u8],
@@ -292,7 +284,6 @@ fn blit_scaled_simple_video_source(
     Ok(())
 }
 
-#[cfg(unix)]
 fn sample_simple_video_source(
     source: &RgbaFrame,
     source_x: f32,
@@ -305,7 +296,6 @@ fn sample_simple_video_source(
     }
 }
 
-#[cfg(unix)]
 fn sample_nearest_simple_video_source(
     source: &RgbaFrame,
     source_x: f32,
@@ -316,7 +306,6 @@ fn sample_nearest_simple_video_source(
     read_simple_video_source_pixel(source, x, y)
 }
 
-#[cfg(unix)]
 fn sample_bilinear_simple_video_source(
     source: &RgbaFrame,
     source_x: f32,
@@ -347,7 +336,6 @@ fn sample_bilinear_simple_video_source(
     Ok(output)
 }
 
-#[cfg(unix)]
 fn read_simple_video_source_pixel(
     source: &RgbaFrame,
     x: usize,
@@ -366,12 +354,10 @@ fn read_simple_video_source_pixel(
     ])
 }
 
-#[cfg(unix)]
 fn lerp(left: f32, right: f32, amount: f32) -> f32 {
     left + (right - left) * amount
 }
 
-#[cfg(unix)]
 fn finite_integer_i64(value: f32) -> Option<i64> {
     if !value.is_finite() {
         return None;
@@ -383,12 +369,11 @@ fn finite_integer_i64(value: f32) -> Option<i64> {
     Some(rounded as i64)
 }
 
-#[cfg(unix)]
 fn nearly_equal_f32(left: f32, right: f32) -> bool {
     (left - right).abs() <= 1e-6
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod proxy_scale_tests {
     use super::try_render_simple_video_frame;
     use std::collections::HashMap;

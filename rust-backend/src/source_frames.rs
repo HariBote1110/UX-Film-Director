@@ -1,9 +1,7 @@
-#[cfg(unix)]
 use crate::native_shared::read_native_render_source_frame;
 use crate::params::NativeRenderSharedFrameSource;
 use crate::psd_fast;
 use crate::psd_layer_cache;
-#[cfg(unix)]
 use crate::sessions::DecodeSession;
 use crate::state::{GeneratedSourceFrameCache, SourceFrameCache, SourceFrameCacheKey};
 use std::collections::hash_map::DefaultHasher;
@@ -12,11 +10,9 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
-#[cfg(unix)]
 use uxfd_rust_core::Nv12IoSurfaceRef;
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 
-#[cfg(unix)]
 pub(crate) fn collect_native_render_sources(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
@@ -118,7 +114,6 @@ fn build_generated_source_frame_cached(
 /// `inprocess_decode::inprocess_decode_enabled`'s pattern), primarily so a
 /// parity test can compare the two composite paths for the exact same
 /// decoded frame.
-#[cfg(unix)]
 pub(crate) fn collect_native_render_nv12_sources(
     shared_sources: &[NativeRenderSharedFrameSource],
     decode_sessions: &HashMap<String, DecodeSession>,
@@ -143,7 +138,6 @@ pub(crate) fn collect_native_render_nv12_sources(
     nv12_sources
 }
 
-#[cfg(unix)]
 fn nv12_zero_copy_render_enabled() -> bool {
     std::env::var("UXFD_DISABLE_NV12_ZERO_COPY_RENDER")
         .map(|value| value != "1")
@@ -169,7 +163,6 @@ fn nv12_zero_copy_render_enabled() -> bool {
 ///   ラスタライズ結果や、通常の動画パス経由の CPU デコード結果）は revision
 ///   を算出しない（呼び出し側の renderer は revision 不在の media_id を常に
 ///   ミス扱いにするため、既存の「毎フレーム再生成」挙動のまま）。
-#[cfg(unix)]
 pub(crate) fn collect_native_render_source_content_revisions(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
@@ -205,7 +198,6 @@ pub(crate) fn collect_native_render_source_content_revisions(
 /// 限り安定する（`SourceFrameCache` の識別キーそのものをハッシュするだけで、
 /// ファイル I/O は `fs::metadata` の 1 回の stat のみ）。パス解決やメタデータ
 /// 取得に失敗した場合は `None`（=常にミス扱い）を返し、安全側に倒す。
-#[cfg(unix)]
 fn image_or_psd_content_revision(media: &SceneMediaReference) -> Option<u64> {
     let source_path = local_media_source_path(&media.source, "media").ok()?;
     let active_layer_ids: &[String] = if media.kind == MediaKind::Psd {
@@ -224,7 +216,6 @@ fn image_or_psd_content_revision(media: &SceneMediaReference) -> Option<u64> {
 /// 生成コンテンツ（Image/Psd 以外）の内容世代。`media` の各フィールド
 /// （ピクセルではなくパラメータ）と、時間依存の生成源のみ渡される
 /// `time_seed`（`clip.source_frame`）をハッシュする。
-#[cfg(unix)]
 fn media_content_revision(media: &SceneMediaReference, time_seed: Option<u64>) -> u64 {
     let mut hasher = DefaultHasher::new();
     media.id.hash(&mut hasher);
@@ -240,7 +231,6 @@ fn media_content_revision(media: &SceneMediaReference, time_seed: Option<u64>) -
     hasher.finish()
 }
 
-#[cfg(unix)]
 #[derive(serde::Deserialize)]
 struct GetColorSampleReference {
     source_image: Option<String>,
@@ -248,7 +238,6 @@ struct GetColorSampleReference {
     source_active_layer_ids: Option<Vec<String>>,
 }
 
-#[cfg(unix)]
 pub(crate) fn load_cached_getcolor_sample_frame(
     media: &SceneMediaReference,
     source_frame_cache: &mut SourceFrameCache,
@@ -836,7 +825,7 @@ mod source_frame_cache_tests {
 
 /// Phase 3a: `collect_native_render_source_content_revisions` の identity 契約
 /// （native-wgpu-renderer 側の per-clip GPU テクスチャキャッシュのキー）を固定する。
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod content_revision_tests {
     use super::*;
     use std::fs::File;
@@ -1055,7 +1044,7 @@ mod content_revision_tests {
 /// 生成系ソースフレーム（Text/SolidColour/GeneratedShape/GeneratedGradient 等、
 /// `collect_native_render_sources` の `_` アームに到達する種別）の revision
 /// キー付き CPU キャッシュを固定する。
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod generated_source_frame_cache_tests {
     use super::*;
     use crate::state::{GeneratedSourceFrameCache, SourceFrameCache};

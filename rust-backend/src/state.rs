@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::NativeWgpuRenderer;
 use uxfd_rust_core::{Project, SceneMediaReference};
-#[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 
 use crate::sessions::{DecodeSession, EncodeSession};
@@ -31,7 +30,6 @@ pub(crate) struct BackendState {
     /// shared RGBA ring for Chromium.
     pub(crate) resident_video_decoders: HashMap<String, InProcessDecodeSession>,
     pub(crate) psd_overlay_cache: HashMap<String, PsdOverlayCacheEntry>,
-    #[cfg(unix)]
     pub(crate) native_render_outputs: HashMap<String, PosixSharedRing>,
     pub(crate) native_wgpu_renderer: Option<NativeWgpuRenderer>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.

@@ -1,4 +1,3 @@
-#[cfg(unix)]
 use crate::{
     collect_native_render_nv12_sources, collect_native_render_source_content_revisions,
     collect_native_render_sources, load_cached_getcolor_sample_frame,
@@ -33,7 +32,6 @@ use uxfd_rust_core::{
 };
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
 
-#[cfg(unix)]
 pub(crate) fn handle_encode_write_resident_scene_frame(
     id: u64,
     params: Value,
@@ -142,20 +140,6 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
     handle_encode_write_native_frame(id, native_params, state)
 }
 
-#[cfg(not(unix))]
-pub(crate) fn handle_encode_write_resident_scene_frame(
-    id: u64,
-    _params: Value,
-    _state: &mut BackendState,
-) -> RpcResponse {
-    response_error(
-        id,
-        -32070,
-        "encode.writeResidentSceneFrame requires POSIX shared memory support",
-    )
-}
-
-#[cfg(unix)]
 pub(crate) fn handle_encode_write_native_frame(
     id: u64,
     params: Value,
@@ -526,20 +510,6 @@ pub(crate) fn handle_encode_write_native_frame(
     }
 }
 
-#[cfg(not(unix))]
-pub(crate) fn handle_encode_write_native_frame(
-    id: u64,
-    _params: Value,
-    _state: &mut BackendState,
-) -> RpcResponse {
-    response_error(
-        id,
-        -32070,
-        "encode.writeNativeFrame requires POSIX shared memory support",
-    )
-}
-
-#[cfg(unix)]
 pub(crate) fn handle_native_render_shared_frame(
     id: u64,
     params: Value,
@@ -779,19 +749,6 @@ pub(crate) fn handle_native_render_shared_frame(
         })),
         error: None,
     }
-}
-
-#[cfg(not(unix))]
-pub(crate) fn handle_native_render_shared_frame(
-    id: u64,
-    _params: Value,
-    _state: &mut BackendState,
-) -> RpcResponse {
-    response_error(
-        id,
-        -32070,
-        "render.nativeSharedFrame requires POSIX shared memory support",
-    )
 }
 
 fn collect_native_render_audio_waveforms(
@@ -1276,7 +1233,7 @@ pub(crate) fn get_or_create_native_wgpu_renderer(
         .expect("native WGPU renderer should be present after creation"))
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

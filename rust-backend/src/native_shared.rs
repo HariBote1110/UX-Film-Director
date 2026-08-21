@@ -5,11 +5,9 @@ use crate::rpc::{response_error, RpcResponse};
 use crate::state::BackendState;
 use serde_json::{json, Value};
 use uxfd_golden_harness::RgbaFrame;
-#[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{validate_renderer_handoff_descriptor, CopyOutState, FrameDescriptor};
 
-#[cfg(unix)]
 pub(crate) fn handle_release_native_render_shared_frame(
     id: u64,
     params: Value,
@@ -45,20 +43,6 @@ pub(crate) fn handle_release_native_render_shared_frame(
     }
 }
 
-#[cfg(not(unix))]
-pub(crate) fn handle_release_native_render_shared_frame(
-    id: u64,
-    _params: Value,
-    _state: &mut BackendState,
-) -> RpcResponse {
-    response_error(
-        id,
-        -32070,
-        "render.releaseNativeSharedFrame requires POSIX shared memory support",
-    )
-}
-
-#[cfg(unix)]
 pub(crate) fn read_native_render_source_frame(
     source: &NativeRenderSharedFrameSource,
 ) -> Result<RgbaFrame, String> {
@@ -111,7 +95,7 @@ pub(crate) fn read_native_render_source_frame(
         .map_err(|error| format!("Native render source frame is invalid: {error:?}"))
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::params::NativeRenderSharedFrameSource;
