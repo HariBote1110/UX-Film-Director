@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -465,15 +465,7 @@ export type ParticleObject = BaseObject & ParticleObjectFields & { type: 'partic
 export type BarcodeObject = BaseObject & BarcodeObjectFields & { type: 'barcode' };
 
 // AviUtlPackV4 パズルピース互換の生成オブジェクト
-export interface PuzzlePieceObject extends BaseObject {
-  type: 'puzzle_piece';
-  width: number;
-  height: number;
-  size: number;
-  shapeVariant: number;
-  connectorMode: 'convex' | 'concave';
-  fillColour: string;
-}
+export type PuzzlePieceObject = BaseObject & PuzzlePieceObjectFields & { type: 'puzzle_piece' };
 
 // AviUtlPackV4 色相環互換の生成オブジェクト
 export interface ColourWheelObject extends BaseObject {

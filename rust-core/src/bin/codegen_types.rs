@@ -18,10 +18,10 @@ use uxfd_rust_core::schema::{
     AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect,
     Fps, GroupControl, ImageObjectFields,
     MediaKind, MediaReference, ParticleObjectFields, PositionKeyframe, Project, ProjectSize,
-    SamplingMode, ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope,
-    ShapeObjectFields, ShapeType, SubjectCropAnimation, SubjectCropKeyframe,
-    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track,
-    Transform, VideoObjectFields, WipeAnimation, WipeEdge,
+    PuzzleConnectorMode, PuzzlePieceObjectFields, SamplingMode, ScalarKeyframe, ShapeGradientFill,
+    ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType, SubjectCropAnimation,
+    SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow,
+    TextStroke, Track, Transform, VideoObjectFields, WipeAnimation, WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
 
@@ -61,6 +61,9 @@ fn write_ts_bindings() {
         .expect("AudioSphereObjectFields の TS export に失敗しました");
     ParticleObjectFields::export_all(&cfg).expect("ParticleObjectFields の TS export に失敗しました");
     BarcodeObjectFields::export_all(&cfg).expect("BarcodeObjectFields の TS export に失敗しました");
+    PuzzleConnectorMode::export_all(&cfg).expect("PuzzleConnectorMode の TS export に失敗しました");
+    PuzzlePieceObjectFields::export_all(&cfg)
+        .expect("PuzzlePieceObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -147,6 +150,8 @@ fn write_json_schemas() {
     write_schema::<AudioSphereObjectFields>(&dir, "AudioSphereObjectFields");
     write_schema::<ParticleObjectFields>(&dir, "ParticleObjectFields");
     write_schema::<BarcodeObjectFields>(&dir, "BarcodeObjectFields");
+    write_schema::<PuzzleConnectorMode>(&dir, "PuzzleConnectorMode");
+    write_schema::<PuzzlePieceObjectFields>(&dir, "PuzzlePieceObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

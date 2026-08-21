@@ -20,6 +20,8 @@ export * from './ParticleObjectFields';
 export * from './PositionKeyframe';
 export * from './Project';
 export * from './ProjectSize';
+export * from './PuzzleConnectorMode';
+export * from './PuzzlePieceObjectFields';
 export * from './SamplingMode';
 export * from './ScalarKeyframe';
 export * from './SceneSnapshot';
