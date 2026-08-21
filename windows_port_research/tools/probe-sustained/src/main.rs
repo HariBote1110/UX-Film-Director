@@ -242,6 +242,14 @@ unsafe fn run() {
         .get(5)
         .cloned()
         .unwrap_or_else(|| r"C:\Users\gzabu\uxfd-win-probe\sustained-frames.csv".to_string());
+    // RDP 仮想ディスプレイでは refresh が 60Hz にならないため、Fifo だけでは
+    // 「60fps 出せるか」を判定できない。Immediate で present 自体の上限も測る。
+    let present_mode = match args.get(6).map(String::as_str).unwrap_or("fifo") {
+        "immediate" => wgpu::PresentMode::Immediate,
+        "mailbox" => wgpu::PresentMode::Mailbox,
+        "fifo" => wgpu::PresentMode::Fifo,
+        other => panic!("unknown present mode: {other}"),
+    };
 
     let hinstance = GetModuleHandleW(None).unwrap();
     let overlay_class = WNDCLASSW {
@@ -267,6 +275,7 @@ unsafe fn run() {
     };
     println!("display refresh = {refresh_hz} Hz");
     println!("probe start epoch_ms = {}", epoch_ms());
+    println!("present mode = {present_mode:?}");
 
     let mut base_rect = RECT::default();
     let _ = GetWindowRect(base, &mut base_rect);
@@ -278,6 +287,11 @@ unsafe fn run() {
 
     let mut client_origin = POINT { x: 0, y: 0 };
     let _ = ClientToScreen(base, &mut client_origin);
+    let mut base_client0 = RECT::default();
+    let _ = GetClientRect(base, &mut base_client0);
+    let base_client_w0 = base_client0.right.max(1);
+    let base_client_h0 = base_client0.bottom.max(1);
+    println!("base client size = {base_client_w0}x{base_client_h0}");
 
     let overlay = CreateWindowExW(
         WS_EX_NOREDIRECTIONBITMAP | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
@@ -338,7 +352,7 @@ unsafe fn run() {
                 format,
                 width: w.max(1),
                 height: h.max(1),
-                present_mode: wgpu::PresentMode::Fifo,
+                present_mode,
                 alpha_mode: wgpu::CompositeAlphaMode::PreMultiplied,
                 color_space: wgpu::SurfaceColorSpace::Srgb,
                 view_formats: vec![],
@@ -474,8 +488,12 @@ unsafe fn run() {
                 let _ = GetClientRect(base, &mut client);
                 let want_x = origin.x + OV_DX;
                 let want_y = origin.y + OV_DY;
-                let want_w = (client.right - OV_DX).clamp(1, OV_W as i32) as u32;
-                let want_h = (client.bottom - OV_DY).clamp(1, OV_H as i32) as u32;
+                // overlay は親 client の縮尺に比例させる。move フェーズでは縮尺が 1 のままなので
+                // reconfigure は起きず、resize フェーズだけが surface 再構成を踏む（1 フェーズ 1 変数）。
+                let sx = client.right.max(1) as f64 / base_client_w0 as f64;
+                let sy = client.bottom.max(1) as f64 / base_client_h0 as f64;
+                let want_w = ((OV_W as f64 * sx) as i32).clamp(16, 4096) as u32;
+                let want_h = ((OV_H as f64 * sy) as i32).clamp(16, 4096) as u32;
                 if want_x != overlay_x || want_y != overlay_y || want_w != surface_w || want_h != surface_h {
                     overlay_x = want_x;
                     overlay_y = want_y;
@@ -614,7 +632,7 @@ unsafe fn run() {
     );
 
     println!();
-    println!("=== summary (display {refresh_hz} Hz) ===");
+    println!("=== summary (display {refresh_hz} Hz, present {present_mode:?}) ===");
     for phase in [Phase::Static, Phase::ParentMove, Phase::ParentResize] {
         let mut frame: Vec<u64> = samples
             .iter()
