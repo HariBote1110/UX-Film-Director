@@ -676,6 +676,27 @@ fn current_frame_satisfies_target(
     current_pts_seconds + tolerance_seconds >= target_seconds
 }
 
+/// Whether `request_frame` can skip decoding entirely and reuse the held
+/// frame for a new request.
+///
+/// `current_frame_satisfies_target` alone is not safe to apply
+/// unconditionally: a stale frame whose pts sits far ahead of an earlier
+/// target would also satisfy the at-or-after comparison, so a backward seek
+/// (`FrameAdvance::Seek` with `requested < current`) must never reuse the
+/// held frame. Restricting reuse to `FrameAdvance::Sequential` (the
+/// requested frame equals the current one, or is exactly the next frame)
+/// keeps the check to the small-forward-step case the bug report targets,
+/// while leaving `DecodeForward`/`Seek` to decode or seek as before.
+fn should_reuse_current_frame(
+    advance: FrameAdvance,
+    current_pts_seconds: Option<f64>,
+    target_seconds: f64,
+    tolerance_seconds: f64,
+) -> bool {
+    advance == FrameAdvance::Sequential
+        && current_frame_satisfies_target(current_pts_seconds, target_seconds, tolerance_seconds)
+}
+
 #[cfg(target_os = "macos")]
 struct NativeOverlayResidentVideoDecoder {
     source: String,
@@ -3849,6 +3870,50 @@ mod tests {
     #[test]
     fn current_frame_satisfies_target_pts_past_tolerance_decodes() {
         assert!(!current_frame_satisfies_target(Some(1.0), 1.5, 0.1));
+    }
+
+    #[test]
+    fn should_reuse_current_frame_sequential_and_pts_ahead_reuses() {
+        assert!(should_reuse_current_frame(
+            FrameAdvance::Sequential,
+            Some(1.5),
+            1.0,
+            0.1
+        ));
+    }
+
+    #[test]
+    fn should_reuse_current_frame_sequential_but_pts_behind_decodes() {
+        assert!(!should_reuse_current_frame(
+            FrameAdvance::Sequential,
+            Some(1.0),
+            1.5,
+            0.1
+        ));
+    }
+
+    #[test]
+    fn should_reuse_current_frame_decode_forward_never_reuses() {
+        // Even if the held pts would satisfy the target, a multi-frame
+        // forward gap must still decode through the intermediate frames.
+        assert!(!should_reuse_current_frame(
+            FrameAdvance::DecodeForward { frames: 3 },
+            Some(5.0),
+            1.0,
+            0.1
+        ));
+    }
+
+    #[test]
+    fn should_reuse_current_frame_backward_seek_never_reuses() {
+        // A stale frame far ahead of an earlier target must not be reused
+        // just because its pts numerically satisfies the at-or-after check.
+        assert!(!should_reuse_current_frame(
+            FrameAdvance::Seek,
+            Some(5.0),
+            1.0,
+            0.1
+        ));
     }
 
     #[test]
