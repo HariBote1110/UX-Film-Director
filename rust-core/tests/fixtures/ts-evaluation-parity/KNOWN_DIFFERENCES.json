@@ -2,12 +2,6 @@
   "description": "TS 評価(rustSceneSnapshot.ts)と rust-core 評価(evaluate_frame)の既知の差分。Rust_Source_Of_Truth_Plan.md の R2 でゼロにする。件数は増やしてはならず、減らしたらこのファイルを更新する（ラチェット）。",
   "differences": [
     {
-      "path": "snapshot.clips[].source_frame",
-      "count": 4074,
-      "category": "convention",
-      "note": "TS の sourceFrameForObject は静止メディア(shape/image/psd/barcode 等)に 0 を返すが、rust-core は全 clip に経過フレームを返す。値の意味は同じで規約だけが違う。R2 でどちらに寄せるか決める前に、renderer が静止メディアの source_frame を本当に無視しているかを確認すること。"
-    },
-    {
       "path": "snapshot.clips[].transform.translation_x",
       "count": 170,
       "category": "ts-only-feature",
