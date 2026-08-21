@@ -13,21 +13,27 @@ pub(crate) use pattern::*;
 pub(crate) use shape::*;
 
 pub(crate) fn validate_generated_barcode_source(
-    source: &GeneratedBarcodeSource,
+    source: &BarcodeObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "barcode-t" {
-        return Err("generator must be barcode-t".to_string());
-    }
     if source.data.is_empty() || source.data.chars().count() > 128 {
         return Err("data length must be 1..128".to_string());
     }
-    if source.minimum_bar_width == 0 || source.minimum_bar_width > 32 {
+    if !source.minimum_bar_width.is_finite()
+        || source.minimum_bar_width < 1.0
+        || source.minimum_bar_width > 32.0
+    {
         return Err("minimum_bar_width must be 1..32".to_string());
     }
-    if source.horizontal_margin > 1000 {
+    if !source.horizontal_margin.is_finite()
+        || source.horizontal_margin < 0.0
+        || source.horizontal_margin > 1000.0
+    {
         return Err("horizontal_margin must be 0..1000".to_string());
     }
-    if source.vertical_margin > 1000 {
+    if !source.vertical_margin.is_finite()
+        || source.vertical_margin < 0.0
+        || source.vertical_margin > 1000.0
+    {
         return Err("vertical_margin must be 0..1000".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;

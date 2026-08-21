@@ -364,35 +364,33 @@ const isSharedRendererNativeGeneratedParticleSourceSupported = (source: string):
 const isSharedRendererNativeGeneratedBarcodeSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       data?: unknown;
-      minimum_bar_width?: unknown;
-      horizontal_margin?: unknown;
-      vertical_margin?: unknown;
-      foreground_colour?: unknown;
-      background_colour?: unknown;
+      minimumBarWidth?: unknown;
+      horizontalMargin?: unknown;
+      verticalMargin?: unknown;
+      foregroundColour?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'barcode-t'
-      && typeof parsed.data === 'string'
+      typeof parsed.data === 'string'
       && parsed.data.length > 0
       && parsed.data.length <= 128
-      && typeof parsed.minimum_bar_width === 'number'
-      && Number.isInteger(parsed.minimum_bar_width)
-      && parsed.minimum_bar_width > 0
-      && parsed.minimum_bar_width <= 32
-      && typeof parsed.horizontal_margin === 'number'
-      && Number.isInteger(parsed.horizontal_margin)
-      && parsed.horizontal_margin >= 0
-      && parsed.horizontal_margin <= 1000
-      && typeof parsed.vertical_margin === 'number'
-      && Number.isInteger(parsed.vertical_margin)
-      && parsed.vertical_margin >= 0
-      && parsed.vertical_margin <= 1000
-      && typeof parsed.foreground_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      && typeof parsed.minimumBarWidth === 'number'
+      && Number.isFinite(parsed.minimumBarWidth)
+      && parsed.minimumBarWidth >= 1
+      && parsed.minimumBarWidth <= 32
+      && typeof parsed.horizontalMargin === 'number'
+      && Number.isFinite(parsed.horizontalMargin)
+      && parsed.horizontalMargin >= 0
+      && parsed.horizontalMargin <= 1000
+      && typeof parsed.verticalMargin === 'number'
+      && Number.isFinite(parsed.verticalMargin)
+      && parsed.verticalMargin >= 0
+      && parsed.verticalMargin <= 1000
+      && typeof parsed.foregroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foregroundColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;

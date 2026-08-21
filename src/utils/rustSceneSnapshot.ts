@@ -1487,15 +1487,19 @@ const serialiseGeneratedParticleSource = (object: ParticleObject): string =>
     lifetimeSeconds: object.lifetimeSeconds,
   });
 
+// `barcode` kind のワイヤーソースは rust-core の `BarcodeObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の `validate_generated_barcode_source` 側で行う。
 const serialiseGeneratedBarcodeSource = (object: BarcodeObject): string =>
   JSON.stringify({
-    generator: 'barcode-t',
-    data: object.data || 'AviUtl',
-    minimum_bar_width: Math.max(1, Math.trunc(finiteNumberOr(object.minimumBarWidth, 2))),
-    horizontal_margin: Math.max(0, Math.trunc(finiteNumberOr(object.horizontalMargin, 30))),
-    vertical_margin: Math.max(0, Math.trunc(finiteNumberOr(object.verticalMargin, 20))),
-    foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#000000',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    data: object.data,
+    minimumBarWidth: object.minimumBarWidth,
+    horizontalMargin: object.horizontalMargin,
+    verticalMargin: object.verticalMargin,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
   });
 
 const serialiseGeneratedPuzzlePieceSource = (object: PuzzlePieceObject): string =>

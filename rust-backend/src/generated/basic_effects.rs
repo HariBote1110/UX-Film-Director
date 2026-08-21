@@ -56,7 +56,7 @@ pub(crate) fn build_generated_barcode_source_frame(
             media.width, media.height
         ));
     }
-    let barcode: GeneratedBarcodeSource = serde_json::from_str(&media.source)
+    let barcode: BarcodeObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedBarcode media '{}': {error}", media.id))?;
     validate_generated_barcode_source(&barcode)
         .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
@@ -64,6 +64,9 @@ pub(crate) fn build_generated_barcode_source_frame(
         .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
     let [bg_red, bg_green, bg_blue] = parse_hex_colour_source(&barcode.background_colour)
         .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+    let minimum_bar_width = barcode.minimum_bar_width.round() as u32;
+    let horizontal_margin = barcode.horizontal_margin.round() as u32;
+    let vertical_margin = barcode.vertical_margin.round() as u32;
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -81,14 +84,14 @@ pub(crate) fn build_generated_barcode_source_frame(
         chunk.copy_from_slice(&[bg_red, bg_green, bg_blue, 255]);
     }
 
-    let left = barcode.horizontal_margin.min(media.width);
+    let left = horizontal_margin.min(media.width);
     let right = media
         .width
-        .saturating_sub(barcode.horizontal_margin.min(media.width));
-    let top = barcode.vertical_margin.min(media.height);
+        .saturating_sub(horizontal_margin.min(media.width));
+    let top = vertical_margin.min(media.height);
     let bottom = media
         .height
-        .saturating_sub(barcode.vertical_margin.min(media.height));
+        .saturating_sub(vertical_margin.min(media.height));
     if right <= left || bottom <= top {
         return RgbaFrame::from_rgba8(media.width, media.height, pixels)
             .map_err(|error| format!("GeneratedBarcode media frame is invalid: {error:?}"));
@@ -99,8 +102,7 @@ pub(crate) fn build_generated_barcode_source_frame(
     let mut index = 0_usize;
     while x < right {
         let width_units = pattern[index % pattern.len()];
-        let bar_width = barcode
-            .minimum_bar_width
+        let bar_width = minimum_bar_width
             .saturating_mul(width_units as u32)
             .max(1);
         let draw_foreground = index % 2 == 0;

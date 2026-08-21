@@ -1,5 +1,9 @@
 use serde::Deserialize;
 
+// `barcode` kind のワイヤーソースは rust-core の `BarcodeObjectFields`（正本、
+// camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::BarcodeObjectFields;
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedGradientSource {
     #[serde(rename = "type")]
@@ -9,17 +13,6 @@ pub(crate) struct GeneratedGradientSource {
     pub(crate) stops: Vec<f32>,
     #[serde(default)]
     pub(crate) direction: f32,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedBarcodeSource {
-    pub(crate) generator: String,
-    pub(crate) data: String,
-    pub(crate) minimum_bar_width: u32,
-    pub(crate) horizontal_margin: u32,
-    pub(crate) vertical_margin: u32,
-    pub(crate) foreground_colour: String,
-    pub(crate) background_colour: String,
 }
 
 #[derive(Debug, Deserialize)]
