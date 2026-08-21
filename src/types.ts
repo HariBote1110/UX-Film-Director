@@ -1,6 +1,5 @@
 import { EasingType } from './utils/easings';
-import { LabPhoneme } from './utils/labParser';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -446,14 +445,7 @@ export type { SubjectCropNormKeyframe };
 
 export type VideoObject = BaseObject & VideoObjectFields & { type: 'video' };
 
-export interface AudioObject extends BaseObject {
-  type: 'audio';
-  src: string;
-  filePath?: string;
-  volume: number;
-  muted: boolean;
-  labData?: LabPhoneme[];
-}
+export type AudioObject = BaseObject & AudioObjectFields & { type: 'audio' };
 
 export interface GroupControlObject extends BaseObject {
   type: 'group_control';
