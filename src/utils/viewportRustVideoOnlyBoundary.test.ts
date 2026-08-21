@@ -429,6 +429,17 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('allowLegacyPixiVideo');
   });
 
+  it('enables the resident Rust timeline scene RPC by default and only disables it explicitly', () => {
+    const code = viewportSource();
+
+    expect(code).toContain(
+      "const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC !== '0';"
+    );
+    expect(code).not.toContain(
+      "const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC === '1';"
+    );
+  });
+
   it('renders shared renderer preview diagnostics instead of leaving a blank video preview unexplained', () => {
     const code = viewportSource();
 
