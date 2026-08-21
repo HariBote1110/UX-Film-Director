@@ -460,13 +460,6 @@ pub(crate) fn default_region_frame_corner_cut() -> f32 {
     20.0
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedShapeSource {
-    pub(crate) generator: String,
-    pub(crate) shape_type: String,
-    pub(crate) fill_colour: String,
-    #[serde(default)]
-    pub(crate) gradient: Option<GeneratedGradientSource>,
-    #[serde(default)]
-    pub(crate) corner_radius: f32,
-}
+// `shape` kind のワイヤーソースは rust-core の `ShapeObjectFields`（編集モデルの
+// 正本）を camelCase のまま直接デシリアライズする。`GeneratedGradientSource` への
+// 変換は `generated/shape.rs` の `From<&ShapeGradientFill>` 実装で行う。

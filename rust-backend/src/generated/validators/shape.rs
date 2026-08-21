@@ -1,3 +1,5 @@
+use uxfd_rust_core::{ShapeObjectFields, ShapeType};
+
 use super::*;
 
 pub(crate) fn validate_generated_puzzle_piece_source(
@@ -45,36 +47,22 @@ pub(crate) fn validate_generated_gourd_source(source: &GeneratedGourdSource) -> 
     Ok(())
 }
 
-const SUPPORTED_GENERATED_SHAPE_TYPES: [&str; 10] = [
-    "rounded_rect",
-    "circle",
-    "ellipse",
-    "triangle",
-    "star",
-    "pentagon",
-    "diamond",
-    "arrow",
-    "heart",
-    "cross",
-];
-
-pub(crate) fn validate_generated_shape_source(
-    source: &GeneratedShapeSource,
-) -> Result<(), String> {
-    if source.generator != "shape-93" {
-        return Err("generator must be shape-93".to_string());
+/// `shape` kind のワイヤーソース（`ShapeObjectFields`、正本は rust-core）を検証する。
+/// `rect` は非矩形専用の `GeneratedShape` 経路では扱わないため、サポート対象外。
+pub(crate) fn validate_shape_object_fields(source: &ShapeObjectFields) -> Result<(), String> {
+    if matches!(source.shape_type, ShapeType::Rect) {
+        return Err("shape_type must not be rect".to_string());
     }
-    if !SUPPORTED_GENERATED_SHAPE_TYPES.contains(&source.shape_type.as_str()) {
-        return Err(format!(
-            "shape_type must be one of {SUPPORTED_GENERATED_SHAPE_TYPES:?}"
-        ));
+    if let Some(corner_radius) = source.corner_radius {
+        if !corner_radius.is_finite() || corner_radius < 0.0 {
+            return Err("cornerRadius must be a finite non-negative number".to_string());
+        }
     }
-    if !source.corner_radius.is_finite() || source.corner_radius < 0.0 {
-        return Err("corner_radius must be a finite non-negative number".to_string());
-    }
-    parse_hex_colour_source(&source.fill_colour)?;
+    parse_hex_colour_source(&source.fill)?;
     if let Some(gradient) = source.gradient.as_ref() {
-        normalise_gradient_stops(gradient)?;
+        if gradient.enabled {
+            normalise_gradient_stops(&GeneratedGradientSource::from(gradient))?;
+        }
     }
     Ok(())
 }

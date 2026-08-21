@@ -1,7 +1,29 @@
 use uxfd_golden_harness::RgbaFrame;
-use uxfd_rust_core::SceneMediaReference;
+use uxfd_rust_core::{SceneMediaReference, ShapeGradientFill, ShapeGradientKind, ShapeObjectFields, ShapeType};
 
 use super::*;
+
+impl From<&ShapeGradientFill> for GeneratedGradientSource {
+    fn from(gradient: &ShapeGradientFill) -> Self {
+        Self {
+            gradient_type: match gradient.kind {
+                ShapeGradientKind::Radial => "radial".to_string(),
+                ShapeGradientKind::Linear => "linear".to_string(),
+            },
+            colours: gradient.colours.clone(),
+            stops: gradient.stops.clone(),
+            direction: gradient.direction,
+        }
+    }
+}
+
+/// `gradient.enabled` が `false` のときは未指定と同じ扱いにする。TS 側の
+/// `serialiseGeneratedShapeSource` はもうこの判定をしないため、ここで行う。
+fn effective_generated_gradient_source(
+    gradient: Option<&ShapeGradientFill>,
+) -> Option<GeneratedGradientSource> {
+    gradient.filter(|gradient| gradient.enabled).map(GeneratedGradientSource::from)
+}
 
 /// `ShapeObject.shapeType` のうち `rect` 以外を CPU ラスタライズする。
 /// `rect` は既存の `SolidColour` / `GeneratedGradient` 経路のまま維持されるため、
@@ -15,19 +37,20 @@ pub(crate) fn build_generated_shape_source_frame(
             media.width, media.height
         ));
     }
-    let shape: GeneratedShapeSource = serde_json::from_str(&media.source)
+    let shape: ShapeObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedShape media '{}': {error}", media.id))?;
-    validate_generated_shape_source(&shape)
+    validate_shape_object_fields(&shape)
         .map_err(|message| format!("Invalid GeneratedShape media '{}': {message}", media.id))?;
 
-    let fill_colour = parse_hex_colour_source(&shape.fill_colour)
+    let fill_colour = parse_hex_colour_source(&shape.fill)
         .map_err(|message| format!("Invalid GeneratedShape media '{}': {message}", media.id))?;
-    let gradient_stops = shape
-        .gradient
+    let gradient_source = effective_generated_gradient_source(shape.gradient.as_ref());
+    let gradient_stops = gradient_source
         .as_ref()
         .map(normalise_gradient_stops)
         .transpose()
         .map_err(|message| format!("Invalid GeneratedShape media '{}': {message}", media.id))?;
+    let corner_radius = shape.corner_radius.unwrap_or(0.0);
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -45,7 +68,7 @@ pub(crate) fn build_generated_shape_source_frame(
     let width = media.width;
     let height = media.height;
     let colour_at = |x: f32, y: f32| -> [u8; 3] {
-        match (&shape.gradient, &gradient_stops) {
+        match (&gradient_source, &gradient_stops) {
             (Some(gradient), Some(stops)) => {
                 let t = gradient_position(gradient, width, height, x, y);
                 sample_gradient_colour(stops, t)
@@ -54,58 +77,58 @@ pub(crate) fn build_generated_shape_source_frame(
         }
     };
 
-    match shape.shape_type.as_str() {
-        "circle" => draw_shape_ellipse_rgba(&mut pixels, width, height, colour_at, true),
-        "ellipse" => draw_shape_ellipse_rgba(&mut pixels, width, height, colour_at, false),
-        "rounded_rect" => {
-            draw_shape_rounded_rect_rgba(&mut pixels, width, height, shape.corner_radius, colour_at)
+    match shape.shape_type {
+        ShapeType::Circle => draw_shape_ellipse_rgba(&mut pixels, width, height, colour_at, true),
+        ShapeType::Ellipse => draw_shape_ellipse_rgba(&mut pixels, width, height, colour_at, false),
+        ShapeType::RoundedRect => {
+            draw_shape_rounded_rect_rgba(&mut pixels, width, height, corner_radius, colour_at)
         }
-        "triangle" => draw_shape_polygon_rgba(
+        ShapeType::Triangle => draw_shape_polygon_rgba(
             &mut pixels,
             width,
             height,
             &shape_polygon_points(width, height, 3, -std::f32::consts::FRAC_PI_2, 1.0),
             colour_at,
         ),
-        "pentagon" => draw_shape_polygon_rgba(
+        ShapeType::Pentagon => draw_shape_polygon_rgba(
             &mut pixels,
             width,
             height,
             &shape_polygon_points(width, height, 5, -std::f32::consts::FRAC_PI_2, 1.0),
             colour_at,
         ),
-        "diamond" => draw_shape_polygon_rgba(
+        ShapeType::Diamond => draw_shape_polygon_rgba(
             &mut pixels,
             width,
             height,
             &shape_polygon_points(width, height, 4, -std::f32::consts::FRAC_PI_2, 1.0),
             colour_at,
         ),
-        "star" => draw_shape_polygon_rgba(
+        ShapeType::Star => draw_shape_polygon_rgba(
             &mut pixels,
             width,
             height,
             &shape_star_points(width, height, 5, 0.45),
             colour_at,
         ),
-        "cross" => draw_shape_polygon_rgba(
+        ShapeType::Cross => draw_shape_polygon_rgba(
             &mut pixels,
             width,
             height,
             &shape_cross_points(width, height, 0.32),
             colour_at,
         ),
-        "arrow" => draw_shape_polygon_rgba(
+        ShapeType::Arrow => draw_shape_polygon_rgba(
             &mut pixels,
             width,
             height,
             &shape_arrow_points(width, height),
             colour_at,
         ),
-        "heart" => draw_shape_heart_rgba(&mut pixels, width, height, colour_at),
-        other => {
+        ShapeType::Heart => draw_shape_heart_rgba(&mut pixels, width, height, colour_at),
+        ShapeType::Rect => {
             return Err(format!(
-                "Invalid GeneratedShape media '{}': unsupported shape_type '{other}'",
+                "Invalid GeneratedShape media '{}': unsupported shape_type 'rect'",
                 media.id
             ))
         }
