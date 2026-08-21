@@ -271,6 +271,10 @@ pub struct NativeWgpuRenderer {
     /// テスト計測用フック。キャッシュ hit/miss 回数を数える。本番挙動には影響しない。
     nv12_texture_cache_hits: AtomicU64,
     nv12_texture_cache_misses: AtomicU64,
+    /// テスト計測用フック。`prepare_scene_clips_with_upload_fence` が
+    /// `wait_for_upload=true` で呼ばれ、実際に `queue.submit(empty)` +
+    /// `wait_for_submitted_work` を踏んだ回数を数える。本番挙動には影響しない。
+    upload_fence_wait_count: AtomicU64,
     particle_renderer: particle::ParticleGpuRenderer,
     audio_reactive_renderer: audio_reactive::AudioReactiveGpuRenderer,
     getcolor_renderer: getcolor::GetColorGpuRenderer,
@@ -470,6 +474,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
+            upload_fence_wait_count: AtomicU64::new(0),
             particle_renderer,
             audio_reactive_renderer,
             getcolor_renderer,
@@ -1153,6 +1158,7 @@ impl NativeWgpuRenderer {
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
+            upload_fence_wait_count: AtomicU64::new(0),
             particle_renderer,
             audio_reactive_renderer,
             getcolor_renderer,
@@ -1859,6 +1865,8 @@ impl NativeWgpuRenderer {
         self.shattered_sphere_renderer
             .finish_frame(&touched_shattered_sphere_media_ids);
         if wait_for_upload {
+            self.upload_fence_wait_count
+                .fetch_add(1, Ordering::Relaxed);
             self.queue.submit(std::iter::empty());
             wait_for_submitted_work(&self.device, &self.queue)?;
         }
@@ -1984,6 +1992,14 @@ impl NativeWgpuRenderer {
             self.media_texture_cache_hits.load(Ordering::Relaxed),
             self.media_texture_cache_misses.load(Ordering::Relaxed),
         )
+    }
+
+    /// テスト計測用: `wait_for_upload=true` により
+    /// `queue.submit(empty)` + `wait_for_submitted_work` が実際に実行された
+    /// 回数を返す。本番コードパスからは参照されない。
+    #[cfg(test)]
+    fn upload_fence_wait_count(&self) -> u64 {
+        self.upload_fence_wait_count.load(Ordering::Relaxed)
     }
 
     /// テスト計測用: 現在キャッシュされている media 数。
@@ -5673,6 +5689,178 @@ mod tests {
             "an empty scene present must clear the drawable to fully transparent \
              (post_clear invariant for the residual-frame fix)"
         );
+    }
+
+    // IOSurface エクスポート経路（render_frame_to_bgra_iosurface）が毎フレーム
+    // upload フェンス（queue.submit(empty) + wait_for_submitted_work）を踏まない
+    // ことの検証。実 IOSurface を使うため macOS(Metal) 限定。
+    #[cfg(target_os = "macos")]
+    mod bgra_iosurface_upload_fence {
+        use super::*;
+        use core_foundation::base::{CFType, CFTypeRef, TCFType};
+        use core_foundation::dictionary::CFDictionary;
+        use core_foundation::string::{CFString, CFStringRef};
+        use std::ffi::c_void;
+
+        type CVPixelBufferRef = *mut c_void;
+        type IOSurfaceRef = *mut c_void;
+        type CVReturn = i32;
+        type OSType = u32;
+
+        const K_CV_PIXEL_FORMAT_TYPE_32_BGRA: OSType = 0x4247_5241; // 'BGRA'
+
+        #[link(name = "CoreVideo", kind = "framework")]
+        extern "C" {
+            static kCVPixelBufferIOSurfacePropertiesKey: CFStringRef;
+            fn CVPixelBufferCreate(
+                allocator: CFTypeRef,
+                width: usize,
+                height: usize,
+                pixel_format_type: OSType,
+                pixel_buffer_attributes: CFTypeRef,
+                pixel_buffer_out: *mut CVPixelBufferRef,
+            ) -> CVReturn;
+            fn CVPixelBufferRelease(buffer: CVPixelBufferRef);
+            fn CVPixelBufferGetIOSurface(buffer: CVPixelBufferRef) -> IOSurfaceRef;
+        }
+
+        #[link(name = "IOSurface", kind = "framework")]
+        extern "C" {
+            fn IOSurfaceGetID(surface: IOSurfaceRef) -> u32;
+        }
+
+        /// テスト専用: IOSurface-backed BGRA `CVPixelBuffer`。Drop で解放する。
+        struct SyntheticBgraBuffer {
+            pixel_buffer: CVPixelBufferRef,
+            surface_id: u32,
+        }
+
+        unsafe impl Send for SyntheticBgraBuffer {}
+
+        impl Drop for SyntheticBgraBuffer {
+            fn drop(&mut self) {
+                unsafe { CVPixelBufferRelease(self.pixel_buffer) };
+            }
+        }
+
+        impl SyntheticBgraBuffer {
+            fn new(width: u32, height: u32) -> Self {
+                let empty_properties: CFDictionary<CFString, CFType> =
+                    CFDictionary::from_CFType_pairs(&[]);
+                let key = unsafe {
+                    CFString::wrap_under_get_rule(kCVPixelBufferIOSurfacePropertiesKey)
+                };
+                let attributes: CFDictionary<CFString, CFType> =
+                    CFDictionary::from_CFType_pairs(&[(key, empty_properties.as_CFType())]);
+
+                let mut pixel_buffer: CVPixelBufferRef = std::ptr::null_mut();
+                let status = unsafe {
+                    CVPixelBufferCreate(
+                        std::ptr::null(),
+                        width as usize,
+                        height as usize,
+                        K_CV_PIXEL_FORMAT_TYPE_32_BGRA,
+                        attributes.as_concrete_TypeRef() as CFTypeRef,
+                        &mut pixel_buffer,
+                    )
+                };
+                assert_eq!(status, 0, "BGRA CVPixelBuffer creation must succeed");
+                assert!(!pixel_buffer.is_null());
+
+                let surface = unsafe { CVPixelBufferGetIOSurface(pixel_buffer) };
+                assert!(!surface.is_null(), "pixel buffer must own an IOSurface");
+
+                Self {
+                    pixel_buffer,
+                    surface_id: unsafe { IOSurfaceGetID(surface) },
+                }
+            }
+        }
+
+        /// レバー: `render_frame_to_bgra_iosurface` は GPU テクスチャキャッシュが
+        /// 全 hit の定常状態でも、毎フレーム `queue.submit(empty)` +
+        /// `wait_for_submitted_work` の upload フェンスを踏んではならない
+        /// （research: encode_research/notes/upload-fence-per-frame-removal.md）。
+        /// wgpu は単一キューでは write_texture が後続 submit のコマンドより
+        /// 先に完了することを保証するため、このフェンスは不要である。
+        #[test]
+        fn steady_state_export_frame_does_not_take_the_upload_fence() {
+            let width = 4;
+            let height = 4;
+            let target = SyntheticBgraBuffer::new(width, height);
+            let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
+                Ok(renderer) => renderer,
+                Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                    eprintln!(
+                        "skipping BGRA IOSurface upload fence test: no GPU adapter available"
+                    );
+                    return;
+                }
+                Err(error) => panic!("native renderer setup failed: {error:?}"),
+            };
+            let snapshot = SceneSnapshot {
+                frame_index: 0,
+                colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-red".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "solid-red".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            };
+            let sources: HashMap<String, Arc<RgbaFrame>> = HashMap::from([(
+                "solid-red".to_string(),
+                Arc::new(
+                    RgbaFrame::from_rgba8(
+                        width,
+                        height,
+                        [255, 0, 0, 255].repeat((width * height) as usize),
+                    )
+                    .expect("valid solid frame"),
+                ),
+            )]);
+            let content_revisions = HashMap::from([("solid-red".to_string(), 1u64)]);
+            let bgra_target = BgraIoSurfaceTarget {
+                surface_id: target.surface_id,
+                width,
+                height,
+            };
+
+            // 1 フレーム目: キャッシュ未充填のためミスして問題ない。ウォームアップ。
+            pollster::block_on(renderer.render_frame_to_bgra_iosurface(
+                &snapshot,
+                &sources,
+                &content_revisions,
+                &HashMap::new(),
+                bgra_target,
+            ))
+            .expect("warm-up IOSurface render succeeds");
+
+            let waits_before = renderer.upload_fence_wait_count();
+
+            // 2 フレーム目以降: 内容が変わらない定常状態（全テクスチャキャッシュ hit）。
+            for _ in 0..3 {
+                pollster::block_on(renderer.render_frame_to_bgra_iosurface(
+                    &snapshot,
+                    &sources,
+                    &content_revisions,
+                    &HashMap::new(),
+                    bgra_target,
+                ))
+                .expect("steady-state IOSurface render succeeds");
+            }
+
+            let waits_after = renderer.upload_fence_wait_count();
+            assert_eq!(
+                waits_after, waits_before,
+                "steady-state IOSurface export frames must not take the per-frame \
+                 upload fence (queue.submit(empty) + wait_for_submitted_work)"
+            );
+        }
     }
 
     // Phase 4b: NV12 IOSurface import・GPU 合成のテスト。実 IOSurface を
