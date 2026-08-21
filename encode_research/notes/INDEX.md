@@ -2,6 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
+- [write-pipelining-rejected-backend-serial-cpu.md](write-pipelining-rejected-backend-serial-cpu.md) — **writeパイプライン化は棄却(+3〜5%)。backendは直列サーバで、真犯人は前処理CPU 6.05ms/frame(JSON Value往復+clone+parse)。本命はレバー2=JSON往復排除(→約135fps見込み)。加えてエクスポートeffect再発火によるrunExport並走(encode.start二重)バグを特定 — "Cannot Save"/0バイト残骸/タイムアウトの統一真因**（2026-08-21）
 - [per-frame-overhead-breakdown.md](per-frame-overhead-breakdown.md) — **「GPU律速になるべき」仮説を採択。エンコーダはどの経路でも無罪（append 0.05ms）。既定経路はvsync同期の供給が15.75ms/frameで律速、residentScene経路もフレーム時間の46%(6.3ms)がRPC/JSON変換オーバーヘッド。write RPCは完全直列で、パイプライン化すれば約2倍の見込み**（2026-08-21）
 - [export-speed-baseline-and-first-experiments.md](export-speed-baseline-and-first-experiments.md) — **focus-tips 720p60: ベースライン51.5fps(ffmpegRawRgba)、IOSurface直エンコードで66fps(+28%)、render-ahead=4は棄却。720pではエンコーダ自体は主犯でなく、残り15ms/frameの内訳分解が次の一手。IOSurface経路は既存ファイルがあると"Cannot Save"で必ず失敗するバグを発見**（2026-08-21）
 - [export-pipeline-map.md](export-pipeline-map.md) — エクスポート経路の全体地図と高速化仮説の初期リスト（2026-08-21）
