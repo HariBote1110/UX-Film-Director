@@ -232,8 +232,13 @@ R6 だけは W7 を待つので、そこで一度区切りを入れる。
   - `src/utils/filterStack.ts` の `getEnabledObjectFiltersInOrder` /
     `getFadeOpacityMultiplier` / `getPrimaryWipeFilter`（**編集操作は R4 まで残す**）
 - R0 が特定した 3 クラスを潰す。これが R2 の合格条件そのもの:
-  1. `source_frame` の規約を揃える。**着手前に、renderer が静止メディアの `source_frame` を
-     本当に無視しているかを確認する**（無視していないなら TS の 0 埋めが現在の描画を作っている）。
+  1. `source_frame` の規約を **Rust 側（全 clip に経過フレーム）へ揃える**。
+     着手前の確認（renderer が静止メディアの `source_frame` を本当に無視しているか）は
+     2026-08-22 に完了し、**寄せてよいと確定した**。静止系は生成関数の引数に
+     `source_frame` が無く、キャッシュキーにも入らない
+     （[rust-source-of-truth-evaluation-diff.md](../progress/rust-source-of-truth-evaluation-diff.md)）。
+     ただし `src/utils/rustSceneSnapshot.test.ts` が静止系ほぼ全種で `source_frame: 0` を
+     ピン留めしているので、その更新が実作業の大半になる。
   2. 振動（`sceneTransforms.getVibrationOffset`）を `rust-core` へ移す。
   3. Clipping のアニメーションを `rust-core` へ移す（`effects` の件数差もここで解消する）。
 - `rust-core` 側に不足があれば足す。R0 の差分分類で「TS にしか無い暗黙仕様」と判定したものは、
