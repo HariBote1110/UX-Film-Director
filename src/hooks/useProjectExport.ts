@@ -402,8 +402,7 @@ export const useProjectExport = (
               height: encHeight,
               fps,
               iosurfaceEncode: (
-                audioPath === null
-                && exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
+                exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
                 && exportFrameSourcePlan.frameSource.encodeTarget === 'iosurfaceVideoToolbox'
               ),
               frames: renderRustEncodeFrames(),

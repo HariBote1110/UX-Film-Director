@@ -267,24 +267,53 @@ pub(crate) fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary
     }
 }
 
+/// Derives a deterministic temporary video-only output path for the
+/// IOSurface VideoToolbox transport when an audio track needs to be muxed in
+/// afterwards. Pure so it can be unit tested without touching the filesystem.
+pub(crate) fn derive_pending_mux_temp_video_path(final_file_path: &str) -> String {
+    format!("{final_file_path}.uxfd-video-tmp.mp4")
+}
+
 fn start_encode_transport(parsed: &EncodeStartParams) -> Result<EncodeTransport, String> {
     if parsed.iosurface_encode {
-        if parsed.audio_path.as_deref().is_some_and(|path| !path.trim().is_empty()) {
-            return Err("IOSurface VideoToolbox encode does not yet accept an audioPath".to_string());
-        }
+        let audio_path = parsed
+            .audio_path
+            .as_deref()
+            .map(|path| path.trim())
+            .filter(|path| !path.is_empty());
         #[cfg(target_os = "macos")]
         {
+            let (encode_target_path, pending_audio_mux) = if let Some(audio_path) = audio_path {
+                let temp_video_path = derive_pending_mux_temp_video_path(&parsed.file_path);
+                // Remove any stale temp file left over from a crashed/aborted
+                // previous run before the encoder starts writing to it.
+                let _ = std::fs::remove_file(&temp_video_path);
+                (
+                    temp_video_path.clone(),
+                    Some(crate::sessions::PendingAudioMux {
+                        temp_video_path,
+                        audio_path: audio_path.to_string(),
+                        final_path: parsed.file_path.clone(),
+                    }),
+                )
+            } else {
+                (parsed.file_path.clone(), None)
+            };
             let encoder = uxfd_macos_video_encode::VideoEncodeSession::start(
-                std::path::Path::new(&parsed.file_path),
+                std::path::Path::new(&encode_target_path),
                 parsed.width,
                 parsed.height,
                 parsed.fps,
             )
             .map_err(|error| format!("Failed to start IOSurface VideoToolbox encoder: {error}"))?;
-            return Ok(EncodeTransport::VideoToolbox(encoder));
+            return Ok(EncodeTransport::VideoToolbox {
+                encoder,
+                pending_audio_mux,
+            });
         }
         #[cfg(not(target_os = "macos"))]
         {
+            let _ = audio_path;
             return Err("IOSurface VideoToolbox encode is only available on macOS".to_string());
         }
     }
@@ -321,7 +350,10 @@ fn finish_encode_transport(transport: EncodeTransport) -> Result<&'static str, S
             Ok("ffmpegRawRgba")
         }
         #[cfg(target_os = "macos")]
-        EncodeTransport::VideoToolbox(encoder) => {
+        EncodeTransport::VideoToolbox {
+            encoder,
+            pending_audio_mux,
+        } => {
             std::thread::Builder::new()
                 .name("uxfd-videotoolbox-finish".to_string())
                 .spawn(move || encoder.finish())
@@ -331,9 +363,66 @@ fn finish_encode_transport(transport: EncodeTransport) -> Result<&'static str, S
                 .join()
                 .map_err(|_| "IOSurface VideoToolbox finish thread panicked".to_string())?
                 .map_err(|error| format!("IOSurface VideoToolbox finish failed: {error}"))?;
-            Ok("iosurfaceVideoToolbox")
+
+            let Some(mux) = pending_audio_mux else {
+                return Ok("iosurfaceVideoToolbox");
+            };
+
+            let ffmpeg_path =
+                std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+            let mux_result = mux_audio_into_video(
+                &mux.temp_video_path,
+                &mux.audio_path,
+                &mux.final_path,
+                &ffmpeg_path,
+            );
+            // Best-effort cleanup of the temp video file regardless of mux
+            // outcome, so a failed mux does not leave it lying around.
+            let _ = std::fs::remove_file(&mux.temp_video_path);
+            mux_result?;
+            Ok("iosurfaceVideoToolboxAudioMux")
         }
     }
+}
+
+/// Muxes `audio_path` into `temp_video_path` (video-only, produced by the
+/// IOSurface VideoToolbox encoder) via ffmpeg stream copy, writing the result
+/// to `final_path`. Extracted as a pure(ish) function so it can be unit
+/// tested directly against small ffmpeg-generated fixtures.
+fn mux_audio_into_video(
+    temp_video_path: &str,
+    audio_path: &str,
+    final_path: &str,
+    ffmpeg_path: &str,
+) -> Result<(), String> {
+    let output = Command::new(ffmpeg_path)
+        .arg("-y")
+        .arg("-i")
+        .arg(temp_video_path)
+        .arg("-i")
+        .arg(audio_path)
+        .arg("-c:v")
+        .arg("copy")
+        .arg("-c:a")
+        .arg("aac")
+        .arg("-shortest")
+        .arg(final_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| format!("Failed to run ffmpeg audio mux ({ffmpeg_path}): {error}"))?;
+
+    if !output.status.success() {
+        let stderr_text = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "ffmpeg audio mux exited with failure status: code={:?}. stderr: {}",
+            output.status.code(),
+            stderr_text.trim()
+        ));
+    }
+
+    Ok(())
 }
 
 fn abort_encode_transport(transport: EncodeTransport) -> (String, String) {
@@ -361,8 +450,14 @@ fn abort_encode_transport(transport: EncodeTransport) -> (String, String) {
             (status, stderr_text)
         }
         #[cfg(target_os = "macos")]
-        EncodeTransport::VideoToolbox(encoder) => {
+        EncodeTransport::VideoToolbox {
+            encoder,
+            pending_audio_mux,
+        } => {
             drop(encoder);
+            if let Some(mux) = pending_audio_mux {
+                let _ = std::fs::remove_file(&mux.temp_video_path);
+            }
             ("cancelled:videoToolbox".to_string(), String::new())
         }
     }
@@ -620,7 +715,7 @@ fn ffmpeg_stdin(session: &mut EncodeSession) -> Result<&mut ChildStdin, String> 
     match &mut session.transport {
         EncodeTransport::Ffmpeg { stdin, .. } => Ok(stdin),
         #[cfg(target_os = "macos")]
-        EncodeTransport::VideoToolbox(_) => Err(
+        EncodeTransport::VideoToolbox { .. } => Err(
             "RGBA/shared-frame writes are incompatible with IOSurface VideoToolbox encode"
                 .to_string(),
         ),
@@ -775,5 +870,187 @@ mod tests {
 
         assert_eq!(bytes, expected_tight);
         assert!(!bytes.contains(&0xAA), "padding bytes must not leak into the encoder stream");
+    }
+
+    #[test]
+    fn derive_pending_mux_temp_video_path_is_deterministic_and_final_specific() {
+        let temp_a = derive_pending_mux_temp_video_path("/tmp/out/a.mp4");
+        let temp_b = derive_pending_mux_temp_video_path("/tmp/out/b.mp4");
+        assert_eq!(temp_a, "/tmp/out/a.mp4.uxfd-video-tmp.mp4");
+        assert_eq!(temp_b, "/tmp/out/b.mp4.uxfd-video-tmp.mp4");
+        assert_ne!(temp_a, temp_b);
+        // Deterministic: calling again with the same input yields the same path.
+        assert_eq!(temp_a, derive_pending_mux_temp_video_path("/tmp/out/a.mp4"));
+    }
+
+    fn ffmpeg_available() -> bool {
+        let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+        Command::new(&ffmpeg_path)
+            .arg("-version")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    /// Generates a tiny silent/blank fixture file via ffmpeg's `lavfi`
+    /// source so mux tests don't depend on real project media.
+    fn generate_lavfi_fixture(out_path: &std::path::Path, filter: &str, extra_args: &[&str]) -> bool {
+        let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+        let mut cmd = Command::new(&ffmpeg_path);
+        cmd.arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg(filter)
+            .args(extra_args)
+            .arg(out_path);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn mux_audio_into_video_combines_streams_into_final_path() {
+        if !ffmpeg_available() {
+            eprintln!("skipping mux_audio_into_video test: ffmpeg is not available");
+            return;
+        }
+        let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+
+        let temp_video_path = unique_temp_path("mux_video").with_extension("mp4");
+        let audio_path = unique_temp_path("mux_audio").with_extension("wav");
+        let final_path = unique_temp_path("mux_final").with_extension("mp4");
+
+        assert!(
+            generate_lavfi_fixture(
+                &temp_video_path,
+                "testsrc=size=32x32:rate=10:duration=1",
+                &["-pix_fmt", "yuv420p"],
+            ),
+            "failed to generate fixture video"
+        );
+        assert!(
+            generate_lavfi_fixture(
+                &audio_path,
+                "sine=frequency=440:duration=1",
+                &[],
+            ),
+            "failed to generate fixture audio"
+        );
+
+        let result = mux_audio_into_video(
+            &temp_video_path.to_string_lossy(),
+            &audio_path.to_string_lossy(),
+            &final_path.to_string_lossy(),
+            &ffmpeg_path,
+        );
+
+        let _ = std::fs::remove_file(&temp_video_path);
+        let _ = std::fs::remove_file(&audio_path);
+        let final_exists = final_path.exists();
+        let final_size = std::fs::metadata(&final_path).map(|meta| meta.len()).unwrap_or(0);
+        let _ = std::fs::remove_file(&final_path);
+
+        assert!(result.is_ok(), "mux should succeed: {:?}", result.err());
+        assert!(final_exists, "final muxed file should exist");
+        assert!(final_size > 0, "final muxed file should not be empty");
+    }
+
+    #[test]
+    fn mux_audio_into_video_reports_failure_for_missing_inputs() {
+        if !ffmpeg_available() {
+            eprintln!("skipping mux_audio_into_video failure test: ffmpeg is not available");
+            return;
+        }
+        let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+        let missing_video = unique_temp_path("mux_missing_video").with_extension("mp4");
+        let missing_audio = unique_temp_path("mux_missing_audio").with_extension("wav");
+        let final_path = unique_temp_path("mux_missing_final").with_extension("mp4");
+
+        let result = mux_audio_into_video(
+            &missing_video.to_string_lossy(),
+            &missing_audio.to_string_lossy(),
+            &final_path.to_string_lossy(),
+            &ffmpeg_path,
+        );
+
+        assert!(result.is_err(), "mux should fail when inputs are missing");
+        assert!(!final_path.exists(), "final path should not be created on failure");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn iosurface_transport_with_audio_path_mux_es_into_final_file() {
+        if !ffmpeg_available() {
+            eprintln!("skipping iosurface audio mux end-to-end test: ffmpeg is not available");
+            return;
+        }
+
+        let audio_path = unique_temp_path("iosurface_e2e_audio").with_extension("wav");
+        assert!(
+            generate_lavfi_fixture(&audio_path, "sine=frequency=440:duration=1", &[]),
+            "failed to generate fixture audio"
+        );
+
+        let final_path = unique_temp_path("iosurface_e2e_final").with_extension("mp4");
+        let temp_video_path = derive_pending_mux_temp_video_path(&final_path.to_string_lossy());
+
+        let parsed = crate::params::EncodeStartParams {
+            session_id: "iosurface-e2e-session".to_string(),
+            file_path: final_path.to_string_lossy().to_string(),
+            audio_path: Some(audio_path.to_string_lossy().to_string()),
+            width: 32,
+            height: 32,
+            fps: 10,
+            pixel_format: FrameFormat::Rgba8Srgb,
+            colour: ColourMetadata::rec709_srgb(),
+            iosurface_encode: true,
+        };
+
+        let transport = start_encode_transport(&parsed).expect("transport should start");
+        let EncodeTransport::VideoToolbox {
+            mut encoder,
+            pending_audio_mux,
+        } = transport
+        else {
+            panic!("expected VideoToolbox transport");
+        };
+        assert!(pending_audio_mux.is_some(), "audio mux should be pending");
+        let mux = pending_audio_mux.expect("checked above");
+        assert_eq!(mux.temp_video_path, temp_video_path);
+        assert_eq!(mux.final_path, final_path.to_string_lossy());
+
+        for frame_index in 0..3u64 {
+            let frame = encoder.acquire_frame().expect("acquire_frame should succeed");
+            encoder
+                .append_frame(frame, frame_index)
+                .expect("append_frame should succeed");
+        }
+
+        let status = finish_encode_transport(EncodeTransport::VideoToolbox {
+            encoder,
+            pending_audio_mux: Some(mux),
+        })
+        .expect("finish should succeed");
+
+        assert_eq!(status, "iosurfaceVideoToolboxAudioMux");
+        assert!(final_path.exists(), "final muxed file should exist");
+        assert!(
+            !std::path::Path::new(&temp_video_path).exists(),
+            "temp video file should be deleted after a successful mux"
+        );
+
+        let _ = std::fs::remove_file(&audio_path);
+        let _ = std::fs::remove_file(&final_path);
+        let _ = std::fs::remove_file(&temp_video_path);
     }
 }

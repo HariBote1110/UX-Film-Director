@@ -100,7 +100,22 @@ pub(crate) enum EncodeTransport {
         stderr: ChildStderr,
     },
     #[cfg(target_os = "macos")]
-    VideoToolbox(uxfd_macos_video_encode::VideoEncodeSession),
+    VideoToolbox {
+        encoder: uxfd_macos_video_encode::VideoEncodeSession,
+        /// Set when the caller supplied an audioPath: the encoder writes video
+        /// only to `temp_video_path`, and `finish_encode_transport` muxes the
+        /// audio track in via ffmpeg afterwards to produce `final_path`.
+        pending_audio_mux: Option<PendingAudioMux>,
+    },
+}
+
+/// Deferred ffmpeg audio mux job for the IOSurface VideoToolbox path, which
+/// cannot write audio itself.
+#[cfg(target_os = "macos")]
+pub(crate) struct PendingAudioMux {
+    pub(crate) temp_video_path: String,
+    pub(crate) audio_path: String,
+    pub(crate) final_path: String,
 }
 
 pub(crate) struct EncodeAbortSummary {

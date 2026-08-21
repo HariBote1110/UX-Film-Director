@@ -283,7 +283,7 @@ pub(crate) fn handle_encode_write_native_frame(
         .is_some_and(|session| {
             #[cfg(target_os = "macos")]
             {
-                matches!(session.transport, EncodeTransport::VideoToolbox(_))
+                matches!(session.transport, EncodeTransport::VideoToolbox { .. })
             }
             #[cfg(not(target_os = "macos"))]
             {
@@ -348,7 +348,7 @@ pub(crate) fn handle_encode_write_native_frame(
         let Some(session) = state.encode_sessions.get(&parsed.session_id) else {
             return response_error(id, -32052, "No active encode session");
         };
-        let EncodeTransport::VideoToolbox(encoder) = &session.transport else {
+        let EncodeTransport::VideoToolbox { encoder, .. } = &session.transport else {
             unreachable!("uses_iosurface_encoder guarantees VideoToolbox transport");
         };
         match encoder.acquire_frame() {
@@ -418,7 +418,7 @@ pub(crate) fn handle_encode_write_native_frame(
             let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
                 return response_error(id, -32052, "No active encode session");
             };
-            let EncodeTransport::VideoToolbox(encoder) = &mut session.transport else {
+            let EncodeTransport::VideoToolbox { encoder, .. } = &mut session.transport else {
                 return response_error(id, -32053, "Encode transport changed during frame render");
             };
             if let Err(error) = encoder.append_frame(iosurface_frame, parsed.frame_index) {
