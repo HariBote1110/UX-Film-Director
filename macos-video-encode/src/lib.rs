@@ -35,6 +35,7 @@ mod macos {
         AppendFailed(String),
         FinishFailed(String),
         InvalidDimensions,
+        OutputPathUnwritable(String),
     }
 
     impl fmt::Display for EncodeError {
@@ -91,6 +92,12 @@ mod macos {
                 return Err(EncodeError::InvalidDimensions);
             }
 
+            if let Err(error) = std::fs::remove_file(output_path) {
+                if error.kind() != std::io::ErrorKind::NotFound {
+                    return Err(EncodeError::OutputPathUnwritable(error.to_string()));
+                }
+            }
+
             let path = NSString::from_str(&output_path.to_string_lossy());
             let url = NSURL::fileURLWithPath(&path);
             let file_type = unsafe { AVFileTypeMPEG4 }
@@ -117,10 +124,12 @@ mod macos {
             };
 
             if !unsafe { writer.canAddInput(&input) } {
+                let _ = std::fs::remove_file(output_path);
                 return Err(EncodeError::InputRejected);
             }
             unsafe { writer.addInput(&input) };
             if !unsafe { writer.startWriting() } {
+                let _ = std::fs::remove_file(output_path);
                 return Err(EncodeError::StartFailed(writer_error(&writer)));
             }
             unsafe { writer.startSessionAtSourceTime(CMTime::new(0, fps as i32)) };
