@@ -1502,13 +1502,17 @@ const serialiseGeneratedBarcodeSource = (object: BarcodeObject): string =>
     backgroundColour: object.backgroundColour,
   });
 
+// `puzzle_piece` kind のワイヤーソースは rust-core の `PuzzlePieceObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の `validate_generated_puzzle_piece_source` 側で行う。
 const serialiseGeneratedPuzzlePieceSource = (object: PuzzlePieceObject): string =>
   JSON.stringify({
-    generator: 'puzzle-piece',
-    size: Math.max(1, Math.trunc(finiteNumberOr(object.size, Math.min(object.width, object.height) / 2))),
-    shape_variant: Math.min(22, Math.max(1, Math.trunc(finiteNumberOr(object.shapeVariant, 1)))),
-    connector_mode: object.connectorMode === 'concave' ? 'concave' : 'convex',
-    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    size: object.size,
+    shapeVariant: object.shapeVariant,
+    connectorMode: object.connectorMode,
+    fillColour: object.fillColour,
   });
 
 const serialiseGeneratedColourWheelSource = (object: ColourWheelObject): string =>

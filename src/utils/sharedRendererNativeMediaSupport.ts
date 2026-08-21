@@ -400,25 +400,23 @@ const isSharedRendererNativeGeneratedBarcodeSourceSupported = (source: string): 
 const isSharedRendererNativeGeneratedPuzzlePieceSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       size?: unknown;
-      shape_variant?: unknown;
-      connector_mode?: unknown;
-      fill_colour?: unknown;
+      shapeVariant?: unknown;
+      connectorMode?: unknown;
+      fillColour?: unknown;
     };
     return (
-      parsed.generator === 'puzzle-piece'
-      && typeof parsed.size === 'number'
-      && Number.isInteger(parsed.size)
-      && parsed.size > 0
+      typeof parsed.size === 'number'
+      && Number.isFinite(parsed.size)
+      && parsed.size >= 1
       && parsed.size <= 2000
-      && typeof parsed.shape_variant === 'number'
-      && Number.isInteger(parsed.shape_variant)
-      && parsed.shape_variant >= 1
-      && parsed.shape_variant <= 22
-      && (parsed.connector_mode === 'convex' || parsed.connector_mode === 'concave')
-      && typeof parsed.fill_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+      && typeof parsed.shapeVariant === 'number'
+      && Number.isInteger(parsed.shapeVariant)
+      && parsed.shapeVariant >= 1
+      && parsed.shapeVariant <= 22
+      && (parsed.connectorMode === 'convex' || parsed.connectorMode === 'concave')
+      && typeof parsed.fillColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fillColour)
     );
   } catch {
     return false;
