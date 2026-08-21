@@ -195,7 +195,7 @@ describe('buildSharedRendererExportSession', () => {
       {
         clip_id: 'psd-1',
         media_id: 'psd-1',
-        source_frame: 0,
+        source_frame: 60,
         z_index: 1,
       },
     ]);

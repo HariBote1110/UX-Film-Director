@@ -1268,7 +1268,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         clip_id: 'shape-1',
         track_id: 'layer-0',
         media_id: 'shape-1',
-        source_frame: 0,
+        source_frame: 60,
         z_index: 0,
         transform: {
           translation_x: 300,
@@ -1471,7 +1471,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         clip_id: 'barcode-1',
         track_id: 'layer-6',
         media_id: 'barcode-1',
-        source_frame: 0,
+        source_frame: 60,
         z_index: 0,
         transform: {
           translation_x: 640,
@@ -1520,7 +1520,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'puzzle-1',
       track_id: 'layer-7',
       media_id: 'puzzle-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.85,
     });
     expect(result.media).toEqual([
@@ -1556,7 +1556,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'colour-wheel-1',
       track_id: 'layer-8',
       media_id: 'colour-wheel-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1593,7 +1593,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'gourd-1',
       track_id: 'layer-9',
       media_id: 'gourd-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1631,7 +1631,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'gear-1',
       track_id: 'layer-10',
       media_id: 'gear-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1669,7 +1669,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'track-bar-1',
       track_id: 'layer-11',
       media_id: 'track-bar-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1706,7 +1706,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'pie-chart-1',
       track_id: 'layer-12',
       media_id: 'pie-chart-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1745,7 +1745,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'histogram-1',
       track_id: 'layer-13',
       media_id: 'histogram-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1786,7 +1786,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'sunburst-1',
       track_id: 'layer-14',
       media_id: 'sunburst-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1827,7 +1827,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'circular-arrow-1',
       track_id: 'layer-15',
       media_id: 'circular-arrow-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1869,7 +1869,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'triangle-bracket-1',
       track_id: 'layer-16',
       media_id: 'triangle-bracket-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1906,7 +1906,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'tartan-check-1',
       track_id: 'layer-17',
       media_id: 'tartan-check-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1944,7 +1944,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'houndstooth-1',
       track_id: 'layer-18',
       media_id: 'houndstooth-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -1979,7 +1979,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'yagasuri-1',
       track_id: 'layer-19',
       media_id: 'yagasuri-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2017,7 +2017,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'paper-airplane-1',
       track_id: 'layer-20',
       media_id: 'paper-airplane-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2056,7 +2056,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'asanoha-pattern-1',
       track_id: 'layer-21',
       media_id: 'asanoha-pattern-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2134,7 +2134,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'random-line-ex-1',
       track_id: 'layer-23',
       media_id: 'random-line-ex-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2173,7 +2173,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'contour-trace-1',
       track_id: 'layer-24',
       media_id: 'contour-trace-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2211,7 +2211,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'displacement-poly-1',
       track_id: 'layer-25',
       media_id: 'displacement-poly-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2252,7 +2252,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'plain-effector-line-1',
       track_id: 'layer-26',
       media_id: 'plain-effector-line-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2340,7 +2340,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'hologram-1',
       track_id: 'layer-24',
       media_id: 'hologram-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2377,7 +2377,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'protractor-1',
       track_id: 'layer-25',
       media_id: 'protractor-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2461,7 +2461,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'tone-curve-1',
       track_id: 'layer-27',
       media_id: 'tone-curve-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2499,7 +2499,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'hksy-checker-grid-1',
       track_id: 'layer-28',
       media_id: 'hksy-checker-grid-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -2737,7 +2737,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       clip_id: 'getcolor-dot-field-1',
       track_id: 'layer-29',
       media_id: 'getcolor-dot-field-1',
-      source_frame: 0,
+      source_frame: 60,
       opacity: 0.9,
     });
     expect(result.media).toEqual([
@@ -3470,7 +3470,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           clip_id: 'image-1',
           track_id: 'layer-2',
           media_id: 'image-1',
-          source_frame: 0,
+          source_frame: 90,
           z_index: 1,
           transform: {
             translation_x: 100,
@@ -3705,7 +3705,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         clip_id: 'psd-1',
         track_id: 'layer-2',
         media_id: 'psd-1',
-        source_frame: 0,
+        source_frame: 60,
         z_index: 0,
         transform: {
           translation_x: 400,

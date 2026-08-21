@@ -2131,52 +2131,64 @@ const mediaKindForObject = (object: SupportedMediaObject): RustSceneMediaReferen
   return 'Image';
 };
 
+/**
+ * clip 開始からの経過フレーム数。`rust_core::timeline::evaluate_frame` の
+ * `frame_offset = frame_index - clip.start_frame` と同じ規約（R2で全 kind に統一）。
+ * `source_frame_offset` は video のみ非ゼロ（`editableRustScene.ts` 参照）で、
+ * それ以外の kind では常に 0 なので、ここでは経過フレームのみを返す。
+ */
+const elapsedFrameForObject = (
+  object: SupportedSceneObject,
+  time: number,
+  fps: number
+): number => secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+
 const sourceFrameForObject = (
   object: SupportedSceneObject,
   time: number,
   fps: number
 ): number => {
-  if (object.type === 'shape') return 0;
-  if (object.type === 'image') return 0;
-  if (object.type === 'psd') return 0;
+  if (object.type === 'shape') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'image') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'psd') return elapsedFrameForObject(object, time, fps);
   if (object.type === 'audio_visualization') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'audio_sphere') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'particle') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
-  if (object.type === 'barcode') return 0;
-  if (object.type === 'puzzle_piece') return 0;
-  if (object.type === 'colour_wheel') return 0;
-  if (object.type === 'gourd') return 0;
-  if (object.type === 'gear') return 0;
-  if (object.type === 'track_bar') return 0;
-  if (object.type === 'pie_chart') return 0;
-  if (object.type === 'histogram') return 0;
-  if (object.type === 'sunburst') return 0;
-  if (object.type === 'circular_arrow') return 0;
-  if (object.type === 'triangle_bracket') return 0;
-  if (object.type === 'tartan_check') return 0;
-  if (object.type === 'houndstooth') return 0;
-  if (object.type === 'yagasuri') return 0;
-  if (object.type === 'paper_airplane') return 0;
-  if (object.type === 'asanoha_pattern') return 0;
+  if (object.type === 'barcode') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'puzzle_piece') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'colour_wheel') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'gourd') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'gear') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'track_bar') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'pie_chart') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'histogram') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'sunburst') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'circular_arrow') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'triangle_bracket') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'tartan_check') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'houndstooth') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'yagasuri') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'paper_airplane') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'asanoha_pattern') return elapsedFrameForObject(object, time, fps);
   if (object.type === 'focus_lines_plus') {
     const interval = Math.max(0, Math.trunc(finiteNumberOr(object.keyframeInterval, 0)));
     if (interval === 0) return 0;
     const localFrame = secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
     return Math.floor(localFrame / interval) * interval;
   }
-  if (object.type === 'random_line_ex') return 0;
-  if (object.type === 'contour_trace') return 0;
-  if (object.type === 'displacement_poly') return 0;
-  if (object.type === 'plain_effector_line') return 0;
-  if (object.type === 'hologram') return 0;
-  if (object.type === 'protractor') return 0;
+  if (object.type === 'random_line_ex') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'contour_trace') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'displacement_poly') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'plain_effector_line') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'hologram') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'protractor') return elapsedFrameForObject(object, time, fps);
   if (object.type === 'shaking_polygon') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'shattered_sphere') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
-  if (object.type === 'tone_curve') return 0;
-  if (object.type === 'getcolor_dot_field') return 0;
-  if (object.type === 'hksy_checker_grid') return 0;
-  if (object.type === 'region_frame') return 0;
-  if (object.type === 'simple_tube') return 0;
+  if (object.type === 'tone_curve') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'getcolor_dot_field') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'hksy_checker_grid') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'region_frame') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'simple_tube') return elapsedFrameForObject(object, time, fps);
   const localTime = Math.max(0, time - object.startTime);
   const offset = object.offset ?? 0;
   const mediaTime = localTime + offset;
