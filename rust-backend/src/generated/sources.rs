@@ -15,14 +15,9 @@ pub(crate) struct GeneratedGradientSource {
     pub(crate) direction: f32,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedPuzzlePieceSource {
-    pub(crate) generator: String,
-    pub(crate) size: u32,
-    pub(crate) shape_variant: u32,
-    pub(crate) connector_mode: String,
-    pub(crate) fill_colour: String,
-}
+// `puzzle_piece` kind のワイヤーソースは rust-core の `PuzzlePieceObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::PuzzlePieceObjectFields;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedColourWheelSource {

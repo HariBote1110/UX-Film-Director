@@ -3,19 +3,13 @@ use uxfd_rust_core::{ShapeObjectFields, ShapeType};
 use super::*;
 
 pub(crate) fn validate_generated_puzzle_piece_source(
-    source: &GeneratedPuzzlePieceSource,
+    source: &PuzzlePieceObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "puzzle-piece" {
-        return Err("generator must be puzzle-piece".to_string());
-    }
-    if source.size == 0 || source.size > 2000 {
+    if !source.size.is_finite() || source.size < 1.0 || source.size > 2000.0 {
         return Err("size must be 1..2000".to_string());
     }
     if source.shape_variant == 0 || source.shape_variant > 22 {
         return Err("shape_variant must be 1..22".to_string());
-    }
-    if source.connector_mode != "convex" && source.connector_mode != "concave" {
-        return Err("connector_mode must be convex or concave".to_string());
     }
     parse_hex_colour_source(&source.fill_colour)?;
     Ok(())

@@ -12,7 +12,7 @@ pub(crate) fn build_generated_puzzle_piece_source_frame(
             media.width, media.height
         ));
     }
-    let puzzle: GeneratedPuzzlePieceSource = serde_json::from_str(&media.source)
+    let puzzle: PuzzlePieceObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedPuzzlePiece media '{}': {error}", media.id))?;
     validate_generated_puzzle_piece_source(&puzzle).map_err(|message| {
         format!(
@@ -42,8 +42,8 @@ pub(crate) fn build_generated_puzzle_piece_source_frame(
 
     let centre_x = media.width as f32 / 2.0;
     let centre_y = media.height as f32 / 2.0;
-    let half = (puzzle.size as f32 / 2.0).min(media.width.min(media.height) as f32 / 2.0);
-    let knob_radius = (puzzle.size as f32 * 0.18).max(2.0);
+    let half = (puzzle.size / 2.0).min(media.width.min(media.height) as f32 / 2.0);
+    let knob_radius = (puzzle.size * 0.18).max(2.0);
     let connector_distance = half;
     let connectors = puzzle_piece_connectors(puzzle.shape_variant);
 
@@ -65,7 +65,7 @@ pub(crate) fn build_generated_puzzle_piece_source_frame(
                 };
                 let distance = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
                 let in_knob = distance <= knob_radius;
-                if puzzle.connector_mode == "convex" {
+                if matches!(puzzle.connector_mode, uxfd_rust_core::PuzzleConnectorMode::Convex) {
                     inside = inside || in_knob;
                 } else if in_knob {
                     inside = false;
