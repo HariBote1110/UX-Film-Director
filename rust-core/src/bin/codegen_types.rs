@@ -14,8 +14,9 @@ use std::path::{Path, PathBuf};
 use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
-    AudioLabPhoneme, AudioObjectFields, AudioVisualizationObjectFields, AudioVisualizationType,
-    Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl, ImageObjectFields,
+    AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
+    AudioVisualizationType, Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl,
+    ImageObjectFields,
     MediaKind, MediaReference, PositionKeyframe, Project, ProjectSize, SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
     ShapeType, SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
@@ -56,6 +57,8 @@ fn write_ts_bindings() {
         .expect("AudioVisualizationType の TS export に失敗しました");
     AudioVisualizationObjectFields::export_all(&cfg)
         .expect("AudioVisualizationObjectFields の TS export に失敗しました");
+    AudioSphereObjectFields::export_all(&cfg)
+        .expect("AudioSphereObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -139,6 +142,7 @@ fn write_json_schemas() {
     write_schema::<AudioObjectFields>(&dir, "AudioObjectFields");
     write_schema::<AudioVisualizationType>(&dir, "AudioVisualizationType");
     write_schema::<AudioVisualizationObjectFields>(&dir, "AudioVisualizationObjectFields");
+    write_schema::<AudioSphereObjectFields>(&dir, "AudioSphereObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

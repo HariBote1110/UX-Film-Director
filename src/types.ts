@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -456,23 +456,7 @@ export interface GroupControlObject extends BaseObject {
 export type AudioVisualizationObject = BaseObject & AudioVisualizationObjectFields & { type: 'audio_visualization' };
 
 // 93 音声玉互換の音声反応生成オブジェクト
-export interface AudioSphereObject extends BaseObject {
-  type: 'audio_sphere';
-  width: number;
-  height: number;
-  columns: number;
-  rows: number;
-  baseRadius: number;
-  audioInfluence: number;
-  pointSize: number;
-  polygonSize: number;
-  randomAmount: number;
-  colour: string;
-  targetAudioId: string | null;
-  targetLayer?: number;
-  sampleWindowSeconds: number;
-  seed: number;
-}
+export type AudioSphereObject = BaseObject & AudioSphereObjectFields & { type: 'audio_sphere' };
 
 // AviUtlPackV4 標準パーティクル互換の生成オブジェクト
 export interface ParticleObject extends BaseObject {
