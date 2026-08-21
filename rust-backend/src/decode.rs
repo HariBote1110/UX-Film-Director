@@ -13,7 +13,6 @@ use crate::sessions::{
     StreamingDecodeProcess,
 };
 use crate::state::BackendState;
-#[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm, CopyOutState,
@@ -583,11 +582,7 @@ pub(crate) fn handle_decode_release_frame(
     }
 }
 
-#[cfg(unix)]
 pub(crate) type DecodeDataPlaneRing = PosixSharedRing;
-
-#[cfg(not(unix))]
-pub(crate) struct DecodeDataPlaneRing;
 
 /// Phase 4c Stage 1 automatic fallback: attempts to open `source` via the
 /// in-process `macos-video-decode` worker at the ring's requested output
@@ -633,7 +628,6 @@ fn decode_memory_id(job_id: &str) -> String {
     format!("/uxfd-{}-{:08x}", std::process::id(), hasher.finalize())
 }
 
-#[cfg(unix)]
 fn create_decode_data_plane(
     memory_id: &str,
     slot_count: u32,
@@ -646,15 +640,6 @@ fn create_decode_data_plane(
         .map_err(|error| format!("{error:?}"))
 }
 
-#[cfg(not(unix))]
-fn create_decode_data_plane(
-    _memory_id: &str,
-    _slot_count: u32,
-    _slot_byte_len: u64,
-) -> Result<Option<DecodeDataPlaneRing>, String> {
-    Ok(None)
-}
-
 /// Writes the decoded frame into the data-plane ring and returns the slot
 /// index it actually landed in. This is the single source of truth for the
 /// slotIndex handed back to the renderer — the control-plane `SharedFrameRing`
@@ -662,7 +647,6 @@ fn create_decode_data_plane(
 /// desynchronise from the data-plane ring once a slot is freed behind its
 /// back (see progress.md 2026-07-02 for how this caused decode ring
 /// exhaustion).
-#[cfg(unix)]
 fn write_decode_data_plane(
     ring: Option<&DecodeDataPlaneRing>,
     frame_index: u64,
@@ -671,15 +655,6 @@ fn write_decode_data_plane(
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
     ring.write_frame(frame_index, bytes)
         .map_err(|error| format!("{error:?}"))
-}
-
-#[cfg(not(unix))]
-fn write_decode_data_plane(
-    _ring: Option<&DecodeDataPlaneRing>,
-    _frame_index: u64,
-    _bytes: &[u8],
-) -> Result<u32, String> {
-    Ok(0)
 }
 
 /// Releases one leased frame on the data-plane ring, verified by the
@@ -692,7 +667,6 @@ fn write_decode_data_plane(
 ///   residual leak that starved the ring on 0.1.1-Beta-425a.
 /// - FREE / recycled for a different sequence (the in-backend native render
 ///   source read already consumed and released it) → safe no-op.
-#[cfg(unix)]
 fn release_decode_data_plane(
     ring: Option<&DecodeDataPlaneRing>,
     slot_index: u32,
@@ -702,16 +676,6 @@ fn release_decode_data_plane(
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
     ring.release_frame_slot_for_sequence(slot_index, sequence, copy_out_state)
         .map_err(|error| format!("{error:?}"))
-}
-
-#[cfg(not(unix))]
-fn release_decode_data_plane(
-    _ring: Option<&DecodeDataPlaneRing>,
-    _slot_index: u32,
-    _sequence: u64,
-    _copy_out_state: CopyOutState,
-) -> Result<(), String> {
-    Ok(())
 }
 
 // Forward gap a warm streaming decoder will absorb by discard-reading frames

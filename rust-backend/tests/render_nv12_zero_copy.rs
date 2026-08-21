@@ -312,6 +312,7 @@ fn decode_and_render_frame_zero(
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn render_native_shared_frame_reports_nv12_zero_copy_for_inprocess_video_session() {
     if !require_ffmpeg() {
         eprintln!("skipping: ffmpeg not on PATH");
@@ -353,6 +354,7 @@ fn render_native_shared_frame_reports_nv12_zero_copy_for_inprocess_video_session
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn render_native_shared_frame_correlates_distinct_decode_job_and_media_ids() {
     if !require_ffmpeg() {
         eprintln!("skipping: ffmpeg not on PATH");
@@ -379,6 +381,7 @@ fn render_native_shared_frame_correlates_distinct_decode_job_and_media_ids() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn render_native_shared_frame_nv12_zero_copy_kill_switch_falls_back_to_rgba_bridge() {
     if !require_ffmpeg() {
         eprintln!("skipping: ffmpeg not on PATH");
@@ -404,6 +407,7 @@ fn render_native_shared_frame_nv12_zero_copy_kill_switch_falls_back_to_rgba_brid
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn encode_write_native_frame_uses_nv12_zero_copy_for_inprocess_video_session() {
     if !require_ffmpeg() {
         eprintln!("skipping: ffmpeg not on PATH");
@@ -549,6 +553,7 @@ fn encode_write_native_frame_uses_nv12_zero_copy_for_inprocess_video_session() {
 /// divergence between the two composite paths rather than different
 /// decoded content.
 #[test]
+#[cfg(target_os = "macos")]
 fn render_native_shared_frame_nv12_zero_copy_matches_rgba_bridge_within_tolerance() {
     if !require_ffmpeg() {
         eprintln!("skipping: ffmpeg not on PATH");

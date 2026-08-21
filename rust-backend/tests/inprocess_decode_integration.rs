@@ -222,6 +222,7 @@ impl Drop for BackendProcess {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn decode_request_frame_uses_inprocess_path_for_ordinary_h264_source() {
     if !require_ffmpeg() {
         eprintln!("skipping: ffmpeg not on PATH");

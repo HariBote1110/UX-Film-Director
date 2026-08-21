@@ -10,7 +10,6 @@ use crate::sessions::{EncodeAbortSummary, EncodeSession, EncodeTransport};
 use crate::state::BackendState;
 use serde_json::{json, Value};
 use uxfd_golden_harness::RgbaFrame;
-#[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     validate_renderer_handoff_descriptor, ColourMetadata, CopyOutState, FrameDescriptor,
@@ -510,7 +509,6 @@ pub(crate) fn validate_encode_shared_frame(
     Ok(())
 }
 
-#[cfg(unix)]
 pub(crate) fn write_encode_shared_frame(
     session: &mut EncodeSession,
     parsed: &EncodeWriteFrameParams,
@@ -545,14 +543,6 @@ pub(crate) fn write_encode_shared_frame(
     release_result.map_err(|error| format!("Failed to release encode shared frame: {error:?}"))?;
 
     Ok((byte_len, encoded_byte_len))
-}
-
-#[cfg(not(unix))]
-pub(crate) fn write_encode_shared_frame(
-    _session: &mut EncodeSession,
-    _parsed: &EncodeWriteFrameParams,
-) -> Result<(usize, usize), String> {
-    Err("Rust encode shared memory is unavailable on this platform".to_string())
 }
 
 pub(crate) fn start_encode_ffmpeg(
