@@ -2,18 +2,6 @@
   "description": "TS 評価(rustSceneSnapshot.ts)と rust-core 評価(evaluate_frame)の既知の差分。Rust_Source_Of_Truth_Plan.md の R2 でゼロにする。件数は増やしてはならず、減らしたらこのファイルを更新する（ラチェット）。",
   "differences": [
     {
-      "path": "snapshot.clips[].transform.translation_x",
-      "count": 170,
-      "category": "keyframe-clamp",
-      "note": "**当初『振動フィルタが原因』と分類したのは誤り(2026-08-22 訂正)。** 実際の原因は keyframe 時刻の clamp 規約の食い違い。path A の positionKeyframesForObject は normaliseKeyframesForObject 経由で keyframe.time を [startTime, startTime+duration] に clamp するが(keyframes.ts:28)、path B の evaluateKeyframesPositionAtTime は生の時刻をそのまま使う。例: realistic-cutaway-video は duration=16s だが keyframes[2].time=24s で、t=15.633s のとき TS=19.5996 / RS=0.4033。最大 19.2px。振動フィルタは現在どの fixture オブジェクトにも付いていないため、この差分には寄与していない。"
-    },
-    {
-      "path": "snapshot.clips[].transform.translation_y",
-      "count": 170,
-      "category": "keyframe-clamp",
-      "note": "translation_x と同じ理由(keyframe 時刻の clamp 規約差)。最大 9.6px。"
-    },
-    {
       "path": "snapshot.clips[].effects.length",
       "count": 137,
       "category": "ts-only-animation",
