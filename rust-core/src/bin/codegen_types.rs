@@ -17,11 +17,11 @@ use uxfd_rust_core::schema::{
     AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
     AudioVisualizationType, Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl,
     ImageObjectFields,
-    MediaKind, MediaReference, PositionKeyframe, Project, ProjectSize, SamplingMode,
-    ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
-    ShapeType, SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
-    TextObjectFields, TextShadow, TextStroke, Track, Transform, VideoObjectFields, WipeAnimation,
-    WipeEdge,
+    MediaKind, MediaReference, ParticleObjectFields, PositionKeyframe, Project, ProjectSize,
+    SamplingMode, ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope,
+    ShapeObjectFields, ShapeType, SubjectCropAnimation, SubjectCropKeyframe,
+    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track,
+    Transform, VideoObjectFields, WipeAnimation, WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
 
@@ -59,6 +59,7 @@ fn write_ts_bindings() {
         .expect("AudioVisualizationObjectFields の TS export に失敗しました");
     AudioSphereObjectFields::export_all(&cfg)
         .expect("AudioSphereObjectFields の TS export に失敗しました");
+    ParticleObjectFields::export_all(&cfg).expect("ParticleObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -143,6 +144,7 @@ fn write_json_schemas() {
     write_schema::<AudioVisualizationType>(&dir, "AudioVisualizationType");
     write_schema::<AudioVisualizationObjectFields>(&dir, "AudioVisualizationObjectFields");
     write_schema::<AudioSphereObjectFields>(&dir, "AudioSphereObjectFields");
+    write_schema::<ParticleObjectFields>(&dir, "ParticleObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

@@ -15,6 +15,7 @@ export * from './GroupControl';
 export * from './ImageObjectFields';
 export * from './MediaKind';
 export * from './MediaReference';
+export * from './ParticleObjectFields';
 export * from './PositionKeyframe';
 export * from './Project';
 export * from './ProjectSize';
