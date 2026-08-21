@@ -635,3 +635,36 @@ CFR/VFRタイムスタンプの扱い、あるいは今回のファイルパス
    （`native-overlay/src/lib.rs`のnon-sequential request_frame経路、
    `video-playback-probe-results.md`のH1関連）と組み合わさって体感速度の
    ズレを生んでいないか、ローカルSSD上のコピーとの比較実験で切り分ける。
+
+## 追記4: メカニズム確定（プローブ実測により CONFIRMED）
+
+上記フェーズまでの「fps系仮説はすべてREJECTED」判定は覆らないが、真因は
+やはり fps 数値そのものに起因していた。ただし「fps変更の伝播バグ」では
+なく、**project fps が material（素材動画）fps を上回るケースで
+`NativeOverlayResidentVideoDecoder::request_frame`（`native-overlay/src/lib.rs`）
+が逐次要求のたびに無条件で最低1フレームを decode してしまう」という
+別のメカニズムだった。
+
+`[vspeed2-probe]` eprintln 計測による実測値:
+
+- 60fpsプロジェクト・30fps素材: `rate=60/1` で `target_seconds=36.6s` の
+  要求に対し `served pts_seconds=72.2s` を返しており、正確に **2.0倍**
+  （= `projectFps / materialFps` = 60/30）のズレ。target は 1/60s ずつしか
+  進まないのに、素材側は `next_frame()` 呼び出し1回ごとに 1/30s 進んで
+  しまうため。
+- 24fpsプロジェクトでは **1.0倍**（ズレなし）だった。24fpsのtargetステップ幅
+  （1/24s ≈ 41.7ms）が30fps素材のフレーム長（1/30s ≈ 33.3ms）より大きく、
+  逐次要求のたびに旧実装の `reached_target` 判定がたまたま満たされていた
+  ため、症状が顕在化しなかった。
+
+音声は `HTMLVideoElement` から独立に再生されるため本バグの影響を受けず、
+映像のみが早送りされることでA/Vズレとして観測されていた。
+
+これまでのE2Eベースの検証がこのメカニズムを見逃していたのは、いずれも
+**再生ズレの有無を体感時間や録画のフレーム目視で判定しており、
+「decoderに実際に要求したtarget_seconds」と「decoderが実際に返した
+served pts」を突き合わせて計測していなかった**ため。この2値の差分こそが
+決定的な証拠であり、今回はじめてプローブでその数値を直接記録したことで
+メカニズムを確定できた。
+
+修正内容・判定関数のテストは `progress/video-frame-reuse-fix.md` を参照。
