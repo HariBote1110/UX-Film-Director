@@ -22,11 +22,11 @@ pub use generated_particle::{
 };
 pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
 pub use schema::{
-    Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, ImageObjectFields, MediaKind,
-    MediaReference, PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe,
-    ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType,
-    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track,
-    Transform, VideoObjectFields, WipeEdge,
+    AudioLabPhoneme, AudioObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect, Fps,
+    ImageObjectFields, MediaKind, MediaReference, PositionKeyframe, Project, ProjectSize,
+    SamplingMode, ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope,
+    ShapeObjectFields, ShapeType, SubjectCropNormKeyframe, TextAlignment, TextObjectFields,
+    TextShadow, TextStroke, Track, Transform, VideoObjectFields, WipeEdge,
 };
 pub use solid_colour_scene::{
     build_solid_colour_draw_list, build_solid_colour_vertex_scene, CanvasSize, NormalisedColour,

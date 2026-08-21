@@ -36,7 +36,7 @@ fn audio_object_fields_serialise_with_camel_case_field_names() {
         muted: true,
         lab_data: Some(vec![AudioLabPhoneme {
             start_time: 0.0,
-            end_time: 0.3,
+            end_time: 0.25,
             phoneme: "a".to_string(),
         }]),
     };
@@ -48,7 +48,7 @@ fn audio_object_fields_serialise_with_camel_case_field_names() {
     assert_eq!(value["volume"], 0.5);
     assert_eq!(value["muted"], true);
     assert_eq!(value["labData"][0]["startTime"], 0.0);
-    assert_eq!(value["labData"][0]["endTime"], 0.3);
+    assert_eq!(value["labData"][0]["endTime"], 0.25);
     assert_eq!(value["labData"][0]["phoneme"], "a");
 
     assert!(value.get("file_path").is_none());

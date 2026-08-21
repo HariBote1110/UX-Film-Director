@@ -693,6 +693,56 @@ impl Default for VideoObjectFields {
     }
 }
 
+/// `audio` kind の音素タイミング1件（`.lab` ファイル由来）。編集モデル専用の型で、
+/// `src/utils/labParser.ts` の `LabPhoneme` に対応する。`audio` kind 以外では
+/// 使われない専用データのため rust-core に新規追加した。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AudioLabPhoneme {
+    #[serde(rename = "startTime")]
+    #[ts(rename = "startTime")]
+    pub start_time: f32,
+    #[serde(rename = "endTime")]
+    #[ts(rename = "endTime")]
+    pub end_time: f32,
+    pub phoneme: String,
+}
+
+/// `TimelineObject` のうち `BaseObject` の共通フィールド (`id`/`name`/`layer`/...) を
+/// 除いた、audio 固有部分。TS 側は `BaseObject & AudioObjectFields & { type: 'audio' }`
+/// になる。
+///
+/// `audio` は `mediaReferenceForObject`（`rustSceneSnapshot.ts`）の対象外
+/// （`isVisualSceneObject`/`isSupportedSceneObject` のどちらにも含まれず、
+/// `SupportedMediaObject` 系のワイヤー統一とは無関係）。`src`/`filePath` は
+/// Timeline.tsx の `handleAudioChange` が選択したファイルの実データから都度決める
+/// ため固定既定値が無く、ニュートラルな空値にする。一方 `volume`/`muted` は UI が
+/// 常に `1.0`/`false` という固定リテラルで生成しており、video と同じくその実在の
+/// 既定値を `Default` にする。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AudioObjectFields {
+    pub src: String,
+    #[serde(rename = "filePath", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "filePath")]
+    pub file_path: Option<String>,
+    pub volume: f32,
+    pub muted: bool,
+    #[serde(rename = "labData", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "labData")]
+    pub lab_data: Option<Vec<AudioLabPhoneme>>,
+}
+
+impl Default for AudioObjectFields {
+    fn default() -> Self {
+        Self {
+            src: String::new(),
+            file_path: None,
+            volume: 1.0,
+            muted: false,
+            lab_data: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
