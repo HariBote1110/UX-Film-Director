@@ -743,6 +743,72 @@ impl Default for AudioObjectFields {
     }
 }
 
+// --- 編集モデル（R3）: 生成系 kind ---
+//
+// ここから下は `src/types.ts` の生成系オブジェクト種別（AviUtlPackV4 互換の
+// 手続き生成オブジェクト）の編集モデル。`mediaReferenceForObject`
+// （`rustSceneSnapshot.ts`）に専用の `serialiseGeneratedXxxSource` を持つ kind
+// 群で、shape と同じくワイヤー統一（stage 3）まで見据えて移送する。
+
+/// `AudioVisualizationObject`（`src/types.ts`）専用の可視化種別。
+/// 現状 `'waveform'` の単一バリアントのみ存在する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioVisualizationType {
+    Waveform,
+}
+
+impl Default for AudioVisualizationType {
+    fn default() -> Self {
+        Self::Waveform
+    }
+}
+
+/// `AudioVisualizationObject`（`src/types.ts`）の `type` / `BaseObject`
+/// 由来フィールドを除いた、audio_visualization 固有部分。TS 側は
+/// `BaseObject & AudioVisualizationObjectFields & { type: 'audio_visualization' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `TimelineContextMenu.tsx` の `handleAddWaveform` が
+/// プロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな
+/// `0.0` にする。`targetAudioId` は `string | null`（常にキーとして存在し
+/// null を許容）なので `Option<String>` のまま `skip_serializing_if` を
+/// 付けない。`targetLayer` は `number` 型の省略可能フィールド
+/// (`targetLayer?: number`) なので `skip_serializing_if` を付ける。
+/// `color`（American spelling）は TS 側の既存フィールド名をそのまま踏襲する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AudioVisualizationObjectFields {
+    #[serde(rename = "targetAudioId")]
+    #[ts(rename = "targetAudioId")]
+    pub target_audio_id: Option<String>,
+    #[serde(rename = "targetLayer", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "targetLayer")]
+    pub target_layer: Option<i32>,
+    #[serde(rename = "visualizationType", default)]
+    #[ts(rename = "visualizationType")]
+    pub visualization_type: AudioVisualizationType,
+    pub color: String,
+    pub thickness: f32,
+    pub width: f32,
+    pub height: f32,
+    pub amplitude: f32,
+}
+
+impl Default for AudioVisualizationObjectFields {
+    fn default() -> Self {
+        Self {
+            target_audio_id: None,
+            target_layer: None,
+            visualization_type: AudioVisualizationType::Waveform,
+            color: "#00ff00".to_string(),
+            thickness: 2.0,
+            width: 0.0,
+            height: 0.0,
+            amplitude: 1.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
