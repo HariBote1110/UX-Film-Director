@@ -588,6 +588,21 @@ fn decode_audio_pcm_with_ffmpeg(source: &str, sample_rate: u32) -> Result<Vec<f3
 /// two crates decode via different backends and are tuned independently).
 const NATIVE_OVERLAY_MAX_FORWARD_DECODE_GAP_FRAMES: u64 = 90;
 
+// TEMPORARY: 2x再生速度バグ調査用プローブ。調査完了後に削除すること。
+fn vspeed2_probe_epoch() -> &'static Instant {
+    static EPOCH: OnceLock<Instant> = OnceLock::new();
+    EPOCH.get_or_init(Instant::now)
+}
+
+fn vspeed2_probe_wall_ms() -> u128 {
+    vspeed2_probe_epoch().elapsed().as_millis()
+}
+
+fn vspeed2_probe_source_tail(source: &str) -> &str {
+    let trimmed = source.trim_end_matches('/');
+    trimmed.rsplit('/').next().unwrap_or(trimmed)
+}
+
 /// How `NativeOverlayResidentVideoDecoder::request_frame` should service a
 /// decode request, given the currently decoded source frame (if any) and the
 /// requested source frame.
@@ -675,6 +690,15 @@ impl NativeOverlayResidentVideoDecoder {
 
         let target_seconds = request.source_frame as f64 * request.source_rate.denominator as f64
             / request.source_rate.numerator as f64;
+        eprintln!(
+            "[vspeed2-probe] native-overlay request_frame wall_ms={} source={} source_frame={} rate={}/{} target_seconds={:.6}",
+            vspeed2_probe_wall_ms(),
+            vspeed2_probe_source_tail(&self.source),
+            request.source_frame,
+            request.source_rate.numerator,
+            request.source_rate.denominator,
+            target_seconds
+        );
         let advance = resolve_frame_advance(
             self.current_source_frame,
             request.source_frame,
@@ -765,6 +789,15 @@ impl NativeOverlayResidentVideoDecoder {
 
         self.current_source_frame = Some(request.source_frame);
         self.revision = self.revision.wrapping_add(1).max(1);
+        if let Some(served) = self.current_frame.as_ref() {
+            eprintln!(
+                "[vspeed2-probe] native-overlay served wall_ms={} source={} source_frame={} pts_seconds={:.6}",
+                vspeed2_probe_wall_ms(),
+                vspeed2_probe_source_tail(&self.source),
+                request.source_frame,
+                served.pts_seconds
+            );
+        }
         self.current_nv12_source()
     }
 
@@ -3771,6 +3804,27 @@ mod tests {
             resolve_frame_advance(Some(10), 12, 0),
             FrameAdvance::Seek
         );
+    }
+
+    #[test]
+    fn current_frame_satisfies_target_none_is_false() {
+        assert!(!current_frame_satisfies_target(None, 1.0, 0.1));
+    }
+
+    #[test]
+    fn current_frame_satisfies_target_pts_ahead_of_target_reuses() {
+        assert!(current_frame_satisfies_target(Some(1.5), 1.0, 0.1));
+    }
+
+    #[test]
+    fn current_frame_satisfies_target_pts_within_tolerance_reuses() {
+        // target is slightly ahead of pts but within tolerance.
+        assert!(current_frame_satisfies_target(Some(1.0), 1.05, 0.1));
+    }
+
+    #[test]
+    fn current_frame_satisfies_target_pts_past_tolerance_decodes() {
+        assert!(!current_frame_satisfies_target(Some(1.0), 1.5, 0.1));
     }
 
     #[test]
