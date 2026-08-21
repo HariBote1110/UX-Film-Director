@@ -166,7 +166,7 @@ R6 だけは W7 を待つので、そこで一度区切りを入れる。
 
 ## 4. フェーズ計画
 
-### R0: 二重評価の差分ハーネス（推定 1-2日）★他フェーズの合格条件
+### R0: 二重評価の差分ハーネス（推定 1-2日）★他フェーズの合格条件 ─ 完了 2026-08-22
 
 移管を始める前に「経路 A と経路 B が今どれだけ違うか」を測る。
 これが無いと R2 以降はすべて手探りになる。
@@ -180,7 +180,29 @@ R6 だけは W7 を待つので、そこで一度区切りを入れる。
   それを洗い出すのがこのフェーズの実質的な目的。
 - CI に常設する。以降のフェーズはすべて「このハーネスが緑」を合格条件にする。
 
-成果物: `progress/rust-source-of-truth-evaluation-diff.md` に差分の分類。
+成果物: [rust-source-of-truth-evaluation-diff.md](../progress/rust-source-of-truth-evaluation-diff.md)。
+ハーネスは `rust-core/tests/ts_evaluation_parity.rs`（比較本体）と
+`src/utils/rustSceneEvaluationParityFixtureDrift.test.ts`（fixture の陳腐化検出）の 2 本立て。
+再生成は `npm run fixture:evaluation-parity`。
+
+**測定結果: 447 フレームで差分 5,099 件。丸め差は 0 件で、全部が実装差だった。**
+
+| 分類 | フィールド | 件数 | 最大差 |
+|---|---|---|---|
+| `convention` | `clips[].source_frame` | 4,074 | 1435 frame |
+| `ts-only-feature` | `clips[].transform.translation_x` / `_y` | 各 170 | 19.20px / 9.60px |
+| `ts-only-animation` | `clips[].effects.length` | 137 | （構造差） |
+| `ts-only-animation` | `clips[].effects[].Clipping.{left,right,top,bottom}` | 各 137 | 最大 51.12px |
+
+- `source_frame`: TS は静止メディアに 0 を返し、rust-core は全 clip に経過フレームを返す。規約差。
+- `translation_x/y`: 振動フィルタが rust-core に無く、TS が translation へ畳み込んでいる。
+- `Clipping`: TS はフレームごとに値を変えるが rust-core は静的値を返す。
+
+既知の差分は `rust-core/tests/fixtures/ts-evaluation-parity/KNOWN_DIFFERENCES.json` で
+**ラチェット管理**する。件数が増えたら失敗し、減ったらベースライン更新を促す。R2 でゼロにする。
+
+経路 A が受け付けなかった object は 0 件、経路 B が組めなかった frame も 0 件で、
+比較対象の縮退は起きていない。
 
 ### R1: 型の codegen 化（推定 3-4日）
 
@@ -209,6 +231,11 @@ R6 だけは W7 を待つので、そこで一度区切りを入れる。
   - `src/utils/subjectCropKeyframes.ts`
   - `src/utils/filterStack.ts` の `getEnabledObjectFiltersInOrder` /
     `getFadeOpacityMultiplier` / `getPrimaryWipeFilter`（**編集操作は R4 まで残す**）
+- R0 が特定した 3 クラスを潰す。これが R2 の合格条件そのもの:
+  1. `source_frame` の規約を揃える。**着手前に、renderer が静止メディアの `source_frame` を
+     本当に無視しているかを確認する**（無視していないなら TS の 0 埋めが現在の描画を作っている）。
+  2. 振動（`sceneTransforms.getVibrationOffset`）を `rust-core` へ移す。
+  3. Clipping のアニメーションを `rust-core` へ移す（`effects` の件数差もここで解消する）。
 - `rust-core` 側に不足があれば足す。R0 の差分分類で「TS にしか無い暗黙仕様」と判定したものは、
   Rust 側にテスト付きで移送する。**TS のテストを消すだけにしない。**
   評価系の TS テストは Rust のテストとして書き直す（Red を Rust 側で立て直す）。

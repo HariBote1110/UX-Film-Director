@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [rust-source-of-truth-evaluation-diff.md](rust-source-of-truth-evaluation-diff.md) — R0の差分ハーネスを構築し、TS評価とrust-core評価の食い違いを実測。447フレームで5,099件、**丸め差は0件で全部が実装差**。3クラス: source_frame の規約差(4,074件)、振動をtranslationへ畳み込んでいるTS固有機能(各170件・最大19.2px)、Clippingがrust-core側で静的なまま(各137件・最大51.1px)。既知差分はKNOWN_DIFFERENCES.jsonでラチェット管理しR2でゼロにする（2026-08-22）
 - [rust-source-of-truth-audit.md](rust-source-of-truth-audit.md) — Rust正本集中リファクタリングの現状監査。評価経路が`scene.evaluate`とTS側`rustSceneSnapshot.ts`の2本走っておりeasing/keyframeが二重実装、TS側に内蔵WGSL(1,484行)、PSDはag-psdと`psd_fast.rs`の2本で`psd-wasm`はデッドコード。計画正本は`markdown/Rust_Source_Of_Truth_Plan.md`、Windows計画とはwgpu昇格(W4)のみが結合点（2026-08-22）
 - [video-frame-reuse-fix.md](video-frame-reuse-fix.md) — `NativeOverlayResidentVideoDecoder::request_frame`が逐次要求のたびに無条件decodeしており、project fpsがmaterial fpsを上回ると動画がprojectFps/materialFps倍速（実測2.0倍）で再生される不具合を修正。保持フレームのptsがtargetを満たす場合にdecodeを省略する`current_frame_satisfies_target`/`should_reuse_current_frame`を追加、Sequential限定で早期return（版500a）（2026-08-22）
 - [foreign-proxy-validation.md](foreign-proxy-validation.md) — `check-proxy`が隣接`.proxy.mp4`を無検証採用していた不具合を修正。オリジナル/プロキシ双方をffprobeし再生時間一致（許容2%または0.5秒）を`validateProxyDuration`で検証、不一致なら不採用。外部ツール製の圧縮済みプロキシ（GX010052.proxy.mp4、2.388倍圧縮）が原因のA/Vずれを確認・修正（版499a）（2026-08-22）
