@@ -125,6 +125,36 @@ describe('evaluateObjectPositionAtTime', () => {
     const object = { ...baseShape(), x: 3, y: 7 };
     expect(evaluateObjectPositionAtTime(object, 999)).toEqual({ x: 3, y: 7 });
   });
+
+  it('clamps keyframe times beyond the clip range, matching path A (normaliseKeyframesForObject)', () => {
+    // 回帰テスト: path A（editableRustScene.ts の positionKeyframesForObject）は
+    // normaliseKeyframesForObject 経由で keyframe.time を [startTime, startTime+duration] に
+    // clamp するが、修正前の path B（evaluateKeyframesPositionAtTime）は生の時刻をそのまま
+    // 使っていたため、範囲外 keyframe を持つオブジェクトで最大 19.2px の描画ずれが出ていた
+    // （progress/rust-source-of-truth-evaluation-diff.md の keyframe-clamp を参照）。
+    const object = {
+      ...baseShape(),
+      startTime: 4,
+      duration: 16, // clamp 後の範囲は [4, 20]
+      keyframes: [
+        { id: 'k0', time: 4, x: 0, y: 0, easing: 'linear' as const },
+        { id: 'k1', time: 16, x: 24, y: 12, easing: 'linear' as const },
+        { id: 'k2', time: 28, x: 0, y: 0, easing: 'linear' as const } // 範囲外(> 20)
+      ]
+    };
+    const time = 19.633; // clamp 後の [16, 20] 区間の中
+
+    // path A が使う clamp 規約を、同じ共有関数で明示的に再現する。
+    const clamped = normaliseKeyframesForObject(object, object.keyframes);
+    const expected = evaluateKeyframesPositionAtTime(clamped, time, object.easing);
+
+    const actual = evaluateObjectPositionAtTime(object, time);
+    expect(actual).toEqual(expected);
+
+    // clamp しない生時刻での補間（修正前の path B の挙動）とは一致しないことも確認する。
+    const naive = evaluateKeyframesPositionAtTime(object.keyframes, time, object.easing);
+    expect(actual).not.toEqual(naive);
+  });
 });
 
 describe('shiftKeyframesForObject', () => {
