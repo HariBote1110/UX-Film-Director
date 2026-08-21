@@ -2,6 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
+- [video-playback-backward-jump-fps-collapse.md](video-playback-backward-jump-fps-collapse.md) — **動画素材再生の「位置巻き戻り＋FPS崩壊」の原因仮説（未検証）。H1: 動画がpre-warm経路から漏れておりメインスレッド同期デコード＋追いつきスキップ→O(GOP)同期シークの暴走ループ。H2: 単調性ガードなしの `setTime` へ遅れたメディアクロックが無方向スナップ**（2026-08-22）
 - [present-scene-cold-start.md](present-scene-cold-start.md) — **`presentScene` の218〜348msは起動後の初回再生1回だけのコールドコスト。2回目は4.6〜35.3ms。addon内部の最適化ではなくpre-warmが正解。**終了時SEGV修正後3run連続でクラッシュレポート増加なし（確証には不足）（2026-08-07）
 - [engage-delay-breakdown.md](engage-delay-breakdown.md) — **engage 遅延の内訳。支配項は `presentScene`（native overlay addon 呼び出し）で 216〜324ms、`scene.evaluate` は 0.4〜4ms で無罪。`replace` は2本65msで無罪、支配項は `startPlayback` の361.7ms。しかもこれは backend を3倍遅くしても +6% しか増えず、「engage 遅延は backend 速度に比例」という前の結論を棄却。開始要求とプレビュー評価の競合も発見**（2026-08-07）
 - [native-clock-optimistic-revision-race.md](native-clock-optimistic-revision-race.md) — **native playback clock が engage しなかった原因は楽観的revisionのレース（実測detailで確定）。適格性説は棄却。常駐revision確定を待つ修正で busyMs 919→493/506、presenter再起動 42→3、layoutCount 213→136/126。ただし engage は frame 83〜93 で前半はまだレンダラークロック**（2026-08-07）
