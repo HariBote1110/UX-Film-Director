@@ -63,11 +63,22 @@ RS の index 3（動的・正しい値）は `min(left.len(), right.len())=3` �
 
 ## Constraints / Gotchas
 
-- **ユーザー影響**: native overlay（path A、既定 ON、`Viewport.tsx:731` の
-  `!== '0'`）は今回のバグの影響を直接受けていた。subject crop を有効にした
-  video クリップは、native overlay 経路で見ると **常に最初の keyframe の
-  crop 矩形に固定表示**され、2つ目・3つ目の keyframe へアニメーションしなかった
-  （最大 51.1px のズレ）。**これはユーザーが今日見ている描画のバグであり、
+- **ユーザー影響（2026-08-22 訂正）**: native overlay（path A、既定 ON、
+  `Viewport.tsx:731` の `!== '0'`）は今回のバグの影響を直接受けていた。
+  **ただし症状は「最初の keyframe に固定されアニメーションしない」ではない。**
+  renderer 側の `clipping_extent`（`native-wgpu-renderer/src/lib.rs:3510`）は
+
+  ```rust
+  clip.effects.iter().filter_map(pick).sum::<f32>().max(0.0)
+  ```
+
+  のとおり **すべての `Effect::Clipping` を合算する**。したがって静的な重複と
+  正しい動的値が足し合わされ、実際の症状は
+  **「正しいクロップ量に加えて、常に初回 keyframe 分だけ余計に切り取られる」**
+  ＝ 各辺およそ 2 倍の過剰クロップである。アニメーション自体は動いていた。
+
+  具体的には left が本来 51.2〜102.4px の範囲で動くべきところ、
+  102.4〜153.6px でクロップされていた。**これはユーザーが今日見ている描画のバグであり、
   parity harness だけの artefact ではない。** 本修正で解消した。
 - `rustEffectsForObject` を呼ぶ箇所は2箇所のみ（`grep` で確認済み）:
   `rustSceneSnapshot.ts:229`（path B 本体、time 引数は per-frame）と
@@ -105,3 +116,18 @@ keyframe clamp 規約差・subject crop 二重焼き込み）を3スライスで
 `ts_evaluation_parity` の既知差分がゼロに到達した。TS 評価経路（path B）と
 rust-core 評価経路（path A）は、少なくとも `realistic-heavy-edit` の代表3シーン・
 447フレームにおいて完全に一致する。
+
+## ハーネス側の欠陥（親エージェントによる追記）
+
+このバグを 685 件の差分として観測しながら原因を取り違えたのは、
+`ts_evaluation_parity.rs` の配列比較が **`min(left.len(), right.len())` までしか
+回っていなかった**ためである。TS の `effects` が 3 要素、Rust が 4 要素のとき、
+Rust の 4 番目（正しい動的 Clipping）は**一度も比較されていなかった**。
+`effects.length` の差分だけが出て、中身の食い違いは静的な重複同士の比較として
+現れていた。
+
+比較されない要素が黙って存在する状態はハーネスの欠陥なので、
+長さが違うときに余った側を明示的に差分として出すよう修正した
+（`(RS 側に対応要素なし)` / `(TS 側に対応要素なし)`）。
+差分ハーネスを作るときは「片側にしか無い要素を黙って飛ばさない」ことを
+最初から仕様に入れるべきだった。

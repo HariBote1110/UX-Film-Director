@@ -159,6 +159,29 @@ fn diff(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Difference>)
             for index in 0..left.len().min(right.len()) {
                 diff(&format!("{path}[{index}]"), &left[index], &right[index], out);
             }
+            // 長さが違うとき、min(len) を超える末尾要素は上のループに入らない。
+            // ここを黙って飛ばすと「片側にしか無い要素」が一度も比較されず、
+            // 実際にそれで subject crop の重複 Clipping を見落とした
+            // （progress/rust-source-of-truth-r2-subject-crop-double-bake.md）。
+            // 余った側を明示的に差分として出す。
+            for index in right.len()..left.len() {
+                out.push(Difference {
+                    path: format!("{path}[{index}]"),
+                    expected: left[index].to_string(),
+                    actual: "(RS 側に対応要素なし)".to_string(),
+                    numeric_delta: None,
+                    rounding: false,
+                });
+            }
+            for index in left.len()..right.len() {
+                out.push(Difference {
+                    path: format!("{path}[{index}]"),
+                    expected: "(TS 側に対応要素なし)".to_string(),
+                    actual: right[index].to_string(),
+                    numeric_delta: None,
+                    rounding: false,
+                });
+            }
         }
         (Value::Object(left), Value::Object(right)) => {
             let mut keys: Vec<&String> = left.keys().chain(right.keys()).collect();
