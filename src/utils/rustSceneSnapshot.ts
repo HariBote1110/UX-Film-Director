@@ -596,7 +596,26 @@ const computeGroupGradientEffects = (
   return result;
 };
 
-export const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[] => {
+export interface RustEffectsForObjectOptions {
+  /**
+   * subject crop 由来の Effect::Clipping を含めるか。
+   *
+   * 既定 (true) は直接評価経路（`rustSceneSnapshot.ts` 自身が per-frame `time` で
+   * 呼ぶ経路）向け。rust-core 常駐 Project 用の静的 effects を組む
+   * `editableRustScene.ts` 側は、subject crop を専用の `subject_crop` フィールドで
+   * 別送りし rust-core に毎フレーム再評価させるため、ここでは false を渡して除外する。
+   * true のまま焼き込むと、`object.startTime` 時点の値で固定された Clipping が
+   * rust-core が append する動的な Clipping と重複してしまう。
+   */
+  includeSubjectCrop?: boolean;
+}
+
+export const rustEffectsForObject = (
+  object: TimelineObject,
+  time: number,
+  options?: RustEffectsForObjectOptions
+): RustEffect[] => {
+  const includeSubjectCrop = options?.includeSubjectCrop ?? true;
   const effects: RustEffect[] = [];
   getEnabledObjectFiltersInOrder(object).forEach((filter) => {
     if (filter.type === 'color_correction') {
@@ -800,7 +819,7 @@ export const rustEffectsForObject = (object: TimelineObject, time: number): Rust
     }
   });
 
-  if (object.type === 'video' && object.subjectCropEnabled) {
+  if (includeSubjectCrop && object.type === 'video' && object.subjectCropEnabled) {
     // 旧 Pixi 実装（applyVideoSubjectCropMask）は subjectCropKeyframes を
     // 正規化矩形（0..1）として補間し、その矩形の外側をスプライトの矩形
     // マスクで隠していた。Rust 側には同じ「矩形の外側を隠す」意味論を
