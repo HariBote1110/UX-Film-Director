@@ -62,3 +62,24 @@
   （変更前と同数）、`ts_evaluation_parity` 緑（`translation_x/y` バケット消滅、
   `effects.length`/`Clipping.*` は137件のまま）、`npx vitest run` 251ファイル/
   1823テスト全緑、`npx tsc --noEmit` exit 0、`npm run codegen:types:check` exit 0。
+
+## 性能（レビュー時に実測、2026-08-22）
+
+`evaluateObjectPositionAtTime` は毎フレーム・全クリップ分呼ばれるチョークポイントで、
+そこへ `normaliseKeyframesForObject`（`map` で新配列を確保し、`localeCompare` を含む
+比較で `sort` する）を通す変更なので、性能退行を疑って実測した。
+
+代表シーン相当（34 clips、keyframe 3 個/オブジェクト）で 20,400 回呼び出し、5 回試行の中央値:
+
+| 指標 | 値 |
+|---|---|
+| `evaluateObjectPositionAtTime` 20,400 回 | 3.55 ms |
+| 1 フレームあたり（34 clips 分） | **0.0059 ms** |
+| 16.67ms 予算に対する比率 | **0.04 %** |
+| うち `normaliseKeyframesForObject` 単体 | 3.38 ms（関数コストの大半） |
+
+**無視できる。** 最適化（メモ化や早期リターン）は不要と判断した。
+
+未検証: keyframe 数が極端に多いオブジェクト（数百個）での挙動。
+`normaliseKeyframesForObject` は O(n log n) なので、そこまで増えると効いてくる可能性はある。
+現行の代表シーンでは 3 個/オブジェクトなので、その領域は測っていない。
