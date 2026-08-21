@@ -102,7 +102,7 @@ fn generated_puzzle_piece_source_frame_contains_shape_and_transparency() {
     let media = SceneMediaReference {
             id: "puzzle-1".to_string(),
             kind: MediaKind::GeneratedPuzzlePiece,
-            source: r##"{"generator":"puzzle-piece","size":48,"shape_variant":1,"connector_mode":"convex","fill_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":96,"height":96,"size":48,"shapeVariant":1,"connectorMode":"convex","fillColour":"#ffffff"}"##.to_string(),
             width: 96,
             height: 96,
             source_rate: None,

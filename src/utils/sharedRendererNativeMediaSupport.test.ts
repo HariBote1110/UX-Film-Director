@@ -84,7 +84,7 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'puzzle-1',
   kind: 'GeneratedPuzzlePiece' as RustSceneMediaReference['kind'],
-  source: '{"generator":"puzzle-piece","size":120,"shape_variant":1,"connector_mode":"convex","fill_colour":"#ffffff"}',
+  source: '{"width":240,"height":240,"size":120,"shapeVariant":1,"connectorMode":"convex","fillColour":"#ffffff"}',
   width: 240,
   height: 240,
 }, {

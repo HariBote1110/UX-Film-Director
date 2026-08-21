@@ -697,11 +697,10 @@ describe('全読込可能メディア E2E', () => {
       backgroundColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'puzzle-piece')?.source ?? '{}')).toMatchObject({
-      generator: 'puzzle-piece',
       size: 120,
-      shape_variant: 1,
-      connector_mode: 'convex',
-      fill_colour: '#ffffff',
+      shapeVariant: 1,
+      connectorMode: 'convex',
+      fillColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'colour-wheel')?.source ?? '{}')).toMatchObject({
       generator: 'colour-wheel',
