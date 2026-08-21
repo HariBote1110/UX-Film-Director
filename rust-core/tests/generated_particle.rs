@@ -2,15 +2,18 @@ use uxfd_rust_core::{
     generated_particle_unit, parse_generated_particle_source, GeneratedParticleParams,
 };
 
+// R3 wire統一: ワイヤーは rust-core の ParticleObjectFields（正本、camelCase、
+// generator タグ無し）をそのままJSON化したものになる。
 const VALID_SOURCE: &str = r##"{
-  "generator":"standard-particle",
+  "width":320,
+  "height":240,
+  "particleCount":16,
   "seed":93,
-  "particle_count":16,
   "spread":180,
   "speed":120,
   "size":6,
   "colour":"#80d8ff",
-  "lifetime_seconds":1.5
+  "lifetimeSeconds":1.5
 }"##;
 
 #[test]
@@ -36,11 +39,7 @@ fn parses_the_canonical_standard_particle_source() {
 fn preserves_the_particle_source_validation_contract() {
     for (source, expected_error) in [
         (
-            VALID_SOURCE.replace("standard-particle", "unsupported"),
-            "generator must be standard-particle",
-        ),
-        (
-            VALID_SOURCE.replace("\"particle_count\":16", "\"particle_count\":0"),
+            VALID_SOURCE.replace("\"particleCount\":16", "\"particleCount\":0"),
             "particle_count must be 1..10000",
         ),
         (
@@ -56,7 +55,7 @@ fn preserves_the_particle_source_validation_contract() {
             "size must be a finite positive number",
         ),
         (
-            VALID_SOURCE.replace("\"lifetime_seconds\":1.5", "\"lifetime_seconds\":0"),
+            VALID_SOURCE.replace("\"lifetimeSeconds\":1.5", "\"lifetimeSeconds\":0"),
             "lifetime_seconds must be a finite positive number",
         ),
         (
