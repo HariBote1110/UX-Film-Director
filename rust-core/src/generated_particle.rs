@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use crate::schema::ParticleObjectFields;
 
 /// 標準パーティクルの GPU/CPU 共通パラメータ。
 ///
@@ -31,27 +31,13 @@ pub fn generated_particle_unit(seed: u64, index: u32, lane: u64) -> f32 {
     (value as f64 / u64::MAX as f64) as f32
 }
 
-#[derive(Debug, Deserialize)]
-struct GeneratedParticleSource {
-    generator: String,
-    seed: u64,
-    particle_count: u32,
-    spread: f32,
-    speed: f32,
-    size: f32,
-    colour: String,
-    lifetime_seconds: f32,
-}
-
-/// UI から serialise された `standard-particle` source を検証して、
-/// native renderer が直接利用できる正規パラメータへ変換する。
+/// UI から serialise された `ParticleObjectFields`（正本は rust-core、
+/// camelCase・`generator` タグ無し）を検証して、native renderer が直接
+/// 利用できる正規パラメータへ変換する。
 pub fn parse_generated_particle_source(source: &str) -> Result<GeneratedParticleParams, String> {
-    let source: GeneratedParticleSource =
+    let source: ParticleObjectFields =
         serde_json::from_str(source).map_err(|error| error.to_string())?;
 
-    if source.generator != "standard-particle" {
-        return Err("generator must be standard-particle".to_string());
-    }
     if source.particle_count == 0 || source.particle_count > 10_000 {
         return Err("particle_count must be 1..10000".to_string());
     }
@@ -69,7 +55,7 @@ pub fn parse_generated_particle_source(source: &str) -> Result<GeneratedParticle
     }
 
     Ok(GeneratedParticleParams {
-        seed: source.seed,
+        seed: source.seed as u64,
         particle_count: source.particle_count,
         spread: source.spread,
         speed: source.speed,
