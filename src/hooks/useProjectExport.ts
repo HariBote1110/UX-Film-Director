@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
-import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMixdown';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
@@ -97,15 +96,18 @@ export const useProjectExport = (
   getExportCanvas?: () => HTMLCanvasElement | null,
   getRustExportFrameSource?: (context: ProjectExportRustFrameSourceContext) => ProjectExportRustFrameSource | null,
 ) => {
-  const { isExporting, setExporting, setTime, setExportProgress } = useStore((state) => ({
-    isExporting: state.isExporting,
-    setExporting: state.setExporting,
-    setTime: state.setTime,
-    setExportProgress: state.setExportProgress,
-  }), shallow);
+  const isExporting = useStore((state) => state.isExporting);
+
+  // コールバックの最新値を ref 経由で参照する。
+  // effect の依存配列は isExporting のみとし、renderScene などの identity 変化で
+  // effect が再発火して二重にエクスポートセッションが走るのを防ぐ。
+  const latestCallbacksRef = useRef({ renderScene, getExportCanvas, getRustExportFrameSource });
+  latestCallbacksRef.current = { renderScene, getExportCanvas, getRustExportFrameSource };
 
   useEffect(() => {
     if (!isExporting) return;
+
+    const { setExporting, setTime, setExportProgress } = useStore.getState();
 
     let cancelled = false;
     // 副作用クリーンアップ（cancelled）とユーザーによるキャンセル要求の双方を見る。
@@ -147,7 +149,7 @@ export const useProjectExport = (
       });
       let rustFrameSourceUnavailableDetail: string | undefined;
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
-        rustFrameSource: getRustExportFrameSource?.(resolveProjectExportRustFrameSourceContext({
+        rustFrameSource: latestCallbacksRef.current.getRustExportFrameSource?.(resolveProjectExportRustFrameSourceContext({
           objects: exportObjects,
           time: 0,
           encodeEngine: exportEncodePlan.engine,
@@ -161,7 +163,7 @@ export const useProjectExport = (
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
         hasVideoObjects,
         hasNativeRenderMediaObjects,
-        getExportCanvas,
+        getExportCanvas: latestCallbacksRef.current.getExportCanvas,
       });
       if (!initialFrameSourcePlan.ok) {
         setExportProgress({
@@ -322,8 +324,8 @@ export const useProjectExport = (
               objects: exportObjects,
               encodeSessionId: rustEncodeSessionId,
               preferSharedFrame,
-              renderScene,
-              getExportCanvas,
+              renderScene: latestCallbacksRef.current.renderScene,
+              getExportCanvas: latestCallbacksRef.current.getExportCanvas,
               closeRustFrameSource: closeRustFrameSource ?? undefined,
               onSynchroniseTimeline: setTime,
               onRustFrameSourceBlocked: (event) => {
@@ -510,5 +512,5 @@ export const useProjectExport = (
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, getExportCanvas, getRustExportFrameSource]);
+  }, [isExporting]);
 };
