@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [video-seek-runaway-fix.md](video-seek-runaway-fix.md) — `NativeOverlayResidentVideoDecoder::request_frame`の非シーケンシャル要求を全てフルシークしていた挙動を修正。current+2〜+90の前方ギャップはシークせずnext_frame()のdiscard-decodeで吸収し、シーク暴走→FPS崩壊の自己増幅ループを軽減。判定を`resolve_frame_advance`純関数化しテスト網羅（版498a）（2026-08-22）
 - [export-fast-path-default-on.md](export-fast-path-default-on.md) — residentScene RPC(`VITE_UXFD_RUST_TIMELINE_SCENE_RPC`)とIOSurfaceダイレクトエンコード(`VITE_UXFD_NATIVE_DIRECT_ENCODE`)を`!== '0'`のopt-out方式へ統一し既定有効化。live再生にも波及するが既存dev/E2Eスクリプトで実績済み。e2e実測: 既定iosurfaceVideoToolbox 5154〜7521ms、opt-out(両方'0')ffmpegRawRgba 10470ms（版497a）（2026-08-21）
 - [iosurface-audio-mux.md](iosurface-audio-mux.md) — IOSurface VideoToolboxエクスポート経路にaudioPathを解禁。映像のみ一時ファイルへ書き出しfinish時にffmpegでstream copy mux、ステータスは`iosurfaceVideoToolboxAudioMux`（2026-08-21）
 - [upload-fence-removal.md](upload-fence-removal.md) — IOSurfaceエクスポート経路(`render_frame_to_bgra_iosurface_with_audio_reactive_sources`)の毎フレームupload待機(`wait_for_upload=true`)をfalseへ変更。wgpu単一queueのwrite_texture順序保証により不要と判明、98.7fps→133〜139fps相当（2026-08-21）
