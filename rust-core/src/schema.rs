@@ -876,6 +876,53 @@ impl Default for AudioSphereObjectFields {
     }
 }
 
+/// `ParticleObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、particle 固有部分。TS 側は
+/// `BaseObject & ParticleObjectFields & { type: 'particle' }` として組み立てる。
+///
+/// `width`/`height` は `particleObjectFactory.ts` の各 `build*Object` が
+/// プロジェクトサイズやバリアントごとに都度計算するため固定既定値が無く、
+/// ニュートラルな `0.0` にする。他の数値フィールドは
+/// `TimelineContextMenu.tsx` の `handleAddParticle` が呼ぶ標準パーティクル
+/// (`buildDefaultStandardParticleObject`) の固定リテラル
+/// （particleCount: 96, seed: 93, spread: 160, speed: 90, size: 4,
+/// colour: '#ffffff', lifetimeSeconds: 2）を採用する。
+/// オーラ放出/泡/集中線T/インクTM 等の他バリアントは別の固定値を使うが、
+/// 「既定値」としては標準パーティクルを正とする（他バリアントは編集後に
+/// 都度上書きされる初期値の一種であり、UI 全体の既定値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ParticleObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "particleCount")]
+    #[ts(rename = "particleCount")]
+    pub particle_count: u32,
+    pub seed: i64,
+    pub spread: f32,
+    pub speed: f32,
+    pub size: f32,
+    pub colour: String,
+    #[serde(rename = "lifetimeSeconds")]
+    #[ts(rename = "lifetimeSeconds")]
+    pub lifetime_seconds: f32,
+}
+
+impl Default for ParticleObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            particle_count: 96,
+            seed: 93,
+            spread: 160.0,
+            speed: 90.0,
+            size: 4.0,
+            colour: "#ffffff".to_string(),
+            lifetime_seconds: 2.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
