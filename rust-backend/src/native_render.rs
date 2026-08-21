@@ -1513,7 +1513,7 @@ mod tests {
         let media = vec![uxfd_rust_core::SceneMediaReference {
             id: "particle-media".to_string(),
             kind: uxfd_rust_core::MediaKind::GeneratedParticle,
-            source: r##"{"generator":"standard-particle","seed":93,"particle_count":16,"spread":180,"speed":120,"size":6,"colour":"#80d8ff","lifetime_seconds":1.5}"##.to_string(),
+            source: r##"{"width":320,"height":180,"particleCount":16,"seed":93,"spread":180,"speed":120,"size":6,"colour":"#80d8ff","lifetimeSeconds":1.5}"##.to_string(),
             width: 320,
             height: 180,
             source_rate: None,
