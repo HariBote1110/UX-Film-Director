@@ -167,9 +167,16 @@ Phase 2 の後なら `cfg(unix)` ではなく素直にビルドできる可能�
 **この時点のマイルストーン**: native overlay 以外は Windows で動く。
 preview は既存の WebGPU presenter フォールバック、decode/encode は ffmpeg 経路。
 
-### Phase 4: wgpu 0.20 → 25+ 移行（推定 5-10日・★最大の不確実性）
+### Phase 4: wgpu 0.20 → 25 移行（推定 5-10日）★完了 2026-08-22
 
 Windows の透過に必須。macOS 側にも影響する横断作業。
+
+**結果: 完了。移行前後でテスト数が完全一致した**
+（native-wgpu-renderer 97 / native-overlay 99 / rust-backend 257 / rust-core 116、
+parity ゲートも全通過）。詳細は
+[wgpu-25-migration.md](../progress/wgpu-25-migration.md)。
+**★最大の不確実性としていたが、25 を選んだことで実際の作業は 1 日以内に収まった。**
+`nv12/import.rs` は無変更で通っている。
 
 - **上げ先は 25 に決定（2026-08-22）。** 根拠は
   [h3-wgpu25-vs-wgpu30.md](../wgpu24_nv12_research/notes/h3-wgpu25-vs-wgpu30.md)。

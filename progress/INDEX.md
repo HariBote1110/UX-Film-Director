@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [wgpu-25-migration.md](wgpu-25-migration.md) — wgpu 0.20→25 昇格(W4)を完了。上げ先を25にしたのはwgpu-hal 30がMetalバインディングをobjc2系へ総取り替えしておりnv12/import.rsの全面書き換えになるため。25では同経路が無変更で通った。移行前後でテスト数が完全一致(native-wgpu-renderer 97 / native-overlay 99 / rust-backend 257 / rust-core 116)、parityゲートも全通過。native-overlayのmetal 0.28固定がwgpu-hal 25の0.31と重複クレートになっていた点に注意（2026-08-22）
 - [rust-source-of-truth-evaluation-diff.md](rust-source-of-truth-evaluation-diff.md) — R0の差分ハーネスを構築し、TS評価とrust-core評価の食い違いを実測。447フレームで5,099件、**丸め差は0件で全部が実装差**。3クラス: source_frame の規約差(4,074件)、振動をtranslationへ畳み込んでいるTS固有機能(各170件・最大19.2px)、Clippingがrust-core側で静的なまま(各137件・最大51.1px)。既知差分はKNOWN_DIFFERENCES.jsonでラチェット管理しR2でゼロにする（2026-08-22）
 - [rust-source-of-truth-audit.md](rust-source-of-truth-audit.md) — Rust正本集中リファクタリングの現状監査。評価経路が`scene.evaluate`とTS側`rustSceneSnapshot.ts`の2本走っておりeasing/keyframeが二重実装、TS側に内蔵WGSL(1,484行)、PSDはag-psdと`psd_fast.rs`の2本で`psd-wasm`はデッドコード。計画正本は`markdown/Rust_Source_Of_Truth_Plan.md`、Windows計画とはwgpu昇格(W4)のみが結合点（2026-08-22）
 - [video-frame-reuse-fix.md](video-frame-reuse-fix.md) — `NativeOverlayResidentVideoDecoder::request_frame`が逐次要求のたびに無条件decodeしており、project fpsがmaterial fpsを上回ると動画がprojectFps/materialFps倍速（実測2.0倍）で再生される不具合を修正。保持フレームのptsがtargetを満たす場合にdecodeを省略する`current_frame_satisfies_target`/`should_reuse_current_frame`を追加、Sequential限定で早期return（版500a）（2026-08-22）
