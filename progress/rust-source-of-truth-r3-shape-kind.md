@@ -81,3 +81,61 @@
 | `npm run fixture:evaluation-parity` → `cargo test --test ts_evaluation_parity` | fixture 差分ゼロ、pass |
 | `KNOWN_DIFFERENCES.json` | `differences: []` のまま（変化なし） |
 | 関連 vitest（rustSceneSnapshot 系・objectFactories 系 37 ファイル） | 164 tests pass |
+
+## 追記（2026-08-22, ワイヤースキーマ統一）
+
+上記「Gotcha」で指摘した「`mediaReferenceForEditableRustScene` の shape 部分が
+消えなかったのは rust-backend 側が別スキーマ（`GeneratedShapeSource`,
+snake_case, `shape-93` 世代タグ付き）を要求していたから」という仮説の通りに
+別タスクで解消した。
+
+- rust-backend の `generated/sources.rs` から手書き `GeneratedShapeSource` を
+  削除し、`generated/shape.rs` の `build_generated_shape_source_frame` は
+  `uxfd_rust_core::ShapeObjectFields`（camelCase, serde）を直接
+  `serde_json::from_str` するようにした。
+- TS 側のフォールバック処理（`gradient.enabled !== true` は未指定扱い、
+  `cornerRadius` 欠落は 0、`rect` は非対応として拒否）は
+  `generated/shape.rs::effective_generated_gradient_source` と
+  `generated/validators/shape.rs::validate_shape_object_fields` に移した。
+  `ShapeGradientFill -> GeneratedGradientSource` の変換は `From` 実装
+  （orphan rule 上、ローカル型 `GeneratedGradientSource` への `impl From<&Foreign>`
+  なので問題ない）。
+- `rustSceneSnapshot.ts` の `serialiseGeneratedShapeSource` は
+  「`ShapeObjectFields` のフィールドをそのまま `JSON.stringify` するだけ」に
+  縮小した。フィールド名の読み替え・既定値フォールバックの知識はもう
+  TS 側に存在しない。
+- 副産物として `src/utils/sharedRendererNativeMediaSupport.ts`
+  （所有スコープ外だが、同じワイヤーの第二の消費者）も新形式に合わせて
+  更新する必要があった。ワイヤースキーマを変える場合は
+  `rustSceneSnapshot.ts` 以外にこの種の「ワイヤー文字列をパースして
+  対応判定するだけの薄い消費者」が無いか探すこと。
+- この経験から、**「per-kind 移送の合格条件は編集モデルの型定義が
+  rust-core に移ったことだけでは不十分で、rust-backend が読むワイヤーの
+  デシリアライズ先も rust-core の型に統一されて初めて
+  `rustSceneSnapshot.ts` の変換コードが消える」**という教訓を
+  `markdown/Rust_Source_Of_Truth_Plan.md` の R3 節に追記した。
+
+## 残り約 40 kind に対する推奨チェックリスト
+
+1. `rust-core/src/schema.rs` に `XxxObjectFields`（camelCase, serde）を追加し、
+   `src/types.ts` の対応 interface を交差型 re-export に縮める（今回と同じ手順）。
+2. rust-backend 側で、その kind の `GeneratedXxxSource`
+   （`rust-backend/src/generated/sources.rs` にある手書き snake_case 型）を
+   探し、`serde_json::from_str::<XxxObjectFields>` に置き換えられるか検討する。
+   - 置き換えられる場合: 手書き型を削除し、フィールド名の差分・既定値・
+     enabled フラグ的な正規化ロジックをすべて Rust 側（validator または
+     `build_generated_xxx_source_frame` 内）に寄せる。
+   - フィールドが多く、編集モデルと評価ワイヤーの形が大きく乖離している
+     kind（生成系の `93` 系パラメータなど）では、無理に統一せず
+     `From<&XxxObjectFields> for GeneratedXxxSource` の薄い変換関数を
+     書く方が現実的な場合がある。どちらを選んだかを progress ファイルに書く。
+3. `rustSceneSnapshot.ts` の `serialiseGeneratedXxxSource` を
+   「フィールドをそのまま JSON 化するだけ」に縮小できたか確認する。
+   縮小できないなら、まだワイヤースキーマが統一できていない。
+4. `src/utils/sharedRendererNativeMediaSupport.ts` にその kind 用の
+   ワイヤーパーサがあれば、フィールド名変更に合わせて更新する。
+5. `npx tsc --noEmit`、`cargo test`（rust-core / rust-backend 両方）、
+   `npm run fixture:evaluation-parity` → `cargo test --test
+   ts_evaluation_parity`、関連 vitest を通す。
+   `KNOWN_DIFFERENCES.json` の `differences` は絶対に増やさない
+   （ラチェット）。

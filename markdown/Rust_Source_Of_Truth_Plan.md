@@ -271,6 +271,16 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
+- 編集モデルの型を `rust-core/src/schema.rs` へ移しただけでは、
+  `rustSceneSnapshot.ts` 側のフィールド写像コードは消えない。rust-backend が
+  評価・描画時に読む「ワイヤー」（`SceneMediaReference.source` の JSON 文字列）
+  が別の手書き snake_case 型のままだと、TS 側にその変換ロジックが残り続ける。
+  各 kind の移送では、rust-backend 側のデシリアライズ先も rust-core の
+  編集モデル型（camelCase, serde）に直接向け直し、ワイヤースキーマ自体を
+  統一する必要がある（`shape` kind, 2026-08 で実施。
+  `progress/rust-source-of-truth-r3-shape-kind.md` 参照）。これにより
+  `serialiseXxxSource` は「オブジェクトのフィールドをそのまま JSON 化するだけ」
+  の薄いパススルーになり、正規化・フォールバックの知識は Rust 側だけに残る。
 - `src/types.ts` は最終的に生成ファイルの re-export に縮める。
 - `objectFactories` は「既定値を持つ側」なので、既定値も Rust に移す
   （`Default` 実装 + 生成型の初期値）。

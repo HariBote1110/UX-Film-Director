@@ -56,7 +56,7 @@
       {
         "id": "realistic-main-shape-0",
         "kind": "GeneratedShape",
-        "source": "{\"generator\":\"shape-93\",\"shape_type\":\"rounded_rect\",\"fill_colour\":\"#12213d\",\"gradient\":null,\"corner_radius\":20}",
+        "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
         "width": 280,
         "height": 170
       },
@@ -70,7 +70,7 @@
       {
         "id": "realistic-main-shape-2",
         "kind": "GeneratedShape",
-        "source": "{\"generator\":\"shape-93\",\"shape_type\":\"rounded_rect\",\"fill_colour\":\"#12213d\",\"gradient\":null,\"corner_radius\":20}",
+        "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
         "width": 280,
         "height": 170
       },
@@ -84,7 +84,7 @@
       {
         "id": "realistic-main-shape-4",
         "kind": "GeneratedShape",
-        "source": "{\"generator\":\"shape-93\",\"shape_type\":\"rounded_rect\",\"fill_colour\":\"#12213d\",\"gradient\":null,\"corner_radius\":20}",
+        "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
         "width": 280,
         "height": 170
       },
