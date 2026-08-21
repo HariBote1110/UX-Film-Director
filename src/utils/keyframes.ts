@@ -116,7 +116,12 @@ export const evaluateObjectPositionAtTime = (
   object: Pick<TimelineObject, 'x' | 'y' | 'keyframes' | 'enableAnimation' | 'startTime' | 'duration' | 'endX' | 'endY' | 'easing'>,
   time: number
 ): { x: number; y: number } => {
-  const keyed = evaluateKeyframesPositionAtTime(object.keyframes, time, object.easing);
+  // path A（editableRustScene.ts の positionKeyframesForObject）は
+  // normaliseKeyframesForObject 経由で keyframe.time を [startTime, startTime+duration] に
+  // clamp してから評価する。path B もここで同じ clamp を通すことで両経路の規約を揃える
+  // （progress/rust-source-of-truth-evaluation-diff.md の keyframe-clamp を参照）。
+  const clampedKeyframes = normaliseKeyframesForObject(object, object.keyframes);
+  const keyed = evaluateKeyframesPositionAtTime(clampedKeyframes, time, object.easing);
   if (keyed) return keyed;
 
   if (object.enableAnimation && object.duration > EPSILON) {
