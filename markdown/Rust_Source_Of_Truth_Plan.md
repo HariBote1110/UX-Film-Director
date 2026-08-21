@@ -204,7 +204,11 @@ R6 だけは W7 を待つので、そこで一度区切りを入れる。
 経路 A が受け付けなかった object は 0 件、経路 B が組めなかった frame も 0 件で、
 比較対象の縮退は起きていない。
 
-### R1: 型の codegen 化（推定 3-4日）
+### R1: 型の codegen 化（推定 3-4日）★完了 2026-08-22
+
+**結果: 完了。** 詳細は [rust-type-codegen.md](../progress/rust-type-codegen.md)。
+`ts-rs` で TS 型 22 件、`schemars` で JSON Schema 22 件を生成し、手書きミラーを全廃した。
+wire format は不変で R0 の fixture は byte 一致。`npm run codegen:types:check` で drift 検出。
 
 以降のフェーズで型が増えるたびに手動ミラーを書き足すのを止める。**先に入れる。**
 

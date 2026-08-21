@@ -133,9 +133,15 @@ Windows のためだけの作業ではなく、`wgpu24_nv12_research` の延長�
   Windows は PATH 頼み。同梱するか、明示的なエラーメッセージを出すか決める。
 - remote-deck の WebSocket サーバが初回起動でファイアウォール許可ダイアログを出す件の扱い。
 
-### Phase 2: shm の Windows 実装（推定 2-3日）
+### Phase 2: shm の Windows 実装（推定 2-3日）★完了 2026-08-22
 
 `shared-memory-spike` にプラットフォーム seam を切る。**ここが開くと下流4クレート全部が開く。**
+
+**結果: 完了。予測どおり下流が開いた。** 詳細は
+[windows-shm-platform-seam.md](../progress/windows-shm-platform-seam.md)。
+macOS 23/23・Windows 実機 23/23・クロスチェックはエラー 0。
+POSIX 経路は 1 行も書き換えず、321 行の追加のみ。
+`loom` が POSIX 非依存であることも実機で確定した（下記の「未確認」は解消済み）。
 
 - 現状 OS 依存は `shm_open` / `shm_unlink` / `ftruncate` / `mmap` / `munmap` /
   `PROT_READ` / `PROT_WRITE` / `MAP_SHARED` / `MAP_FAILED` の 9 箇所のみ。
@@ -160,9 +166,10 @@ unix 限定で定義した関数・フィールドを無条件に参照してい
 | `src/native_render.rs:1038` | `load_cached_getcolor_sample_frame` |
 | `src/source_frames.rs:86` | `media_content_revision` |
 
-Phase 2 の後なら `cfg(unix)` ではなく素直にビルドできる可能性もある（shm が Windows でも
-使えるようになるため）。Phase 2 完了時点で再度 `cargo check --target x86_64-pc-windows-msvc` を
-回して、残るものだけ塞ぐ。
+**Phase 2 完了後に再実測した（2026-08-22）。上表の 5 箇所がそのまま残っている。**
+`native-wgpu-renderer` と `native-overlay` は**無改造でエラー 0** になり、
+監査ノートの予測が裏付けられた。Windows ビルドを塞いでいるのは
+`rust-backend` のこの 5 箇所だけである。
 
 **この時点のマイルストーン**: native overlay 以外は Windows で動く。
 preview は既存の WebGPU presenter フォールバック、decode/encode は ffmpeg 経路。
