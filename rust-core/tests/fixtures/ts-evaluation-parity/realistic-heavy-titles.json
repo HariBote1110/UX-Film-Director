@@ -20,7 +20,7 @@
       {
         "id": "realistic-titles-heading",
         "kind": "Text",
-        "source": "{\"text\":\"重いけれど現実的な編集\",\"font_family\":\"Hiragino Sans\",\"font_size\":76,\"colour\":\"#ffffff\",\"alignment\":\"left\",\"letter_spacing\":2,\"stroke\":{\"colour\":\"#111827\",\"width\":5},\"shadow\":{\"colour\":\"#000000\",\"offset_x\":8,\"offset_y\":10,\"blur\":8}}",
+        "source": "{\"text\":\"重いけれど現実的な編集\",\"fontSize\":76,\"fontFamily\":\"Hiragino Sans\",\"fill\":\"#ffffff\",\"textAlignment\":\"left\",\"letterSpacing\":2,\"textStroke\":{\"colour\":\"#111827\",\"width\":5},\"textShadow\":{\"colour\":\"#000000\",\"offsetX\":8,\"offsetY\":10,\"blur\":8}}",
         "width": 502,
         "height": 95
       },

@@ -2,54 +2,23 @@ use super::parse_hex_colour_source;
 use cosmic_text::{
     Attrs, Buffer, Color as CosmicColor, Family, FontSystem, Metrics, Shaping, SwashCache,
 };
-use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 use uxfd_golden_harness::RgbaFrame;
-use uxfd_rust_core::SceneMediaReference;
+use uxfd_rust_core::{SceneMediaReference, TextAlignment, TextObjectFields};
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum GeneratedTextAlignment {
-    Left,
-    Centre,
-    Right,
+/// `TextObjectFields.textAlignment` は `Option<TextAlignment>` (未指定を許容する編集モデル)
+/// だが、ラスタライズ時は必ず具体値が要る。TS 側の `serialiseTextSource` はもう
+/// `?? 'left'` のフォールバックをしないため、ここで行う。
+fn effective_text_alignment(alignment: Option<TextAlignment>) -> TextAlignment {
+    alignment.unwrap_or(TextAlignment::Left)
 }
 
-impl Default for GeneratedTextAlignment {
-    fn default() -> Self {
-        Self::Left
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub(crate) struct GeneratedTextStroke {
-    pub colour: String,
-    pub width: f32,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub(crate) struct GeneratedTextShadow {
-    pub colour: String,
-    pub offset_x: f32,
-    pub offset_y: f32,
-    pub blur: f32,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub(crate) struct GeneratedTextSource {
-    pub text: String,
-    pub font_family: String,
-    pub font_size: f32,
-    pub colour: String,
-    #[serde(default)]
-    pub alignment: GeneratedTextAlignment,
-    #[serde(default)]
-    pub letter_spacing: f32,
-    #[serde(default)]
-    pub stroke: Option<GeneratedTextStroke>,
-    #[serde(default)]
-    pub shadow: Option<GeneratedTextShadow>,
+/// `TextObjectFields.letterSpacing` は未指定を許容する編集モデルだが、
+/// ラスタライズ時は 0.0 を既定値として扱う。フォールバック処理は
+/// TS 側からここへ移した。
+fn effective_letter_spacing(letter_spacing: Option<f32>) -> f32 {
+    letter_spacing.unwrap_or(0.0)
 }
 
 /// macOS のシステムフォント（Hiragino 系）を含む標準フォント探索パスに
@@ -91,13 +60,13 @@ pub(crate) fn build_generated_text_source_frame(
         ));
     }
 
-    let text: GeneratedTextSource = serde_json::from_str(&media.source)
+    let text: TextObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid Text media '{}': {error}", media.id))?;
 
-    let [red, green, blue] = parse_hex_colour_source(&text.colour)
+    let [red, green, blue] = parse_hex_colour_source(&text.fill)
         .map_err(|message| format!("Invalid Text media '{}': {message}", media.id))?;
     let stroke_colour = text
-        .stroke
+        .text_stroke
         .as_ref()
         .map(|stroke| parse_hex_colour_source(&stroke.colour))
         .transpose()
@@ -128,13 +97,14 @@ pub(crate) fn build_generated_text_source_frame(
 
     let family = family_with_cjk_fallback(&text.font_family);
     let mut attrs = Attrs::new().family(family);
-    if text.letter_spacing != 0.0 {
-        attrs = attrs.letter_spacing(text.letter_spacing);
+    let letter_spacing = effective_letter_spacing(text.letter_spacing);
+    if letter_spacing != 0.0 {
+        attrs = attrs.letter_spacing(letter_spacing);
     }
-    let align = match text.alignment {
-        GeneratedTextAlignment::Left => cosmic_text::Align::Left,
-        GeneratedTextAlignment::Centre => cosmic_text::Align::Center,
-        GeneratedTextAlignment::Right => cosmic_text::Align::Right,
+    let align = match effective_text_alignment(text.text_alignment) {
+        TextAlignment::Left => cosmic_text::Align::Left,
+        TextAlignment::Centre => cosmic_text::Align::Center,
+        TextAlignment::Right => cosmic_text::Align::Right,
     };
     buffer.set_text(&text.text, &attrs, Shaping::Advanced, Some(align));
     buffer.shape_until_scroll(&mut font_system, false);
@@ -142,8 +112,8 @@ pub(crate) fn build_generated_text_source_frame(
     let text_colour = CosmicColor::rgba(red, green, blue, 255);
 
     if let (Some(shadow), Some(shadow_colour)) = (
-        text.shadow.as_ref(),
-        text.shadow
+        text.text_shadow.as_ref(),
+        text.text_shadow
             .as_ref()
             .map(|shadow| parse_hex_colour_source(&shadow.colour))
             .transpose()
@@ -164,7 +134,7 @@ pub(crate) fn build_generated_text_source_frame(
         );
     }
 
-    if let Some(stroke) = text.stroke.as_ref() {
+    if let Some(stroke) = text.text_stroke.as_ref() {
         let [stroke_red, stroke_green, stroke_blue] = stroke_colour.unwrap_or([0, 0, 0]);
         let stroke_colour_value = CosmicColor::rgba(stroke_red, stroke_green, stroke_blue, 255);
         for (dx, dy) in stroke_outline_offsets(stroke.width) {
