@@ -362,6 +362,15 @@ pub struct NativeWgpuLiveSurfaceRenderer {
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
     core: NativeWgpuRenderer,
+    /// Windows の DirectComposition 経路（`from_hwnd`）でのみ `Some`。
+    /// `windows_port_research/notes/sustained-present.md`（Phase 0）の実測で
+    /// present と `IDCompositionDevice::Commit` は合わせて 0.15ms 程度と
+    /// 確定しており、present の都度これを呼んで無視できるコストで合成を
+    /// 確定させる。macOS の CAMetalLayer には対応する明示コミットが不要な
+    /// ため `None` のまま。この型を `Arc<dyn Fn>` にして struct 定義自体を
+    /// `cfg` で分岐させないのは、present 経路が 6 箇所に分散しており
+    /// 呼び出し側をプラットフォームで分けたくないため。
+    composition_commit: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl NativeWgpuLiveSurfaceRenderer {
@@ -378,6 +387,73 @@ impl NativeWgpuLiveSurfaceRenderer {
         let surface = unsafe { instance.create_surface_unsafe(target) }
             .map_err(NativeWgpuRenderError::CreateSurface)?;
         Self::from_surface(instance, surface, width, height).await
+    }
+
+    /// Windows 版 native overlay（`win32_overlay.rs`）の対応物。
+    /// `visual` は `win32_overlay::attach_overlay_window` が
+    /// `IDCompositionDevice::CreateVisual` で作った root visual そのもの。
+    ///
+    /// ADR-012（`markdown/Windows_Port_Plan.md` Phase 5）で確定したとおり、
+    /// 素の HWND への `CreateSwapChainForHwnd` は DX12 が `[Opaque]` しか
+    /// 広告せず透過できないため使わない。`SurfaceTargetUnsafe::CompositionVisual`
+    /// で visual に直接 surface を作ることで、`alpha_mode: PreMultiplied` の
+    /// 透過 present が可能になる。
+    #[cfg(target_os = "windows")]
+    pub async fn from_hwnd(
+        dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
+        visual: windows::Win32::Graphics::DirectComposition::IDCompositionVisual,
+        width: u32,
+        height: u32,
+    ) -> Result<Self, NativeWgpuRenderError> {
+        use windows::core::Interface as _;
+
+        let mut instance_descriptor = wgpu::InstanceDescriptor::default();
+        instance_descriptor.backends = wgpu::Backends::DX12;
+        let instance = wgpu::Instance::new(&instance_descriptor);
+        let visual_ptr = visual.as_raw() as *mut std::ffi::c_void;
+        let target = wgpu::SurfaceTargetUnsafe::CompositionVisual(visual_ptr);
+        let surface = unsafe { instance.create_surface_unsafe(target) }
+            .map_err(NativeWgpuRenderError::CreateSurface)?;
+        let mut renderer = Self::from_surface(instance, surface, width, height).await?;
+
+        // present の都度 `IDCompositionDevice::Commit` を呼んで合成を確定
+        // させる（Phase 0 実測: p50 0.15ms・p99 0.48ms で無視できる）。present
+        // と Commit 自体は無視できるコストだが、`get_current_texture`
+        // （acquire）は vsync 待ちでブロックするため UI スレッドで呼んでは
+        // ならない — この制約は呼び出し側（`native-overlay`）の責務。
+        //
+        // `IDCompositionDevice`（COM interface wrapper）は既定で `Send`/`Sync`
+        // を実装しない。`NativeWgpuLiveSurfaceRenderer` 自体は
+        // `LIVE_OVERLAY_RENDERERS`（`native-overlay`）の `Mutex` 越しにしか
+        // アクセスされない契約（呼び出し元が単一スレッドから触る）なので、
+        // 送信可能を明示するラッパーで包む。
+        struct SendSyncDcompDevice(
+            windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
+        );
+        unsafe impl Send for SendSyncDcompDevice {}
+        unsafe impl Sync for SendSyncDcompDevice {}
+
+        let dcomp_device = SendSyncDcompDevice(dcomp_device);
+        renderer.composition_commit = Some(Arc::new(move || {
+            // Rust 2021 の disjoint closure capture 対策: `dcomp_device.0` の
+            // ようにフィールドだけへアクセスすると、closure は `SendSyncDcompDevice`
+            // 全体ではなく内側の `IDCompositionDevice` だけを capture してしまい、
+            // せっかくの `unsafe impl Send/Sync` が効かなくなる（E0277）。
+            // 変数全体を先に束縛して capture 単位を struct 全体に強制する。
+            let dcomp_device = &dcomp_device;
+            let _ = unsafe { dcomp_device.0.Commit() };
+        }));
+        Ok(renderer)
+    }
+
+    /// present 後にプラットフォームの合成を確定させる。Windows の
+    /// DirectComposition（`from_hwnd`）でのみ `IDCompositionDevice::Commit`
+    /// を呼ぶ。macOS の CAMetalLayer には対応する明示コミットが無いため
+    /// no-op。
+    fn commit_platform_composition(&self) {
+        if let Some(commit) = &self.composition_commit {
+            commit();
+        }
     }
 
     pub async fn from_surface(
@@ -489,6 +565,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             surface,
             surface_config,
             core,
+            composition_commit: None,
         })
     }
 
@@ -523,6 +600,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        self.commit_platform_composition();
         let render = render_start.elapsed();
 
         Ok(NativeWgpuPresentReport {
@@ -615,6 +693,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        self.commit_platform_composition();
         let render = render_start.elapsed();
 
         Ok(NativeWgpuPresentReport {
@@ -692,6 +771,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        self.commit_platform_composition();
         let render = render_start.elapsed();
 
         Ok(NativeWgpuPresentReport {
@@ -777,6 +857,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        self.commit_platform_composition();
         wait_for_submitted_work(&self.core.device, &self.core.queue)?;
         let render = render_start.elapsed();
 
@@ -912,6 +993,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        self.commit_platform_composition();
         wait_for_submitted_work(&self.core.device, &self.core.queue)?;
         let render = render_start.elapsed();
 
@@ -1029,6 +1111,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         );
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        self.commit_platform_composition();
         wait_for_submitted_work(&self.core.device, &self.core.queue)?;
 
         let pre_frame = readback_to_rgba8(

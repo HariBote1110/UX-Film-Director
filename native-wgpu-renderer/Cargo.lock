@@ -1224,6 +1224,7 @@ dependencies = [
  "uxfd-shared-memory-spike",
  "uxfd-sidecar-protocol",
  "wgpu",
+ "windows",
 ]
 
 [[package]]

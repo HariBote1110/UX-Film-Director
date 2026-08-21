@@ -43,6 +43,9 @@ use uxfd_macos_video_decode::{
     VideoDecodeSession,
 };
 
+#[cfg(target_os = "windows")]
+mod win32_overlay;
+
 #[napi(object)]
 pub struct NativeOverlayAttachPayload {
     pub window_id: u32,
@@ -919,6 +922,9 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     audio_pcm_cache: NativeOverlayAudioPcmCache,
     #[cfg(target_os = "macos")]
     view_handle: usize,
+    #[cfg(target_os = "windows")]
+    #[allow(dead_code)]
+    overlay_hwnd: usize,
     renderer: NativeWgpuLiveSurfaceRenderer,
 }
 
@@ -961,6 +967,47 @@ impl NativeOverlayLiveSurfaceRenderer {
             getcolor_sample_cache: NativeOverlaySourceCache::default(),
             audio_pcm_cache: NativeOverlayAudioPcmCache::default(),
             view_handle,
+            renderer,
+        })
+    }
+
+    #[cfg(target_os = "windows")]
+    fn from_hwnd(
+        window_id: u32,
+        overlay_hwnd: usize,
+        dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
+        visual: windows::Win32::Graphics::DirectComposition::IDCompositionVisual,
+        contract: &OverlayLayerContract,
+    ) -> Result<Self, String> {
+        let renderer = pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_hwnd(
+            dcomp_device,
+            visual,
+            contract.drawable_width,
+            contract.drawable_height,
+        ))
+        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
+
+        Ok(Self {
+            window_id,
+            drawable_width: contract.drawable_width,
+            drawable_height: contract.drawable_height,
+            contents_scale: contract.contents_scale,
+            last_scene: None,
+            scene_generation: 0,
+            last_scene_content_revisions: HashMap::new(),
+            last_nv12_sources: HashMap::new(),
+            last_particle_sources: HashMap::new(),
+            last_audio_reactive_sources: HashMap::new(),
+            last_getcolor_sources: HashMap::new(),
+            last_hksy_sources: HashMap::new(),
+            last_simple_tube_sources: HashMap::new(),
+            last_focus_lines_sources: HashMap::new(),
+            last_shaking_polygon_sources: HashMap::new(),
+            last_shattered_sphere_sources: HashMap::new(),
+            native_source_cache: NativeOverlaySourceCache::default(),
+            getcolor_sample_cache: NativeOverlaySourceCache::default(),
+            audio_pcm_cache: NativeOverlayAudioPcmCache::default(),
+            overlay_hwnd,
             renderer,
         })
     }
@@ -1689,6 +1736,24 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         // 編集画面の preview が真っ黒になる（Bug E — Bug D 直後の実機リグレッション）。
         macos_overlay::set_overlay_view_opaque(view_handle, false);
     }
+    #[cfg(target_os = "windows")]
+    {
+        let (overlay_hwnd, dcomp_device, visual) =
+            match win32_overlay::attach_overlay_window(&native_window_handle, &contract) {
+                Ok(result) => result,
+                Err(reason) => return failure(&reason),
+            };
+        if let Err(reason) = attach_live_overlay_surface_renderer(
+            window_id,
+            overlay_hwnd,
+            dcomp_device,
+            visual,
+            &contract,
+        ) {
+            let _ = win32_overlay::detach_overlay_window(&native_window_handle);
+            return failure(&reason);
+        }
+    }
 
     NativeOverlayResponse {
         success: true,
@@ -1712,6 +1777,10 @@ fn detach_native_overlay_inner(payload: NativeOverlayDetachPayload) -> NativeOve
     #[cfg(target_os = "macos")]
     if let Err(reason) = macos_overlay::detach_overlay_view(&native_window_handle) {
         return failure(reason);
+    }
+    #[cfg(target_os = "windows")]
+    if let Err(reason) = win32_overlay::detach_overlay_window(&native_window_handle) {
+        return failure(&reason);
     }
 
     NativeOverlayResponse {
@@ -1857,13 +1926,36 @@ fn attach_live_overlay_surface_renderer(
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn attach_live_overlay_surface_renderer(
+    window_id: u32,
+    overlay_hwnd: usize,
+    dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
+    visual: windows::Win32::Graphics::DirectComposition::IDCompositionVisual,
+    contract: &OverlayLayerContract,
+) -> Result<(), String> {
+    let renderer = NativeOverlayLiveSurfaceRenderer::from_hwnd(
+        window_id,
+        overlay_hwnd,
+        dcomp_device,
+        visual,
+        contract,
+    )?;
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    renderers.insert(window_id, renderer);
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn attach_live_overlay_surface_renderer(
     _window_id: u32,
     _layer_handle: usize,
     _contract: &OverlayLayerContract,
 ) -> Result<(), String> {
-    Err("Native overlay live surface is only available on macOS.".to_string())
+    Err("Native overlay live surface is only available on macOS and Windows.".to_string())
 }
 
 fn detach_live_overlay_surface_renderer(window_id: u32) {
