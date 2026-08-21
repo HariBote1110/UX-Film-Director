@@ -6,7 +6,10 @@ build = "build.rs"
 
 [lib]
 name = "uxfd_native_overlay"
-crate-type = ["cdylib"]
+# "rlib" を追加したのは Windows_Port_Plan.md Phase 5（W5）の実機スモークテスト
+# （tests/win32_overlay_smoke.rs）が `uxfd_native_overlay::attach_native_overlay`
+# 等をライブラリとして呼ぶため。napi addon としての "cdylib" 出力は変わらない。
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 napi = "3.9.2"
