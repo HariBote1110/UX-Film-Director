@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [foreign-proxy-validation.md](foreign-proxy-validation.md) — `check-proxy`が隣接`.proxy.mp4`を無検証採用していた不具合を修正。オリジナル/プロキシ双方をffprobeし再生時間一致（許容2%または0.5秒）を`validateProxyDuration`で検証、不一致なら不採用。外部ツール製の圧縮済みプロキシ（GX010052.proxy.mp4、2.388倍圧縮）が原因のA/Vずれを確認・修正（版499a）（2026-08-22）
 - [video-seek-runaway-fix.md](video-seek-runaway-fix.md) — `NativeOverlayResidentVideoDecoder::request_frame`の非シーケンシャル要求を全てフルシークしていた挙動を修正。current+2〜+90の前方ギャップはシークせずnext_frame()のdiscard-decodeで吸収し、シーク暴走→FPS崩壊の自己増幅ループを軽減。判定を`resolve_frame_advance`純関数化しテスト網羅（版498a）（2026-08-22）
 - [export-fast-path-default-on.md](export-fast-path-default-on.md) — residentScene RPC(`VITE_UXFD_RUST_TIMELINE_SCENE_RPC`)とIOSurfaceダイレクトエンコード(`VITE_UXFD_NATIVE_DIRECT_ENCODE`)を`!== '0'`のopt-out方式へ統一し既定有効化。live再生にも波及するが既存dev/E2Eスクリプトで実績済み。e2e実測: 既定iosurfaceVideoToolbox 5154〜7521ms、opt-out(両方'0')ffmpegRawRgba 10470ms（版497a）（2026-08-21）
 - [iosurface-audio-mux.md](iosurface-audio-mux.md) — IOSurface VideoToolboxエクスポート経路にaudioPathを解禁。映像のみ一時ファイルへ書き出しfinish時にffmpegでstream copy mux、ステータスは`iosurfaceVideoToolboxAudioMux`（2026-08-21）

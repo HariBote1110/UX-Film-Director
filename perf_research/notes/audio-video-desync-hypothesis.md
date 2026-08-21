@@ -355,3 +355,22 @@ PTSそのものではない（＝「要求側」の値。タスク手順1bで求
    常駐デコーダの`request_frame`にPTSログ（`[vspeed-probe]`）を仕込んで
    再計測する。これができて初めてタスク本来の「常駐デコーダPTS vs
    HTMLVideoElement」比較が成立する。
+
+## 最終確認（2026-08-22, feature-proxyブランチ）
+
+上記の切り分けの続きとして根本原因を最終確認した。**`GX010052.proxy.mp4`自体は
+本アプリのプロキシ生成（`rust-backend`の`proxy.generate`）が作ったものではなく、
+外部ツール製（libx264・音声トラック付き）の異質なファイルだった。** 本アプリの
+`check-proxy` IPCハンドラ（`electron/main.ts`）は隣接する`<name>.proxy.mp4`を
+**無検証で**採用する仕様だったため、このタイムラインが2.388倍圧縮された
+（オリジナル536.5s→プロキシ224.6s）異質プロキシがそのまま`previewProxy`モードの
+映像ソースとして採用され、音声はオリジナルファイルから再生される、という
+組み合わせが「映像が音声より2〜3倍速く見える」というユーザー報告の直接原因
+だったと確認した。本アプリ自身のプロキシ生成ロジック（`proxy.generate`）は
+このタイムライン圧縮を起こしておらず無実である。
+
+修正: `check-proxy`／`generate-proxy`双方でオリジナルとプロキシの再生時間を
+ffprobeで検証し、許容誤差（2%または0.5秒）を超えるプロキシは不採用にした。
+詳細は `progress/foreign-proxy-validation.md`、実装は
+`src/utils/proxyValidation.ts` / `electron/main.ts`（コミット: 64df2faa,
+fcfafb06, 6b742f16）を参照。
