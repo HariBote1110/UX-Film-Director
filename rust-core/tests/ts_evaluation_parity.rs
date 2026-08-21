@@ -12,6 +12,7 @@
 //! npm run fixture:evaluation-parity
 //! ```
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -19,8 +20,48 @@ use serde::Deserialize;
 use serde_json::Value;
 use uxfd_rust_core::{evaluate_frame, Project};
 
-/// f32 と JS の f64 の丸め差を許容する幅。これを超える差は実装差とみなす。
+/// f32(Rust) と f64(JS) の丸め差を許容する幅。絶対差と相対差のどちらかが
+/// これを下回れば丸め差とみなす。相対差を併用するのは、座標のように値が
+/// 大きいフィールドでは f32 の相対誤差がそのまま絶対差として出るため。
 const TOLERANCE: f64 = 1e-4;
+
+fn is_within_tolerance(left: f64, right: f64) -> bool {
+    let delta = (left - right).abs();
+    if delta <= TOLERANCE {
+        return true;
+    }
+    let scale = left.abs().max(right.abs());
+    scale.is_finite() && delta <= TOLERANCE * scale
+}
+
+const KNOWN_DIFFERENCES_FILE: &str = "KNOWN_DIFFERENCES.json";
+
+#[derive(Debug, Deserialize)]
+struct KnownDifferences {
+    differences: Vec<KnownDifference>,
+}
+
+#[derive(Debug, Deserialize)]
+struct KnownDifference {
+    path: String,
+    count: usize,
+    category: String,
+    #[allow(dead_code)]
+    note: String,
+}
+
+fn load_known_differences() -> BTreeMap<String, KnownDifference> {
+    let path = fixture_dir().join(KNOWN_DIFFERENCES_FILE);
+    let raw = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{} を読めない: {error}", path.display()));
+    let parsed: KnownDifferences = serde_json::from_str(&raw)
+        .unwrap_or_else(|error| panic!("{} を parse できない: {error}", path.display()));
+    parsed
+        .differences
+        .into_iter()
+        .map(|difference| (difference.path.clone(), difference))
+        .collect()
+}
 
 #[derive(Debug, Deserialize)]
 struct Fixture {
@@ -42,11 +83,13 @@ struct Difference {
     actual: String,
     /// 数値どうしの差。`None` なら構造差・型差・欠落。
     numeric_delta: Option<f64>,
+    /// 許容幅に収まる丸め差か。
+    rounding: bool,
 }
 
 impl Difference {
     fn is_rounding(&self) -> bool {
-        self.numeric_delta.is_some_and(|delta| delta <= TOLERANCE)
+        self.rounding
     }
 }
 
@@ -70,6 +113,9 @@ fn load_fixtures() -> Vec<(String, Fixture)> {
         if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
             continue;
         }
+        if path.file_name().and_then(|name| name.to_str()) == Some(KNOWN_DIFFERENCES_FILE) {
+            continue;
+        }
         let raw = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("fixture を読めない ({}): {error}", path.display()));
         let fixture: Fixture = serde_json::from_str(&raw)
@@ -90,13 +136,13 @@ fn diff(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Difference>)
                 left.as_f64().unwrap_or(f64::NAN),
                 right.as_f64().unwrap_or(f64::NAN),
             );
-            let delta = (left - right).abs();
-            if !(delta <= TOLERANCE) {
+            if !is_within_tolerance(left, right) {
                 out.push(Difference {
                     path: path.to_string(),
                     expected: left.to_string(),
                     actual: right.to_string(),
-                    numeric_delta: Some(delta),
+                    numeric_delta: Some((left - right).abs()),
+                    rounding: false,
                 });
             }
         }
@@ -107,6 +153,7 @@ fn diff(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Difference>)
                     expected: left.len().to_string(),
                     actual: right.len().to_string(),
                     numeric_delta: None,
+                    rounding: false,
                 });
             }
             for index in 0..left.len().min(right.len()) {
@@ -125,12 +172,14 @@ fn diff(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Difference>)
                         expected: l.to_string(),
                         actual: "(missing)".to_string(),
                         numeric_delta: None,
+                        rounding: false,
                     }),
                     (None, Some(r)) => out.push(Difference {
                         path: format!("{path}.{key}"),
                         expected: "(missing)".to_string(),
                         actual: r.to_string(),
                         numeric_delta: None,
+                        rounding: false,
                     }),
                     (None, None) => {}
                 }
@@ -141,8 +190,38 @@ fn diff(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Difference>)
             expected: left.to_string(),
             actual: right.to_string(),
             numeric_delta: None,
+            rounding: false,
         }),
     }
+}
+
+/// `snapshot.clips[3].transform.scale_x` を `snapshot.clips[].transform.scale_x` へ畳む。
+/// 差分は個々の frame ではなく「どのフィールドがどれだけ食い違うか」で読みたい。
+fn normalise_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    let mut in_index = false;
+    for ch in path.chars() {
+        match ch {
+            '[' => {
+                in_index = true;
+                out.push('[');
+            }
+            ']' => {
+                in_index = false;
+                out.push(']');
+            }
+            _ if in_index => {}
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+#[derive(Default)]
+struct Bucket {
+    count: usize,
+    max_delta: f64,
+    example: Option<(String, u64, String, String)>,
 }
 
 #[test]
@@ -154,13 +233,13 @@ fn ts_and_rust_core_evaluate_the_same_scene_identically() {
         fixture_dir().display()
     );
 
-    let mut report = String::new();
-    let mut structural = 0usize;
-    let mut numeric = 0usize;
+    let mut buckets: BTreeMap<String, Bucket> = BTreeMap::new();
     let mut rounding = 0usize;
     let mut compared_frames = 0usize;
+    let mut compared_fixtures = 0usize;
 
-    for (source, fixture) in &fixtures {
+    for (_source, fixture) in &fixtures {
+        compared_fixtures += 1;
         for frame in &fixture.frames {
             compared_frames += 1;
             let actual = evaluate_frame(&fixture.project, frame.frame_index);
@@ -172,30 +251,94 @@ fn ts_and_rust_core_evaluate_the_same_scene_identically() {
                     rounding += 1;
                     continue;
                 }
-                if difference.numeric_delta.is_some() {
-                    numeric += 1;
-                } else {
-                    structural += 1;
+                let bucket = buckets.entry(normalise_path(&difference.path)).or_default();
+                bucket.count += 1;
+                // 例は「いちばん差が大きかったケース」を残す。最初の 1 件より診断に効く。
+                let worst = match difference.numeric_delta {
+                    Some(delta) => {
+                        let worst = delta > bucket.max_delta;
+                        if worst {
+                            bucket.max_delta = delta;
+                        }
+                        worst
+                    }
+                    None => false,
+                };
+                if bucket.example.is_none() || worst {
+                    bucket.example = Some((
+                        fixture.name.clone(),
+                        frame.frame_index,
+                        difference.expected.clone(),
+                        difference.actual.clone(),
+                    ));
                 }
-                report.push_str(&format!(
-                    "  [{}] {} frame={} {}\n    TS  = {}\n    RS  = {}\n",
-                    fixture.name,
-                    source,
-                    frame.frame_index,
-                    difference.path,
-                    difference.expected,
-                    difference.actual
-                ));
             }
         }
     }
 
-    if structural + numeric > 0 {
+    let known = load_known_differences();
+    let mut failures = String::new();
+    let mut summary = String::new();
+
+    for (path, bucket) in &buckets {
+        let (name, frame_index, expected, actual) = bucket
+            .example
+            .as_ref()
+            .expect("bucket には必ず例が入る");
+        let delta = if bucket.max_delta > 0.0 {
+            format!("{:.6}", bucket.max_delta)
+        } else {
+            "-（構造差）".to_string()
+        };
+        let detail = format!(
+            "  {path}\n    件数 = {} / max_delta = {delta}\n    例: [{name}] frame={frame_index}  TS = {expected}  RS = {actual}\n",
+            bucket.count
+        );
+        match known.get(path) {
+            None => {
+                failures.push_str("【新規の差分】\n");
+                failures.push_str(&detail);
+            }
+            Some(entry) if bucket.count > entry.count => {
+                failures.push_str(&format!(
+                    "【差分が増えた】既知 {} 件 -> {} 件\n",
+                    entry.count, bucket.count
+                ));
+                failures.push_str(&detail);
+            }
+            Some(entry) if bucket.count < entry.count => {
+                failures.push_str(&format!(
+                    "【差分が減った。{KNOWN_DIFFERENCES_FILE} の count を {} へ更新する】既知 {} 件\n",
+                    bucket.count, entry.count
+                ));
+                failures.push_str(&detail);
+            }
+            Some(entry) => {
+                summary.push_str(&format!("  [{}] {path} = {} 件\n", entry.category, entry.count));
+            }
+        }
+    }
+
+    for (path, entry) in &known {
+        if !buckets.contains_key(path) {
+            failures.push_str(&format!(
+                "【解消済みの差分が {KNOWN_DIFFERENCES_FILE} に残っている】{path}（既知 {} 件）\n",
+                entry.count
+            ));
+        }
+    }
+
+    if !failures.is_empty() {
         panic!(
-            "TS 評価と rust-core 評価が一致しない。\n\
-             比較フレーム数 = {compared_frames}\n\
-             構造差 = {structural} 件 / 数値差 = {numeric} 件 / 丸め差(許容) = {rounding} 件\n\
-             許容幅 = {TOLERANCE}\n\n{report}"
+            "TS 評価と rust-core 評価の差分が既知のベースラインと違う。\n\
+             fixture = {compared_fixtures} 件 / 比較フレーム = {compared_frames}\n\
+             丸め差(許容 {TOLERANCE}) = {rounding} 件\n\n{failures}\n\
+             既知の差分は {} で管理している。R2 でゼロにする。",
+            fixture_dir().join(KNOWN_DIFFERENCES_FILE).display()
         );
     }
+
+    println!(
+        "比較フレーム = {compared_frames} / 丸め差 = {rounding} 件\n既知の差分（R2 で解消する）:\n{summary}"
+    );
 }

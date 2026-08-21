@@ -1,0 +1,53 @@
+{
+  "description": "TS 評価(rustSceneSnapshot.ts)と rust-core 評価(evaluate_frame)の既知の差分。Rust_Source_Of_Truth_Plan.md の R2 でゼロにする。件数は増やしてはならず、減らしたらこのファイルを更新する（ラチェット）。",
+  "differences": [
+    {
+      "path": "snapshot.clips[].source_frame",
+      "count": 4074,
+      "category": "convention",
+      "note": "TS の sourceFrameForObject は静止メディア(shape/image/psd/barcode 等)に 0 を返すが、rust-core は全 clip に経過フレームを返す。値の意味は同じで規約だけが違う。R2 でどちらに寄せるか決める前に、renderer が静止メディアの source_frame を本当に無視しているかを確認すること。"
+    },
+    {
+      "path": "snapshot.clips[].transform.translation_x",
+      "count": 170,
+      "category": "ts-only-feature",
+      "note": "振動フィルタ(sceneTransforms.getVibrationOffset)は rust-core に対応物が無く、TS が translation へ畳み込んでいる。最大 19.2px ずれる。R2 で rust-core へ移す。"
+    },
+    {
+      "path": "snapshot.clips[].transform.translation_y",
+      "count": 170,
+      "category": "ts-only-feature",
+      "note": "translation_x と同じ理由。最大 9.6px。"
+    },
+    {
+      "path": "snapshot.clips[].effects.length",
+      "count": 137,
+      "category": "ts-only-animation",
+      "note": "rust-core が TS より effect を 1 つ多く出す frame がある。Clipping の差と同じ clip で起きている。"
+    },
+    {
+      "path": "snapshot.clips[].effects[].Clipping.top",
+      "count": 137,
+      "category": "ts-only-animation",
+      "note": "TS は Clipping をフレームごとに変化させるが rust-core は静的な値を返す。最大 14.4px。"
+    },
+    {
+      "path": "snapshot.clips[].effects[].Clipping.bottom",
+      "count": 137,
+      "category": "ts-only-animation",
+      "note": "Clipping.top と同じ理由。最大 14.4px。"
+    },
+    {
+      "path": "snapshot.clips[].effects[].Clipping.left",
+      "count": 137,
+      "category": "ts-only-animation",
+      "note": "Clipping.top と同じ理由。最大 51.1px。"
+    },
+    {
+      "path": "snapshot.clips[].effects[].Clipping.right",
+      "count": 137,
+      "category": "ts-only-animation",
+      "note": "Clipping.top と同じ理由。最大 38.3px。"
+    }
+  ]
+}
