@@ -49,6 +49,11 @@ Single Source of Truth: 本ファイル。設計判断は確定し次第
 | 実物の Chromium の上でも成立するか | **する**。ちらつき・z-order 競合は観測されず | [electron-real-app-on-windows.md](../windows_port_research/notes/electron-real-app-on-windows.md) |
 | アプリは Windows で起動するか | **する**。Rust を一切ビルドせずに UI まで描画 | 同上 |
 | WebGPU フォールバックは使えるか | **使える**（nvidia/ampere）。起動ログの DXC エラーは無害 | 同上 |
+| 毎フレーム present し続けても破綻しないか | **破綻しない**。ちらつき・z 順逆転・acquire 失敗すべて 0 件 | [sustained-present.md](../windows_port_research/notes/sustained-present.md) |
+| 60fps は出せるか | **桁で余る**。最悪の resize フェーズでも 845fps / frame p99 = 6.1ms（予算 16.67ms） | 同上 |
+| 親の移動・リサイズは present を止めるか | **止めない**。present p99 は 0.48〜1.77ms | 同上 |
+| vsync 待ちはどこで起きるか | `get_current_texture`（Fifo で p50 30.7ms）。**UI スレッドで呼んではいけない** | 同上 |
+| surface reconfigure は連続で耐えるか | **耐える**。8,445 回連続で失敗ゼロ | 同上 |
 
 ### macOS ↔ Windows 対応表（実測で確定）
 
@@ -92,7 +97,7 @@ Windows のためだけの作業ではなく、`wgpu24_nv12_research` の延長�
 
 ## 3. フェーズ計画
 
-### Phase 0: 連続描画の実機検証（推定 1日）
+### Phase 0: 連続描画の実機検証（推定 1日）★完了 2026-08-22
 
 **目的**: 「毎フレーム present しても破綻しないか」を、実装に入る前に潰す。
 これまでのプローブはすべて **1 フレーム描いて止まる**作りで、ここだけが未測定の実質リスク。
@@ -104,7 +109,17 @@ Windows のためだけの作業ではなく、`wgpu24_nv12_research` の延長�
 - **判定**: 60fps を維持できない、またはちらつきが出るなら、Phase 5 の設計（child window 方式）を
   再検討する。代替案は `VisualFromWndHandle`（wgpu 25+ が HWND から visual を作る経路）。
 
-成果物: `windows_port_research/notes/` に計測ノート。
+成果物: [sustained-present.md](../windows_port_research/notes/sustained-present.md)、
+計測ツールは `windows_port_research/tools/probe-sustained/`。
+
+**結果: 再検討条件のどちらにも該当せず。Phase 5 は当初計画どおり child window 方式で進める。**
+`VisualFromWndHandle` への退避は不要。
+
+- ちらつき（合成後画素の不一致）0 件、z 順逆転 0 件、`get_current_texture` 失敗 0 件、`Suboptimal` 0 件。
+- RDP 仮想ディスプレイが 32Hz のため `Fifo` は 33fps に張り付くが、これは表示側の周期であって上限ではない。
+  `Immediate` では static 5,509fps / move 2,526fps / resize 845fps。
+- `queue.present` + `IDCompositionDevice::Commit` は p50 0.15ms。描画コストは支配的ではない。
+- **未検証**: 実シェーダ負荷での再測、物理 60Hz ディスプレイでの `Fifo`、Chromium 自身の fps。
 
 ### Phase 1: 準対応 MVP の正式化（推定 1-2日）
 
@@ -166,6 +181,8 @@ Windows の透過に必須。macOS 側にも影響する横断作業。
   - `Surface::get_current_texture()` が `Result` から `CurrentSurfaceTexture` enum へ
   - `SurfaceTexture::present()` → `Queue::present(texture)`
   - `request_device` が引数 1 個に
+  - `PipelineLayoutDescriptor.bind_group_layouts` が `&[Option<&BindGroupLayout>]` へ
+  - `PipelineLayoutDescriptor.push_constant_ranges` が `immediate_size` へ置換
 - **最大のリスクは `native-wgpu-renderer/src/nv12/import.rs`**。
   `wgpu_hal::metal::Device::texture_from_raw` という内部 API を直接叩いており、
   ここは semver 保護の外。IOSurface ゼロコピー import が壊れると macOS の性能が落ちる。
@@ -193,6 +210,10 @@ Windows の透過に必須。macOS 側にも影響する横断作業。
   `from_surface` は `cfg` なしで公開されているので、下流はそのまま再利用できる。
 - **z 順の落とし穴**: `AddVisual(visual, insertAbove, None)` の解釈が紛らわしい。
   必ず参照 visual を明示する（`AddVisual(&top, true, &bottom)`）。
+- **`get_current_texture` をUI スレッドで呼ばない**。Phase 0 の実測で、`Fifo` では
+  ここが vsync 待ちのブロック点（p50 30.7ms）と確定した。present と Commit 自体は 0.15ms。
+- resize 追従は surface reconfigure で実装してよい。Phase 0 で連続 8,445 回の再構成が
+  失敗ゼロだった。
 
 ### Phase 6: geometry 追従・DPI（推定 2-3日）
 
