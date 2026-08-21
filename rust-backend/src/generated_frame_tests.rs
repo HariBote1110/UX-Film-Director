@@ -3,6 +3,17 @@ use flate2::{write::ZlibEncoder, Compression};
 use std::io::Write;
 use uxfd_golden_harness::RgbaFrame;
 
+/// Escapes a filesystem path for embedding as the contents of a JSON string
+/// literal built by hand (e.g. inside a `format!(r##"...{}..."##, ...)`
+/// template). Windows paths carry backslashes, which are the JSON escape
+/// character -- inserting them unescaped produces either invalid JSON or a
+/// misinterpreted escape sequence (e.g. `\U` from a `Users` path component).
+fn json_escape_path(path: &std::path::Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+}
+
 fn write_test_rgba_png(name: &str, width: u32, height: u32, rgba: &[u8]) -> std::path::PathBuf {
     let expected_len = usize::try_from(width)
         .ok()
@@ -1191,7 +1202,7 @@ fn generated_getcolor_dots_source_frame_samples_source_image_colour_and_alpha() 
     );
     let source = format!(
         r##"{{"generator":"getcolor-v2r-dot-field","columns":2,"rows":1,"dot_size":36,"size_influence":0,"luminance_influence":0,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"{}","sample_strength":1}}"##,
-        source_path.to_string_lossy()
+        json_escape_path(&source_path)
     );
     let media = SceneMediaReference {
         id: "getcolor-sampled-dot-field-1".to_string(),
@@ -1230,7 +1241,7 @@ fn generated_getcolor_dots_source_frame_applies_sample_hue_shift() {
     );
     let source = format!(
         r##"{{"generator":"getcolor-v2r-dot-field","columns":1,"rows":1,"dot_size":36,"size_influence":0,"luminance_influence":0,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"{}","sample_strength":1,"sample_hue_shift_degrees":120}}"##,
-        source_path.to_string_lossy()
+        json_escape_path(&source_path)
     );
     let media = SceneMediaReference {
         id: "getcolor-sampled-hue-shift-dot-field-1".to_string(),

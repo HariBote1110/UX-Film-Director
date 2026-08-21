@@ -10,6 +10,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uxfd_golden_harness::{save_rgba_png, RgbaFrame};
 use uxfd_shared_memory_spike::PosixSharedRing;
 
+/// Builds a `file://` URL from a real filesystem path, matching the
+/// convention the Electron/TS side already uses for Windows drive paths
+/// (`src/utils/mediaMetadata.ts`'s `file:///C:/Users/...`, three slashes:
+/// the `file://` scheme separator plus the URL's own root slash). A naive
+/// `format!("file://{}", path.display())` is wrong on Windows for two
+/// independent reasons: backslash path separators are not valid URL path
+/// separators, and a bare drive-letter path (`C:\Users\...`) has no leading
+/// `/` for `local_media_source_path` to recognise as a URL path root.
+fn file_url_for_path(path: &Path) -> String {
+    let with_forward_slashes = path.to_string_lossy().replace('\\', "/").replace(' ', "%20");
+    if with_forward_slashes.starts_with('/') {
+        format!("file://{with_forward_slashes}")
+    } else {
+        format!("file:///{with_forward_slashes}")
+    }
+}
+
 #[test]
 fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback() {
     let mut backend = BackendProcess::start();
@@ -2640,8 +2657,7 @@ fn native_render_shared_frame_builds_file_url_png_image_sources_from_media() {
     )
     .expect("build file URL PNG source frame");
     save_rgba_png(&image_path, &image_frame).expect("write file URL PNG source fixture");
-    let encoded_path = image_path.to_string_lossy().replace(' ', "%20");
-    let image_source = format!("file://{encoded_path}?cache=1#still");
+    let image_source = format!("{}?cache=1#still", file_url_for_path(&image_path));
     let output_memory_id = unique_shm_name();
     let slot_count = 1;
     let width = 4;

@@ -474,9 +474,26 @@ pub(crate) fn local_media_source_path(source: &str, media_kind: &str) -> Result<
         ));
     };
 
+    let local_path = strip_windows_drive_root_slash(local_path);
+
     percent_decode_utf8(&local_path).map_err(|error| {
         format!("Invalid percent-encoded Image media file URL '{source}': {error}")
     })
+}
+
+/// A `file://` URL for a Windows drive-letter path is conventionally
+/// authored as `file:///C:/Users/...` (three slashes: the `file://` scheme
+/// separator plus the URL's leading root slash before the drive letter).
+/// Stripped of `file://`, that leaves `/C:/Users/...`. Left as-is, that
+/// leading `/` makes `C:` look like an ordinary path component (colons are
+/// not valid there) instead of a drive prefix, so the path would fail to
+/// open on Windows. POSIX absolute paths never match `is_windows_drive_path`
+/// (a POSIX root component isn't `X:`), so this is a no-op there.
+fn strip_windows_drive_root_slash(local_path: String) -> String {
+    match local_path.strip_prefix('/') {
+        Some(rest) if is_windows_drive_path(rest) => rest.to_string(),
+        _ => local_path,
+    }
 }
 
 fn has_url_scheme(source: &str) -> bool {
