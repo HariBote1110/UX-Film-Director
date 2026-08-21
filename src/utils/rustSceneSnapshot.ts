@@ -50,77 +50,39 @@ import { evaluateObjectPositionAtTime } from './keyframes';
 import { isObjectVisibleAtTime } from './objectVisibility';
 import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
+import type {
+  ColourPipeline as RustColourPipeline,
+  Effect as RustEffect,
+  EvaluatedClip as GeneratedRustEvaluatedClip,
+  Fps as RustFrameRate,
+  SamplingMode as RustSamplingMode,
+  SceneSnapshot as GeneratedRustSceneSnapshot,
+  Transform as RustTransform,
+} from '../generated/rustCore';
 
-export type RustSamplingMode = 'nearest' | 'bilinear';
-
-export interface RustFrameRate {
-  numerator: number;
-  denominator: number;
-}
-
-export interface RustColourPipeline {
-  profile: 'rec709-sdr';
-  working_space: 'linear-light';
-  alpha: 'premultiplied';
-}
-
-export interface RustTransform {
-  translation_x: number;
-  translation_y: number;
-  scale_x: number;
-  scale_y: number;
-  rotation_degrees: number;
-  sampling: RustSamplingMode;
-}
-
-export type RustEffect =
-  | { LinearGain: { gain: number } }
-  | { ColourAberration: { offset_x: number; offset_y: number } }
-  | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } }
-  | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } }
-  | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } }
-  | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } }
-  | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } }
-  | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } }
-  | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } }
-  | { Stretch: { angle_degrees: number; amount: number; strength: number } }
-  | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } }
-  | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } }
-  | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } }
-  | { ColourCorrection: { brightness: number; contrast: number; saturation: number; hue_degrees: number } }
-  | { Blur: { radius: number; strength: number } }
-  | { DropShadow: { colour: [number, number, number]; offset_x: number; offset_y: number; opacity: number } }
-  | {
-      GradientOverlay: {
-        direction_degrees: number;
-        stop_a: number;
-        stop_b: number;
-        is_radial: boolean;
-        colour_a: [number, number, number, number];
-        colour_b: [number, number, number, number];
-        bounds_x: number;
-        bounds_y: number;
-        bounds_width: number;
-        bounds_height: number;
-      };
-    };
-
-export interface RustEvaluatedClip {
-  clip_id: string;
-  track_id: string;
-  media_id: string;
-  source_frame: number;
-  z_index: number;
-  transform: RustTransform;
-  opacity: number;
+// rust-core (schema.rs / timeline.rs) から ts-rs で生成した型の re-export。
+// R1 より前はここに手書きミラーがあったが、型の出どころを rust-core に一本化した。
+// 値の組み立てロジックはこのファイルのまま変えていない。
+//
+// effects / clips は生成された型では Array<T>（可変）だが、手書きミラーでは
+// readonly T[] だった。ここを可変へ緩めると、他ファイルの `as const` リテラル
+// （readonly 配列になる）がこの型に代入できなくなり tsc が新規に落ちるため、
+// 元の readonly のまま維持する（値の組み立てロジックには影響しない）。
+export type RustEvaluatedClip = Omit<GeneratedRustEvaluatedClip, 'effects'> & {
   effects: readonly RustEffect[];
-}
+};
 
-export interface RustSceneSnapshot {
-  frame_index: number;
-  colour: RustColourPipeline;
+export type RustSceneSnapshot = Omit<GeneratedRustSceneSnapshot, 'clips'> & {
   clips: readonly RustEvaluatedClip[];
-}
+};
+
+export type {
+  RustColourPipeline,
+  RustEffect,
+  RustFrameRate,
+  RustSamplingMode,
+  RustTransform,
+};
 
 export interface RustSceneMediaReference {
   id: string;

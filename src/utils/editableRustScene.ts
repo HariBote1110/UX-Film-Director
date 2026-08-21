@@ -23,6 +23,15 @@ import type {
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { normaliseKeyframesForObject } from './keyframes';
 import { normaliseSubjectCropKeyframesForVideo } from './subjectCropKeyframes';
+import type {
+  Clip,
+  GroupControl,
+  PositionKeyframe,
+  Project,
+  SubjectCropAnimation,
+  SubjectCropKeyframe,
+  WipeAnimation,
+} from '../generated/rustCore';
 import {
   fpsToFrameRate,
   mediaReferenceForEditableRustScene,
@@ -30,81 +39,67 @@ import {
   rustEffectsForObject,
   secondsToFrameIndex,
   type RustEffect,
-  type RustFrameRate,
   type RustSceneMediaReference,
   type RustTransform,
 } from './rustSceneSnapshot';
 
 type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject;
 
-export interface EditableRustPositionKeyframe {
-  frame_offset: number;
-  x: number;
-  y: number;
-  easing: TimelineObject['easing'];
-}
+// rust-core (schema.rs) から ts-rs で生成した型の re-export。R1 より前は
+// ここに手書きミラーがあった。値の組み立てロジック（下の buildEditableRustScene
+// など）はこのファイルのまま変えていない。
+//
+// 配列フィールドは生成された型では Array<T>（可変）だが、手書きミラーでは
+// readonly T[] だった。可変へ緩めると、他ファイルの `as const` リテラル
+// （readonly 配列になる）がこの型に代入できなくなり tsc が新規に落ちるため、
+// 元の readonly のまま維持する（値の組み立てロジックには影響しない）。
+//
+// EditableRustClip はさらに subject_crop を素の Clip 型から差し替えている。
+// 生成された Clip.subject_crop は `SubjectCropAnimation | null`（必須キー）だが、
+// 呼び出し側（下の buildEditableRustScene 内の track.clips.push）は crop が
+// 無いオブジェクトでキー自体を省略するスプレッド構文を使っており、これは
+// serde 側の `#[serde(default)]` と噛み合わせても意味は変わらない
+// （省略済みで動いていた wire format を変えないため、値の組み立てを
+// 変えずに型だけ緩めている）。
+export type EditableRustPositionKeyframe = PositionKeyframe;
+export type EditableRustSubjectCropKeyframe = SubjectCropKeyframe;
 
-export interface EditableRustSubjectCropKeyframe {
-  frame_offset: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface EditableRustSubjectCropAnimation {
-  source_width: number;
-  source_height: number;
+export type EditableRustSubjectCropAnimation = Omit<SubjectCropAnimation, 'keyframes'> & {
   keyframes: readonly EditableRustSubjectCropKeyframe[];
-}
+};
 
-export interface EditableRustWipeAnimation {
-  effect_index: number;
-  edge: 'left' | 'right' | 'top' | 'bottom';
-  reverse: boolean;
-}
+export type EditableRustWipeAnimation = WipeAnimation;
 
-export interface EditableRustClip {
-  id: string;
-  media_id: string;
-  kind: 'VideoPlane' | 'ImagePlane' | 'SolidColourPlane' | 'GeneratedShapePlane' | 'TextPlane' | 'GeneratedParticlePlane' | 'GeneratedAudioWaveformPlane' | 'GeneratedAudioSpherePlane' | 'GeneratedGetColorDotsPlane' | 'GeneratedHksyCheckerGridPlane' | 'GeneratedRegionFramePlane' | 'GeneratedSimpleTubePlane' | 'GeneratedHologramPlane' | 'GeneratedShakingPolygonPlane' | 'GeneratedShatteredSpherePlane';
-  start_frame: number;
-  duration_frames: number;
-  source_frame_offset: number;
-  transform: RustTransform;
-  opacity: number;
+export type EditableRustGroupControl = Omit<GroupControl, 'position_keyframes' | 'target_track_ids'> & {
+  position_keyframes: readonly EditableRustPositionKeyframe[];
+  target_track_ids: readonly string[];
+};
+
+export type EditableRustClip = Omit<
+  Clip,
+  'subject_crop' | 'opacity_keyframes' | 'position_keyframes' | 'wipe_animations' | 'effects'
+> & {
   opacity_keyframes: readonly [];
   position_keyframes: readonly EditableRustPositionKeyframe[];
   subject_crop?: EditableRustSubjectCropAnimation;
   wipe_animations: readonly EditableRustWipeAnimation[];
   effects: readonly RustEffect[];
-}
+};
 
 export interface EditableRustTrack {
   id: string;
   clips: EditableRustClip[];
 }
 
-export interface EditableRustGroupControl {
-  id: string;
-  start_frame: number;
-  duration_frames: number;
-  transform: RustTransform;
-  opacity: number;
-  position_keyframes: readonly EditableRustPositionKeyframe[];
-  target_track_ids: readonly string[];
-}
-
-export interface EditableRustProject {
-  id: string;
-  version: 1;
-  size: { width: number; height: number };
-  fps: RustFrameRate;
-  colour: ReturnType<typeof rustColourPipeline>;
+// media は生成された Project.media (MediaReference[]) ではなく、
+// width/height/source_rate 等 TS 側だけが持つ RustSceneMediaReference を使う。
+// R1 の置き換え対象に RustSceneMediaReference は含めていない（generated
+// MediaReference に無いフィールドがまだ必要なため）。
+export type EditableRustProject = Omit<Project, 'tracks' | 'media' | 'group_controls'> & {
   media: RustSceneMediaReference[];
   tracks: EditableRustTrack[];
   group_controls: EditableRustGroupControl[];
-}
+};
 
 export type EditableRustSceneIssueCode =
   | 'unsupportedObjectType'
