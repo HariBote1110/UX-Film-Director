@@ -582,6 +582,12 @@ fn decode_audio_pcm_with_ffmpeg(source: &str, sample_rate: u32) -> Result<Vec<f3
         .collect())
 }
 
+/// Forward gap (in source frames) that `request_frame` will absorb by
+/// discard-decoding instead of seeking. Mirrors `MAX_STREAMING_DECODE_SKIP_FRAMES`
+/// in `rust-backend/src/decode.rs` (kept as a separate constant because the
+/// two crates decode via different backends and are tuned independently).
+const NATIVE_OVERLAY_MAX_FORWARD_DECODE_GAP_FRAMES: u64 = 90;
+
 /// How `NativeOverlayResidentVideoDecoder::request_frame` should service a
 /// decode request, given the currently decoded source frame (if any) and the
 /// requested source frame.
@@ -669,10 +675,21 @@ impl NativeOverlayResidentVideoDecoder {
 
         let target_seconds = request.source_frame as f64 * request.source_rate.denominator as f64
             / request.source_rate.numerator as f64;
-        let sequential = self
-            .current_source_frame
-            .is_some_and(|frame| request.source_frame == frame.saturating_add(1));
-        if !sequential {
+        let advance = resolve_frame_advance(
+            self.current_source_frame,
+            request.source_frame,
+            NATIVE_OVERLAY_MAX_FORWARD_DECODE_GAP_FRAMES,
+        );
+
+        // Forward gaps up to NATIVE_OVERLAY_MAX_FORWARD_DECODE_GAP_FRAMES are
+        // absorbed by discard-decoding below instead of seeking, mirroring
+        // MAX_STREAMING_DECODE_SKIP_FRAMES in rust-backend/src/decode.rs: a
+        // cold seek recreates the AVAssetReader and re-demuxes from the
+        // previous keyframe, which is far more expensive than a few extra
+        // next_frame() calls, and avoids the seek->fall-behind->bigger-seek
+        // runaway loop under transient hitches.
+        let mut seeked = matches!(advance, FrameAdvance::Seek);
+        if seeked {
             self.session.seek(target_seconds).map_err(|error| {
                 format!(
                     "Native overlay VideoToolbox seek failed for {} at {target_seconds:.6}s: {error}",
@@ -681,29 +698,68 @@ impl NativeOverlayResidentVideoDecoder {
             })?;
             self.current_frame = None;
         }
+        let mut forward_decode_budget = match advance {
+            // Small margin above the exact gap: pts alignment can require one
+            // extra next_frame() call to cross the tolerance threshold.
+            FrameAdvance::DecodeForward { frames } => Some(frames + 1),
+            FrameAdvance::Sequential | FrameAdvance::Seek => None,
+        };
 
         let frame_tolerance =
             request.source_rate.denominator as f64 / request.source_rate.numerator as f64 * 0.5;
         loop {
-            let frame = self
-                .session
-                .next_frame()
-                .map_err(|error| {
-                    format!(
-                        "Native overlay VideoToolbox decode failed for {}: {error}",
-                        self.source
-                    )
-                })?
-                .ok_or_else(|| {
-                    format!(
+            let decoded = self.session.next_frame().map_err(|error| {
+                format!(
+                    "Native overlay VideoToolbox decode failed for {}: {error}",
+                    self.source
+                )
+            })?;
+            let frame = match decoded {
+                Some(frame) => frame,
+                None if !seeked => {
+                    // Discard-decoding ran off the end of the currently open
+                    // stream position (e.g. the forward-gap budget undershot
+                    // due to variable frame durations); fall back to a full
+                    // seek and retry once from the target instead of failing
+                    // the request outright.
+                    self.session.seek(target_seconds).map_err(|error| {
+                        format!(
+                            "Native overlay VideoToolbox seek failed for {} at {target_seconds:.6}s: {error}",
+                            self.source
+                        )
+                    })?;
+                    self.current_frame = None;
+                    seeked = true;
+                    forward_decode_budget = None;
+                    continue;
+                }
+                None => {
+                    return Err(format!(
                         "Native overlay video reached end of stream at source frame {} for {}.",
                         request.source_frame, self.source
-                    )
-                })?;
+                    ));
+                }
+            };
             let reached_target = frame.pts_seconds + frame_tolerance >= target_seconds;
             self.current_frame = Some(frame);
             if reached_target {
                 break;
+            }
+            if let Some(budget) = forward_decode_budget.as_mut() {
+                *budget = budget.saturating_sub(1);
+                if *budget == 0 {
+                    // Exhausted the forward-gap budget without reaching the
+                    // target; fall back to a seek rather than looping forever.
+                    self.session.seek(target_seconds).map_err(|error| {
+                        format!(
+                            "Native overlay VideoToolbox seek failed for {} at {target_seconds:.6}s: {error}",
+                            self.source
+                        )
+                    })?;
+                    self.current_frame = None;
+                    seeked = true;
+                    forward_decode_budget = None;
+                }
             }
         }
 
