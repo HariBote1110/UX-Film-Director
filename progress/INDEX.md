@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [export-effect-double-run-fix.md](export-effect-double-run-fix.md) — エクスポート実行 effect の依存配列にコールバックが入っていたため revision 更新で二重起動していた不具合を修正。依存配列を`[isExporting]`のみへ絞りコールバックはrefで最新値参照、zustand actionはeffect内`getState()`取得へ（版494a）（2026-08-21）
 - [stage3d-pure-interaction-logic.md](stage3d-pure-interaction-logic.md) — M2b: OrbitControls/TransformControls/Raycaster相当の3Dステージ操作ロジックを`src/utils/stage3d/`配下にレンダラー非依存の純関数として先行実装(vec3, orbitCamera, cameraRay, hitTest, translateGizmo)。ThreeStageViewport.tsxは未変更、テスト34件green（2026-08-21）
 - [three-js-to-oxidise-engine.md](three-js-to-oxidise-engine.md) — 3DステージのThree.js(WebGL)をoxidise-engine(wgpu 24.0.5独立repo)へ置き換え。M2c完了: OxidiseStageViewport.tsx新設・three依存撤去・export/snapshotをreadbackRgba経由へ変更（実機未検証）。M0〜M3段階計画、readback API、CubicTransim汎用化（2026-08-21）
 - [wysiwyg-empty-scene-present.md](wysiwyg-empty-scene-present.md) — 図形クリップの範囲外シーク/移動でnative overlayにゴーストが残るWYSIWYG違反を修正。評価済みsessionのclips空をshouldPresentSharedRendererEmptyScenePresentationで判定し透明clear、native-render-only present経路にisRequestCurrentガードを追加(版492a)（2026-08-18）
