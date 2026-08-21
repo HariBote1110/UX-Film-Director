@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [iosurface-audio-mux.md](iosurface-audio-mux.md) — IOSurface VideoToolboxエクスポート経路にaudioPathを解禁。映像のみ一時ファイルへ書き出しfinish時にffmpegでstream copy mux、ステータスは`iosurfaceVideoToolboxAudioMux`（2026-08-21）
 - [upload-fence-removal.md](upload-fence-removal.md) — IOSurfaceエクスポート経路(`render_frame_to_bgra_iosurface_with_audio_reactive_sources`)の毎フレームupload待機(`wait_for_upload=true`)をfalseへ変更。wgpu単一queueのwrite_texture順序保証により不要と判明、98.7fps→133〜139fps相当（2026-08-21）
 - [generated-source-frame-cache.md](generated-source-frame-cache.md) — `collect_native_render_sources`の生成系(Text/SolidColour/Shape/Gradient等)毎フレームCPU再ラスタライズをrevisionキー付き`GeneratedSourceFrameCache`で解消。ソースフレームマップをArc<RgbaFrame>化しImage/Psdのディープコピーも排除、native-wgpu-renderer/native-overlayへ波及。sourceUploadMs残存2〜3msの原因(create_view/build_bind_groupが毎フレーム無条件実行)を特定（版495a）（2026-08-21）
 - [export-effect-double-run-fix.md](export-effect-double-run-fix.md) — エクスポート実行 effect の依存配列にコールバックが入っていたため revision 更新で二重起動していた不具合を修正。依存配列を`[isExporting]`のみへ絞りコールバックはrefで最新値参照、zustand actionはeffect内`getState()`取得へ（版494a）（2026-08-21）
