@@ -2,6 +2,13 @@
 
 新しい順。
 
+- [h3-wgpu25-vs-wgpu30.md](h3-wgpu25-vs-wgpu30.md) —
+  H3: wgpu 30 でも hal 経由 import が小さい差分で動く、は**棄却**。
+  wgpu-hal 30 は Metal バインディングを `metal`/`objc` から `objc2-metal`/`objc2`
+  へ総取り替えしており、`texture_from_raw` が
+  `Retained<ProtocolObject<dyn MTLTexture>>` を要求する。対して **wgpu 25 は
+  `metal` 0.31 のままで、import 経路のソースは 24 版と byte 単位で完全一致**
+  （pixel も完全一致）。**上げ先は 25 と決定**。
 - [h2-native-nv12-texture-format.md](h2-native-nv12-texture-format.md) —
   H2: wgpu 24 の `TextureFormat::NV12`/`TEXTURE_FORMAT_NV12` は Metal
   backend では未実装（Vulkan/DX12 限定）。「適用不可」として棄却済み。

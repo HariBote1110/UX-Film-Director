@@ -171,8 +171,16 @@ preview は既存の WebGPU presenter フォールバック、decode/encode は 
 
 Windows の透過に必須。macOS 側にも影響する横断作業。
 
-- 上げ先の決定（§8 の設計判断 1）。25 が最小、30 が最新。
-- 破壊的変更の棚卸し。プローブを 0.20 と 30 の両方で書いた時点で判明している差分:
+- **上げ先は 25 に決定（2026-08-22）。** 根拠は
+  [h3-wgpu25-vs-wgpu30.md](../wgpu24_nv12_research/notes/h3-wgpu25-vs-wgpu30.md)。
+  wgpu-hal 30 は Metal バインディングを `metal`/`objc` から `objc2-metal`/`objc2` へ
+  総取り替えしており、`texture_from_raw` が `Retained<ProtocolObject<dyn MTLTexture>>` を
+  要求する。**wgpu 25 は `metal` 0.31 のままで、`nv12/import.rs` の import 経路は
+  無変更で動く**（スパイクで pixel 完全一致を実測）。
+  30 を選ぶ理由だった `VisualFromWndHandle` も、Phase 0 で child window 方式が
+  破綻しないと分かったため不要になった。
+- 破壊的変更の棚卸し。**下記はプローブを 0.20 と 30 で書いた時点の差分で、
+  上げ先の 25 での差分は未確認**（25 で確認済みなのは NV12 スパイクで踏んだ 3 件だけ）:
   - `InstanceDescriptor`: `Default` 実装が消え、`display` フィールドが増えた
     （`new_without_display_handle()` を使う）
   - `RequestAdapterOptions`: `apply_limit_buckets` 追加
@@ -183,10 +191,19 @@ Windows の透過に必須。macOS 側にも影響する横断作業。
   - `request_device` が引数 1 個に
   - `PipelineLayoutDescriptor.bind_group_layouts` が `&[Option<&BindGroupLayout>]` へ
   - `PipelineLayoutDescriptor.push_constant_ranges` が `immediate_size` へ置換
-- **最大のリスクは `native-wgpu-renderer/src/nv12/import.rs`**。
-  `wgpu_hal::metal::Device::texture_from_raw` という内部 API を直接叩いており、
-  ここは semver 保護の外。IOSurface ゼロコピー import が壊れると macOS の性能が落ちる。
-  `wgpu24_nv12_research` の知見をここで使う。
+
+  wgpu 25 で実測した差分（NV12 スパイク）:
+  - `Adapter::request_device` が引数 1 個に（第 2 引数の trace path が消えた）
+  - `DeviceDescriptor` に `trace: wgpu::Trace` フィールドが追加
+  - `wgpu::Maintain` 廃止。`Device::poll(wgpu::PollType::Wait)` が `Result` を返す
+  - `Device::as_hal` の戻り値が `Option<R>` → `R`（`.flatten()` を消す。H1 で既知）
+- ~~**最大のリスクは `native-wgpu-renderer/src/nv12/import.rs`**~~
+  → **25 を選んだことで解消した。** `wgpu_hal::metal::Device::texture_from_raw` の
+  シグネチャは 0.21.1 と 25.0.2 で同一で、スパイクの import 経路は 24 版と
+  byte 単位で一致した。残るのは `as_hal` の `.flatten()` 削除 1 行のみ。
+  ただし**スパイクが通したのは 8x8 単色 1 パターンだけ**なので、
+  production の NV12 テスト 9 件（グラデーション、キャッシュ再利用、BT.601 / full range）を
+  移植して通すことを合格条件にする。
 - golden-frame parity（`architecture/04-render-parity.md`）を移行の合格条件にする。
   **macOS の parity が崩れたら移行を止める。**
 
@@ -295,9 +312,9 @@ Phase 1-3 だけなら **約 4-6 営業日**で「overlay 以外は Windows で�
 
 ## 7. 着手前に確定したい設計判断
 
-1. **wgpu の上げ先を 25 と 30 のどちらにするか。**
-   25 は最小の飛距離で透過が手に入る。30 は最新で `VisualFromWndHandle` も使えるが、
-   `nv12/import.rs` が触る `wgpu_hal::metal` 内部 API の変化がより大きい可能性がある。
+1. ~~**wgpu の上げ先を 25 と 30 のどちらにするか。**~~
+   **決定済み（2026-08-22）: 25。** 根拠は
+   [h3-wgpu25-vs-wgpu30.md](../wgpu24_nv12_research/notes/h3-wgpu25-vs-wgpu30.md)。
 2. **Phase 4 を Windows のためだけの作業として扱うか、`wgpu24_nv12_research` と合流させるか。**
    合流させるなら上げ先は 25 以上で NV12 の再評価も同時に行う。
 3. **Phase 1-3 で一度リリースするか**（「overlay 以外は Windows で動く」で区切るか）。
