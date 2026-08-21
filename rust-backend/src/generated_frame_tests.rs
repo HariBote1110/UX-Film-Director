@@ -75,7 +75,7 @@ fn generated_barcode_source_frame_contains_background_and_bars() {
     let media = SceneMediaReference {
             id: "barcode-1".to_string(),
             kind: MediaKind::GeneratedBarcode,
-            source: r##"{"generator":"barcode-t","data":"AviUtl","minimum_bar_width":2,"horizontal_margin":8,"vertical_margin":6,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":96,"height":48,"data":"AviUtl","minimumBarWidth":2,"horizontalMargin":8,"verticalMargin":6,"foregroundColour":"#000000","backgroundColour":"#ffffff"}"##.to_string(),
             width: 96,
             height: 48,
             source_rate: None,

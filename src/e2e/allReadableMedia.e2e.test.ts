@@ -689,13 +689,12 @@ describe('全読込可能メディア E2E', () => {
       lifetimeSeconds: 1.5,
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'barcode-t')?.source ?? '{}')).toMatchObject({
-      generator: 'barcode-t',
       data: 'AviUtl',
-      minimum_bar_width: 2,
-      horizontal_margin: 30,
-      vertical_margin: 20,
-      foreground_colour: '#000000',
-      background_colour: '#ffffff',
+      minimumBarWidth: 2,
+      horizontalMargin: 30,
+      verticalMargin: 20,
+      foregroundColour: '#000000',
+      backgroundColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'puzzle-piece')?.source ?? '{}')).toMatchObject({
       generator: 'puzzle-piece',
