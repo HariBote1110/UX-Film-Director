@@ -41,6 +41,13 @@ fn two_processes_exchange_frames_after_attach_retry() {
     );
 }
 
+// POSIX-only: this reclaims a name left behind by a SIGKILLed owner via
+// shm_unlink. On Windows a named file mapping has no equivalent "leaked
+// name" state to reclaim — the kernel object is reference-counted and the
+// OS closes every handle (destroying the object) as soon as the owning
+// process exits, crashed or not. See `windows_shm_two_process.rs` for the
+// Windows-side collision behaviour this replaces.
+#[cfg(unix)]
 #[test]
 fn posix_shm_create_reclaims_a_leaked_shm_name_from_a_crashed_owner() {
     // A previous owner that was SIGKILLed (e.g. the dev app force-quit) never ran
@@ -263,6 +270,11 @@ fn posix_shm_slot_can_be_released_after_encoder_writes_frame() {
         .expect("slot returns to free after encoder write");
 }
 
+// POSIX-only: macOS's PSHMNAMLEN = 31 limit does not apply on Windows,
+// which names its file mappings in the `Local\` kernel object namespace
+// (MAX_PATH-based limit, see `windows_shm_two_process.rs`). The naming
+// rules are deliberately not shared between platforms.
+#[cfg(unix)]
 #[test]
 fn posix_shm_create_rejects_names_longer_than_the_macos_shm_name_limit_before_calling_shm_open() {
     // macOS caps POSIX shm names (including the leading '/') at 31 bytes
@@ -282,6 +294,7 @@ fn posix_shm_create_rejects_names_longer_than_the_macos_shm_name_limit_before_ca
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn posix_shm_attach_rejects_names_longer_than_the_macos_shm_name_limit_before_calling_shm_open() {
     let too_long_name = format!("/{}", "b".repeat(31));

@@ -1,12 +1,28 @@
 use std::cell::UnsafeCell;
+#[cfg(unix)]
 use std::ffi::CString;
+#[cfg(windows)]
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::mem::{offset_of, size_of};
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+
+#[cfg(windows)]
+use windows_sys::Win32::Foundation::{
+    CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, HANDLE,
+    INVALID_HANDLE_VALUE,
+};
+#[cfg(windows)]
+use windows_sys::Win32::System::Memory::{
+    CreateFileMappingW, MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_ALL_ACCESS,
+    PAGE_READWRITE,
+};
 
 use uxfd_sidecar_protocol::{
     validate_renderer_handoff_descriptor, ChecksumAlgorithm, ControlEvent, CopyOutState,
@@ -143,14 +159,35 @@ pub fn expected_shared_ring_layout_hash() -> u64 {
     hash
 }
 
+/// A shared-memory-backed ring: one atomic slot header plus payload region
+/// per frame (see [`SharedSlotHeader`]/[`SharedRingHeader`], which are
+/// platform-independent).
+///
+/// The type name predates the Windows platform seam and is kept as-is so
+/// that downstream crates (`rust-backend`, `native-wgpu-renderer`,
+/// `shared-video-frame-bridge`) which already reference `PosixSharedRing`
+/// do not need to change. On Windows this is backed by a named file
+/// mapping (`CreateFileMappingW` / `MapViewOfFile`) rather than POSIX shm;
+/// the public behaviour is unchanged.
 #[derive(Debug)]
 pub struct PosixSharedRing {
+    #[cfg(unix)]
     name: CString,
+    #[cfg(unix)]
     fd: i32,
+    #[cfg(windows)]
+    handle: HANDLE,
     ptr: *mut u8,
+    // Only read by the POSIX `Drop` impl (`munmap` needs the mapped length;
+    // `UnmapViewOfFile` on Windows does not).
+    #[cfg_attr(windows, allow(dead_code))]
     len: usize,
     slot_count: u32,
     frame_len: usize,
+    // Only read by the POSIX `Drop` impl: whether to `shm_unlink` the name.
+    // Windows named mappings have no separate unlink step (see the
+    // `Drop` impl below), so this is unread there.
+    #[cfg_attr(windows, allow(dead_code))]
     owner: bool,
 }
 
@@ -162,6 +199,7 @@ impl PosixSharedRing {
         Self::create_with_slot_count(name, 1, frame_len)
     }
 
+    #[cfg(unix)]
     pub fn create_with_slot_count(
         name: &str,
         slot_count: u32,
@@ -222,6 +260,76 @@ impl PosixSharedRing {
         Ok(ring)
     }
 
+    /// Windows counterpart of the POSIX `create_with_slot_count` above.
+    ///
+    /// Unlike POSIX shm, a Windows named file mapping is a reference-counted
+    /// kernel object: the OS destroys it automatically once every handle to
+    /// it is closed, including forcibly on process exit/crash. There is
+    /// therefore no "stale leaked name" state to reclaim the way the POSIX
+    /// path does with `shm_unlink` + retry — if `CreateFileMappingW`
+    /// reports `ERROR_ALREADY_EXISTS`, a different, still-live owner
+    /// genuinely holds this name, and an exclusive create must fail rather
+    /// than silently take over its memory.
+    #[cfg(windows)]
+    pub fn create_with_slot_count(
+        name: &str,
+        slot_count: u32,
+        frame_len: usize,
+    ) -> Result<Self, PosixShmError> {
+        if slot_count == 0 || frame_len == 0 {
+            return Err(PosixShmError::InvalidArgs);
+        }
+
+        let wide_name = windows_shm_name(name)?;
+        let len = mapping_len(slot_count, frame_len);
+
+        let handle = unsafe {
+            CreateFileMappingW(
+                INVALID_HANDLE_VALUE,
+                ptr::null(),
+                PAGE_READWRITE,
+                (len as u64 >> 32) as u32,
+                (len as u64 & 0xFFFF_FFFF) as u32,
+                wide_name.as_ptr(),
+            )
+        };
+        if handle.is_null() {
+            return Err(PosixShmError::Io {
+                operation: "CreateFileMappingW(create)",
+                source: io::Error::last_os_error(),
+            });
+        }
+        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+            unsafe { CloseHandle(handle) };
+            return Err(PosixShmError::Io {
+                operation: "CreateFileMappingW(create)",
+                source: io::Error::from_raw_os_error(ERROR_ALREADY_EXISTS as i32),
+            });
+        }
+
+        let view = unsafe { MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, len) };
+        if view.Value.is_null() {
+            let source = io::Error::last_os_error();
+            unsafe { CloseHandle(handle) };
+            return Err(PosixShmError::Io {
+                operation: "MapViewOfFile(create)",
+                source,
+            });
+        }
+
+        let ring = Self {
+            handle,
+            ptr: view.Value.cast::<u8>(),
+            len,
+            slot_count,
+            frame_len,
+            owner: true,
+        };
+        ring.initialise_mapping();
+
+        Ok(ring)
+    }
+
     pub fn attach_with_retry(
         name: &str,
         frame_len: usize,
@@ -230,6 +338,7 @@ impl PosixSharedRing {
         Self::attach_with_retry_for_layout(name, 1, frame_len, timeout)
     }
 
+    #[cfg(unix)]
     pub fn attach_with_retry_for_layout(
         name: &str,
         slot_count: u32,
@@ -266,6 +375,69 @@ impl PosixSharedRing {
                 return Err(PosixShmError::Io {
                     operation: "shm_open(attach)",
                     source: error,
+                });
+            }
+            if start.elapsed() >= timeout {
+                return Err(PosixShmError::TimedOut {
+                    operation: "attach_with_retry",
+                });
+            }
+
+            thread::sleep(ATTACH_RETRY_DELAY);
+        }
+    }
+
+    /// Windows counterpart of the POSIX `attach_with_retry_for_layout`
+    /// above. `OpenFileMappingW` returning `NULL` with
+    /// `ERROR_FILE_NOT_FOUND` is the Windows equivalent of POSIX
+    /// `shm_open`'s `ENOENT`: the producer has not created the mapping yet,
+    /// so retry until `timeout` rather than failing immediately.
+    #[cfg(windows)]
+    pub fn attach_with_retry_for_layout(
+        name: &str,
+        slot_count: u32,
+        frame_len: usize,
+        timeout: Duration,
+    ) -> Result<Self, PosixShmError> {
+        if slot_count == 0 || frame_len == 0 {
+            return Err(PosixShmError::InvalidArgs);
+        }
+
+        let wide_name = windows_shm_name(name)?;
+        let len = mapping_len(slot_count, frame_len);
+        let start = Instant::now();
+
+        loop {
+            let handle = unsafe { OpenFileMappingW(FILE_MAP_ALL_ACCESS, 0, wide_name.as_ptr()) };
+            if !handle.is_null() {
+                let view = unsafe { MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, len) };
+                if view.Value.is_null() {
+                    let source = io::Error::last_os_error();
+                    unsafe { CloseHandle(handle) };
+                    return Err(PosixShmError::Io {
+                        operation: "MapViewOfFile(attach)",
+                        source,
+                    });
+                }
+
+                let ring = Self {
+                    handle,
+                    ptr: view.Value.cast::<u8>(),
+                    len,
+                    slot_count,
+                    frame_len,
+                    owner: false,
+                };
+                ring.wait_for_initialised(start, timeout)?;
+                ring.validate_expected_shape(slot_count, frame_len)?;
+                return Ok(ring);
+            }
+
+            let error = unsafe { GetLastError() };
+            if error != ERROR_FILE_NOT_FOUND {
+                return Err(PosixShmError::Io {
+                    operation: "OpenFileMappingW(attach)",
+                    source: io::Error::from_raw_os_error(error as i32),
                 });
             }
             if start.elapsed() >= timeout {
@@ -538,6 +710,7 @@ impl PosixSharedRing {
         expected
     }
 
+    #[cfg(unix)]
     fn map(&mut self) -> Result<(), PosixShmError> {
         let ptr = unsafe {
             libc::mmap(
@@ -638,6 +811,7 @@ impl PosixSharedRing {
     }
 }
 
+#[cfg(unix)]
 impl Drop for PosixSharedRing {
     fn drop(&mut self) {
         if !self.ptr.is_null() {
@@ -653,6 +827,29 @@ impl Drop for PosixSharedRing {
         if self.owner {
             unsafe {
                 libc::shm_unlink(self.name.as_ptr());
+            }
+        }
+    }
+}
+
+/// Windows named file mappings are reference-counted kernel objects with no
+/// separate "unlink the name" step: unmapping the view and closing the
+/// handle is enough (whether this instance created or attached to the
+/// mapping) and the OS destroys the object once the last handle anywhere
+/// closes.
+#[cfg(windows)]
+impl Drop for PosixSharedRing {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() {
+            unsafe {
+                UnmapViewOfFile(windows_sys::Win32::System::Memory::MEMORY_MAPPED_VIEW_ADDRESS {
+                    Value: self.ptr.cast(),
+                });
+            }
+        }
+        if !self.handle.is_null() {
+            unsafe {
+                CloseHandle(self.handle);
             }
         }
     }
@@ -883,8 +1080,10 @@ fn parse_runner_args(
 // the tmpfs entry under /dev/shm), but this crate's callers only ever run on
 // macOS today, so reject the tightest limit up front on every unix target
 // rather than let a name silently work in CI and fail on a developer's Mac.
+#[cfg(unix)]
 const POSIX_SHM_NAME_MAX_LEN: usize = 31;
 
+#[cfg(unix)]
 fn shm_name(name: &str) -> Result<CString, PosixShmError> {
     if !name.starts_with('/') {
         return Err(PosixShmError::InvalidName);
@@ -896,6 +1095,41 @@ fn shm_name(name: &str) -> Result<CString, PosixShmError> {
         });
     }
     CString::new(name).map_err(|_| PosixShmError::InvalidName)
+}
+
+// Windows names its kernel objects (including file mappings) in a separate
+// namespace from POSIX shm, so the naming rule is deliberately not shared
+// with `shm_name` above. `Local\` scopes the mapping to the current login
+// session (matching this crate's single-machine, single-session use); the
+// length limit follows MAX_PATH, which is the conventional bound used for
+// this namespace and comfortably exceeds anything this crate's callers
+// generate.
+#[cfg(windows)]
+const WINDOWS_SHM_NAME_PREFIX: &str = "Local\\";
+#[cfg(windows)]
+const WINDOWS_SHM_NAME_MAX_LEN: usize = 260;
+
+#[cfg(windows)]
+fn windows_shm_name(name: &str) -> Result<Vec<u16>, PosixShmError> {
+    if !name.starts_with('/') {
+        return Err(PosixShmError::InvalidName);
+    }
+    // Reuse the POSIX '/'-prefixed name callers already pass (both platform
+    // binaries pass the same literal names, see `windows_shm_two_process.rs`)
+    // but drop the leading '/' before appending it to the `Local\` namespace.
+    let full_name = format!("{WINDOWS_SHM_NAME_PREFIX}{}", &name[1..]);
+    let full_name_len = full_name.encode_utf16().count();
+    if full_name_len > WINDOWS_SHM_NAME_MAX_LEN {
+        return Err(PosixShmError::NameTooLong {
+            limit: WINDOWS_SHM_NAME_MAX_LEN,
+            actual: full_name_len,
+        });
+    }
+
+    Ok(OsStr::new(&full_name)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect())
 }
 
 fn mapping_len(slot_count: u32, frame_len: usize) -> usize {
