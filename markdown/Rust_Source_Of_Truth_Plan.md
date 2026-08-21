@@ -288,7 +288,9 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   存在する場合に限る。`image` kind のように `source` が生のファイルパス
   文字列そのもので専用ワイヤー型が最初から存在しない「media kind」では、
   型移送だけで完結し stage 3 は「専用ワイヤーが無いことの確認」に縮む
-  （`progress/rust-source-of-truth-r3-image-kind.md` 参照）。
+  （`progress/rust-source-of-truth-r3-image-kind.md` 参照）。`video` kind も
+  同じ media kind パターンで完結した
+  （`progress/rust-source-of-truth-r3-video-kind.md` 参照）。
 - `src/types.ts` は最終的に生成ファイルの re-export に縮める。
 - `objectFactories` は「既定値を持つ側」なので、既定値も Rust に移す
   （`Default` 実装 + 生成型の初期値）。
