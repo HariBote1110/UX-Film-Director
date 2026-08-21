@@ -3593,6 +3593,82 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     #[test]
+    fn resolve_frame_advance_no_current_frame_seeks() {
+        assert_eq!(
+            resolve_frame_advance(None, 42, 90),
+            FrameAdvance::Seek
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_same_frame_is_sequential() {
+        // Same-frame requests are handled by the cached-frame fast path before
+        // this function is consulted, but the pure decision should still be
+        // stable and inexpensive for that input.
+        assert_eq!(
+            resolve_frame_advance(Some(10), 10, 90),
+            FrameAdvance::Sequential
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_next_frame_is_sequential() {
+        assert_eq!(
+            resolve_frame_advance(Some(10), 11, 90),
+            FrameAdvance::Sequential
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_small_forward_gap_decodes_forward() {
+        assert_eq!(
+            resolve_frame_advance(Some(10), 12, 90),
+            FrameAdvance::DecodeForward { frames: 2 }
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_forward_gap_at_max_decodes_forward() {
+        // Gap of exactly max_forward_gap frames ahead should still be absorbed.
+        assert_eq!(
+            resolve_frame_advance(Some(10), 100, 90),
+            FrameAdvance::DecodeForward { frames: 90 }
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_forward_gap_beyond_max_seeks() {
+        assert_eq!(
+            resolve_frame_advance(Some(10), 101, 90),
+            FrameAdvance::Seek
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_backward_request_seeks() {
+        assert_eq!(
+            resolve_frame_advance(Some(10), 9, 90),
+            FrameAdvance::Seek
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_backward_request_at_zero_seeks() {
+        assert_eq!(
+            resolve_frame_advance(Some(0), 0, 90),
+            FrameAdvance::Sequential
+        );
+    }
+
+    #[test]
+    fn resolve_frame_advance_zero_max_forward_gap_always_seeks_on_gap() {
+        assert_eq!(
+            resolve_frame_advance(Some(10), 12, 0),
+            FrameAdvance::Seek
+        );
+    }
+
+    #[test]
     fn scene_media_payload_preserves_video_source_rate() {
         let media = scene_media_from_payload(NativeOverlaySceneMediaPayload {
             id: "video-1".to_string(),
