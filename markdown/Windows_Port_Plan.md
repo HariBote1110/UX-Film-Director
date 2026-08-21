@@ -184,9 +184,24 @@ Phase 3 のスコープ外だった。
 
 達成したのは「**ビルドが通り、native render の共有フレーム経路は実機で動く**」ところまで。
 
-### Phase 3b: decode/encode データプレーンの Windows 実装（新設・推定 3-5日）
+### Phase 3b: decode/encode データプレーンの Windows 実装（推定 3-5日）★完了 2026-08-22
 
 Phase 3 の実機検証で判明した積み残し。上記マイルストーンを本当に満たすために要る。
+
+**結果: 完了。Windows 実機のテスト失敗を 29 件 → 1 件にした
+（205 passed / 29 failed → 227 passed / 1 failed / 3 ignored）。**
+詳細は [windows-decode-encode-data-plane.md](../progress/windows-decode-encode-data-plane.md)。
+スタブは 1 つも要らず、すべて W2 の `PosixSharedRing` の上で素直に動いた。
+残る 1 件は数 GB の gitignore 対象フィクスチャが実機に無いことによるもので、
+コードの問題ではない。
+
+**これで Phase 3 のマイルストーン「native overlay 以外は Windows で動く」は、
+テストスイートで示せる範囲では達成した。** 未検証は heavy-media フィクスチャを
+使う preview テスト 1 件だけである。
+
+副産物として**プロダクションバグ 1 件**を修正した。`local_media_source_path` が
+Windows のドライブレター付き `file://` URL を `/C:/...` として返しており、
+実際の Windows ファイル API で開けなかった。
 
 - `decode.rs` の `DecodeDataPlaneRing` / `create_decode_data_plane` / `write_decode_data_plane`
 - `encode.rs` の `write_encode_shared_frame`
