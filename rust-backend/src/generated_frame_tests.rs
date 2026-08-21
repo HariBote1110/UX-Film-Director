@@ -1813,7 +1813,7 @@ fn generated_shape_source_frame_renders_filled_circle_with_transparent_corners()
     let media = SceneMediaReference {
         id: "shape-circle-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"circle","fill_colour":"#ff0000","gradient":null,"corner_radius":0}"##.to_string(),
+        source: r##"{"shapeType":"circle","width":200,"height":200,"fill":"#ff0000"}"##.to_string(),
         width: 200,
         height: 200,
         source_rate: None,
@@ -1838,7 +1838,7 @@ fn generated_shape_source_frame_renders_star_with_non_transparent_pixels() {
     let media = SceneMediaReference {
         id: "shape-star-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"star","fill_colour":"#00ff00","gradient":null,"corner_radius":0}"##.to_string(),
+        source: r##"{"shapeType":"star","width":200,"height":200,"fill":"#00ff00"}"##.to_string(),
         width: 200,
         height: 200,
         source_rate: None,
@@ -1865,7 +1865,7 @@ fn generated_shape_source_frame_renders_triangle_with_apex_filled_and_bottom_cor
     let media = SceneMediaReference {
         id: "shape-triangle-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"triangle","fill_colour":"#0000ff","gradient":null,"corner_radius":0}"##.to_string(),
+        source: r##"{"shapeType":"triangle","width":200,"height":200,"fill":"#0000ff"}"##.to_string(),
         width: 200,
         height: 200,
         source_rate: None,
@@ -1893,7 +1893,7 @@ fn generated_shape_source_frame_renders_rounded_rect_with_transparent_corner_and
     let media = SceneMediaReference {
         id: "shape-rounded-rect-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"rounded_rect","fill_colour":"#ffff00","gradient":null,"corner_radius":40}"##.to_string(),
+        source: r##"{"shapeType":"rounded_rect","width":200,"height":200,"fill":"#ffff00","cornerRadius":40}"##.to_string(),
         width: 200,
         height: 200,
         source_rate: None,
@@ -1918,7 +1918,7 @@ fn generated_shape_source_frame_applies_linear_gradient_across_width() {
     let media = SceneMediaReference {
         id: "shape-gradient-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"ellipse","fill_colour":"#000000","gradient":{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0.0,1.0],"direction":0},"corner_radius":0}"##.to_string(),
+        source: r##"{"shapeType":"ellipse","width":200,"height":200,"fill":"#000000","gradient":{"enabled":true,"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0.0,1.0],"direction":0}}"##.to_string(),
         width: 200,
         height: 200,
         source_rate: None,
@@ -1944,7 +1944,7 @@ fn generated_shape_source_frame_rejects_unknown_shape_type() {
     let media = SceneMediaReference {
         id: "shape-invalid-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"unknown_shape","fill_colour":"#ffffff","gradient":null,"corner_radius":0}"##.to_string(),
+        source: r##"{"shapeType":"unknown_shape","width":200,"height":200,"fill":"#ffffff"}"##.to_string(),
         width: 200,
         height: 200,
         source_rate: None,
@@ -1960,7 +1960,7 @@ fn generated_shape_source_frame_rejects_non_positive_dimensions() {
     let media = SceneMediaReference {
         id: "shape-invalid-dims-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"generator":"shape-93","shape_type":"circle","fill_colour":"#ffffff","gradient":null,"corner_radius":0}"##.to_string(),
+        source: r##"{"shapeType":"circle","width":200,"height":200,"fill":"#ffffff"}"##.to_string(),
         width: 0,
         height: 200,
         source_rate: None,
