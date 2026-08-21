@@ -621,6 +621,78 @@ impl Default for ImageObjectFields {
     }
 }
 
+/// 動画フレーム内の矩形切り抜き（左上原点・0-1 正規化）を編集モデルとして保持する
+/// キーフレーム。`schema::SubjectCropKeyframe`（`frame_offset` ベースの評価用ワイヤー
+/// 型）とは別物で、こちらは `id`/`time`（秒）を持つ編集用の型。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SubjectCropNormKeyframe {
+    pub id: String,
+    pub time: f32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+/// `VideoObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、video 固有部分。TS 側は `BaseObject & VideoObjectFields & { type: 'video' }`
+/// として組み立てる。
+///
+/// `video` は `image` と同じ media kind（`mediaReferenceForObject` に専用の
+/// `serialiseXxxSource` は無く、`source` は生のファイルパス文字列そのもの）。
+/// `src`/`filePath`/`proxyFilePath`/`width`/`height`/`sourceWidth`/`sourceHeight` は
+/// Timeline.tsx の `handleVideoChange` が選択したファイルの実データから都度決めるため
+/// 固定既定値が無く、ニュートラルな空値にする。一方 `volume`/`muted` は UI が常に
+/// `1.0`/`false` という固定リテラルで生成しており、shape/text と同じくその実在の
+/// 既定値を `Default` にする。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct VideoObjectFields {
+    pub src: String,
+    #[serde(rename = "filePath", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "filePath")]
+    pub file_path: Option<String>,
+    #[serde(rename = "proxyFilePath", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "proxyFilePath")]
+    pub proxy_file_path: Option<String>,
+    #[serde(rename = "sourceWidth", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "sourceWidth")]
+    pub source_width: Option<f32>,
+    #[serde(rename = "sourceHeight", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "sourceHeight")]
+    pub source_height: Option<f32>,
+    pub width: f32,
+    pub height: f32,
+    pub volume: f32,
+    pub muted: bool,
+    #[serde(rename = "subjectCropEnabled", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "subjectCropEnabled")]
+    pub subject_crop_enabled: Option<bool>,
+    #[serde(rename = "subjectCropKeyframes", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "subjectCropKeyframes")]
+    pub subject_crop_keyframes: Option<Vec<SubjectCropNormKeyframe>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reversed: Option<bool>,
+}
+
+impl Default for VideoObjectFields {
+    fn default() -> Self {
+        Self {
+            src: String::new(),
+            file_path: None,
+            proxy_file_path: None,
+            source_width: None,
+            source_height: None,
+            width: 0.0,
+            height: 0.0,
+            volume: 1.0,
+            muted: false,
+            subject_crop_enabled: None,
+            subject_crop_keyframes: None,
+            reversed: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,

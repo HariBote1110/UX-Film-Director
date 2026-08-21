@@ -25,7 +25,8 @@ pub use schema::{
     Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, ImageObjectFields, MediaKind,
     MediaReference, PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe,
     ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType,
-    TextAlignment, TextObjectFields, TextShadow, TextStroke, Track, Transform, WipeEdge,
+    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track,
+    Transform, VideoObjectFields, WipeEdge,
 };
 pub use solid_colour_scene::{
     build_solid_colour_draw_list, build_solid_colour_vertex_scene, CanvasSize, NormalisedColour,
