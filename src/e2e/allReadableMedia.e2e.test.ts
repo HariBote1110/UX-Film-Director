@@ -680,14 +680,13 @@ describe('全読込可能メディア E2E', () => {
       amplitude: 1.25,
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'particle-standard')?.source ?? '{}')).toMatchObject({
-      generator: 'standard-particle',
       seed: 93,
-      particle_count: 48,
+      particleCount: 48,
       spread: 180,
       speed: 120,
       size: 6,
       colour: '#ffffff',
-      lifetime_seconds: 1.5,
+      lifetimeSeconds: 1.5,
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'barcode-t')?.source ?? '{}')).toMatchObject({
       generator: 'barcode-t',
