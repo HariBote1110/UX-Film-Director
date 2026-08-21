@@ -923,6 +923,53 @@ impl Default for ParticleObjectFields {
     }
 }
 
+/// `BarcodeObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、barcode 固有部分。TS 側は
+/// `BaseObject & BarcodeObjectFields & { type: 'barcode' }` として組み立てる。
+///
+/// `width`/`height` は `barcodeObjectFactory.ts` の `buildAviUtlBarcodeObject`
+/// がプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな
+/// `0.0` にする。他のフィールドは同ファイルの固定リテラル
+/// （data: 'AviUtl', minimumBarWidth: 2, horizontalMargin: 30,
+/// verticalMargin: 20, foregroundColour: '#000000', backgroundColour: '#ffffff'）
+/// をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct BarcodeObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub data: String,
+    #[serde(rename = "minimumBarWidth")]
+    #[ts(rename = "minimumBarWidth")]
+    pub minimum_bar_width: f32,
+    #[serde(rename = "horizontalMargin")]
+    #[ts(rename = "horizontalMargin")]
+    pub horizontal_margin: f32,
+    #[serde(rename = "verticalMargin")]
+    #[ts(rename = "verticalMargin")]
+    pub vertical_margin: f32,
+    #[serde(rename = "foregroundColour")]
+    #[ts(rename = "foregroundColour")]
+    pub foreground_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for BarcodeObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            data: "AviUtl".to_string(),
+            minimum_bar_width: 2.0,
+            horizontal_margin: 30.0,
+            vertical_margin: 20.0,
+            foreground_colour: "#000000".to_string(),
+            background_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
