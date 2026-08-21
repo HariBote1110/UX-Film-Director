@@ -29,7 +29,7 @@
     "test:realistic-heavy-edit:e2e:cpu-throttle": "UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE=4 node scripts/run-realistic-heavy-edit-e2e.mjs",
     "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
-    "build": "tsc && vite build && npm run remote-deck:build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "build": "tsc && vite build && npm run remote-deck:build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "remote-deck:build": "vite build --config remote-deck-ui/vite.config.ts",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
@@ -90,6 +90,20 @@
     ],
     "mac": {
       "category": "public.app-category.video"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "dependencies": {
@@ -109,6 +123,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.2.1",
     "@webgpu/types": "^0.1.71",
+    "cross-env": "^7.0.3",
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3",
     "mp4box": "^2.4.0",
