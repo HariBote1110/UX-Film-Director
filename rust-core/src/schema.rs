@@ -592,6 +592,35 @@ impl Default for TextObjectFields {
     }
 }
 
+/// `ImageObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、image 固有部分。TS 側は `BaseObject & ImageObjectFields & { type: 'image' }`
+/// として組み立てる。
+///
+/// `image` は shape/text と異なり、Timeline.tsx の `handleImageChange` が
+/// 選択したファイルから `src` / `filePath` / `width` / `height` を都度決めるため、
+/// UI 側に固定既定値が存在しない（`objectFactories/` にも専用ファイルは無い）。
+/// `Default` はニュートラルな空値にする。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ImageObjectFields {
+    pub src: String,
+    #[serde(rename = "filePath", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "filePath")]
+    pub file_path: Option<String>,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Default for ImageObjectFields {
+    fn default() -> Self {
+        Self {
+            src: String::new(),
+            file_path: None,
+            width: 0.0,
+            height: 0.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
