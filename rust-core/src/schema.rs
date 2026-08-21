@@ -507,6 +507,91 @@ impl Default for ShapeObjectFields {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum TextAlignment {
+    Left,
+    Centre,
+    Right,
+}
+
+/** `src/types.ts` の手書き `TextStroke` と構造的に同じ形にした編集モデル用型。 */
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TextStroke {
+    pub colour: String,
+    pub width: f32,
+}
+
+/** `src/types.ts` の手書き `TextShadow` と構造的に同じ形にした編集モデル用型。 */
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TextShadow {
+    pub colour: String,
+    #[serde(rename = "offsetX")]
+    #[ts(rename = "offsetX")]
+    pub offset_x: f32,
+    #[serde(rename = "offsetY")]
+    #[ts(rename = "offsetY")]
+    pub offset_y: f32,
+    pub blur: f32,
+}
+
+/// `TextObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、text 固有部分。TS 側は `BaseObject & TextObjectFields & { type: 'text' }`
+/// として組み立てる。
+///
+/// `measured_width` / `measured_height` は PixiJS 側の実測値で、UI がテキストを
+/// 描画・編集するたびに更新する。値そのものは UI 都合の測定結果だが、
+/// フィールドの所在（編集モデルの一部として保存・往復する）は他の text 固有
+/// フィールドと同じなのでここに置く。実際の描画領域の決定ロジック
+/// （未測定時のヒューリスティック fallback）は `rustSceneSnapshot.ts` の
+/// `textMediaBox` に残す（UI 実測に依存するため Rust 側へは移さない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TextObjectFields {
+    pub text: String,
+    #[serde(rename = "fontSize")]
+    #[ts(rename = "fontSize")]
+    pub font_size: f32,
+    #[serde(rename = "fontFamily")]
+    #[ts(rename = "fontFamily")]
+    pub font_family: String,
+    pub fill: String,
+    #[serde(rename = "measuredWidth", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "measuredWidth")]
+    pub measured_width: Option<f32>,
+    #[serde(rename = "measuredHeight", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "measuredHeight")]
+    pub measured_height: Option<f32>,
+    #[serde(rename = "textAlignment", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "textAlignment")]
+    pub text_alignment: Option<TextAlignment>,
+    #[serde(rename = "letterSpacing", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "letterSpacing")]
+    pub letter_spacing: Option<f32>,
+    #[serde(rename = "textStroke", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "textStroke")]
+    pub text_stroke: Option<TextStroke>,
+    #[serde(rename = "textShadow", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "textShadow")]
+    pub text_shadow: Option<TextShadow>,
+}
+
+impl Default for TextObjectFields {
+    fn default() -> Self {
+        Self {
+            text: "New Text".to_string(),
+            font_size: 48.0,
+            font_family: "Arial".to_string(),
+            fill: "#ffffff".to_string(),
+            measured_width: None,
+            measured_height: None,
+            text_alignment: None,
+            letter_spacing: None,
+            text_stroke: None,
+            text_shadow: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
