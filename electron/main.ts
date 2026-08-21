@@ -9,6 +9,11 @@ import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 import { validateProxyDuration } from '../src/utils/proxyValidation';
 import {
+  buildFfmpegNotFoundMessage,
+  resolveFfmpegPath as resolveFfmpegPathFromDeps,
+  resolveFfprobePath as resolveFfprobePathFromDeps,
+} from '../src/utils/ffmpegResolve';
+import {
   abortRustVideoEncodeViaBackend,
   finishRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
@@ -106,43 +111,16 @@ const rustPendingRequests = new Map<number, PendingRustRequest>();
 // VITE_EXPORT_TEST=1 のとき devtools を非表示にして余分なウィンドウを出さない
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
-const resolveDefaultFfmpegPath = () => {
-  if (process.env.UXFD_FFMPEG_BIN) {
-    return process.env.UXFD_FFMPEG_BIN;
-  }
-
-  const candidates = [
-    '/opt/homebrew/bin/ffmpeg',
-    '/usr/local/bin/ffmpeg',
-    'ffmpeg',
-  ];
-
-  for (const candidate of candidates) {
-    if (candidate === 'ffmpeg') return candidate;
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  return 'ffmpeg';
+const ffmpegResolveDeps = {
+  platform: process.platform,
+  env: process.env,
+  existsSync: (candidate: string) => fs.existsSync(candidate),
+  homedir: () => os.homedir(),
 };
 
-const resolveDefaultFfprobePath = () => {
-  if (process.env.UXFD_FFPROBE_BIN) {
-    return process.env.UXFD_FFPROBE_BIN;
-  }
+const resolveDefaultFfmpegPath = () => resolveFfmpegPathFromDeps(ffmpegResolveDeps);
 
-  const candidates = [
-    '/opt/homebrew/bin/ffprobe',
-    '/usr/local/bin/ffprobe',
-    'ffprobe',
-  ];
-
-  for (const candidate of candidates) {
-    if (candidate === 'ffprobe') return candidate;
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  return 'ffprobe';
-};
+const resolveDefaultFfprobePath = () => resolveFfprobePathFromDeps(ffmpegResolveDeps);
 
 const toNodeBuffer = (value: unknown): Buffer | null => {
   if (value instanceof ArrayBuffer) {
@@ -919,7 +897,15 @@ app.whenReady().then(() => {
           stderrText += chunk;
         });
 
-        ffmpeg.on('error', (error) => {
+        ffmpeg.on('error', (error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') {
+            reject(
+              new Error(
+                buildFfmpegNotFoundMessage({ platform: process.platform, binaryLabel: 'ffmpeg' })
+              )
+            );
+            return;
+          }
           reject(new Error(`ffmpeg の起動に失敗しました: ${error.message}`));
         });
 
