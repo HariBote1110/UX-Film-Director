@@ -1023,6 +1023,45 @@ impl Default for PuzzlePieceObjectFields {
     }
 }
 
+/// `ColourWheelObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、colour_wheel 固有部分。TS 側は
+/// `BaseObject & ColourWheelObjectFields & { type: 'colour_wheel' }` として
+/// 組み立てる。
+///
+/// `width`/`height`/`radius` は `colourWheelObjectFactory.ts` の
+/// `buildAviUtlColourWheelObject` がプロジェクトサイズから都度計算するため
+/// 固定既定値が無く、ニュートラルな `0.0` にする。他のフィールドは同ファイルの
+/// 固定リテラル（saturation: 100, brightness: 100, ringWidthPercent: 25,
+/// segmentCount: 24）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ColourWheelObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: f32,
+    pub saturation: f32,
+    pub brightness: f32,
+    #[serde(rename = "ringWidthPercent")]
+    #[ts(rename = "ringWidthPercent")]
+    pub ring_width_percent: f32,
+    #[serde(rename = "segmentCount")]
+    #[ts(rename = "segmentCount")]
+    pub segment_count: u32,
+}
+
+impl Default for ColourWheelObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            radius: 0.0,
+            saturation: 100.0,
+            brightness: 100.0,
+            ring_width_percent: 25.0,
+            segment_count: 24,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
