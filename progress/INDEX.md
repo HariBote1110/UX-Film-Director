@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [rust-source-of-truth-audit.md](rust-source-of-truth-audit.md) — Rust正本集中リファクタリングの現状監査。評価経路が`scene.evaluate`とTS側`rustSceneSnapshot.ts`の2本走っておりeasing/keyframeが二重実装、TS側に内蔵WGSL(1,484行)、PSDはag-psdと`psd_fast.rs`の2本で`psd-wasm`はデッドコード。計画正本は`markdown/Rust_Source_Of_Truth_Plan.md`、Windows計画とはwgpu昇格(W4)のみが結合点（2026-08-22）
 - [video-frame-reuse-fix.md](video-frame-reuse-fix.md) — `NativeOverlayResidentVideoDecoder::request_frame`が逐次要求のたびに無条件decodeしており、project fpsがmaterial fpsを上回ると動画がprojectFps/materialFps倍速（実測2.0倍）で再生される不具合を修正。保持フレームのptsがtargetを満たす場合にdecodeを省略する`current_frame_satisfies_target`/`should_reuse_current_frame`を追加、Sequential限定で早期return（版500a）（2026-08-22）
 - [foreign-proxy-validation.md](foreign-proxy-validation.md) — `check-proxy`が隣接`.proxy.mp4`を無検証採用していた不具合を修正。オリジナル/プロキシ双方をffprobeし再生時間一致（許容2%または0.5秒）を`validateProxyDuration`で検証、不一致なら不採用。外部ツール製の圧縮済みプロキシ（GX010052.proxy.mp4、2.388倍圧縮）が原因のA/Vずれを確認・修正（版499a）（2026-08-22）
 - [video-seek-runaway-fix.md](video-seek-runaway-fix.md) — `NativeOverlayResidentVideoDecoder::request_frame`の非シーケンシャル要求を全てフルシークしていた挙動を修正。current+2〜+90の前方ギャップはシークせずnext_frame()のdiscard-decodeで吸収し、シーク暴走→FPS崩壊の自己増幅ループを軽減。判定を`resolve_frame_advance`純関数化しテスト網羅（版498a）（2026-08-22）

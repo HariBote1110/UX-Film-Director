@@ -209,7 +209,9 @@ Windows の透過に必須。macOS 側にも影響する横断作業。
 
 ### Phase 7: 段階導入と既定切替（推定 1日）
 
-- macOS と同じく env / flag で opt-in（`VITE_UXFD_NATIVE_OVERLAY=1`）。
+- macOS と同じ env / flag 規約に合わせる。**現状の macOS は既に opt-out で既定 ON**
+  （`Viewport.tsx:731` は `VITE_UXFD_NATIVE_OVERLAY !== '0'`）。Windows は導入直後だけ
+  opt-in 相当に倒し、24 時間ベンチ後に macOS と同じ opt-out へ揃える。
 - 既存の WebGPU presenter は parity 比較用に残す（ADR-011 の方針を踏襲）。
 - 24 時間ベンチで安定を確認してから既定 ON。`package.json` の PhaseVer を +1。
 
@@ -288,6 +290,8 @@ Phase 1-3 だけなら **約 4-6 営業日**で「overlay 以外は Windows で�
 ## 8. 関連文書
 
 - `windows_port_research/notes/INDEX.md` — 本計画の全根拠
+- `Rust_Source_Of_Truth_Plan.md` — 並行して走る正本集中計画。両計画の実行順序は
+  そちらの §3 を正本とする（W4 の wgpu 昇格が唯一の強い結合点）
 - `Native_Overlay_Plan.md` — macOS 版の実装計画（本計画の対応元）
 - `Native_Overlay_Bug_E_Plan.md` — z-order / 遮蔽の扱い
 - `architecture/01-decision-record.md` — ADR-001 / ADR-011 / ADR-013
