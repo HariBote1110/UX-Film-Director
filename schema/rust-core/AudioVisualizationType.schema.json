@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AudioVisualizationType",
+  "description": "`AudioVisualizationObject`（`src/types.ts`）専用の可視化種別。\n現状 `'waveform'` の単一バリアントのみ存在する。",
+  "type": "string",
+  "enum": [
+    "waveform"
+  ]
+}

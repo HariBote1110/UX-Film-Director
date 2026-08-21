@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -453,17 +453,7 @@ export interface GroupControlObject extends BaseObject {
 }
 
 // 音声波形表示オブジェクト
-export interface AudioVisualizationObject extends BaseObject {
-    type: 'audio_visualization';
-    targetAudioId: string | null; 
-    targetLayer?: number;         
-    visualizationType: 'waveform'; 
-    color: string;
-    thickness: number;
-    width: number;
-    height: number;
-    amplitude: number; 
-}
+export type AudioVisualizationObject = BaseObject & AudioVisualizationObjectFields & { type: 'audio_visualization' };
 
 // 93 音声玉互換の音声反応生成オブジェクト
 export interface AudioSphereObject extends BaseObject {

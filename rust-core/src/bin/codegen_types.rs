@@ -14,12 +14,13 @@ use std::path::{Path, PathBuf};
 use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
-    AudioLabPhoneme, AudioObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect, Fps,
-    GroupControl, ImageObjectFields, MediaKind, MediaReference, PositionKeyframe, Project,
-    ProjectSize, SamplingMode, ScalarKeyframe, ShapeGradientFill, ShapeGradientKind,
-    ShapeGradientScope, ShapeObjectFields, ShapeType, SubjectCropAnimation, SubjectCropKeyframe,
-    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track,
-    Transform, VideoObjectFields, WipeAnimation, WipeEdge,
+    AudioLabPhoneme, AudioObjectFields, AudioVisualizationObjectFields, AudioVisualizationType,
+    Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl, ImageObjectFields,
+    MediaKind, MediaReference, PositionKeyframe, Project, ProjectSize, SamplingMode,
+    ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
+    ShapeType, SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
+    TextObjectFields, TextShadow, TextStroke, Track, Transform, VideoObjectFields, WipeAnimation,
+    WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
 
@@ -51,6 +52,10 @@ fn write_ts_bindings() {
     VideoObjectFields::export_all(&cfg).expect("VideoObjectFields の TS export に失敗しました");
     AudioLabPhoneme::export_all(&cfg).expect("AudioLabPhoneme の TS export に失敗しました");
     AudioObjectFields::export_all(&cfg).expect("AudioObjectFields の TS export に失敗しました");
+    AudioVisualizationType::export_all(&cfg)
+        .expect("AudioVisualizationType の TS export に失敗しました");
+    AudioVisualizationObjectFields::export_all(&cfg)
+        .expect("AudioVisualizationObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -132,6 +137,8 @@ fn write_json_schemas() {
     write_schema::<VideoObjectFields>(&dir, "VideoObjectFields");
     write_schema::<AudioLabPhoneme>(&dir, "AudioLabPhoneme");
     write_schema::<AudioObjectFields>(&dir, "AudioObjectFields");
+    write_schema::<AudioVisualizationType>(&dir, "AudioVisualizationType");
+    write_schema::<AudioVisualizationObjectFields>(&dir, "AudioVisualizationObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 
