@@ -217,11 +217,25 @@ fn normalise_path(path: &str) -> String {
     out
 }
 
+/// `snapshot.clips[3].transform.translation_x` のような path から
+/// 該当 clip の `clip_id` を引く。どの clip が食い違っているのかが
+/// 分からないと、原因の当たりを付けようがない。
+fn clip_id_for_path(path: &str, snapshot: &Value) -> Option<String> {
+    let rest = path.strip_prefix("snapshot.clips[")?;
+    let index: usize = rest.split(']').next()?.parse().ok()?;
+    snapshot
+        .get("clips")?
+        .get(index)?
+        .get("clip_id")?
+        .as_str()
+        .map(str::to_owned)
+}
+
 #[derive(Default)]
 struct Bucket {
     count: usize,
     max_delta: f64,
-    example: Option<(String, u64, String, String)>,
+    example: Option<(String, u64, String, String, String)>,
 }
 
 #[test]
@@ -270,6 +284,8 @@ fn ts_and_rust_core_evaluate_the_same_scene_identically() {
                         frame.frame_index,
                         difference.expected.clone(),
                         difference.actual.clone(),
+                        clip_id_for_path(&difference.path, &frame.snapshot)
+                            .unwrap_or_else(|| "(clip 不明)".to_string()),
                     ));
                 }
             }
@@ -281,7 +297,7 @@ fn ts_and_rust_core_evaluate_the_same_scene_identically() {
     let mut summary = String::new();
 
     for (path, bucket) in &buckets {
-        let (name, frame_index, expected, actual) = bucket
+        let (name, frame_index, expected, actual, clip_id) = bucket
             .example
             .as_ref()
             .expect("bucket には必ず例が入る");
@@ -291,7 +307,7 @@ fn ts_and_rust_core_evaluate_the_same_scene_identically() {
             "-（構造差）".to_string()
         };
         let detail = format!(
-            "  {path}\n    件数 = {} / max_delta = {delta}\n    例: [{name}] frame={frame_index}  TS = {expected}  RS = {actual}\n",
+            "  {path}\n    件数 = {} / max_delta = {delta}\n    例: [{name}] frame={frame_index} clip={clip_id}\n         TS = {expected}  RS = {actual}\n",
             bucket.count
         );
         match known.get(path) {

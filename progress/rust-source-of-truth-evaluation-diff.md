@@ -35,8 +35,8 @@ realistic-heavy-edit の 3 シーン、合計 447 フレーム（frame step 7）
 | 分類 | フィールド | 件数 | 最大差 |
 |---|---|---|---|
 | `convention` | `clips[].source_frame` | 4,074 | 1435 frame |
-| `ts-only-feature` | `clips[].transform.translation_x` | 170 | 19.20 px |
-| `ts-only-feature` | `clips[].transform.translation_y` | 170 | 9.60 px |
+| `keyframe-clamp` | `clips[].transform.translation_x` | 170 | 19.20 px |
+| `keyframe-clamp` | `clips[].transform.translation_y` | 170 | 9.60 px |
 | `ts-only-animation` | `clips[].effects.length` | 137 | （構造差） |
 | `ts-only-animation` | `clips[].effects[].Clipping.left` | 137 | 51.12 px |
 | `ts-only-animation` | `clips[].effects[].Clipping.right` | 137 | 38.35 px |
@@ -52,12 +52,35 @@ realistic-heavy-edit の 3 シーン、合計 447 フレーム（frame step 7）
 `rust-core::evaluate_frame` は clip 種別に関係なく経過フレームを返す。
 値の意味は同じで規約だけが違う。
 
-### ts-only-feature: 振動が translation に畳み込まれている
+### keyframe-clamp: keyframe 時刻の clamp 規約が食い違っている
 
-`sceneTransforms.getVibrationOffset` に対応する概念が `rust-core` に無く、
-TS 側が `translation_x/y` へ足し込んでいる（`rustSceneSnapshot.ts` の
-コメントにも「rust-core の Effect に対応物が無い」と書かれている）。
-最大 19.2px ずれるので、見た目に出る差。
+**当初これを「振動フィルタが原因」と分類したのは誤りだった（2026-08-22 訂正）。**
+`rustSceneSnapshot.ts` のコメントに「振動は rust-core に対応物が無いので TS 側で
+translation に畳み込む」とあるのを読んで、最悪ケースを追わずにそう決めつけていた。
+実際には **fixture のどのオブジェクトにも振動フィルタは付いておらず**、
+この差分に振動は 1 ミリも寄与していない。
+
+真の原因は keyframe 時刻の clamp 規約差:
+
+- path A（`positionKeyframesForObject` → `normaliseKeyframesForObject`）は
+  `keyframe.time` を `[startTime, startTime + duration]` に **clamp する**
+  （`src/utils/keyframes.ts:28`）。
+- path B（`evaluateKeyframesPositionAtTime`）は **生の時刻をそのまま使う**。
+
+実例（`realistic-cutaway-video`、`duration = 16s` なのに `keyframes[2].time = 24s`）:
+
+| | 補間区間 | t=15.633s での x |
+|---|---|---|
+| path B（clamp なし） | kf1(t=12, x=24) → kf2(t=24, x=0) | 19.5996 |
+| path A（t=16 へ clamp） | kf1(t=12, x=24) → kf2(t=16, x=0) | 0.4033 |
+
+最大 19.2px。**これは refactor の副産物ではなく、今日のアプリに実在する不具合である。**
+native overlay（path A、既定 ON）と、それ以外の経路（path B）が、
+同じクリップを最大 19.2px ずれた位置に描いている。
+
+なお `keyframes` フィールドであって `positionKeyframes` ではない点に注意。
+最初の追跡で私は `positionKeyframes` を見て「範囲外 keyframe は 0 件」と
+誤った結論を出した。
 
 ### ts-only-animation: Clipping がアニメーションしていない
 

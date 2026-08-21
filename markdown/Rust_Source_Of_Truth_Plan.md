@@ -190,12 +190,13 @@ R6 だけは W7 を待つので、そこで一度区切りを入れる。
 | 分類 | フィールド | 件数 | 最大差 |
 |---|---|---|---|
 | `convention` | `clips[].source_frame` | 4,074 | 1435 frame |
-| `ts-only-feature` | `clips[].transform.translation_x` / `_y` | 各 170 | 19.20px / 9.60px |
+| `keyframe-clamp` | `clips[].transform.translation_x` / `_y` | 各 170 | 19.20px / 9.60px |
 | `ts-only-animation` | `clips[].effects.length` | 137 | （構造差） |
 | `ts-only-animation` | `clips[].effects[].Clipping.{left,right,top,bottom}` | 各 137 | 最大 51.12px |
 
 - `source_frame`: TS は静止メディアに 0 を返し、rust-core は全 clip に経過フレームを返す。規約差。
-- `translation_x/y`: 振動フィルタが rust-core に無く、TS が translation へ畳み込んでいる。
+- `translation_x/y`: keyframe 時刻の clamp 規約差（当初「振動が原因」としたのは誤り。2026-08-22 訂正）。
+  **今日のアプリに実在する不具合**で、native overlay と他経路が同じクリップを最大 19.2px ずれて描いている。
 - `Clipping`: TS はフレームごとに値を変えるが rust-core は静的値を返す。
 
 既知の差分は `rust-core/tests/fixtures/ts-evaluation-parity/KNOWN_DIFFERENCES.json` で
@@ -243,7 +244,10 @@ wire format は不変で R0 の fixture は byte 一致。`npm run codegen:types
      （[rust-source-of-truth-evaluation-diff.md](../progress/rust-source-of-truth-evaluation-diff.md)）。
      ただし `src/utils/rustSceneSnapshot.test.ts` が静止系ほぼ全種で `source_frame: 0` を
      ピン留めしているので、その更新が実作業の大半になる。
-  2. 振動（`sceneTransforms.getVibrationOffset`）を `rust-core` へ移す。
+  2. keyframe 時刻の clamp 規約を揃える。path A は `[startTime, startTime+duration]` へ
+     clamp し、path B は生の時刻を使う。**振動フィルタは無関係だった**（2026-08-22 訂正）。
+     振動の `rust-core` 実装は依然として計画上の宿題だが、現在どの fixture でも
+     行使されていないため、先に振動付きオブジェクトを代表シーンへ足す必要がある。
   3. Clipping のアニメーションを `rust-core` へ移す（`effects` の件数差もここで解消する）。
 - `rust-core` 側に不足があれば足す。R0 の差分分類で「TS にしか無い暗黙仕様」と判定したものは、
   Rust 側にテスト付きで移送する。**TS のテストを消すだけにしない。**
