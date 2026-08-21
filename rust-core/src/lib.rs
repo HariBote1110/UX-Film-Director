@@ -23,7 +23,8 @@ pub use generated_particle::{
 pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
 pub use schema::{
     Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, MediaKind, MediaReference,
-    PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, Track, Transform,
+    PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, ShapeGradientFill,
+    ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType, Track, Transform,
     WipeEdge,
 };
 pub use solid_colour_scene::{

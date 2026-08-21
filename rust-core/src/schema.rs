@@ -418,6 +418,95 @@ pub struct GroupControl {
     pub target_track_ids: Vec<String>,
 }
 
+// --- 編集モデル（R3）: `shape` kind ---
+//
+// ここから下は `src/types.ts` の編集用オブジェクト種別（`ObjectType`）の
+// 正本を Rust 側へ移す R3 フェーズの型。上の型群（`Clip` 等）は評価・描画用の
+// ワイヤーフォーマットで snake_case のままだが、編集モデルは TS 側の既存
+// 命名（camelCase）をそのまま踏襲するため `rename_all = "camelCase"` を付ける。
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ShapeType {
+    Rect,
+    RoundedRect,
+    Circle,
+    Ellipse,
+    Triangle,
+    Star,
+    Pentagon,
+    Diamond,
+    Arrow,
+    Heart,
+    Cross,
+}
+
+impl Default for ShapeType {
+    fn default() -> Self {
+        Self::Rect
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum ShapeGradientKind {
+    Linear,
+    Radial,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum ShapeGradientScope {
+    Group,
+    Connected,
+}
+
+/** `src/types.ts` の手書き `GradientFill` と構造的に同じ形にした編集モデル用型。
+ * `shape` 以外の kind でも同じ形を使うが、共有化は次の kind 移送時に検討する。 */
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ShapeGradientFill {
+    pub enabled: bool,
+    #[serde(rename = "type")]
+    #[ts(rename = "type")]
+    pub kind: ShapeGradientKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<ShapeGradientScope>,
+    pub colours: Vec<String>,
+    pub stops: Vec<f32>,
+    pub direction: f32,
+}
+
+/// `ShapeObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、shape 固有部分。TS 側は `BaseObject & ShapeObjectFields & { type: 'shape' }`
+/// として組み立てる。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ShapeObjectFields {
+    #[serde(rename = "shapeType", default)]
+    #[ts(rename = "shapeType")]
+    pub shape_type: ShapeType,
+    pub width: f32,
+    pub height: f32,
+    pub fill: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gradient: Option<ShapeGradientFill>,
+    #[serde(rename = "cornerRadius", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "cornerRadius")]
+    pub corner_radius: Option<f32>,
+}
+
+impl Default for ShapeObjectFields {
+    fn default() -> Self {
+        Self {
+            shape_type: ShapeType::Rect,
+            width: 200.0,
+            height: 100.0,
+            fill: "#ff0000".to_string(),
+            gradient: None,
+            corner_radius: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
