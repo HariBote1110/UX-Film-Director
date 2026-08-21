@@ -374,3 +374,164 @@ ffprobeで検証し、許容誤差（2%または0.5秒）を超えるプロキ�
 詳細は `progress/foreign-proxy-validation.md`、実装は
 `src/utils/proxyValidation.ts` / `electron/main.ts`（コミット: 64df2faa,
 fcfafb06, 6b742f16）を参照。
+
+---
+
+## 実測（2026-08-22 追記3）— プロジェクトfps=24（ユーザー再現条件）でのH-60/24説 REJECTED
+
+### 目的 / 仮説
+
+ユーザーからの新規再現報告: `/Volumes/Datadrive/2026-01-07 18-19-31.mov`
+（HEVC 1080p, 30fps CFR, 8570秒, 隣接proxyなし＝proxy起因は対象外）を
+**プロジェクトfps=24**で再生すると、映像が音声より2〜3倍速く進む。
+先行の追記1・2はいずれもプロジェクト既定fps=60（`useStore.ts`既定値と
+一致）で計測しており、"projectFps÷60"系の不整合が仮に存在しても
+60fpsプロジェクトでは原理的に顕在化しない（60/60=1）ため未検証だった。
+
+仮説H4: `SHARED_RENDERER_PLAYBACK_PREVIEW_FPS = 60`
+（`src/utils/sharedRendererPlaybackPreviewSettings.ts:1`）や
+`electron/rustScenePlaybackController.ts`のどこかにfps=60のハードコード／
+既定フォールバックが残っており、projectFps=24のときに
+`60/24 = 2.5`倍（報告の「2〜3倍」と符合）の速度で映像側クロックが
+進んでしまう。
+
+### 環境
+
+- ホスト: ローカル macOS（`/Users/yuki/GitHub/UX-Film-Director`, branch `feature-proxy`）
+- 素材: `/Volumes/Datadrive/2026-01-07 18-19-31.mov`（ユーザー指定、HEVC,
+  1080p, 8570秒。同ディレクトリに`.proxy.mov`等の隣接proxyは存在しないため
+  `previewProxy`は原本ファイルをそのまま開く経路になる）
+- E2E: `scripts/run-video-load-e2e.mjs`
+
+### 手順・一時計測（すべてrevert済み）
+
+1. **projectFpsの実際の注入経路を先に特定する必要があった**: 当初
+   `src/store/useStore.ts:74`の既定値（`fps: 60`）を`24`に書き換えて
+   E2Eを実行したところ、native側フレームレートは相変わらず約60fps
+   （下記「誤った計測」参照）で進んだ。原因調査の結果、
+   `scripts/run-video-load-e2e.mjs`が起動するElectronは
+   `?videoLoadE2e=1`クエリでロードされ、**`src/main.tsx:18-32`が
+   `videoLoadE2e`等のE2Eクエリを検知すると`initializeProject({..., fps: 60,
+   ...})`を無条件に呼び出し、store既定値を上書きしていた**ことが判明。
+   つまり`useStore.ts`側の既定値編集はE2E下では無意味であり、
+   **先行の追記1・2の計測（"projectFps=60既定のため未上書き"という記述）
+   も実際にはこの`main.tsx`の明示的な`fps:60`シードが効いていた**
+   （既定値と明示シードが同じ60だったため当時は区別がつかなかった）。
+   この事実そのものが、今後同種のfps条件を変えたE2E計測を行う際の
+   注意点として重要（store既定値の編集だけでは不十分）。
+2. 上記を踏まえ、`src/main.tsx`の`fps: 60`を
+   `fps: Number(urlSearchParams.get('fps24Probe') ?? 60)`に変更し、
+   `scripts/run-video-load-e2e.mjs`が環境変数
+   `UXFD_FPS24_PROBE_PROJECT_FPS`をセットすると
+   `?videoLoadE2e=1&fps24Probe=<値>`をElectronへ渡すようにした
+   （`[fps24-probe]`タグ、revert済み）。
+3. `scripts/run-video-load-e2e.mjs`に`[fps24-probe]`タグのプローブを追加。
+   `playbackAdvanceResult.ok`後、`UXFD_FPS24_PROBE_OBSERVE_MS`ミリ秒間
+   200ms間隔で以下をサンプリングし`/tmp/fps24-probe-result.json`へ出力
+   （revert済み）:
+   - `document.documentElement.dataset.uxfdRustPlaybackFrame`
+     （native再生クロックの`frameIndex = floor(currentTimeSeconds * active.fps)`、
+     `electron/rustScenePlaybackController.ts:296-300`／`:279-285`。
+     `active.fps`は`Viewport.tsx:1756`で`fps: projectSettings.fps`として
+     `startScenePlayback`に渡される値そのもの）
+   - `...VideoPresentationSource`（`external-video-source` /
+     `native-render-frame`の切替）
+   - `...ExternalVideoMaxAbsDriftMs`（`Viewport.tsx:262-278`。
+     `syncSharedRendererExternalVideoPlayback`が計算する
+     `targetTimeSeconds - HTMLVideoElement.currentTime`のrun中最大絶対値。
+     `targetTimeSeconds = sourceFrameToSeconds(clip.source_frame, media.source_rate)`
+     で、`media.source_rate`は素材の実fpsではなく**projectFps自体**
+     （`src/utils/rustSceneSnapshot.ts:1352` `source_rate:
+     fpsToFrameRate(projectFps)`）なので、単位は自己無矛盾＝この経路には
+     そもそも「60/24」のような単位不一致が入り込む余地がないことも
+     コードリーディングで確認した）
+   - 音声側`HTMLVideoElement.currentTime`の直接取得は今回も見送った
+     （前回同様`document`非アタッチで`querySelectorAll('video')`が0件になる
+     制約は変わらず、`ExternalVideoMaxAbsDriftMs`が実質的に同じ情報
+     ——目標時刻と実際の要素`currentTime`の差——を継続的に公開している
+     ためこちらを採用。理由は次項）。
+4. CDP `send()`の60秒ハードタイムアウト（既知の制約）を踏まえ、観測窓は
+   50秒（`UXFD_FPS24_PROBE_OBSERVE_MS=50000`）。
+   `UXFD_VIDEO_LOAD_E2E_EXPECT_RUST_NATIVE_PLAYBACK=1`固定。
+5. 実行（3回、いずれも`passed: true`）:
+   ```
+   UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=220000 \
+   UXFD_VIDEO_LOAD_E2E_EXPECT_RUST_NATIVE_PLAYBACK=1 \
+   UXFD_FPS24_PROBE_OBSERVE_MS=50000 \
+   UXFD_FPS24_PROBE_PROJECT_FPS=<24|23.976> \
+   UXFD_VIDEO_LOAD_E2E_VIDEO_PATH='/Volumes/Datadrive/2026-01-07 18-19-31.mov' \
+   node scripts/run-video-load-e2e.mjs
+   ```
+   - run1（誤り）: `UXFD_FPS24_PROBE_PROJECT_FPS`未実装の状態で
+     `useStore.ts`既定値のみ24に書き換えて実行。前述の通り`main.tsx`の
+     `fps:60`シードに上書きされ、**実際にはプロジェクトfps=60のまま**
+     計測してしまっていた（下記表のrun1として結果は残すが、fps=24の
+     計測としては無効）。
+   - run2: `main.tsx`修正後、`UXFD_FPS24_PROBE_PROJECT_FPS=24`で実行
+     （有効なfps=24計測）。
+   - run3: 同上、`UXFD_FPS24_PROBE_PROJECT_FPS=23.976`で実行
+     （60を割り切れない分数fpsのケース）。
+
+### 結果
+
+| run | プロジェクトfps（実際に適用された値） | 観測区間 | native `rustPlaybackFrame` 進行レート | 期待値 | 比率(実測/期待) | `ExternalVideoMaxAbsDriftMs` |
+|---|---|---|---|---|---|---|
+| run1（無効、参考値） | 60（意図は24だったが`main.tsx`に上書きされた） | 50.1s | 59.9〜60.1 frame/s相当（329→3332, 50.127s） | 60fps/s | ≈1.00 | 常時140ms（変化なし） |
+| run2（有効） | 24 | 50.1s | 24.02 frame/s（196→1400, 50.115s） | 24fps/s | **1.001** | 常時0ms（変化なし） |
+| run3（有効） | 23.976 | 50.1s | 23.97 frame/s（204→1406, 50.145s） | 23.976fps/s | **0.9998** | 常時19ms（変化なし） |
+
+いずれもnativeクロックのframeIndex進行レートはプロジェクトfpsに対し
+誤差0.1%未満で一致しており、**2〜3倍速の兆候はまったく観測されなかった**。
+`ExternalVideoMaxAbsDriftMs`（目標時刻とHTMLVideoElementの実`currentTime`の
+最大乖離）も各runで初期値から一切変化せず（0/19/140msのいずれも一定）、
+50秒間の再生を通じて音声・映像ソースの実体である単一`HTMLVideoElement`が
+目標時刻から継続的にドリフトしていく様子も確認できなかった。
+
+`videoPresentationSource`は3run・全750サンプルとも一貫して
+`external-video-source`（`native-render-frame`は一度も発火せず）で、
+これは追記2の結果と同一構成。この素材・このプレビュー再生モードでは
+可視ピクセルの実体は常に単一のブラウザ内蔵`HTMLVideoElement`のデコードで
+あり、native側`frameIndex`は"要求クロック"（native制御プレーンの目標値）
+であって可視ピクセルの直接ソースではない点は追記2と同じ限界として残る。
+
+### 結論
+
+**H4（`SHARED_RENDERER_PLAYBACK_PREVIEW_FPS=60`等の60fpsハードコードに
+起因する60/24=2.5倍速）はREJECTED。** ユーザー報告の再現条件（プロジェクト
+fps=24、FHD、proxyなし）を実際に再現してnativeクロックを計測したが、
+frameIndex進行はプロジェクトfpsと誤差0.1%未満で一致しており、
+`SHARED_RENDERER_PLAYBACK_PREVIEW_FPS`（プレビューtime量子化専用の定数、
+`quantiseSharedRendererPlaybackPreviewTime`でのキャッシュ丸めにしか
+使われず、`startScenePlayback`のfps値には一切混入しない
+——コードリーディングでも確認済み）や、`rustSceneSnapshot.ts:2224`の
+コメントが指す丸め誤差（クリップ終端1フレーム分のクランプ処理）も、
+いずれも継続的な倍速化を起こす経路ではないことが実測でも裏付けられた。
+
+一方で、この調査の副産物として**「E2Eでプロジェクトfpsを変えて計測する
+際は`useStore.ts`の既定値を書き換えるだけでは不十分で、
+`src/main.tsx`のE2E専用`initializeProject({ fps: 60, ... })`シードが
+優先して効いてしまう」というハーネス上の落とし穴を発見・記録した**
+（run1が事故的にこれを実証している）。今後同種の計測をする者は
+`main.tsx`側のシードも確認すること。
+
+### 次の一手 / 未検証事項
+
+1. 本追記でも「音声側の実体である`HTMLVideoElement`の`currentTime`を
+   壁時計に対して直接プロットする」計測は未達成のまま
+   （`ExternalVideoMaxAbsDriftMs`という間接指標での代替に留まる）。
+   `sharedRendererExternalVideoSourcesByClipId`相当のレジストリを
+   `window`経由に露出するデバッグフックを追加すれば直接測れる
+   （追記2の未検証事項3と同じ）。
+2. 今回は8570秒中の先頭50秒しか観測していない。ユーザー報告が
+   タイムライン後半・長時間再生後にのみ出る症状である可能性は
+   未検証（対象ファイルは30fps・非proxyのため追記2で見つかった
+   「120fps proxyのタイムライン圧縮」バグとは無関係だが、8570秒という
+   長さ自体に起因する別の蓄積誤差経路は排除できていない）。
+3. `native-render-frame`経路（常駐デコーダのPTSが可視ピクセルの直接
+   ソースになるモード）を実際に発火させる条件はまだ特定できておらず、
+   その経路での同様の計測は未実施（追記2の未検証事項4と同じ）。
+4. ユーザー報告の実際の操作手順（プロジェクトfpsをどこで24に設定したか、
+   単に既定新規プロジェクトなのか、既存プロジェクトの読み込みなのか）を
+   まだ本人確認できていない。仮に別の未確認な操作（シーク、複数クリップ、
+   特定の再生UI操作）が絡む場合、本追記の再現条件（新規インポート→
+   即再生）ではカバーできていない。
