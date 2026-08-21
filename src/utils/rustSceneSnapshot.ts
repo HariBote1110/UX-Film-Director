@@ -1471,16 +1471,20 @@ const serialiseGeneratedAudioSphereSource = (
   });
 };
 
+// `particle` kind のワイヤーソースは rust-core の `ParticleObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// `generated_particle.rs::parse_generated_particle_source` 側で行う。
 const serialiseGeneratedParticleSource = (object: ParticleObject): string =>
   JSON.stringify({
-    generator: 'standard-particle',
-    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
-    particle_count: Math.max(1, Math.trunc(finiteNumberOr(object.particleCount, 1))),
-    spread: Math.max(0, finiteNumberOr(object.spread, 0)),
-    speed: Math.max(0, finiteNumberOr(object.speed, 0)),
-    size: Math.max(1, finiteNumberOr(object.size, 1)),
-    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#ffffff',
-    lifetime_seconds: Math.max(1 / 60, finiteNumberOr(object.lifetimeSeconds, 1)),
+    width: object.width,
+    height: object.height,
+    particleCount: object.particleCount,
+    seed: object.seed,
+    spread: object.spread,
+    speed: object.speed,
+    size: object.size,
+    colour: object.colour,
+    lifetimeSeconds: object.lifetimeSeconds,
   });
 
 const serialiseGeneratedBarcodeSource = (object: BarcodeObject): string =>

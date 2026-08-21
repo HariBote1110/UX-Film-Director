@@ -72,7 +72,7 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'particle-1',
   kind: 'GeneratedParticle' as RustSceneMediaReference['kind'],
-  source: '{"generator":"standard-particle","seed":93,"particle_count":16,"spread":180,"speed":120,"size":6,"colour":"#ffffff","lifetime_seconds":1.5}',
+  source: '{"width":4,"height":4,"particleCount":16,"seed":93,"spread":180,"speed":120,"size":6,"colour":"#ffffff","lifetimeSeconds":1.5}',
   width: 4,
   height: 4,
 }, {

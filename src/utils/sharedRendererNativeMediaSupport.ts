@@ -327,22 +327,20 @@ const isSharedRendererNativeGeneratedAudioSphereSourceSupported = (source: strin
 const isSharedRendererNativeGeneratedParticleSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       seed?: unknown;
-      particle_count?: unknown;
+      particleCount?: unknown;
       spread?: unknown;
       speed?: unknown;
       size?: unknown;
       colour?: unknown;
-      lifetime_seconds?: unknown;
+      lifetimeSeconds?: unknown;
     };
     return (
-      parsed.generator === 'standard-particle'
-      && Number.isInteger(parsed.seed)
-      && typeof parsed.particle_count === 'number'
-      && Number.isInteger(parsed.particle_count)
-      && parsed.particle_count > 0
-      && parsed.particle_count <= 10000
+      Number.isInteger(parsed.seed)
+      && typeof parsed.particleCount === 'number'
+      && Number.isInteger(parsed.particleCount)
+      && parsed.particleCount > 0
+      && parsed.particleCount <= 10000
       && typeof parsed.spread === 'number'
       && Number.isFinite(parsed.spread)
       && parsed.spread >= 0
@@ -354,9 +352,9 @@ const isSharedRendererNativeGeneratedParticleSourceSupported = (source: string):
       && parsed.size > 0
       && typeof parsed.colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
-      && typeof parsed.lifetime_seconds === 'number'
-      && Number.isFinite(parsed.lifetime_seconds)
-      && parsed.lifetime_seconds > 0
+      && typeof parsed.lifetimeSeconds === 'number'
+      && Number.isFinite(parsed.lifetimeSeconds)
+      && parsed.lifetimeSeconds > 0
     );
   } catch {
     return false;
