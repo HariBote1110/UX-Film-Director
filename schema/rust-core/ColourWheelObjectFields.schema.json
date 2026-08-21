@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ColourWheelObjectFields",
+  "description": "`ColourWheelObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、colour_wheel 固有部分。TS 側は\n`BaseObject & ColourWheelObjectFields & { type: 'colour_wheel' }` として\n組み立てる。\n\n`width`/`height`/`radius` は `colourWheelObjectFactory.ts` の\n`buildAviUtlColourWheelObject` がプロジェクトサイズから都度計算するため\n固定既定値が無く、ニュートラルな `0.0` にする。他のフィールドは同ファイルの\n固定リテラル（saturation: 100, brightness: 100, ringWidthPercent: 25,\nsegmentCount: 24）をそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "brightness": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "number",
+      "format": "float"
+    },
+    "ringWidthPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "saturation": {
+      "type": "number",
+      "format": "float"
+    },
+    "segmentCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "radius",
+    "saturation",
+    "brightness",
+    "ringWidthPercent",
+    "segmentCount"
+  ]
+}

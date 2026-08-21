@@ -8,6 +8,7 @@ export * from './BarcodeObjectFields';
 export * from './Clip';
 export * from './ClipKind';
 export * from './ColourPipeline';
+export * from './ColourWheelObjectFields';
 export * from './Easing';
 export * from './Effect';
 export * from './EvaluatedClip';
