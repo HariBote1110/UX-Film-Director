@@ -278,7 +278,9 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   各 kind の移送では、rust-backend 側のデシリアライズ先も rust-core の
   編集モデル型（camelCase, serde）に直接向け直し、ワイヤースキーマ自体を
   統一する必要がある（`shape` kind, 2026-08 で実施。
-  `progress/rust-source-of-truth-r3-shape-kind.md` 参照）。これにより
+  `progress/rust-source-of-truth-r3-shape-kind.md` 参照。`text` kind も
+  同じ 3 コミット構成で完了、`progress/rust-source-of-truth-r3-text-kind.md`
+  参照）。これにより
   `serialiseXxxSource` は「オブジェクトのフィールドをそのまま JSON 化するだけ」
   の薄いパススルーになり、正規化・フォールバックの知識は Rust 側だけに残る。
 - `src/types.ts` は最終的に生成ファイルの re-export に縮める。
