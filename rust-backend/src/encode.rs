@@ -721,10 +721,34 @@ mod tests {
     /// `write_tight_rgba_frame_to_encoder` against a real `ChildStdin` (the
     /// type is only constructible from an actually-spawned child) without
     /// depending on ffmpeg being installed.
+    ///
+    /// The destination path is passed via an environment variable rather
+    /// than interpolated into the shell/script text, so no path escaping is
+    /// needed on either platform. On Unix this spawns `sh -c 'cat > "$path"'`
+    /// (byte-transparent). Windows has no `sh`, and its own line-oriented
+    /// text filters (e.g. `more`) stop at a Ctrl-Z (0x1A) byte, which would
+    /// silently truncate binary RGBA frame data -- so the Windows sink uses
+    /// PowerShell's raw `Stream.CopyTo`, which is not text-mode.
     fn spawn_stdin_sink(out_path: &std::path::Path) -> (Child, ChildStdin, ChildStderr) {
-        let mut child = Command::new("sh")
-            .arg("-c")
-            .arg(format!("cat > {}", out_path.display()))
+        #[cfg(unix)]
+        let mut command = {
+            let mut command = Command::new("sh");
+            command.arg("-c").arg("cat > \"$UXFD_TEST_SINK_PATH\"");
+            command
+        };
+        #[cfg(windows)]
+        let mut command = {
+            let mut command = Command::new("powershell");
+            command.args([
+                "-NoProfile",
+                "-Command",
+                "$out = [System.IO.File]::Create($env:UXFD_TEST_SINK_PATH); \
+                 [Console]::OpenStandardInput().CopyTo($out); $out.Close()",
+            ]);
+            command
+        };
+        let mut child = command
+            .env("UXFD_TEST_SINK_PATH", out_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
