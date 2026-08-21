@@ -15,7 +15,7 @@
 //! 合成後画素を記録し、最後に要約と CSV を出す。
 
 use std::ffi::c_void;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use windows::core::{w, Interface};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
@@ -214,6 +214,15 @@ fn summarise(label: &str, values: &mut Vec<u64>) -> String {
 
 // ---- 本体 ----------------------------------------------------------------
 
+
+/// nvidia-smi の CSV と突き合わせるための壁時計（epoch ミリ秒）。
+fn epoch_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
 fn main() {
     unsafe { run() }
 }
@@ -257,6 +266,7 @@ unsafe fn run() {
         hz
     };
     println!("display refresh = {refresh_hz} Hz");
+    println!("probe start epoch_ms = {}", epoch_ms());
 
     let mut base_rect = RECT::default();
     let _ = GetWindowRect(base, &mut base_rect);
@@ -367,8 +377,8 @@ unsafe fn run() {
     });
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
-        bind_group_layouts: &[&bind_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(&bind_layout)],
+        immediate_size: 0,
     });
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
@@ -414,10 +424,11 @@ unsafe fn run() {
         let phase_start = Instant::now();
         let phase_end = phase_start + Duration::from_secs(duration);
         println!(
-            "--- phase {} start (+{:.1}s, {} s) ---",
+            "--- phase {} start (+{:.1}s, {} s) epoch_ms={} ---",
             phase.name(),
             started.elapsed().as_secs_f64(),
-            duration
+            duration,
+            epoch_ms()
         );
 
         while Instant::now() < phase_end {
