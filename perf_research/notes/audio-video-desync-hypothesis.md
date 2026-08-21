@@ -535,3 +535,103 @@ frameIndex進行はプロジェクトfpsと誤差0.1%未満で一致しており
    まだ本人確認できていない。仮に別の未確認な操作（シーク、複数クリップ、
    特定の再生UI操作）が絡む場合、本追記の再現条件（新規インポート→
    即再生）ではカバーできていない。
+
+---
+
+## 静的調査（2026-08-22 追記4）— H6「fps設定変更の伝播バグ」はREJECTED（そもそもUI上に変更経路が存在しない）
+
+### 目的 / 仮説
+
+追記3の未検証事項4を受けた仮説: ユーザーは既定60fpsでプロジェクトを作成した後、
+UI上でfpsを24へ**変更**しており、ネイティブ再生クロックのfps payload
+（`electron/rustScenePlaybackController.ts` `startScenePlayback`）か、
+シーンスナップショットの`source_rate`/frame domain（`src/utils/rustSceneSnapshot.ts`）の
+どちらか片方が旧値のまま取り残されるとクロック比が `60/24=2.5`倍
+（または `24/60=0.4`倍）になり、報告の「2〜3倍速」と符合する、という想定。
+
+### 手順（静的読み込みのみ、E2E拡張は実施せず——理由は下記結論を参照）
+
+1. **プロジェクト作成後にfpsを変更するUIそのものを探索**した。
+   - `src/store/useStore.ts`には`projectSettings`を書き換えるアクションは
+     `initializeProject`（新規プロジェクト作成、1回だけ呼ばれる）と
+     `loadProject`（プロジェクトファイルを開く）の2つしか存在しない。
+     `setProjectSettings`や`updateProjectSettings`のような「開いているプロジェクトの
+     fpsだけを変える」アクションは**リポジトリ全体に存在しない**
+     （`grep -rn "setProjectSettings\|updateProjectSettings" src`は0件）。
+   - fpsを選択できるUIは`src/components/ProjectSetup.tsx:100-108`の
+     新規プロジェクト作成ダイアログの`<select>`（24/30/60fpsの3択、既定60）
+     のみで、これは`initializeProject`を1回呼ぶだけの「プロジェクト作成前」画面。
+     作成後の設定パネル・メニュー・コマンドパレット
+     （`src/commands/registerAppCommands.ts`）・agentProject経路
+     （`src/agentProject/agentProject.ts:541`は生成時に`fps: spec.project.fps`を
+     渡すのみで、これも「作成」であって「変更」ではない）のいずれにも、
+     既存プロジェクトのfpsを書き換える操作は存在しない。
+   - つまり**「60fpsで作って後からUIで24に変更する」という追記3の想定操作自体が
+     現行コードベースには実装されていない**。この時点でH6が指す「fps設定変更の
+     伝播バグ」という現象クラスは、UI経由では原理的に発生し得ない。
+2. 念のため、より現実的な代替経路（アプリを再起動せず**別のプロジェクトファイルを
+   開き直す**＝`loadProject`で新しいfpsに切り替わるケース）についても、
+   ネイティブクロックとスナップショット双方が新fpsに追従するかを確認した:
+   - ネイティブ再生clockのfps payload: `Viewport.tsx:1717-1794`の
+     `startScenePlayback`呼び出しeffectは依存配列に`projectSettings.fps`を
+     含む（`:1790`）。`loadProject`で`projectSettings`が入れ替われば
+     このeffectは再実行され、`fps: projectSettings.fps`（`:1753`）は
+     常に最新値を送る。
+   - シーンスナップショット側: `controller.replaceScene`を呼ぶeffect
+     （`Viewport.tsx:1648-1675`）も依存配列に`projectSettings.fps`を含む
+     （`:1673`）。呼び出し先`replaceScene`
+     （`src/utils/editableRustScenePreviewController.ts:37`）にメモ化や
+     差分スキップは無く、呼ばれるたびに`buildRustSceneSnapshot`系の関数へ
+     現在の`projectSettings`をそのまま渡して毎回フル再構築する。
+   - `source_rate`自体も`rustSceneSnapshot.ts:1352`
+     `source_rate: fpsToFrameRate(projectFps)`で、スナップショット構築の
+     たびに`projectFps`（呼び出し引数）から都度導出——**フレーム単位で
+     取り込み時に固定して後で使い回すキャッシュは存在しない**
+     （`source_frame`計算も`sourceFrameForObject(object, time, projectSettings.fps)`
+     `:274`で、常に現在の`time`（秒）と現在の`fps`から都度算出。
+     オブジェクト側に「インポート時にフレーム換算して保存」というフィールドは
+     見当たらなかった）。
+   - よって`loadProject`経由のfps切替でも、ネイティブclock側・スナップショット側
+     の両方が同一effectサイクルで同じ新しい`projectSettings.fps`を参照するため、
+     系統的に片方だけ古い値が残る経路は見当たらない。
+
+### 結論
+
+**H6（fps設定変更時の伝播バグ）はREJECTED。** 棄却の根拠は2段階:
+
+1. （一次的・決定的）そもそも**「既存プロジェクトのfpsをUIから変更する」機能が
+   このコードベースに実装されていない**。fpsは`ProjectSetup.tsx`の新規作成
+   ダイアログでのみ選択され、以後は不変。したがってタスクが想定した
+   「ユーザーが60fpsで作って後から24に変更した」という操作自体が起こり得ず、
+   このタスクで検証対象とすべき"伝播バグ"は存在しない。
+2. （二次的・念のため）唯一fpsが変わり得る`loadProject`（別プロジェクトを開く）
+   経路についても、ネイティブclockのfps payloadとスナップショットの
+   `source_rate`/`source_frame`は共に`projectSettings.fps`から**都度**
+   再導出される設計で、どちらかだけが古い値を保持し続けるキャッシュや
+   メモ化は見当たらなかった。E2Eでの実測（フェーズ2）は、再現不能な
+   前提（存在しないUI操作）を対象にしても意味がないため**実施しなかった**。
+
+先行の追記1〜3（fps不一致説、H3、H4のいずれもREJECTED）と合わせ、
+「fps」を切り口にした一連の仮説はすべて棄却済みとなった。ユーザー報告の
+真因は依然未確定。次に疑うべきは、`.mov`固有の何か（HEVCデコード特性、
+CFR/VFRタイムスタンプの扱い、あるいは今回のファイルパス
+`/Volumes/Datadrive/...`が外部ドライブであることに起因するI/O遅延と
+それに対するcatch-up/skipロジックの相互作用）など、fps数値そのものとは
+別の軸である可能性が高い。
+
+### 次の一手 / 未検証事項
+
+1. **ユーザーへの追加ヒアリングが必須**: 「fpsを変更した」という報告の
+   具体的操作手順を再確認する（現行UIにその機能がない以上、実際に行った
+   操作は別のもの——例えば単に新規プロジェクトをfps24で作成しただけ、
+   といった誤解や、別バージョン/別ブランチのUIを見ている可能性がある）。
+2. `追記1`の「独立音声クリップ＋動画同時再生時の0.2s/0.05sスナップ発火」、
+   `追記2/3`の「`native-render-frame`経路を発火させる条件の特定」、
+   「音声側`HTMLVideoElement.currentTime`の直接実測（DOM非アタッチ問題の
+   解消）」は、fps系仮説がすべて棄却された今、優先度を上げて着手すべき
+   残タスクとして持ち越す。
+3. 外部ドライブ（`/Volumes/Datadrive/`）上の大容量ファイル特有のI/O遅延・
+   キャッシュミス頻度が、既存のcatch-up/frame-skipロジック
+   （`native-overlay/src/lib.rs`のnon-sequential request_frame経路、
+   `video-playback-probe-results.md`のH1関連）と組み合わさって体感速度の
+   ズレを生んでいないか、ローカルSSD上のコピーとの比較実験で切り分ける。
