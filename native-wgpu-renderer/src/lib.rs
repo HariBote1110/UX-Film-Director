@@ -1279,7 +1279,13 @@ impl NativeWgpuRenderer {
             &generated_gpu_sources.focus_lines,
             &generated_gpu_sources.shaking_polygons,
             &generated_gpu_sources.shattered_spheres,
-            true,
+            // wgpu は単一キューでは write_texture が発行順に後続の submit
+            // より先に完了することを保証するため、ここでの明示的な
+            // upload フェンス（queue.submit(empty) + wait）は不要。live
+            // surface 経路（present_scene_with_decoration_to_surface_texture）
+            // も同じ理由ですでに false で呼んでいる。
+            // (research: encode_research/notes/upload-fence-per-frame-removal.md)
+            false,
             content_revisions,
         )?;
         let target_texture =
