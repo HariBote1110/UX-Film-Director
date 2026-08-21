@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
     render_native_wgpu_frame, render_native_wgpu_frame_with_audio_waveforms,
@@ -29,7 +30,8 @@ fn native_wgpu_matches_cpu_reference_for_half_opacity_red_over_blue() {
     let reference =
         render_reference_frame(&snapshot, &sources, 1, 1).expect("render CPU reference");
 
-    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 1, 1));
+    let native_result =
+        pollster::block_on(render_native_wgpu_frame(&snapshot, &arc_sources(&sources), 1, 1));
     let native = match native_result {
         Ok(frame) => frame,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -81,7 +83,8 @@ fn native_wgpu_matches_hand_anchored_white_half_opacity_over_black() {
 
     assert_eq!(reference, hand_anchored);
 
-    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 1, 1));
+    let native_result =
+        pollster::block_on(render_native_wgpu_frame(&snapshot, &arc_sources(&sources), 1, 1));
     let native = match native_result {
         Ok(frame) => frame,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -737,8 +740,10 @@ fn native_wgpu_applies_spot_light_to_centre_pixels() {
         )]),
         &HashMap::from([(
             "foreground".to_string(),
-            RgbaFrame::from_rgba8(3, 1, vec![0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255])
-                .expect("valid foreground"),
+            Arc::new(
+                RgbaFrame::from_rgba8(3, 1, vec![0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255])
+                    .expect("valid foreground"),
+            ),
         )]),
         3,
         1,
@@ -860,7 +865,7 @@ fn native_wgpu_matches_reference_for_image_media_shaped_source_with_alpha_edge()
     let reference =
         render_reference_frame(&snapshot, &sources, 2, 1).expect("render CPU reference");
 
-    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 2, 1));
+    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &arc_sources(&sources), 2, 1));
     let native = match native_result {
         Ok(frame) => frame,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -925,7 +930,7 @@ fn native_wgpu_matches_reference_for_psd_media_shaped_source_with_scale_transfor
     let reference =
         render_reference_frame(&snapshot, &sources, 2, 1).expect("render CPU reference");
 
-    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 2, 1));
+    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &arc_sources(&sources), 2, 1));
     let native = match native_result {
         Ok(frame) => frame,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -1308,8 +1313,12 @@ fn assert_native_matches_direct_hand_anchor(
     anchor_pixels: Vec<u8>,
 ) {
     let hand_anchored = RgbaFrame::from_rgba8(width, height, anchor_pixels).expect("valid anchor");
-    let native_result =
-        pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, width, height));
+    let native_result = pollster::block_on(render_native_wgpu_frame(
+        &snapshot,
+        &arc_sources(&sources),
+        width,
+        height,
+    ));
     let native = match native_result {
         Ok(frame) => frame,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -1350,8 +1359,12 @@ fn assert_native_matches_hand_anchor(
 
     assert_eq!(reference, hand_anchored);
 
-    let native_result =
-        pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, width, height));
+    let native_result = pollster::block_on(render_native_wgpu_frame(
+        &snapshot,
+        &arc_sources(&sources),
+        width,
+        height,
+    ));
     let native = match native_result {
         Ok(frame) => frame,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -1377,6 +1390,18 @@ fn assert_native_matches_hand_anchor(
         "native wgpu frame differed from hand anchor: {comparison:?}, native={:?}, anchor={:?}",
         native.pixels, hand_anchored.pixels
     );
+}
+
+/// `render_reference_frame` (CPU parity reference) still takes owned
+/// `RgbaFrame` values, while `render_native_wgpu_frame` now takes
+/// `Arc<RgbaFrame>` sources (see rust-backend generated source frame cache
+/// work). Adapt the same fixtures for both call shapes instead of
+/// duplicating them.
+fn arc_sources(sources: &HashMap<String, RgbaFrame>) -> HashMap<String, Arc<RgbaFrame>> {
+    sources
+        .iter()
+        .map(|(media_id, frame)| (media_id.clone(), Arc::new(frame.clone())))
+        .collect()
 }
 
 fn scene_snapshot(clips: Vec<EvaluatedClip>) -> SceneSnapshot {
@@ -1444,7 +1469,7 @@ fn native_wgpu_renders_source_exceeding_downlevel_texture_limit_without_panickin
         .expect("valid oversized source frame");
 
     let snapshot = scene_snapshot(vec![evaluated_clip("oversized", 0, 1.0, Vec::new())]);
-    let sources = HashMap::from([("oversized".to_string(), source)]);
+    let sources = HashMap::from([("oversized".to_string(), Arc::new(source))]);
 
     let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 64, 48));
     let native = match native_result {

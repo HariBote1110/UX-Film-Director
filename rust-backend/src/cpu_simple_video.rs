@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::frames::pad_rgba_rows;
 use uxfd_golden_harness::RgbaFrame;
@@ -19,7 +20,7 @@ pub(crate) struct CpuSimpleVideoRenderReport {
 pub(crate) fn try_render_simple_video_frame_to_shared_ring(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
     memory_id: &str,
@@ -64,7 +65,7 @@ pub(crate) fn try_render_simple_video_frame_to_shared_ring(
 pub(crate) fn try_render_simple_video_frame(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
 ) -> Result<Option<RgbaFrame>, String> {
@@ -391,6 +392,7 @@ fn nearly_equal_f32(left: f32, right: f32) -> bool {
 mod proxy_scale_tests {
     use super::try_render_simple_video_frame;
     use std::collections::HashMap;
+use std::sync::Arc;
     use uxfd_golden_harness::RgbaFrame;
     use uxfd_rust_core::{
         ColourPipeline, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
@@ -446,7 +448,7 @@ mod proxy_scale_tests {
             clips: vec![clip],
         };
         let mut sources = HashMap::new();
-        sources.insert("video-1".to_string(), source);
+        sources.insert("video-1".to_string(), Arc::new(source));
 
         let frame = try_render_simple_video_frame(&snapshot, &[media], &sources, 4, 2)
             .expect("render ok")

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
@@ -35,9 +36,13 @@ fn stage_timings_separate_upload_render_and_readback_encode_legs() {
     )]);
     let reference =
         render_reference_frame(&snapshot, &sources, width, height).expect("reference frame");
+    let arc_sources: HashMap<String, Arc<RgbaFrame>> = sources
+        .iter()
+        .map(|(media_id, frame)| (media_id.clone(), Arc::new(frame.clone())))
+        .collect();
 
     let measured = match pollster::block_on(measure_native_wgpu_frame_stages(
-        &snapshot, &sources, width, height,
+        &snapshot, &arc_sources, width, height,
     )) {
         Ok(report) => report,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -88,7 +93,7 @@ fn persistent_renderer_keeps_gpu_setup_out_of_per_frame_timings() {
     };
     let sources = HashMap::from([(
         "source-1".to_string(),
-        gradient_frame(width, height).expect("valid gradient frame"),
+        Arc::new(gradient_frame(width, height).expect("valid gradient frame")),
     )]);
 
     let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
@@ -133,7 +138,7 @@ fn present_stage_timings_skip_readback_for_overlay_surface_mode() {
     };
     let sources = HashMap::from([(
         "source-1".to_string(),
-        gradient_frame(width, height).expect("valid gradient frame"),
+        Arc::new(gradient_frame(width, height).expect("valid gradient frame")),
     )]);
 
     let measured = match pollster::block_on(measure_native_wgpu_present_stages(

@@ -200,6 +200,7 @@ pub(crate) fn handle_encode_write_native_frame(
             &parsed.media,
             &parsed.sources,
             &mut state.source_frame_cache,
+            &mut state.generated_source_frame_cache,
         ) {
             Ok(value) => value,
             Err(message) => {
@@ -564,6 +565,7 @@ pub(crate) fn handle_native_render_shared_frame(
             &parsed.media,
             &parsed.sources,
             &mut state.source_frame_cache,
+            &mut state.generated_source_frame_cache,
         ) {
             Ok(value) => value,
             Err(message) => {
@@ -1374,9 +1376,10 @@ mod tests {
             active_layer_ids: Vec::new(),
         }];
         let mut cache = crate::state::SourceFrameCache::default();
+        let mut generated_cache = crate::state::GeneratedSourceFrameCache::default();
 
         let rgba_sources =
-            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache, &mut generated_cache)
                 .expect("GetColor CPU source collection must succeed");
         assert!(
             rgba_sources.is_empty(),
@@ -1420,9 +1423,10 @@ mod tests {
             active_layer_ids: Vec::new(),
         }];
         let mut cache = crate::state::SourceFrameCache::default();
+        let mut generated_cache = crate::state::GeneratedSourceFrameCache::default();
 
         let rgba_sources =
-            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache, &mut generated_cache)
                 .expect("HKSY CPU source collection must succeed");
         assert!(
             rgba_sources.is_empty(),
@@ -1463,9 +1467,10 @@ mod tests {
             active_layer_ids: Vec::new(),
         }];
         let mut cache = crate::state::SourceFrameCache::default();
+        let mut generated_cache = crate::state::GeneratedSourceFrameCache::default();
 
         let rgba_sources =
-            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache, &mut generated_cache)
                 .expect("Hologram CPU source collection must succeed");
         assert!(
             rgba_sources.is_empty(),
@@ -1508,9 +1513,10 @@ mod tests {
             active_layer_ids: Vec::new(),
         }];
         let mut cache = crate::state::SourceFrameCache::default();
+        let mut generated_cache = crate::state::GeneratedSourceFrameCache::default();
 
         let rgba_sources =
-            collect_native_render_sources(&snapshot, &media, &[], &mut cache)
+            collect_native_render_sources(&snapshot, &media, &[], &mut cache, &mut generated_cache)
                 .expect("SimpleTube CPU source collection must succeed");
         assert!(
             rgba_sources.is_empty(),
@@ -1559,9 +1565,10 @@ mod tests {
         let first_snapshot = build_snapshot(&[0]);
         let later_snapshot = build_snapshot(&[30]);
         let mut cache = crate::state::SourceFrameCache::default();
+        let mut generated_cache = crate::state::GeneratedSourceFrameCache::default();
 
         let rgba_sources =
-            collect_native_render_sources(&first_snapshot, &media, &[], &mut cache)
+            collect_native_render_sources(&first_snapshot, &media, &[], &mut cache, &mut generated_cache)
                 .expect("Particle CPU source collection must succeed");
         assert!(
             rgba_sources.is_empty(),
@@ -1620,9 +1627,10 @@ mod tests {
         };
         let static_media = build_media(0);
         let mut cache = crate::state::SourceFrameCache::default();
+        let mut generated_cache = crate::state::GeneratedSourceFrameCache::default();
 
         let rgba_sources =
-            collect_native_render_sources(&build_snapshot(0), &static_media, &[], &mut cache)
+            collect_native_render_sources(&build_snapshot(0), &static_media, &[], &mut cache, &mut generated_cache)
                 .expect("FocusLinesPlus CPU source collection must succeed");
         assert!(
             rgba_sources.is_empty(),

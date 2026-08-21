@@ -5,6 +5,7 @@ use core_foundation::dictionary::CFDictionary;
 use core_foundation::string::{CFString, CFStringRef};
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::sync::Arc;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::{
     BgraIoSurfaceTarget, NativeGeneratedGpuSources, NativeShakingPolygonSource,
@@ -132,8 +133,14 @@ fn renders_scene_directly_into_bgra_iosurface_without_readback() {
     };
     let sources = HashMap::from([(
         "solid-red".to_string(),
-        RgbaFrame::from_rgba8(width, height, [255, 0, 0, 255].repeat((width * height) as usize))
+        Arc::new(
+            RgbaFrame::from_rgba8(
+                width,
+                height,
+                [255, 0, 0, 255].repeat((width * height) as usize),
+            )
             .expect("valid solid frame"),
+        ),
     )]);
     let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
         Ok(renderer) => renderer,

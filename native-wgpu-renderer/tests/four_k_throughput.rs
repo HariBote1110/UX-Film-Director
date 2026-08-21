@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use uxfd_golden_harness::RgbaFrame;
@@ -30,7 +31,7 @@ fn records_four_k_upload_render_and_readback_encode_timings() {
             effects: Vec::new(),
         }],
     };
-    let sources = HashMap::from([("source-4k".to_string(), source)]);
+    let sources = HashMap::from([("source-4k".to_string(), Arc::new(source))]);
 
     let measured = match pollster::block_on(measure_native_wgpu_frame_stages(
         &snapshot, &sources, width, height,

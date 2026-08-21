@@ -40,6 +40,12 @@ pub(crate) struct BackendState {
     /// layers for Psd), so repeated frames of a still image/PSD do not pay
     /// for a full re-decode every call.
     pub(crate) source_frame_cache: SourceFrameCache,
+    /// Rasterised generated-media (Text/SolidColour/GeneratedShape/
+    /// GeneratedGradient etc.) source frames keyed by media_id + content
+    /// revision, so an unchanged generated media reuses the previous
+    /// frame's `Arc<RgbaFrame>` instead of paying for a full CPU
+    /// re-rasterisation every frame.
+    pub(crate) generated_source_frame_cache: GeneratedSourceFrameCache,
 }
 
 impl BackendState {
@@ -129,5 +135,47 @@ impl SourceFrameCache {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.pixels.len());
             }
         }
+    }
+}
+
+/// One entry per media_id, replaced whenever its content revision changes
+/// (see `media_content_revision` in `source_frames.rs`). This is naturally
+/// bounded by the number of generated media in a scene, so it is a plain
+/// `HashMap` with only a defensive entry-count cap (rather than the
+/// mtime/size-keyed, multi-generation `SourceFrameCache` used for Image/Psd).
+const GENERATED_SOURCE_FRAME_CACHE_MAX_ENTRIES: usize = 256;
+
+#[derive(Default)]
+pub(crate) struct GeneratedSourceFrameCache {
+    entries: HashMap<String, (u64, Arc<RgbaFrame>)>,
+}
+
+impl GeneratedSourceFrameCache {
+    pub(crate) fn get(&mut self, media_id: &str, revision: u64) -> Option<Arc<RgbaFrame>> {
+        let (cached_revision, frame) = self.entries.get(media_id)?;
+        if *cached_revision == revision {
+            Some(Arc::clone(frame))
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn insert(&mut self, media_id: String, revision: u64, frame: Arc<RgbaFrame>) {
+        if self.entries.len() >= GENERATED_SOURCE_FRAME_CACHE_MAX_ENTRIES
+            && !self.entries.contains_key(&media_id)
+        {
+            // Defensive cap only: a scene with this many distinct generated
+            // media is not expected in practice. Evict an arbitrary entry
+            // rather than growing unbounded.
+            if let Some(key) = self.entries.keys().next().cloned() {
+                self.entries.remove(&key);
+            }
+        }
+        self.entries.insert(media_id, (revision, frame));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.entries.len()
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use uxfd_decode_spike::{
     build_known_cfr_h264_fixture, decode_exported_h264_to_rgba,
@@ -194,7 +195,8 @@ fn render_known_swatch(
             effects: Vec::new(),
         }],
     };
-    let sources = HashMap::from([("known-swatch".to_string(), fixture.expected_frame.clone())]);
+    let sources =
+        HashMap::from([("known-swatch".to_string(), Arc::new(fixture.expected_frame.clone()))]);
 
     let rendered = match pollster::block_on(render_native_wgpu_frame(
         &snapshot,
@@ -228,7 +230,7 @@ fn render_frame_from_source(source: &RgbaFrame) -> Option<RgbaFrame> {
             effects: Vec::new(),
         }],
     };
-    let sources = HashMap::from([("known-swatch".to_string(), source.clone())]);
+    let sources = HashMap::from([("known-swatch".to_string(), Arc::new(source.clone()))]);
 
     match pollster::block_on(render_native_wgpu_frame(
         &snapshot,

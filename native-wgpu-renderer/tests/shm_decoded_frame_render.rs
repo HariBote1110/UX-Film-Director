@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_decode_spike::{build_known_cfr_h264_fixture, decode_fixture_to_shared_rgba};
@@ -40,7 +41,7 @@ fn shm_decoded_frame_renders_to_known_swatch() {
             effects: Vec::new(),
         }],
     };
-    let sources = HashMap::from([("decoded-video".to_string(), shm_frame)]);
+    let sources = HashMap::from([("decoded-video".to_string(), Arc::new(shm_frame))]);
 
     let native_result = pollster::block_on(render_native_wgpu_frame(
         &snapshot,

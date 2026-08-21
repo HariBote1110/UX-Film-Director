@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_golden_harness::RgbaFrame;
@@ -32,7 +33,7 @@ fn native_wgpu_frame_can_be_written_to_shared_frame_ring() {
     };
     let sources = HashMap::from([(
         "source-1".to_string(),
-        gradient_frame(width, height).expect("valid gradient frame"),
+        Arc::new(gradient_frame(width, height).expect("valid gradient frame")),
     )]);
     let memory_id = unique_shm_name();
 
@@ -125,12 +126,14 @@ fn native_wgpu_generated_waveform_shared_frame_matches_direct_frame() {
     };
     let sources = HashMap::from([(
         "background".to_string(),
-        RgbaFrame::from_rgba8(
-            width,
-            height,
-            vec![12, 18, 24, 255].repeat(width as usize * height as usize),
-        )
-        .expect("valid background frame"),
+        Arc::new(
+            RgbaFrame::from_rgba8(
+                width,
+                height,
+                vec![12, 18, 24, 255].repeat(width as usize * height as usize),
+            )
+            .expect("valid background frame"),
+        ),
     )]);
     let waveform = NativeAudioWaveformInput {
         media_id: "waveform-1".to_string(),

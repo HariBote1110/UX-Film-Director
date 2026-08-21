@@ -491,7 +491,7 @@ impl NativeWgpuLiveSurfaceRenderer {
     pub async fn present_scene_to_surface_texture(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (prepared_clips, source_upload) = self.core.prepare_scene_clips_without_upload_fence(
@@ -555,7 +555,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         base_sources: &HashMap<String, S>,
         content_revisions: &HashMap<String, u64>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
-        decoration_sources: &HashMap<String, RgbaFrame>,
+        decoration_sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (base_prepared_clips, base_source_upload) = self.core.prepare_base_scene_clips_cached(
@@ -647,7 +647,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
         shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
-        decoration_sources: &HashMap<String, RgbaFrame>,
+        decoration_sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (prepared_clips, source_upload) = self.prepare_scene_with_decoration_and_nv12(
@@ -725,7 +725,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
         shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
-        decoration_sources: &HashMap<String, RgbaFrame>,
+        decoration_sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (prepared_clips, source_upload) = self.prepare_scene_with_decoration_and_nv12(
@@ -819,7 +819,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         shaking_polygon_sources: &HashMap<String, NativeShakingPolygonSource>,
         shattered_sphere_sources: &HashMap<String, NativeShatteredSphereSource>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
-        decoration_sources: &HashMap<String, RgbaFrame>,
+        decoration_sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
         let (base_prepared_clips, base_source_upload) =
             self.core.prepare_scene_clips_with_upload_fence(
@@ -874,7 +874,7 @@ impl NativeWgpuLiveSurfaceRenderer {
     pub async fn present_scene_to_surface_texture_with_readback(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         let (prepared_clips, source_upload) =
@@ -955,7 +955,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         base_sources: &HashMap<String, S>,
         content_revisions: &HashMap<String, u64>,
         decoration_clips: &[uxfd_rust_core::EvaluatedClip],
-        decoration_sources: &HashMap<String, RgbaFrame>,
+        decoration_sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuClearReadbackReport, NativeWgpuRenderError> {
         let (base_prepared_clips, _base_source_upload) =
             self.core.prepare_base_scene_clips_cached(
@@ -1202,7 +1202,7 @@ impl NativeWgpuRenderer {
     pub async fn render_frame_stages(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         self.render_frame_stages_with_setup(
@@ -1223,7 +1223,7 @@ impl NativeWgpuRenderer {
     pub async fn render_frame_to_bgra_iosurface(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         target: BgraIoSurfaceTarget,
@@ -1243,7 +1243,7 @@ impl NativeWgpuRenderer {
     async fn render_frame_to_bgra_iosurface_with_audio_reactive_sources(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         content_revisions: &HashMap<String, u64>,
         nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
         audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
@@ -1311,7 +1311,7 @@ impl NativeWgpuRenderer {
     pub async fn render_frame_to_bgra_iosurface_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         waveforms: &[NativeAudioWaveformInput],
         generated_gpu_sources: &NativeGeneratedGpuSources,
         content_revisions: &HashMap<String, u64>,
@@ -1335,7 +1335,7 @@ impl NativeWgpuRenderer {
     pub async fn present_frame_stages(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
         self.present_frame_stages_with_setup(
@@ -1351,7 +1351,7 @@ impl NativeWgpuRenderer {
     pub async fn render_overlay_surface_frame_for_test(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
     ) -> Result<RgbaFrame, NativeWgpuRenderError> {
         self.present_frame_stages(snapshot, sources).await?;
         self.read_output_texture_to_rgba8()
@@ -1360,7 +1360,7 @@ impl NativeWgpuRenderer {
     pub async fn render_frame_to_shared_ring(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         memory_id: &str,
         slot_count: u32,
         pts_frame: u64,
@@ -1381,7 +1381,7 @@ impl NativeWgpuRenderer {
     pub async fn render_frame_to_shared_ring_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         waveforms: &[NativeAudioWaveformInput],
         generated_gpu_sources: &NativeGeneratedGpuSources,
         content_revisions: &HashMap<String, u64>,
@@ -1408,7 +1408,7 @@ impl NativeWgpuRenderer {
     pub async fn render_frame_stages_with_audio_waveforms(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         waveforms: &[NativeAudioWaveformInput],
         generated_gpu_sources: &NativeGeneratedGpuSources,
         content_revisions: &HashMap<String, u64>,
@@ -1433,7 +1433,7 @@ impl NativeWgpuRenderer {
     async fn render_frame_stages_with_setup(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         setup: Duration,
         total_start: Instant,
         content_revisions: &HashMap<String, u64>,
@@ -1532,7 +1532,7 @@ impl NativeWgpuRenderer {
     async fn present_frame_stages_with_setup(
         &self,
         snapshot: &SceneSnapshot,
-        sources: &HashMap<String, RgbaFrame>,
+        sources: &HashMap<String, Arc<RgbaFrame>>,
         setup: Duration,
         total_start: Instant,
         content_revisions: &HashMap<String, u64>,
@@ -2149,7 +2149,7 @@ impl NativeWgpuRenderer {
 
 pub async fn render_native_wgpu_frame(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
@@ -2161,7 +2161,7 @@ pub async fn render_native_wgpu_frame(
 #[allow(clippy::too_many_arguments)]
 pub async fn render_native_wgpu_frame_with_native_sources(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     content_revisions: &HashMap<String, u64>,
     nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
@@ -2187,7 +2187,7 @@ pub async fn render_native_wgpu_frame_with_native_sources(
 
 pub async fn render_native_wgpu_overlay_surface_frame(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
@@ -2199,7 +2199,7 @@ pub async fn render_native_wgpu_overlay_surface_frame(
 
 pub async fn render_native_wgpu_frame_with_audio_waveforms(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     waveforms: &[NativeAudioWaveformInput],
     width: u32,
     height: u32,
@@ -2220,11 +2220,11 @@ pub async fn render_native_wgpu_frame_with_audio_waveforms(
 
 fn split_audio_waveform_sources(
     _snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     waveforms: &[NativeAudioWaveformInput],
 ) -> Result<
     (
-        HashMap<String, RgbaFrame>,
+        HashMap<String, Arc<RgbaFrame>>,
         HashMap<String, NativeAudioReactiveSource>,
     ),
     NativeWgpuRenderError,
@@ -2260,7 +2260,7 @@ fn split_audio_waveform_sources(
 
 pub async fn render_native_wgpu_frame_to_shared_ring(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
     memory_id: &str,
@@ -2273,7 +2273,7 @@ pub async fn render_native_wgpu_frame_to_shared_ring(
 
 pub async fn render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     waveforms: &[NativeAudioWaveformInput],
     width: u32,
     height: u32,
@@ -2336,7 +2336,7 @@ fn frame_report_to_shared_ring(
 
 pub async fn measure_native_wgpu_frame_stages(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
 ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
@@ -2359,7 +2359,7 @@ pub async fn measure_native_wgpu_frame_stages(
 
 pub async fn measure_native_wgpu_present_stages(
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     width: u32,
     height: u32,
 ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
@@ -4075,7 +4075,7 @@ mod tests {
         assert_eq!(alpha_mode, wgpu::CompositeAlphaMode::Auto);
     }
 
-    fn solid_scene(clip_id: &str, media_id: &str) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+    fn solid_scene(clip_id: &str, media_id: &str) -> (SceneSnapshot, HashMap<String, Arc<RgbaFrame>>) {
         let snapshot = SceneSnapshot {
             frame_index: 0,
             colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
@@ -4092,7 +4092,7 @@ mod tests {
         };
         let sources = HashMap::from([(
             media_id.to_string(),
-            RgbaFrame::from_rgba8(2, 2, vec![10; 2 * 2 * 4]).expect("valid source frame"),
+            Arc::new(RgbaFrame::from_rgba8(2, 2, vec![10; 2 * 2 * 4]).expect("valid source frame")),
         )]);
         (snapshot, sources)
     }
@@ -4135,7 +4135,7 @@ mod tests {
                 config_revision: 7,
             },
         )]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let render =
             |renderer: &NativeWgpuRenderer,
@@ -4240,7 +4240,7 @@ mod tests {
             config_revision: 7,
         };
         let audio_sources = HashMap::from([("waveform-media".to_string(), waveform)]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
@@ -4338,7 +4338,7 @@ mod tests {
             config_revision: 7,
         };
         let getcolor_sources = HashMap::from([("getcolor-media".to_string(), source)]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
@@ -4427,7 +4427,7 @@ mod tests {
             config_revision: 9,
         };
         let hksy_sources = HashMap::from([("hksy-media".to_string(), source)]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
@@ -4516,7 +4516,7 @@ mod tests {
             config_revision: 21,
         };
         let generated_sources = HashMap::from([("hologram-media".to_string(), source)]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
@@ -4600,7 +4600,7 @@ mod tests {
                 effects: Vec::new(),
             }],
         };
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
         let render = |source: NativeHksySource| {
             let hksy_sources = HashMap::from([("hksy-specialised-media".to_string(), source)]);
             let (prepared, _) = renderer
@@ -4708,7 +4708,7 @@ mod tests {
             config_revision: 11,
         };
         let simple_tube_sources = HashMap::from([("simple-tube-media".to_string(), source)]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
@@ -4801,7 +4801,7 @@ mod tests {
                 config_revision: 12,
             },
         )]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
         let (prepared, _) = renderer
             .prepare_scene_clips_with_upload_fence(
                 &snapshot,
@@ -4879,7 +4879,7 @@ mod tests {
                 config_revision: 13,
             },
         )]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
                 .prepare_scene_clips_with_upload_fence(
@@ -4960,7 +4960,7 @@ mod tests {
                 config_revision: 14,
             },
         )]);
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
         let render = |renderer: &NativeWgpuRenderer| {
             let (prepared, _) = renderer
                 .prepare_scene_clips_with_upload_fence(
@@ -5021,7 +5021,7 @@ mod tests {
             }
             Err(error) => panic!("renderer creation failed: {error:?}"),
         };
-        let rgba_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let rgba_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
         let render = |renderer: &NativeWgpuRenderer, source_frame| {
             let snapshot = SceneSnapshot {
                 frame_index: source_frame,
@@ -5425,7 +5425,7 @@ mod tests {
 
     /// `media_id` を 2 件持つシーンを作る。`entries` は `(clip_id, media_id)`。
     /// 各 media は 2x2 の単色ソースフレーム（テストごとに内容差は不要）。
-    fn multi_clip_scene(entries: &[(&str, &str)]) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+    fn multi_clip_scene(entries: &[(&str, &str)]) -> (SceneSnapshot, HashMap<String, Arc<RgbaFrame>>) {
         let clips = entries
             .iter()
             .enumerate()
@@ -5450,7 +5450,7 @@ mod tests {
         let mut sources = HashMap::new();
         for (_, media_id) in entries {
             sources.entry(media_id.to_string()).or_insert_with(|| {
-                RgbaFrame::from_rgba8(2, 2, vec![20; 2 * 2 * 4]).expect("valid source frame")
+                Arc::new(RgbaFrame::from_rgba8(2, 2, vec![20; 2 * 2 * 4]).expect("valid source frame"))
             });
         }
         (snapshot, sources)
@@ -5660,7 +5660,7 @@ mod tests {
             colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
             clips: Vec::new(),
         };
-        let empty_sources: HashMap<String, RgbaFrame> = HashMap::new();
+        let empty_sources: HashMap<String, Arc<RgbaFrame>> = HashMap::new();
 
         let frame = pollster::block_on(
             renderer.render_overlay_surface_frame_for_test(&empty_snapshot, &empty_sources),
@@ -6203,7 +6203,8 @@ mod tests {
                     revision: 1,
                 },
             )]);
-            let mixed_sources = HashMap::from([("media-rgba-top".to_string(), top_rgba.clone())]);
+            let mixed_sources =
+                HashMap::from([("media-rgba-top".to_string(), Arc::new(top_rgba.clone()))]);
 
             let reference_snapshot = SceneSnapshot {
                 frame_index: 0,
@@ -6223,8 +6224,11 @@ mod tests {
             )
             .expect("valid bottom rgba reference frame");
             let reference_sources = HashMap::from([
-                ("media-rgba-bottom".to_string(), bottom_rgba_equivalent),
-                ("media-rgba-top".to_string(), top_rgba),
+                (
+                    "media-rgba-bottom".to_string(),
+                    Arc::new(bottom_rgba_equivalent),
+                ),
+                ("media-rgba-top".to_string(), Arc::new(top_rgba)),
             ]);
 
             let mixed_report =

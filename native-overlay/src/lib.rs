@@ -865,9 +865,9 @@ impl NativeOverlayLiveSurfaceRenderer {
             // 診断専用の readback 経路。base + decoration を 1 つの snapshot に
             // 合成してから渡す（この経路は既定無効・deep clone を許容する）。
             let mut merged_snapshot = base_snapshot.clone();
-            let mut merged_sources: HashMap<String, RgbaFrame> = base_sources
+            let mut merged_sources: HashMap<String, Arc<RgbaFrame>> = base_sources
                 .iter()
-                .map(|(media_id, frame)| (media_id.clone(), frame.as_ref().clone()))
+                .map(|(media_id, frame)| (media_id.clone(), Arc::clone(frame)))
                 .collect();
             merged_snapshot.clips.extend(decoration_clips);
             merged_sources.extend(decoration_sources);
@@ -1044,9 +1044,9 @@ impl NativeOverlayLiveSurfaceRenderer {
             })?;
             let mut merged_snapshot = base_snapshot.clone();
             merged_snapshot.clips.extend(decoration_clips);
-            let mut merged_sources: HashMap<String, RgbaFrame> = base_sources
+            let mut merged_sources: HashMap<String, Arc<RgbaFrame>> = base_sources
                 .iter()
-                .map(|(media_id, frame)| (media_id.clone(), frame.as_ref().clone()))
+                .map(|(media_id, frame)| (media_id.clone(), Arc::clone(frame)))
                 .collect();
             merged_sources.extend(decoration_sources);
             let generated_gpu_sources = NativeGeneratedGpuSources {
@@ -2156,7 +2156,7 @@ pub fn build_selection_decoration_clips(
     drawable_width: u32,
     drawable_height: u32,
     contents_scale: f64,
-) -> (Vec<EvaluatedClip>, HashMap<String, RgbaFrame>) {
+) -> (Vec<EvaluatedClip>, HashMap<String, Arc<RgbaFrame>>) {
     let mut clips = Vec::new();
     let mut sources = HashMap::new();
     if state.quads.is_empty() {
@@ -2164,11 +2164,11 @@ pub fn build_selection_decoration_clips(
     }
     sources.insert(
         SELECTION_DECORATION_GOLD_MEDIA_ID.to_string(),
-        solid_rgba_frame([255, 215, 0, 255]),
+        Arc::new(solid_rgba_frame([255, 215, 0, 255])),
     );
     sources.insert(
         SELECTION_DECORATION_WHITE_MEDIA_ID.to_string(),
-        solid_rgba_frame([255, 255, 255, 255]),
+        Arc::new(solid_rgba_frame([255, 255, 255, 255])),
     );
 
     // `fit_scene_snapshot_to_drawable`（scene 本体）と同じ共通ヘルパーを使い、
@@ -2242,7 +2242,7 @@ pub fn build_selection_decoration_clips(
 /// 既存 clip は変更しない（z_index が u32::MAX 近傍なので常に最前面）。
 pub fn append_selection_decoration_to_scene(
     snapshot: &mut SceneSnapshot,
-    sources: &mut HashMap<String, RgbaFrame>,
+    sources: &mut HashMap<String, Arc<RgbaFrame>>,
     state: &SelectionDecorationState,
     drawable_width: u32,
     drawable_height: u32,
@@ -2261,7 +2261,7 @@ pub fn append_selection_decoration_to_scene(
 /// `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable 全 pixel を
 /// alpha=0 で上書きする。専用 clear render logic は追加しない。
 pub fn build_empty_scene_snapshot_for_transparent_clear(
-) -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+) -> (SceneSnapshot, HashMap<String, Arc<RgbaFrame>>) {
     (
         SceneSnapshot {
             frame_index: 0,
@@ -2540,7 +2540,7 @@ fn live_surface_diagnostics_from_frame_report(
 fn compare_live_overlay_readback_with_export(
     live_readback: &RgbaFrame,
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
 ) -> Result<u8, String> {
     let export_readback = pollster::block_on(render_native_wgpu_frame(
         snapshot,
@@ -2560,7 +2560,7 @@ fn compare_live_overlay_readback_with_export(
 fn compare_live_overlay_readback_with_native_sources(
     live_readback: &RgbaFrame,
     snapshot: &SceneSnapshot,
-    sources: &HashMap<String, RgbaFrame>,
+    sources: &HashMap<String, Arc<RgbaFrame>>,
     content_revisions: &HashMap<String, u64>,
     nv12_sources: &HashMap<String, Nv12IoSurfaceRef>,
     audio_reactive_sources: &HashMap<String, NativeAudioReactiveSource>,
@@ -2592,7 +2592,7 @@ pub fn upload_frame_to_scene_sources(
     scene: Option<&NativeOverlaySceneSource>,
     drawable_width: u32,
     drawable_height: u32,
-) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
+) -> Result<(SceneSnapshot, HashMap<String, Arc<RgbaFrame>>), String> {
     let mut source_cache = NativeOverlaySourceCache::default();
     let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
         upload,
@@ -2601,13 +2601,7 @@ pub fn upload_frame_to_scene_sources(
         drawable_height,
         &mut source_cache,
     )?;
-    Ok((
-        snapshot,
-        sources
-            .into_iter()
-            .map(|(media_id, frame)| (media_id, frame.as_ref().clone()))
-            .collect(),
-    ))
+    Ok((snapshot, sources))
 }
 
 fn upload_frame_to_scene_sources_with_cache(
@@ -2789,7 +2783,7 @@ fn fit_scene_snapshot_to_drawable(
 
 pub fn load_overlay_image_sources_for_scene(
     scene: &NativeOverlaySceneSource,
-) -> Result<HashMap<String, RgbaFrame>, String> {
+) -> Result<HashMap<String, Arc<RgbaFrame>>, String> {
     // `media.width`/`media.height` は TS の `mediaDimensionsForObject` 設計上 image clip の
     // display size（タイムライン上の表示サイズ）であり、PNG のネイティブ解像度ではない。
     // 一方 Rust 側の `prepare_clip` は `source.width/height` を `RenderParams.source_width/source_height`
@@ -2803,7 +2797,7 @@ pub fn load_overlay_image_sources_for_scene(
             continue;
         }
         let frame = load_overlay_image_source(&media.source)?;
-        sources.insert(media.id.clone(), frame);
+        sources.insert(media.id.clone(), Arc::new(frame));
     }
     Ok(sources)
 }
@@ -2820,14 +2814,9 @@ fn load_overlay_image_source(source: &str) -> Result<RgbaFrame, String> {
 
 pub fn load_overlay_native_sources_for_scene(
     scene: &NativeOverlaySceneSource,
-) -> Result<HashMap<String, RgbaFrame>, String> {
+) -> Result<HashMap<String, Arc<RgbaFrame>>, String> {
     let mut cache = NativeOverlaySourceCache::default();
-    Ok(
-        load_overlay_native_sources_for_scene_cached(scene, &mut cache)?
-            .into_iter()
-            .map(|(media_id, frame)| (media_id, frame.as_ref().clone()))
-            .collect(),
-    )
+    load_overlay_native_sources_for_scene_cached(scene, &mut cache)
 }
 
 fn load_overlay_native_sources_for_scene_cached(
@@ -5941,7 +5930,7 @@ mod tests {
     #[test]
     fn last_scene_cache_shares_rgba_pixel_buffers_via_arc_without_deep_clone() {
         // タスク2: `NativeOverlayLiveSurfaceRenderer.last_scene` は
-        // `Arc<(SceneSnapshot, HashMap<String, RgbaFrame>)>` として保持し、
+        // `Arc<(SceneSnapshot, HashMap<String, Arc<RgbaFrame>>)>` として保持し、
         // デコレーションのみの再 present（present_cached_scene_with_decoration
         // 相当の読み出しパターン: `.clone()` して中身を読む）が RgbaFrame の
         // ピクセルバッファを deep clone しないことを固定する。
@@ -5953,14 +5942,14 @@ mod tests {
         let frame = RgbaFrame::from_rgba8(width, height, vec![7u8; (width * height * 4) as usize])
             .expect("valid full-hd frame");
         let mut sources = HashMap::new();
-        sources.insert("video-1".to_string(), frame);
+        sources.insert("video-1".to_string(), Arc::new(frame));
         let snapshot = SceneSnapshot {
             frame_index: 0,
             colour: ColourPipeline::rec709_sdr_linear(),
             clips: Vec::new(),
         };
 
-        let last_scene: Option<Arc<(SceneSnapshot, HashMap<String, RgbaFrame>)>> =
+        let last_scene: Option<Arc<(SceneSnapshot, HashMap<String, Arc<RgbaFrame>>)>> =
             Some(Arc::new((snapshot, sources)));
 
         // present_cached_scene_with_decoration がやるのと同じ読み出しパターン。

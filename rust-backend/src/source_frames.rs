@@ -5,7 +5,7 @@ use crate::psd_fast;
 use crate::psd_layer_cache;
 #[cfg(unix)]
 use crate::sessions::DecodeSession;
-use crate::state::{SourceFrameCache, SourceFrameCacheKey};
+use crate::state::{GeneratedSourceFrameCache, SourceFrameCache, SourceFrameCacheKey};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fs;
@@ -22,7 +22,8 @@ pub(crate) fn collect_native_render_sources(
     media_items: &[SceneMediaReference],
     shared_sources: &[NativeRenderSharedFrameSource],
     source_frame_cache: &mut SourceFrameCache,
-) -> Result<HashMap<String, RgbaFrame>, String> {
+    generated_source_frame_cache: &mut GeneratedSourceFrameCache,
+) -> Result<HashMap<String, Arc<RgbaFrame>>, String> {
     let mut sources = HashMap::with_capacity(shared_sources.len() + media_items.len());
     for media in media_items {
         let frame = match media.kind {
@@ -39,16 +40,11 @@ pub(crate) fn collect_native_render_sources(
             | MediaKind::GeneratedShakingPolygon
             | MediaKind::GeneratedShatteredSphere => continue,
             MediaKind::Video => continue,
-            _ => uxfd_rust_backend::build_native_generated_source_frame(
+            _ => build_generated_source_frame_cached(
                 media,
-                source_frame_for_media(snapshot, &media.id),
-            )?
-            .ok_or_else(|| {
-                format!(
-                    "Native generated source builder does not support {:?} media '{}'",
-                    media.kind, media.id
-                )
-            })?,
+                snapshot,
+                generated_source_frame_cache,
+            )?,
         };
         if sources.insert(media.id.clone(), frame).is_some() {
             return Err(format!(
@@ -64,11 +60,47 @@ pub(crate) fn collect_native_render_sources(
                 source.media_id
             ));
         }
-        let frame = read_native_render_source_frame(source)?;
+        let frame = Arc::new(read_native_render_source_frame(source)?);
         sources.insert(source.media_id.clone(), frame);
     }
 
     Ok(sources)
+}
+
+/// Phase: 生成系ソースフレーム（Text/SolidColour/GeneratedShape/
+/// GeneratedGradient 等、`build_native_generated_source_frame` の `_` アーム
+/// に到達する種別）の revision キー付き CPU キャッシュ。
+///
+/// `media_content_revision(media, None)` は
+/// `collect_native_render_source_content_revisions` が同じ media 種別に対して
+/// 使う revision 計算と完全に同じものを使う（time_seed なし）。このアームに
+/// 到達する種別は `build_native_generated_source_frame` 内部で
+/// `source_frame` 引数を無視するため（GeneratedParticle 等の時間依存生成は
+/// この `_` アームへ到達する前に `continue` している）、`None` が正しいキー
+/// である。
+fn build_generated_source_frame_cached(
+    media: &SceneMediaReference,
+    snapshot: &SceneSnapshot,
+    cache: &mut GeneratedSourceFrameCache,
+) -> Result<Arc<RgbaFrame>, String> {
+    let revision = media_content_revision(media, None);
+    if let Some(cached) = cache.get(&media.id, revision) {
+        return Ok(cached);
+    }
+
+    let frame = uxfd_rust_backend::build_native_generated_source_frame(
+        media,
+        source_frame_for_media(snapshot, &media.id),
+    )?
+    .ok_or_else(|| {
+        format!(
+            "Native generated source builder does not support {:?} media '{}'",
+            media.kind, media.id
+        )
+    })?;
+    let frame = Arc::new(frame);
+    cache.insert(media.id.clone(), revision, Arc::clone(&frame));
+    Ok(frame)
 }
 
 /// Phase 4c Stage 2: for each `shared_sources` entry whose `job_id` points to
@@ -269,7 +301,7 @@ fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
 fn build_image_source_frame(
     media: &SceneMediaReference,
     source_frame_cache: &mut SourceFrameCache,
-) -> Result<RgbaFrame, String> {
+) -> Result<Arc<RgbaFrame>, String> {
     if media.width == 0 || media.height == 0 {
         return Err(format!(
             "Image media dimensions must be positive, got {}x{}",
@@ -292,13 +324,13 @@ fn build_image_source_frame(
         ));
     }
 
-    Ok((*frame).clone())
+    Ok(frame)
 }
 
 fn build_psd_source_frame(
     media: &SceneMediaReference,
     source_frame_cache: &mut SourceFrameCache,
-) -> Result<RgbaFrame, String> {
+) -> Result<Arc<RgbaFrame>, String> {
     if media.width == 0 || media.height == 0 {
         return Err(format!(
             "Psd media dimensions must be positive, got {}x{}",
@@ -326,7 +358,7 @@ fn build_psd_source_frame(
         ));
     }
 
-    Ok((*frame).clone())
+    Ok(frame)
 }
 
 fn decode_psd_source_frame(
@@ -1016,6 +1048,139 @@ mod content_revision_tests {
             revisions.get("video-media-1").is_none(),
             "the ordinary Video media kind is not driven by revision (only the shared \
              frame descriptor path is); renderer must always miss and re-upload it"
+        );
+    }
+}
+
+/// 生成系ソースフレーム（Text/SolidColour/GeneratedShape/GeneratedGradient 等、
+/// `collect_native_render_sources` の `_` アームに到達する種別）の revision
+/// キー付き CPU キャッシュを固定する。
+#[cfg(all(test, unix))]
+mod generated_source_frame_cache_tests {
+    use super::*;
+    use crate::state::{GeneratedSourceFrameCache, SourceFrameCache};
+
+    fn solid_colour_media(id: &str, source: &str, width: u32) -> SceneMediaReference {
+        SceneMediaReference {
+            id: id.to_string(),
+            kind: MediaKind::SolidColour,
+            source: source.to_string(),
+            width,
+            height: 4,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        }
+    }
+
+    fn empty_snapshot() -> SceneSnapshot {
+        SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn repeated_calls_with_unchanged_generated_media_reuse_the_same_arc() {
+        let snapshot = empty_snapshot();
+        let media = solid_colour_media("solid-1", "#ff0000", 4);
+        let mut source_frame_cache = SourceFrameCache::default();
+        let mut generated_cache = GeneratedSourceFrameCache::default();
+
+        let first = collect_native_render_sources(
+            &snapshot,
+            &[media.clone()],
+            &[],
+            &mut source_frame_cache,
+            &mut generated_cache,
+        )
+        .expect("first collect succeeds");
+        let second = collect_native_render_sources(
+            &snapshot,
+            &[media],
+            &[],
+            &mut source_frame_cache,
+            &mut generated_cache,
+        )
+        .expect("second collect succeeds");
+
+        let first_frame = first.get("solid-1").expect("first frame present");
+        let second_frame = second.get("solid-1").expect("second frame present");
+        assert!(
+            Arc::ptr_eq(first_frame, second_frame),
+            "unchanged generated media must reuse the previous frame's Arc<RgbaFrame> \
+             instead of re-rasterising"
+        );
+        assert_eq!(generated_cache.len(), 1);
+    }
+
+    #[test]
+    fn changed_content_determining_field_invalidates_the_cache_entry() {
+        let snapshot = empty_snapshot();
+        let red = solid_colour_media("solid-1", "#ff0000", 4);
+        let blue = solid_colour_media("solid-1", "#0000ff", 4);
+        let mut source_frame_cache = SourceFrameCache::default();
+        let mut generated_cache = GeneratedSourceFrameCache::default();
+
+        let first = collect_native_render_sources(
+            &snapshot,
+            &[red],
+            &[],
+            &mut source_frame_cache,
+            &mut generated_cache,
+        )
+        .expect("first collect succeeds");
+        let second = collect_native_render_sources(
+            &snapshot,
+            &[blue],
+            &[],
+            &mut source_frame_cache,
+            &mut generated_cache,
+        )
+        .expect("second collect succeeds");
+
+        let first_frame = first.get("solid-1").expect("first frame present");
+        let second_frame = second.get("solid-1").expect("second frame present");
+        assert!(
+            !Arc::ptr_eq(first_frame, second_frame),
+            "a changed content-determining field (colour) must invalidate the cache entry"
+        );
+        assert_ne!(
+            first_frame.pixels[0..4],
+            second_frame.pixels[0..4],
+            "the re-rasterised frame must reflect the new colour"
+        );
+    }
+
+    #[test]
+    fn a_fresh_differing_media_id_gets_its_own_cache_entry() {
+        let snapshot = empty_snapshot();
+        let first_media = solid_colour_media("solid-1", "#ff0000", 4);
+        let second_media = solid_colour_media("solid-2", "#ff0000", 4);
+        let mut source_frame_cache = SourceFrameCache::default();
+        let mut generated_cache = GeneratedSourceFrameCache::default();
+
+        collect_native_render_sources(
+            &snapshot,
+            &[first_media],
+            &[],
+            &mut source_frame_cache,
+            &mut generated_cache,
+        )
+        .expect("first collect succeeds");
+        collect_native_render_sources(
+            &snapshot,
+            &[second_media],
+            &[],
+            &mut source_frame_cache,
+            &mut generated_cache,
+        )
+        .expect("second collect succeeds");
+
+        assert_eq!(
+            generated_cache.len(),
+            2,
+            "distinct media_ids must occupy distinct cache entries"
         );
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
@@ -14,9 +15,10 @@ fn overlay_surface_matches_export_readback_for_phase3a_reference_scenes() {
             .expect("render CPU reference");
         assert_eq!(reference, case.anchor, "case '{}' anchor drifted", case.name);
 
+        let arc_sources = case.arc_sources();
         let export = match pollster::block_on(render_native_wgpu_frame(
             &case.snapshot,
-            &case.sources,
+            &arc_sources,
             case.width,
             case.height,
         )) {
@@ -29,7 +31,7 @@ fn overlay_surface_matches_export_readback_for_phase3a_reference_scenes() {
         };
         let overlay = match pollster::block_on(render_native_wgpu_overlay_surface_frame(
             &case.snapshot,
-            &case.sources,
+            &arc_sources,
             case.width,
             case.height,
         )) {
@@ -57,6 +59,20 @@ struct ReferenceCase {
     width: u32,
     height: u32,
     anchor: RgbaFrame,
+}
+
+impl ReferenceCase {
+    /// `render_reference_frame` (CPU parity reference) still takes owned
+    /// `RgbaFrame` values, while the native wgpu renderer now takes
+    /// `Arc<RgbaFrame>` sources (see rust-backend generated source frame
+    /// cache work). Keep a single canonical `sources` field and adapt it
+    /// for the native renderer calls here instead of duplicating fixtures.
+    fn arc_sources(&self) -> HashMap<String, Arc<RgbaFrame>> {
+        self.sources
+            .iter()
+            .map(|(media_id, frame)| (media_id.clone(), Arc::new(frame.clone())))
+            .collect()
+    }
 }
 
 fn phase3a_reference_cases() -> Vec<ReferenceCase> {
