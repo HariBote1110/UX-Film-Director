@@ -15,8 +15,8 @@ use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
     AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
-    AudioVisualizationType, Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl,
-    ImageObjectFields,
+    AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect,
+    Fps, GroupControl, ImageObjectFields,
     MediaKind, MediaReference, ParticleObjectFields, PositionKeyframe, Project, ProjectSize,
     SamplingMode, ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope,
     ShapeObjectFields, ShapeType, SubjectCropAnimation, SubjectCropKeyframe,
@@ -60,6 +60,7 @@ fn write_ts_bindings() {
     AudioSphereObjectFields::export_all(&cfg)
         .expect("AudioSphereObjectFields の TS export に失敗しました");
     ParticleObjectFields::export_all(&cfg).expect("ParticleObjectFields の TS export に失敗しました");
+    BarcodeObjectFields::export_all(&cfg).expect("BarcodeObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -145,6 +146,7 @@ fn write_json_schemas() {
     write_schema::<AudioVisualizationObjectFields>(&dir, "AudioVisualizationObjectFields");
     write_schema::<AudioSphereObjectFields>(&dir, "AudioSphereObjectFields");
     write_schema::<ParticleObjectFields>(&dir, "ParticleObjectFields");
+    write_schema::<BarcodeObjectFields>(&dir, "BarcodeObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

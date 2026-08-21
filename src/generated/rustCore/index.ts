@@ -4,6 +4,7 @@ export * from './AudioObjectFields';
 export * from './AudioSphereObjectFields';
 export * from './AudioVisualizationObjectFields';
 export * from './AudioVisualizationType';
+export * from './BarcodeObjectFields';
 export * from './Clip';
 export * from './ClipKind';
 export * from './ColourPipeline';

@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -462,17 +462,7 @@ export type AudioSphereObject = BaseObject & AudioSphereObjectFields & { type: '
 export type ParticleObject = BaseObject & ParticleObjectFields & { type: 'particle' };
 
 // AviUtlPackV4 バーコードT互換の生成オブジェクト
-export interface BarcodeObject extends BaseObject {
-  type: 'barcode';
-  width: number;
-  height: number;
-  data: string;
-  minimumBarWidth: number;
-  horizontalMargin: number;
-  verticalMargin: number;
-  foregroundColour: string;
-  backgroundColour: string;
-}
+export type BarcodeObject = BaseObject & BarcodeObjectFields & { type: 'barcode' };
 
 // AviUtlPackV4 パズルピース互換の生成オブジェクト
 export interface PuzzlePieceObject extends BaseObject {
