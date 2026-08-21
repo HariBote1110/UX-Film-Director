@@ -154,7 +154,7 @@ POSIX 経路は 1 行も書き換えず、321 行の追加のみ。
 - TDD: 既存の `shared-memory-spike` のテストが Windows でも通ることを合格条件にする。
   `loom` のテストは POSIX 依存ではないのでそのまま流用できるはず（未確認）。
 
-### Phase 3: `rust-backend` の `cfg(unix)` 掛け漏れ（推定 0.5-1日）
+### Phase 3: `rust-backend` の `cfg(unix)` 掛け漏れ（推定 0.5-1日）★完了 2026-08-22
 
 unix 限定で定義した関数・フィールドを無条件に参照している 5 箇所を塞ぐ。
 
@@ -171,8 +171,33 @@ unix 限定で定義した関数・フィールドを無条件に参照してい
 監査ノートの予測が裏付けられた。Windows ビルドを塞いでいるのは
 `rust-backend` のこの 5 箇所だけである。
 
-**この時点のマイルストーン**: native overlay 以外は Windows で動く。
-preview は既存の WebGPU presenter フォールバック、decode/encode は ffmpeg 経路。
+**結果: クロスチェックのエラーは 5 → 0 になった。5 箇所すべてスタブではなく un-gate で対応。**
+詳細は [windows-cfg-unix-gaps.md](../progress/windows-cfg-unix-gaps.md)。
+
+**ただし、ここで掲げていたマイルストーン「native overlay 以外は Windows で動く。
+decode/encode は ffmpeg 経路」は達成していない。** 実機テストは
+205 passed / 29 failed で、失敗 29 件のうち 18 件は
+通常の ffmpeg decode/encode データプレーン（`decode.rs` の `DecodeDataPlaneRing` 系、
+`encode.rs` の `write_encode_shared_frame`）が依然 `cfg(not(unix))` の no-op スタブである
+ことによる。これは監査が挙げた 5 件には含まれておらず、`decode.rs` は 1,300 行超あるため
+Phase 3 のスコープ外だった。
+
+達成したのは「**ビルドが通り、native render の共有フレーム経路は実機で動く**」ところまで。
+
+### Phase 3b: decode/encode データプレーンの Windows 実装（新設・推定 3-5日）
+
+Phase 3 の実機検証で判明した積み残し。上記マイルストーンを本当に満たすために要る。
+
+- `decode.rs` の `DecodeDataPlaneRing` / `create_decode_data_plane` / `write_decode_data_plane`
+- `encode.rs` の `write_encode_shared_frame`
+- いずれも `cfg(not(unix))` の no-op スタブのままで、W2 で shm が移植された今は
+  un-gate できる可能性が高い（Phase 3 の 5 件と同じ構図）。ただし規模が桁違いなので別フェーズにする。
+- あわせて、実機で初めて見えたテスト基盤バグ 5 件も潰す。
+  Windows パスのバックスラッシュを JSON リテラルへ未エスケープで埋める（2 件）、
+  stdin シンクに `sh -c` を使う（2 件）、空白入りパスから不正な `file://` URL を組む（1 件）。
+  Windows CI を入れる前に潰さないと恒常的な赤になる。
+- macOS 専用 VideoToolbox 経路を assert している 6 件は
+  `cfg(target_os = "macos")` で括る（Windows では ffmpeg フォールバックが正しい挙動）。
 
 ### Phase 4: wgpu 0.20 → 25 移行（推定 5-10日）★完了 2026-08-22
 

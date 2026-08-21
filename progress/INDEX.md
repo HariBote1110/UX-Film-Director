@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [windows-cfg-unix-gaps.md](windows-cfg-unix-gaps.md) — W3完了。Windows向けcargo checkのエラーを5→0にした。5箇所すべてスタブでなくun-gateで対応し正味92行の削除。**ただし「Windowsで動く」には未到達** — 実機は205 passed/29 failedで、18件はffmpeg decode/encodeデータプレーンがcfg(not(unix))のno-opスタブのまま。Phase 3bとして別立てにした。実機で初めて見えたテスト基盤バグ5件(Windowsパスの未エスケープ、sh -c依存、不正file:// URL)も要修正（2026-08-22）
 - [rust-source-of-truth-r2-source-frame-convention.md](rust-source-of-truth-r2-source-frame-convention.md) — R2最初のスライス。`rustSceneSnapshot.ts`の`sourceFrameForObject`を静止系29種の`return 0`規約からRust側と同じ「clip開始からの経過フレーム」規約へ統一。既存の時間依存4種と同じ式（`secondsToFrameIndex(time-startTime,fps)`）を再利用したので新規実装なし。`KNOWN_DIFFERENCES.json`から`source_frame`(4,074件)を削除、他2クラス(translation_x/y・Clipping系)は件数不変。テスト修正3ファイルのみ、他約40ファイルは無関係と確認（版504a）（2026-08-22）
 - [rust-type-codegen.md](rust-type-codegen.md) — R1完了。ts-rsでTS型、schemarsでJSON Schemaをrust-coreの型から生成し、手書きミラー型を全廃してre-exportに置換。wire formatは不変でfixtureはbyte一致。生成型そのままでは済まなかったのは2箇所(subject_cropのoptional性、readonly配列)。EditableRustClip.kindがV1部分集合から全variantへ広がった点は要検討として残る（2026-08-22）
 - [windows-shm-platform-seam.md](windows-shm-platform-seam.md) — W2完了。リポジトリ全体のWindowsビルドを止めていたshared-memory-spikeにプラットフォームseamを切った。POSIX経路は一行も変えず321行の追加のみ。macOS/実機ともに23/23 pass。**この結果native-wgpu-rendererとnative-overlayは無改造でWindowsクロスチェック通過**し、残るブロッカーはrust-backendのcfg(unix)掛け漏れ5箇所のみになった。mainpcにFFmpeg 9.0を導入した点に注意（2026-08-22）
