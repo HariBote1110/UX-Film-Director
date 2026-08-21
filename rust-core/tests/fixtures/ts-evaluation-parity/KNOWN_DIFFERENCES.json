@@ -1,35 +1,4 @@
 {
-  "description": "TS 評価(rustSceneSnapshot.ts)と rust-core 評価(evaluate_frame)の既知の差分。Rust_Source_Of_Truth_Plan.md の R2 でゼロにする。件数は増やしてはならず、減らしたらこのファイルを更新する（ラチェット）。",
-  "differences": [
-    {
-      "path": "snapshot.clips[].effects.length",
-      "count": 137,
-      "category": "ts-only-animation",
-      "note": "rust-core が TS より effect を 1 つ多く出す frame がある。Clipping の差と同じ clip で起きている。"
-    },
-    {
-      "path": "snapshot.clips[].effects[].Clipping.top",
-      "count": 137,
-      "category": "ts-only-animation",
-      "note": "TS は Clipping をフレームごとに変化させるが rust-core は静的な値を返す。最大 14.4px。"
-    },
-    {
-      "path": "snapshot.clips[].effects[].Clipping.bottom",
-      "count": 137,
-      "category": "ts-only-animation",
-      "note": "Clipping.top と同じ理由。最大 14.4px。"
-    },
-    {
-      "path": "snapshot.clips[].effects[].Clipping.left",
-      "count": 137,
-      "category": "ts-only-animation",
-      "note": "Clipping.top と同じ理由。最大 51.1px。"
-    },
-    {
-      "path": "snapshot.clips[].effects[].Clipping.right",
-      "count": 137,
-      "category": "ts-only-animation",
-      "note": "Clipping.top と同じ理由。最大 38.3px。"
-    }
-  ]
+  "description": "TS 評価(rustSceneSnapshot.ts)と rust-core 評価(evaluate_frame)の既知の差分。Rust_Source_Of_Truth_Plan.md の R2 でゼロにする。件数は増やしてはならず、減らしたらこのファイルを更新する（ラチェット）。R2 完了時点（2026-08-22）でゼロに到達した。",
+  "differences": []
 }

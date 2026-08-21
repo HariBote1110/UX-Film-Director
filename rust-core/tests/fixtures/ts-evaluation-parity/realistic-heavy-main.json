@@ -417,15 +417,6 @@
                   "thickness": 2,
                   "opacity": 0.65
                 }
-              },
-              {
-                "Clipping": {
-                  "top": 28.8,
-                  "bottom": 28.800000000000026,
-                  "left": 51.2,
-                  "right": 51.200000000000045,
-                  "angle_degrees": 0
-                }
               }
             ]
           }
