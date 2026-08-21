@@ -53,7 +53,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
 ): boolean => isSharedRendererNativeMediaSourceSupported(reference.kind, reference.source);
 
 const isSharedRendererNativeTextStrokeSupported = (stroke: unknown): boolean => {
-  if (stroke === null) return true;
+  if (stroke === null || stroke === undefined) return true;
   if (typeof stroke !== 'object') return false;
   const parsed = stroke as { colour?: unknown; width?: unknown };
   return (
@@ -66,16 +66,16 @@ const isSharedRendererNativeTextStrokeSupported = (stroke: unknown): boolean => 
 };
 
 const isSharedRendererNativeTextShadowSupported = (shadow: unknown): boolean => {
-  if (shadow === null) return true;
+  if (shadow === null || shadow === undefined) return true;
   if (typeof shadow !== 'object') return false;
-  const parsed = shadow as { colour?: unknown; offset_x?: unknown; offset_y?: unknown; blur?: unknown };
+  const parsed = shadow as { colour?: unknown; offsetX?: unknown; offsetY?: unknown; blur?: unknown };
   return (
     typeof parsed.colour === 'string'
     && /^#[0-9a-f]{6}$/i.test(parsed.colour)
-    && typeof parsed.offset_x === 'number'
-    && Number.isFinite(parsed.offset_x)
-    && typeof parsed.offset_y === 'number'
-    && Number.isFinite(parsed.offset_y)
+    && typeof parsed.offsetX === 'number'
+    && Number.isFinite(parsed.offsetX)
+    && typeof parsed.offsetY === 'number'
+    && Number.isFinite(parsed.offsetY)
     && typeof parsed.blur === 'number'
     && Number.isFinite(parsed.blur)
     && parsed.blur >= 0
@@ -86,27 +86,28 @@ const isSharedRendererNativeTextSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
       text?: unknown;
-      font_family?: unknown;
-      font_size?: unknown;
-      colour?: unknown;
-      alignment?: unknown;
-      letter_spacing?: unknown;
-      stroke?: unknown;
-      shadow?: unknown;
+      fontFamily?: unknown;
+      fontSize?: unknown;
+      fill?: unknown;
+      textAlignment?: unknown;
+      letterSpacing?: unknown;
+      textStroke?: unknown;
+      textShadow?: unknown;
     };
     return (
       typeof parsed.text === 'string'
-      && typeof parsed.font_family === 'string'
-      && typeof parsed.font_size === 'number'
-      && Number.isFinite(parsed.font_size)
-      && parsed.font_size > 0
-      && typeof parsed.colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
-      && (parsed.alignment === 'left' || parsed.alignment === 'centre' || parsed.alignment === 'right')
-      && typeof parsed.letter_spacing === 'number'
-      && Number.isFinite(parsed.letter_spacing)
-      && isSharedRendererNativeTextStrokeSupported(parsed.stroke ?? null)
-      && isSharedRendererNativeTextShadowSupported(parsed.shadow ?? null)
+      && typeof parsed.fontFamily === 'string'
+      && typeof parsed.fontSize === 'number'
+      && Number.isFinite(parsed.fontSize)
+      && parsed.fontSize > 0
+      && typeof parsed.fill === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill)
+      && (parsed.textAlignment === undefined || parsed.textAlignment === null
+        || parsed.textAlignment === 'left' || parsed.textAlignment === 'centre' || parsed.textAlignment === 'right')
+      && (parsed.letterSpacing === undefined || parsed.letterSpacing === null
+        || (typeof parsed.letterSpacing === 'number' && Number.isFinite(parsed.letterSpacing)))
+      && isSharedRendererNativeTextStrokeSupported(parsed.textStroke ?? null)
+      && isSharedRendererNativeTextShadowSupported(parsed.textShadow ?? null)
     );
   } catch {
     return false;

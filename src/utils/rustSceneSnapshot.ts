@@ -1357,25 +1357,24 @@ const activeLayerIdsForPsd = (object: PsdObject): string[] =>
     .map(([layerId]) => layerId)
     .sort((left, right) => left.localeCompare(right));
 
+/**
+ * `text` kind の編集モデル（`TextObjectFields`、正本は rust-core/src/schema.rs）を
+ * そのまま JSON 化するだけの薄いワイヤーソース。R3 のワイヤースキーマ統一により、
+ * フィールド名の読み替え・既定値フォールバックの知識は rust-backend
+ * （`generated/text.rs`）側だけに残る。
+ */
 const serialiseTextSource = (object: TextObject): string =>
   JSON.stringify({
     text: object.text,
-    font_family: object.fontFamily,
-    font_size: object.fontSize,
-    colour: object.fill,
-    alignment: object.textAlignment ?? 'left',
-    letter_spacing: object.letterSpacing ?? 0,
-    stroke: object.textStroke
-      ? { colour: object.textStroke.colour, width: object.textStroke.width }
-      : null,
-    shadow: object.textShadow
-      ? {
-        colour: object.textShadow.colour,
-        offset_x: object.textShadow.offsetX,
-        offset_y: object.textShadow.offsetY,
-        blur: object.textShadow.blur,
-      }
-      : null,
+    fontSize: object.fontSize,
+    fontFamily: object.fontFamily,
+    fill: object.fill,
+    measuredWidth: object.measuredWidth,
+    measuredHeight: object.measuredHeight,
+    textAlignment: object.textAlignment,
+    letterSpacing: object.letterSpacing,
+    textStroke: object.textStroke,
+    textShadow: object.textShadow,
   });
 
 /**

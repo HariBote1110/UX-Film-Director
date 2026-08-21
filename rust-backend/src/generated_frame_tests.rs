@@ -1520,7 +1520,7 @@ fn generated_text_source_frame_renders_non_transparent_glyphs_for_latin_text() {
     let media = SceneMediaReference {
         id: "text-1".to_string(),
         kind: MediaKind::Text,
-        source: r##"{"text":"Hi","font_family":"Arial","font_size":64,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":null}"##.to_string(),
+        source: r##"{"text":"Hi","fontFamily":"Arial","fontSize":64,"fill":"#ffffff"}"##.to_string(),
         width: 200,
         height: 100,
         source_rate: None,
@@ -1554,7 +1554,7 @@ fn generated_text_source_frame_renders_non_empty_output_for_cjk_text() {
     let media = SceneMediaReference {
         id: "text-cjk-1".to_string(),
         kind: MediaKind::Text,
-        source: r##"{"text":"こんにちは","font_family":"Hiragino Sans","font_size":48,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":null}"##.to_string(),
+        source: r##"{"text":"こんにちは","fontFamily":"Hiragino Sans","fontSize":48,"fill":"#ffffff"}"##.to_string(),
         width: 320,
         height: 100,
         source_rate: None,
@@ -1576,7 +1576,7 @@ fn generated_text_source_frame_rejects_non_positive_dimensions() {
     let media = SceneMediaReference {
         id: "text-invalid-1".to_string(),
         kind: MediaKind::Text,
-        source: r##"{"text":"Hi","font_family":"Arial","font_size":32,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":null}"##.to_string(),
+        source: r##"{"text":"Hi","fontFamily":"Arial","fontSize":32,"fill":"#ffffff"}"##.to_string(),
         width: 0,
         height: 100,
         source_rate: None,
@@ -1598,7 +1598,7 @@ fn text_shadow_blur_test_media(blur: f32) -> SceneMediaReference {
         id: format!("text-shadow-blur-{blur}"),
         kind: MediaKind::Text,
         source: format!(
-            r##"{{"text":"l","font_family":"Arial","font_size":64,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":{{"colour":"#ff0000","offset_x":120,"offset_y":0,"blur":{blur}}}}}"##
+            r##"{{"text":"l","fontFamily":"Arial","fontSize":64,"fill":"#ffffff","textShadow":{{"colour":"#ff0000","offsetX":120,"offsetY":0,"blur":{blur}}}}}"##
         ),
         width: 400,
         height: 150,
@@ -1793,7 +1793,7 @@ fn generated_text_source_frame_shadow_blur_non_positive_and_overflowing_do_not_p
             id: format!("text-shadow-blur-literal-{blur_literal}"),
             kind: MediaKind::Text,
             source: format!(
-                r##"{{"text":"l","font_family":"Arial","font_size":64,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":{{"colour":"#ff0000","offset_x":120,"offset_y":0,"blur":{blur_literal}}}}}"##
+                r##"{{"text":"l","fontFamily":"Arial","fontSize":64,"fill":"#ffffff","textShadow":{{"colour":"#ff0000","offsetX":120,"offsetY":0,"blur":{blur_literal}}}}}"##
             ),
             width: 400,
             height: 150,
