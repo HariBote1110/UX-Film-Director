@@ -2,6 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
+- [upload-fence-per-frame-removal.md](upload-fence-per-frame-removal.md) — **sourceUpload残存2〜3msの正体は毎フレームのuploadフェンス(submit(empty)+wait ≒2.0ms)。仮説B(revision取りこぼし)は棄却(ミスは起動時42回のみ)。フェンス除去で133〜139fps(中央値135.8、ベースラインの2.64倍)、e2e全success。本実装は/developmentへ**（2026-08-21）
 - [generated-source-cache-verification.md](generated-source-cache-verification.md) — **キャッシュ修正の効果検証: collect 7.03→0.2ms(-96%)、102〜119fps(中央値107、当初ベースラインの2.07倍)。フレーム時間はほぼGPU作業のみ=GPU律速に到達。次はsourceUpload 2〜3ms残存とvsync供給律速の既定経路**（2026-08-21）
 - [collect-sources-cpu-rasterisation.md](collect-sources-cpu-rasterisation.md) — **前処理6〜8msの最終帰属。JSON往復・再パースは<0.1msで無罪(レバー2棄却)。`collect_native_render_sources`が生成系(Text/Shape/Gradient/SolidColour)を毎フレームCPU再ラスタライズしているのが犯人。revisionキー付きCPUキャッシュで130〜140fps見込み**（2026-08-21）
 - [write-pipelining-rejected-backend-serial-cpu.md](write-pipelining-rejected-backend-serial-cpu.md) — **writeパイプライン化は棄却(+3〜5%)。backendは直列サーバで、真犯人は前処理CPU 6.05ms/frame(JSON Value往復+clone+parse)。本命はレバー2=JSON往復排除(→約135fps見込み)。加えてエクスポートeffect再発火によるrunExport並走(encode.start二重)バグを特定 — "Cannot Save"/0バイト残骸/タイムアウトの統一真因**（2026-08-21）

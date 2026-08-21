@@ -1,0 +1,44 @@
+diff --git a/native-wgpu-renderer/src/lib.rs b/native-wgpu-renderer/src/lib.rs
+index fed9e54a..9c091097 100644
+--- a/native-wgpu-renderer/src/lib.rs
++++ b/native-wgpu-renderer/src/lib.rs
+@@ -1273,7 +1273,9 @@ impl NativeWgpuRenderer {
+             &generated_gpu_sources.focus_lines,
+             &generated_gpu_sources.shaking_polygons,
+             &generated_gpu_sources.shattered_spheres,
+-            true,
++            // encode_research 実験(E-fence): フェンス除去。同一 queue の write_texture は
++            // 後続 submit より先に完了することが wgpu で保証されるため fence 不要仮説。
++            false,
+             content_revisions,
+         )?;
+         let target_texture =
+@@ -1858,12 +1860,28 @@ impl NativeWgpuRenderer {
+             .finish_frame(&touched_shaking_polygon_media_ids);
+         self.shattered_sphere_renderer
+             .finish_frame(&touched_shattered_sphere_media_ids);
++        let loop_elapsed = upload_start.elapsed();
+         if wait_for_upload {
+             self.queue.submit(std::iter::empty());
+             wait_for_submitted_work(&self.device, &self.queue)?;
+         }
+         let source_upload = upload_start.elapsed();
+ 
++        // encode_research 一時計測（撤去前提）: ループ部とフェンス部の分割、
++        // media テクスチャキャッシュの hit/miss を stderr へ出す。
++        if std::env::var_os("UXFD_ENCODE_RESEARCH_UPLOAD_SPLIT").is_some() {
++            let hits = self.media_texture_cache_hits.load(Ordering::Relaxed);
++            let misses = self.media_texture_cache_misses.load(Ordering::Relaxed);
++            eprintln!(
++                "[upload-split] clips={} loopMs={:.3} fenceMs={:.3} cumHits={} cumMisses={}",
++                clips.len(),
++                loop_elapsed.as_secs_f64() * 1000.0,
++                (source_upload - loop_elapsed).as_secs_f64() * 1000.0,
++                hits,
++                misses
++            );
++        }
++
+         Ok((prepared_clips, source_upload))
+     }
+ 
