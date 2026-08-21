@@ -1404,24 +1404,20 @@ const textMediaBox = (object: TextObject): { width: number; height: number } => 
   };
 };
 
+/**
+ * `shape` kind の編集モデル（`ShapeObjectFields`、正本は rust-core/src/schema.rs）を
+ * そのまま JSON 化するだけの薄いワイヤーソース。R3 のワイヤースキーマ統一により、
+ * rust-backend 側が `ShapeObjectFields` を直接デシリアライズするため、
+ * フィールド名の読み替えやフォールバック処理はもう Rust 側にしか存在しない。
+ */
 const serialiseGeneratedShapeSource = (object: ShapeObject): string =>
   JSON.stringify({
-    generator: 'shape-93',
-    shape_type: object.shapeType,
-    fill_colour: object.fill,
-    gradient: object.gradient?.enabled === true
-      ? {
-        type: object.gradient.type === 'radial' ? 'radial' : 'linear',
-        colours: Array.isArray(object.gradient.colours) && object.gradient.colours.length > 0
-          ? object.gradient.colours
-          : ['#ffffff', '#000000'],
-        stops: Array.isArray(object.gradient.stops) ? object.gradient.stops : [],
-        direction: Number.isFinite(object.gradient.direction) ? object.gradient.direction : 0,
-      }
-      : null,
-    corner_radius: Number.isFinite(object.cornerRadius) && (object.cornerRadius as number) >= 0
-      ? object.cornerRadius
-      : 0,
+    shapeType: object.shapeType,
+    width: object.width,
+    height: object.height,
+    fill: object.fill,
+    gradient: object.gradient,
+    cornerRadius: object.cornerRadius,
   });
 
 const serialiseGeneratedGradientSource = (

@@ -172,18 +172,19 @@ const SUPPORTED_GENERATED_SHAPE_TYPES = new Set([
 ]);
 
 const isSharedRendererNativeGeneratedShapeGradientSupported = (gradient: unknown): boolean => {
-  if (gradient === null) return true;
+  if (gradient === null || gradient === undefined) return true;
   if (typeof gradient !== 'object') return false;
   const parsed = gradient as {
+    enabled?: unknown;
     type?: unknown;
     colours?: unknown;
     stops?: unknown;
     direction?: unknown;
   };
+  if (parsed.enabled !== true) return true;
   return (
     (parsed.type === 'linear' || parsed.type === 'radial')
     && Array.isArray(parsed.colours)
-    && parsed.colours.length > 0
     && parsed.colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
     && (parsed.stops === undefined || (
       Array.isArray(parsed.stops)
@@ -193,25 +194,30 @@ const isSharedRendererNativeGeneratedShapeGradientSupported = (gradient: unknown
   );
 };
 
+/**
+ * `shape` kind の生成ワイヤーソース。R3 のワイヤースキーマ統一（rust-core の
+ * `ShapeObjectFields` を rust-backend が直接デシリアライズする）に伴い、
+ * ここでの受理判定も camelCase の編集モデル型と同じ形を見るようにしている。
+ */
 const isSharedRendererNativeGeneratedShapeSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      shape_type?: unknown;
-      fill_colour?: unknown;
+      shapeType?: unknown;
+      fill?: unknown;
       gradient?: unknown;
-      corner_radius?: unknown;
+      cornerRadius?: unknown;
     };
     return (
-      parsed.generator === 'shape-93'
-      && typeof parsed.shape_type === 'string'
-      && SUPPORTED_GENERATED_SHAPE_TYPES.has(parsed.shape_type)
-      && typeof parsed.fill_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+      typeof parsed.shapeType === 'string'
+      && SUPPORTED_GENERATED_SHAPE_TYPES.has(parsed.shapeType)
+      && typeof parsed.fill === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill)
       && isSharedRendererNativeGeneratedShapeGradientSupported(parsed.gradient ?? null)
-      && typeof parsed.corner_radius === 'number'
-      && Number.isFinite(parsed.corner_radius)
-      && parsed.corner_radius >= 0
+      && (parsed.cornerRadius === undefined || (
+        typeof parsed.cornerRadius === 'number'
+        && Number.isFinite(parsed.cornerRadius)
+        && parsed.cornerRadius >= 0
+      ))
     );
   } catch {
     return false;
