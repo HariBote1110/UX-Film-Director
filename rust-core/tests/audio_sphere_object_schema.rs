@@ -50,13 +50,13 @@ fn audio_sphere_object_fields_serialise_with_camel_case_field_names() {
     let value = serde_json::to_value(&fields).expect("AudioSphereObjectFields must serialise");
 
     assert_eq!(value["baseRadius"], 100.0);
-    assert_eq!(value["audioInfluence"], 0.8);
+    assert!((value["audioInfluence"].as_f64().unwrap() - 0.8).abs() < 1e-6);
     assert_eq!(value["pointSize"], 6.0);
-    assert_eq!(value["polygonSize"], 0.4);
-    assert_eq!(value["randomAmount"], 0.1);
+    assert!((value["polygonSize"].as_f64().unwrap() - 0.4).abs() < 1e-6);
+    assert!((value["randomAmount"].as_f64().unwrap() - 0.1).abs() < 1e-6);
     assert_eq!(value["targetAudioId"], "audio-1");
     assert_eq!(value["targetLayer"], 2);
-    assert_eq!(value["sampleWindowSeconds"], 0.2);
+    assert!((value["sampleWindowSeconds"].as_f64().unwrap() - 0.2).abs() < 1e-6);
     assert!(value.get("base_radius").is_none());
     assert!(value.get("target_audio_id").is_none());
 }

@@ -809,6 +809,73 @@ impl Default for AudioVisualizationObjectFields {
     }
 }
 
+/// `AudioSphereObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、audio_sphere 固有部分。TS 側は
+/// `BaseObject & AudioSphereObjectFields & { type: 'audio_sphere' }` として組み立てる。
+///
+/// `width`/`height` は `audioSphereObjectFactory.ts` の
+/// `buildAviUtlAudioSphereObject` がプロジェクトサイズから都度計算するため
+/// 固定既定値が無く、ニュートラルな `0.0` にする。他の数値フィールドは
+/// 同ファイルの固定リテラル（columns: 16, rows: 12, baseRadius: 170,
+/// audioInfluence: 0.6, pointSize: 5, polygonSize: 0.35, randomAmount: 0.05,
+/// colour: '#36c2ff', sampleWindowSeconds: 0.1, seed: 93）をそのまま採用する。
+/// `targetAudioId`/`targetLayer` は audio_visualization と同じ規約
+/// （前者は常にキーが存在し null 許容、後者は省略可能）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AudioSphereObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub columns: u32,
+    pub rows: u32,
+    #[serde(rename = "baseRadius")]
+    #[ts(rename = "baseRadius")]
+    pub base_radius: f32,
+    #[serde(rename = "audioInfluence")]
+    #[ts(rename = "audioInfluence")]
+    pub audio_influence: f32,
+    #[serde(rename = "pointSize")]
+    #[ts(rename = "pointSize")]
+    pub point_size: f32,
+    #[serde(rename = "polygonSize")]
+    #[ts(rename = "polygonSize")]
+    pub polygon_size: f32,
+    #[serde(rename = "randomAmount")]
+    #[ts(rename = "randomAmount")]
+    pub random_amount: f32,
+    pub colour: String,
+    #[serde(rename = "targetAudioId")]
+    #[ts(rename = "targetAudioId")]
+    pub target_audio_id: Option<String>,
+    #[serde(rename = "targetLayer", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "targetLayer")]
+    pub target_layer: Option<i32>,
+    #[serde(rename = "sampleWindowSeconds")]
+    #[ts(rename = "sampleWindowSeconds")]
+    pub sample_window_seconds: f32,
+    pub seed: i64,
+}
+
+impl Default for AudioSphereObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            columns: 16,
+            rows: 12,
+            base_radius: 170.0,
+            audio_influence: 0.6,
+            point_size: 5.0,
+            polygon_size: 0.35,
+            random_amount: 0.05,
+            colour: "#36c2ff".to_string(),
+            target_audio_id: None,
+            target_layer: None,
+            sample_window_seconds: 0.1,
+            seed: 93,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
