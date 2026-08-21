@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectSize",
+  "type": "object",
+  "properties": {
+    "height": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "width",
+    "height"
+  ]
+}

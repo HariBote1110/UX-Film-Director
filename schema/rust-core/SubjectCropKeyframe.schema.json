@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SubjectCropKeyframe",
+  "type": "object",
+  "properties": {
+    "frame_offset": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    },
+    "x": {
+      "type": "number",
+      "format": "float"
+    },
+    "y": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "frame_offset",
+    "x",
+    "y",
+    "width",
+    "height"
+  ]
+}

@@ -1,0 +1,662 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Effect",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "LinearGain": {
+          "type": "object",
+          "properties": {
+            "gain": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "gain"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "LinearGain"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "ColourAberration": {
+          "type": "object",
+          "properties": {
+            "offset_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "offset_y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "offset_x",
+            "offset_y"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "ColourAberration"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "Outline": {
+          "type": "object",
+          "properties": {
+            "colour": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "opacity": {
+              "type": "number",
+              "format": "float"
+            },
+            "thickness": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "colour",
+            "thickness",
+            "opacity"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "Outline"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "Wipe": {
+          "type": "object",
+          "properties": {
+            "edge": {
+              "$ref": "#/$defs/WipeEdge"
+            },
+            "progress": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "edge",
+            "progress"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "Wipe"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "Clipping": {
+          "type": "object",
+          "properties": {
+            "angle_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "bottom": {
+              "type": "number",
+              "format": "float"
+            },
+            "left": {
+              "type": "number",
+              "format": "float"
+            },
+            "right": {
+              "type": "number",
+              "format": "float"
+            },
+            "top": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "angle_degrees"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "Clipping"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "SpotLight": {
+          "type": "object",
+          "properties": {
+            "centre_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "centre_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "colour": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "intensity": {
+              "type": "number",
+              "format": "float"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "centre_x",
+            "centre_y",
+            "radius",
+            "intensity",
+            "colour"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "SpotLight"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "DisplacementMap": {
+          "type": "object",
+          "properties": {
+            "amount_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "amount_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "size": {
+              "type": "number",
+              "format": "float"
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "amount_x",
+            "amount_y",
+            "size",
+            "strength"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "DisplacementMap"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "FakeDof": {
+          "type": "object",
+          "properties": {
+            "blur": {
+              "type": "number",
+              "format": "float"
+            },
+            "focus_radius": {
+              "type": "number",
+              "format": "float"
+            },
+            "focus_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "focus_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "focus_x",
+            "focus_y",
+            "focus_radius",
+            "blur",
+            "strength"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "FakeDof"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "AutoBlur": {
+          "type": "object",
+          "properties": {
+            "angle_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "colour_shift": {
+              "type": "number",
+              "format": "float"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float"
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "angle_degrees",
+            "radius",
+            "strength",
+            "colour_shift"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "AutoBlur"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "Stretch": {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "type": "number",
+              "format": "float"
+            },
+            "angle_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "angle_degrees",
+            "amount",
+            "strength"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "Stretch"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "MultiSlicer": {
+          "type": "object",
+          "properties": {
+            "angle_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "expansion": {
+              "type": "number",
+              "format": "float"
+            },
+            "offset": {
+              "type": "number",
+              "format": "float"
+            },
+            "slices": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "angle_degrees",
+            "offset",
+            "slices",
+            "expansion",
+            "strength"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "MultiSlicer"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "OctTransform": {
+          "type": "object",
+          "properties": {
+            "rotation_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "scale": {
+              "type": "number",
+              "format": "float"
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            },
+            "vertex_count": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "warp": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "scale",
+            "rotation_degrees",
+            "vertex_count",
+            "warp",
+            "strength"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "OctTransform"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "AreaExpand": {
+          "type": "object",
+          "properties": {
+            "bottom": {
+              "type": "number",
+              "format": "float"
+            },
+            "fill": {
+              "type": "boolean"
+            },
+            "left": {
+              "type": "number",
+              "format": "float"
+            },
+            "right": {
+              "type": "number",
+              "format": "float"
+            },
+            "top": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "fill"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "AreaExpand"
+      ]
+    },
+    {
+      "description": "PIXI.ColorMatrixFilter 互換の色調補正。hue → saturate → contrast →\nbrightness を multiply 合成した行列を sRGB 符号化空間の straight RGB へ\n適用する（旧 Pixi 全画面フォールバックの見た目を再現する）。",
+      "type": "object",
+      "properties": {
+        "ColourCorrection": {
+          "type": "object",
+          "properties": {
+            "brightness": {
+              "type": "number",
+              "format": "float"
+            },
+            "contrast": {
+              "type": "number",
+              "format": "float"
+            },
+            "hue_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "saturation": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "brightness",
+            "contrast",
+            "saturation",
+            "hue_degrees"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "ColourCorrection"
+      ]
+    },
+    {
+      "description": "一様ぼかし（旧 PIXI.BlurFilter 相当）。radius は source pixel 単位の\nタップ間隔、strength はブレンド係数（0..=1）。3x3 ガウシアン近似。",
+      "type": "object",
+      "properties": {
+        "Blur": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number",
+              "format": "float"
+            },
+            "strength": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "radius",
+            "strength"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "Blur"
+      ]
+    },
+    {
+      "description": "ドロップシャドウの最小実装。オフセット位置へ source alpha 形状の\n単色シルエットを本体の背後に合成する（ぼかしなし）。",
+      "type": "object",
+      "properties": {
+        "DropShadow": {
+          "type": "object",
+          "properties": {
+            "colour": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "offset_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "offset_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "opacity": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "colour",
+            "offset_x",
+            "offset_y",
+            "opacity"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "DropShadow"
+      ]
+    },
+    {
+      "description": "旧 PIXI `GroupGradientFilter` 相当。グループ（または連結成分）の\nワールド座標系バウンディングボックスに対する UV 空間で線形/放射\nグラデーションを計算し、RGB を上書きしつつ alpha は本体のシルエット\n（source alpha）に従わせる（`grad.a * src.a` 合成）。\nbounds はクリップ単位ではなく、TS 側で計算したグループ全体（もしくは\nbounds が交差しない連結成分ごと）のワールド座標系 AABB。",
+      "type": "object",
+      "properties": {
+        "GradientOverlay": {
+          "type": "object",
+          "properties": {
+            "bounds_height": {
+              "type": "number",
+              "format": "float"
+            },
+            "bounds_width": {
+              "type": "number",
+              "format": "float"
+            },
+            "bounds_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "bounds_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "colour_a": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 4,
+              "minItems": 4
+            },
+            "colour_b": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 4,
+              "minItems": 4
+            },
+            "direction_degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "is_radial": {
+              "type": "boolean"
+            },
+            "stop_a": {
+              "type": "number",
+              "format": "float"
+            },
+            "stop_b": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "direction_degrees",
+            "stop_a",
+            "stop_b",
+            "is_radial",
+            "colour_a",
+            "colour_b",
+            "bounds_x",
+            "bounds_y",
+            "bounds_width",
+            "bounds_height"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "GradientOverlay"
+      ]
+    }
+  ],
+  "$defs": {
+    "WipeEdge": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "top",
+        "bottom"
+      ]
+    }
+  }
+}

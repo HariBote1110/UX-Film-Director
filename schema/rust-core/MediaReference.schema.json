@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MediaReference",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/MediaKind"
+    },
+    "source": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "source"
+  ],
+  "$defs": {
+    "MediaKind": {
+      "type": "string",
+      "enum": [
+        "Video",
+        "Image",
+        "SolidColour",
+        "GeneratedGradient",
+        "GeneratedAudioWaveform",
+        "GeneratedAudioSphere",
+        "GeneratedParticle",
+        "GeneratedBarcode",
+        "GeneratedPuzzlePiece",
+        "GeneratedColourWheel",
+        "GeneratedGourd",
+        "GeneratedGear",
+        "GeneratedTrackBar",
+        "GeneratedPieChart",
+        "GeneratedHistogram",
+        "GeneratedToneCurve",
+        "GeneratedGetColorDots",
+        "GeneratedHksyCheckerGrid",
+        "GeneratedRegionFrame",
+        "GeneratedSimpleTube",
+        "GeneratedSphereDots",
+        "GeneratedSphericalField",
+        "GeneratedSunburst",
+        "GeneratedCircularArrow",
+        "GeneratedTriangleBracket",
+        "GeneratedTartanCheck",
+        "GeneratedHoundstooth",
+        "GeneratedYagasuri",
+        "GeneratedPaperAirplane",
+        "GeneratedAsanohaPattern",
+        "GeneratedFocusLinesPlus",
+        "GeneratedRandomLineEx",
+        "GeneratedContourTrace",
+        "GeneratedDisplacementPoly",
+        "GeneratedPlainEffectorLine",
+        "GeneratedHologram",
+        "GeneratedProtractor",
+        "GeneratedShakingPolygon",
+        "GeneratedShatteredSphere",
+        "GeneratedShape",
+        "Psd",
+        "Text"
+      ]
+    }
+  }
+}

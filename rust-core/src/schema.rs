@@ -1,18 +1,20 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Fps {
     pub numerator: u32,
     pub denominator: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct ProjectSize {
     pub width: u32,
     pub height: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct ColourPipeline {
     pub profile: String,
     pub working_space: String,
@@ -29,7 +31,7 @@ impl ColourPipeline {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub enum MediaKind {
     Video,
     Image,
@@ -75,14 +77,14 @@ pub enum MediaKind {
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct MediaReference {
     pub id: String,
     pub kind: MediaKind,
     pub source: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub enum ClipKind {
     VideoPlane,
     ImagePlane,
@@ -126,13 +128,13 @@ pub enum ClipKind {
     TextPlane,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct ScalarKeyframe {
     pub frame_offset: u64,
     pub value: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 pub enum Easing {
     Linear,
@@ -174,7 +176,7 @@ impl Default for Easing {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct PositionKeyframe {
     pub frame_offset: u64,
     pub x: f32,
@@ -183,7 +185,7 @@ pub struct PositionKeyframe {
     pub easing: Easing,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct SubjectCropKeyframe {
     pub frame_offset: u64,
     pub x: f32,
@@ -192,14 +194,14 @@ pub struct SubjectCropKeyframe {
     pub height: f32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct SubjectCropAnimation {
     pub source_width: f32,
     pub source_height: f32,
     pub keyframes: Vec<SubjectCropKeyframe>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Transform {
     pub translation_x: f32,
     pub translation_y: f32,
@@ -223,7 +225,7 @@ impl Transform {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 pub enum SamplingMode {
     Nearest,
@@ -236,7 +238,7 @@ impl SamplingMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub enum Effect {
     LinearGain {
         gain: f32,
@@ -356,7 +358,7 @@ pub enum Effect {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 pub enum WipeEdge {
     Left,
@@ -365,14 +367,14 @@ pub enum WipeEdge {
     Bottom,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct WipeAnimation {
     pub effect_index: u32,
     pub edge: WipeEdge,
     pub reverse: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Clip {
     pub id: String,
     pub media_id: String,
@@ -396,13 +398,13 @@ pub struct Clip {
     pub effects: Vec<Effect>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Track {
     pub id: String,
     pub clips: Vec<Clip>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct GroupControl {
     pub id: String,
     pub start_frame: u64,
@@ -416,7 +418,7 @@ pub struct GroupControl {
     pub target_track_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
     pub version: u32,
