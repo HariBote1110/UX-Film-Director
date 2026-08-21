@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-502a",
+  "version": "0.1.1-Beta-503a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/dev-native-overlay.mjs",
@@ -22,6 +22,8 @@
     "test:video-export:quality": "node scripts/compare-video-export-quality.mjs",
     "agent:validate": "VITEST=true vite-node scripts/validate-agent-project.mts",
     "fixture:evaluation-parity": "VITEST=true vite-node scripts/generate-evaluation-parity-fixture.mts",
+    "codegen:types": "cargo run --manifest-path rust-core/Cargo.toml --bin codegen_types",
+    "codegen:types:check": "npm run codegen:types && git diff --exit-code -- src/generated/rustCore schema/rust-core",
     "agent:video": "node scripts/run-agent-video.mjs",
     "test:realistic-heavy-edit:e2e": "node scripts/run-realistic-heavy-edit-e2e.mjs",
     "test:realistic-heavy-edit:e2e:cpu-throttle": "UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE=4 node scripts/run-realistic-heavy-edit-e2e.mjs",
