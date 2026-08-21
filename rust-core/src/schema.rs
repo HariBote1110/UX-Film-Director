@@ -970,6 +970,59 @@ impl Default for BarcodeObjectFields {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum PuzzleConnectorMode {
+    Convex,
+    Concave,
+}
+
+impl Default for PuzzleConnectorMode {
+    fn default() -> Self {
+        Self::Convex
+    }
+}
+
+/// `PuzzlePieceObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、puzzle_piece 固有部分。TS 側は
+/// `BaseObject & PuzzlePieceObjectFields & { type: 'puzzle_piece' }` として
+/// 組み立てる。
+///
+/// `width`/`height`/`size` は `puzzlePieceObjectFactory.ts` の
+/// `buildAviUtlPuzzlePieceObject` がプロジェクトサイズから都度計算するため
+/// 固定既定値が無く、ニュートラルな `0.0` にする。`shapeVariant`/
+/// `connectorMode`/`fillColour` は同ファイルの固定リテラル
+/// （shapeVariant: 1, connectorMode: 'convex', fillColour: '#ffffff'）を
+/// そのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PuzzlePieceObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub size: f32,
+    #[serde(rename = "shapeVariant")]
+    #[ts(rename = "shapeVariant")]
+    pub shape_variant: u32,
+    #[serde(rename = "connectorMode")]
+    #[ts(rename = "connectorMode")]
+    pub connector_mode: PuzzleConnectorMode,
+    #[serde(rename = "fillColour")]
+    #[ts(rename = "fillColour")]
+    pub fill_colour: String,
+}
+
+impl Default for PuzzlePieceObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            size: 0.0,
+            shape_variant: 1,
+            connector_mode: PuzzleConnectorMode::Convex,
+            fill_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
