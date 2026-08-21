@@ -1,0 +1,13 @@
+[package]
+name = "uxfd-win-alpha-probe-020"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu = "0.20"
+pollster = "0.3"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_DirectComposition",
+    "Win32_Graphics_Dxgi",
+] }
