@@ -652,6 +652,30 @@ fn resolve_frame_advance(current: Option<u64>, requested: u64, max_forward_gap: 
     FrameAdvance::Seek
 }
 
+/// Whether the currently held decoded frame already satisfies a new
+/// `target_seconds` request without decoding further.
+///
+/// The held frame covers the half-open interval `[pts, pts + material_frame_duration)`,
+/// but `request_frame` does not know the material's frame duration, so it
+/// uses the same at-or-after comparison as the decode loop's `reached_target`
+/// check: the frame is reusable once `current_pts + tolerance_seconds >= target_seconds`.
+///
+/// This alone would also be satisfied by a backward seek request (a stale
+/// frame whose pts is far ahead of an earlier target), so callers must only
+/// invoke this when the request is known to be a small forward/sequential
+/// step (see `FrameAdvance::Sequential`) rather than applying it
+/// unconditionally.
+fn current_frame_satisfies_target(
+    current_pts_seconds: Option<f64>,
+    target_seconds: f64,
+    tolerance_seconds: f64,
+) -> bool {
+    let Some(current_pts_seconds) = current_pts_seconds else {
+        return false;
+    };
+    current_pts_seconds + tolerance_seconds >= target_seconds
+}
+
 #[cfg(target_os = "macos")]
 struct NativeOverlayResidentVideoDecoder {
     source: String,
