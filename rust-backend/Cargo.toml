@@ -18,13 +18,11 @@ uxfd-golden-harness = { path = "../golden-harness" }
 uxfd-native-wgpu-renderer = { path = "../native-wgpu-renderer" }
 uxfd-rust-core = { path = "../rust-core" }
 uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
-
-[target.'cfg(unix)'.dependencies]
+# Windows Port W3: shared-memory-spike gained a Windows implementation (named
+# file mapping) in W2, so it is no longer unix-only. Moved out of
+# [target.'cfg(unix)'.dependencies] to a plain dependency.
 uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 uxfd-macos-video-decode = { path = "../macos-video-decode" }
 uxfd-macos-video-encode = { path = "../macos-video-encode" }
-
-[dev-dependencies]
-uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
