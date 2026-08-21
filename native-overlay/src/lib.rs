@@ -582,6 +582,55 @@ fn decode_audio_pcm_with_ffmpeg(source: &str, sample_rate: u32) -> Result<Vec<f3
         .collect())
 }
 
+/// How `NativeOverlayResidentVideoDecoder::request_frame` should service a
+/// decode request, given the currently decoded source frame (if any) and the
+/// requested source frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FrameAdvance {
+    /// The requested frame is exactly one past the current frame (or there is
+    /// no current frame yet with a zero request); decode the next frame
+    /// in-place with no seek.
+    Sequential,
+    /// The requested frame is a small step ahead of the current frame; decode
+    /// forward sequentially, discarding intermediate frames, rather than
+    /// paying for a full seek. `frames` is the number of `next_frame()` calls
+    /// required to reach the target (>= 1).
+    DecodeForward { frames: u64 },
+    /// The requested frame is behind the current frame, equal to it while
+    /// there is no current frame recorded, or ahead by more than the forward
+    /// gap absorption window; a full seek is required.
+    Seek,
+}
+
+/// Decide how to service a frame request without touching the decoder,
+/// keeping the decision logic unit-testable in isolation.
+///
+/// `current` is the last decoded source frame, or `None` if nothing has been
+/// decoded yet. `requested` is the source frame being asked for. `max_forward_gap`
+/// mirrors `MAX_STREAMING_DECODE_SKIP_FRAMES` (see `rust-backend/src/decode.rs`):
+/// forward gaps up to and including this many frames are absorbed by
+/// discard-decoding instead of seeking, because a cold seek/restart is far
+/// more expensive than a few extra `next_frame()` calls.
+fn resolve_frame_advance(current: Option<u64>, requested: u64, max_forward_gap: u64) -> FrameAdvance {
+    let Some(current) = current else {
+        return FrameAdvance::Seek;
+    };
+    if requested == current {
+        return FrameAdvance::Sequential;
+    }
+    if requested < current {
+        return FrameAdvance::Seek;
+    }
+    let gap = requested - current;
+    if gap == 1 {
+        return FrameAdvance::Sequential;
+    }
+    if gap <= max_forward_gap {
+        return FrameAdvance::DecodeForward { frames: gap };
+    }
+    FrameAdvance::Seek
+}
+
 #[cfg(target_os = "macos")]
 struct NativeOverlayResidentVideoDecoder {
     source: String,
