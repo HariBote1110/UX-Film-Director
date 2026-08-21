@@ -161,13 +161,13 @@ impl HksyGpuRenderer {
             layout: Some(&fill_layout),
             vertex: wgpu::VertexState {
                 module: &fill_shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &fill_shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(hksy_colour_target())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
@@ -175,6 +175,7 @@ impl HksyGpuRenderer {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: None,
         });
         let hologram_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("UXFD hologram fill shader"),
@@ -185,13 +186,13 @@ impl HksyGpuRenderer {
             layout: Some(&fill_layout),
             vertex: wgpu::VertexState {
                 module: &hologram_shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &hologram_shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(hksy_colour_target())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
@@ -199,6 +200,7 @@ impl HksyGpuRenderer {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: None,
         });
 
         let line_bind_group_layout =
@@ -241,13 +243,13 @@ impl HksyGpuRenderer {
             layout: Some(&line_layout),
             vertex: wgpu::VertexState {
                 module: &line_shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &line_shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(hksy_colour_target())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
@@ -255,6 +257,7 @@ impl HksyGpuRenderer {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: None,
         });
 
         Self {

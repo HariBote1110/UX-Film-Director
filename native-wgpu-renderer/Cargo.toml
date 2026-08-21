@@ -18,14 +18,16 @@ uxfd-reference-renderer = { path = "../reference-renderer" }
 uxfd-rust-core = { path = "../rust-core" }
 uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
 uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
-wgpu = "0.20"
+wgpu = "25"
 
-# Phase 4b (NV12 IOSurface import): wgpu-hal 0.21.1 の metal backend が
+# Phase 4b (NV12 IOSurface import): wgpu-hal 25.0.2 の metal backend が
 # 内部で使う `metal`/`objc` と同一バージョンに固定し、重複クレートを
 # 避ける（詳細: progress/phase4b-nv12-iosurface-gpu-import.md）。
+# wgpu 30 以降は Metal バインディングが objc2 系へ移るため、この固定は
+# 25 系でのみ成立する（wgpu24_nv12_research/notes/h3-wgpu25-vs-wgpu30.md）。
 [target.'cfg(target_os = "macos")'.dependencies]
-metal = "0.28"
-objc = "0.2.4"
+metal = "0.31"
+objc = "0.2.7"
 
 [dev-dependencies]
 tempfile = "3.14"

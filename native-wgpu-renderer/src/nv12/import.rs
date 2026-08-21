@@ -126,7 +126,7 @@ pub(crate) fn import_nv12_iosurface_textures(
     // で得た（create rule の）参照はここで解放してよい。
     unsafe { sys::CFRelease(surface_ref) };
 
-    let Some((y_metal_texture, cbcr_metal_texture)) = metal_textures.flatten() else {
+    let Some((y_metal_texture, cbcr_metal_texture)) = metal_textures else {
         return Err(NativeWgpuRenderError::Nv12ImportUnsupportedPlatform);
     };
 

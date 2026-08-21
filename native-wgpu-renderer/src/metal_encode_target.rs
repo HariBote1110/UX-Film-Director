@@ -72,7 +72,7 @@ pub(crate) fn import_bgra_iosurface_render_target(
     };
     unsafe { sys::CFRelease(surface_ref) };
 
-    let Some(metal_texture) = metal_texture.flatten() else {
+    let Some(metal_texture) = metal_texture else {
         return Err(NativeWgpuRenderError::BgraImportUnsupportedPlatform);
     };
     let hal_texture = unsafe {

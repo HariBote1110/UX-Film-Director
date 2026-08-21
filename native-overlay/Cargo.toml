@@ -19,11 +19,11 @@ uxfd-native-wgpu-renderer = { path = "../native-wgpu-renderer" }
 uxfd-golden-harness = { path = "../golden-harness" }
 uxfd-rust-core = { path = "../rust-core" }
 uxfd-rust-backend = { path = "../rust-backend" }
-wgpu = "0.20"
+wgpu = "25"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics-types = "0.1.3"
-metal = "0.28.0"
+metal = "0.31.0"
 objc = "0.2.7"
 url = "2"
 uxfd-macos-video-decode = { path = "../macos-video-decode" }

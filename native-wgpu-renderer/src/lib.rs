@@ -393,17 +393,16 @@ impl NativeWgpuLiveSurfaceRenderer {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or(NativeWgpuRenderError::AdapterUnavailable)?;
+            .map_err(|_| NativeWgpuRenderError::AdapterUnavailable)?;
         let required_limits = required_limits_for_frame(&adapter, width, height)?;
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("UXFD native wgpu live surface device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("UXFD native wgpu live surface device"),
+                required_features: wgpu::Features::empty(),
+                required_limits,
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
+            })
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
         install_uncaptured_error_logging(&device, "UXFD native wgpu live surface device");
@@ -1096,17 +1095,16 @@ impl NativeWgpuRenderer {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or(NativeWgpuRenderError::AdapterUnavailable)?;
+            .map_err(|_| NativeWgpuRenderError::AdapterUnavailable)?;
         let required_limits = required_limits_for_frame(&adapter, width, height)?;
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("UXFD native wgpu device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("UXFD native wgpu device"),
+                required_features: wgpu::Features::empty(),
+                required_limits,
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
+            })
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
         install_uncaptured_error_logging(&device, "UXFD native wgpu device");
@@ -1492,15 +1490,15 @@ impl NativeWgpuRenderer {
 
         let padded_bytes_per_row = padded_bytes_per_row(self.width);
         readback_encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.output_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.readback_buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(padded_bytes_per_row),
                     rows_per_image: Some(self.height),
@@ -2138,15 +2136,15 @@ impl NativeWgpuRenderer {
                 });
         let padded_bytes_per_row = padded_bytes_per_row(self.width);
         readback_encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.output_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.readback_buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(padded_bytes_per_row),
                     rows_per_image: Some(self.height),
@@ -2820,13 +2818,13 @@ fn create_pipeline_for_format_with_layout(
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main",
+            entry_point: Some("vs_main"),
             buffers: &[],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: output_format,
                 blend: Some(wgpu::BlendState {
@@ -2849,6 +2847,7 @@ fn create_pipeline_for_format_with_layout(
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -2993,15 +2992,15 @@ fn copy_live_surface_texture_to_readback(
 ) {
     let padded_bytes_per_row = padded_bytes_per_row(width);
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer,
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(padded_bytes_per_row),
                 rows_per_image: Some(height),
@@ -3038,14 +3037,14 @@ fn create_and_upload_source_texture(
         view_formats: &[],
     });
     queue.write_texture(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             texture: &source_texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
         &source.pixels,
-        wgpu::ImageDataLayout {
+        wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(source.width * SOURCE_BYTES_PER_PIXEL),
             rows_per_image: Some(source.height),
@@ -3126,7 +3125,7 @@ fn readback_to_rgba8(
     slice.map_async(wgpu::MapMode::Read, move |result| {
         let _ = sender.send(result);
     });
-    device.poll(wgpu::Maintain::Wait);
+    let _ = device.poll(wgpu::PollType::Wait);
     receiver
         .recv()
         .map_err(|_| NativeWgpuRenderError::BufferMap)?
@@ -3172,7 +3171,7 @@ fn wait_for_submitted_work(
     queue.on_submitted_work_done(move || {
         let _ = sender.send(());
     });
-    device.poll(wgpu::Maintain::Wait);
+    let _ = device.poll(wgpu::PollType::Wait);
     receiver
         .recv()
         .map_err(|_| NativeWgpuRenderError::BufferMap)
@@ -3943,8 +3942,9 @@ mod tests {
                 label: Some("test device for uncaptured error logging"),
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::downlevel_defaults(),
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
             },
-            None,
         ))
         .expect("device request must succeed");
         install_uncaptured_error_logging(&device, "test device for uncaptured error logging");
@@ -3970,7 +3970,7 @@ mod tests {
         });
 
         // panic せずここまで到達できれば成功。
-        device.poll(wgpu::Maintain::Wait);
+        let _ = device.poll(wgpu::PollType::Wait);
     }
 
     #[test]
