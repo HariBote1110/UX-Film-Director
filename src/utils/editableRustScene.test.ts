@@ -368,7 +368,14 @@ describe('buildEditableRustScene', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected subject crop conversion to succeed');
+    // subject crop は Rust 側専用の `subject_crop` フィールドで表現し、rust-core が
+    // フレームごとに Effect::Clipping へ再評価する。ここで `effects` に subject crop
+    // 由来の Clipping を静的に焼き込むと、rust-core が append する動的な Clipping と
+    // 重複し、effects.length が TS/Rust で食い違ったうえ、TS 側は元の (誤って) 静的な
+    // Clipping と比較されてアニメーションしていないように見えてしまう
+    // （progress/rust-source-of-truth-r2-subject-crop-double-bake.md 参照）。
     expect(result.project.tracks[0].clips[0]).toMatchObject({
+      effects: [],
       subject_crop: {
         source_width: 1280,
         source_height: 720,
@@ -378,6 +385,49 @@ describe('buildEditableRustScene', () => {
           { frame_offset: 240, x: 0.1, y: 0.12, width: 0.8, height: 0.76 },
         ],
       },
+    });
+  });
+
+  it('subject cropと他フィルタを併用しても、静的effectsにsubject crop由来のClippingを重複して焼き込まない', () => {
+    const tracked = video({
+      subjectCropEnabled: true,
+      subjectCropKeyframes: [
+        { id: 'crop-start', time: 1, x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
+        { id: 'crop-middle', time: 3, x: 0.16, y: 0.1, width: 0.7, height: 0.78 },
+        { id: 'crop-end', time: 5, x: 0.1, y: 0.12, width: 0.8, height: 0.76 },
+      ],
+      filters: [{
+        id: 'outline',
+        type: 'outline',
+        enabled: true,
+        params: { colour: '#123456', thickness: 2, opacity: 0.65 },
+      }],
+    });
+
+    const result = buildEditableRustScene({
+      sceneId: 'scene-subject-crop-with-filter',
+      projectSettings,
+      layers,
+      objects: [tracked],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected subject crop + filter conversion to succeed');
+    // effects には Outline だけが乗り、subject crop 由来の Clipping は乗らない
+    // （rust-core が subject_crop フィールドから毎フレーム再評価するため）。
+    expect(result.project.tracks[0].clips[0].effects).toEqual([{
+      Outline: {
+        colour: [0x12 / 255, 0x34 / 255, 0x56 / 255],
+        thickness: 2,
+        opacity: 0.65,
+      },
+    }]);
+    expect(result.project.tracks[0].clips[0].subject_crop).toMatchObject({
+      keyframes: [
+        { frame_offset: 0, x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
+        { frame_offset: 120, x: 0.16, y: 0.1, width: 0.7, height: 0.78 },
+        { frame_offset: 240, x: 0.1, y: 0.12, width: 0.8, height: 0.76 },
+      ],
     });
   });
 
