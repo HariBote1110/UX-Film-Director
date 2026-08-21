@@ -750,6 +750,27 @@ impl NativeOverlayResidentVideoDecoder {
             NATIVE_OVERLAY_MAX_FORWARD_DECODE_GAP_FRAMES,
         );
 
+        let frame_tolerance =
+            request.source_rate.denominator as f64 / request.source_rate.numerator as f64 * 0.5;
+
+        // When the project frame rate exceeds the material's own rate, a
+        // sequential (+0/+1) request can land on a target_seconds that the
+        // already-held frame's pts still covers (e.g. project 60fps stepping
+        // by 1/60s against 30fps material). Without this check the loop
+        // below always decodes at least one more frame per request, which
+        // silently plays the material back at materialFps/projectFps of real
+        // time faster than intended. Reuse the held frame instead of
+        // decoding when it still satisfies the new target.
+        if should_reuse_current_frame(
+            advance,
+            self.current_frame.as_ref().map(|frame| frame.pts_seconds),
+            target_seconds,
+            frame_tolerance,
+        ) {
+            self.current_source_frame = Some(request.source_frame);
+            return self.current_nv12_source();
+        }
+
         // Forward gaps up to NATIVE_OVERLAY_MAX_FORWARD_DECODE_GAP_FRAMES are
         // absorbed by discard-decoding below instead of seeking, mirroring
         // MAX_STREAMING_DECODE_SKIP_FRAMES in rust-backend/src/decode.rs: a
@@ -774,8 +795,6 @@ impl NativeOverlayResidentVideoDecoder {
             FrameAdvance::Sequential | FrameAdvance::Seek => None,
         };
 
-        let frame_tolerance =
-            request.source_rate.denominator as f64 / request.source_rate.numerator as f64 * 0.5;
         loop {
             let decoded = self.session.next_frame().map_err(|error| {
                 format!(
