@@ -2,7 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
-- [audio-video-desync-hypothesis.md](audio-video-desync-hypothesis.md) — **音ズレの「fps不一致」説はコード構造上支持されず（変換は分数fps対応の時刻/PTSベース）。代替仮説H3: 音声(HTMLAudioElement＋0.2sスナップ)と映像(ネイティブ自走クロック)が相互補正なしで独立自走し、engage遅延~370msでエポックがずれる。未検証**（2026-08-22）
+- [audio-video-desync-hypothesis.md](audio-video-desync-hypothesis.md) — **音ズレの「fps不一致」説はコード構造上支持されず。代替仮説H3（音声HTMLAudioElement vs 映像ネイティブクロックの無補正ドリフト）はREJECTED — 動画クリップは音声/映像とも同一HTMLVideoElementから出ており、そもそも「独立2クロック」という前提が成立しない（HTMLAudioElement 0.2s/0.05sスナップ経路は type:'video' には一切発火せず、type:'audio'の独立クリップ専用）。E2E実測2回でaudio用syncSharedRendererExternalVideoPlaybackが再生開始後74秒間一度も再発火せず。VITE_UXFD_RUST_VIDEO_ONLY=1モードは逆に音声が完全に無音になる別の不具合を発見**（2026-08-22）
 - [video-playback-probe-results.md](video-playback-probe-results.md) — **H1（メインスレッド同期デコード起因のFPS崩壊）はCONFIRMED（初回計測、GX010052.MP4）: non-sequential request_frameが18〜32%発生し最大798ms、renderFrame awaitが最大1087msブロックしtickのframeIndexが最大67フレーム飛ぶ。H2（マスタークロックの無方向スナップ）は具体的経路が0件発火で棄却、setTimeの単調性ガード欠如自体は-41.4sの後退実測で確認（別経路のTimelineシーク由来）。→ forward gap absorption修正（`e54ab21f`）後、新素材hevc36m_30fps_174sで再計測: non-sequential比率 8.4%→0.58〜2.3%、renderFrame 16.7ms超過 378件→75〜9件に改善（**improved**、突出値1件が残存し完全解消は未確証）**（2026-08-22）
 - [video-playback-backward-jump-fps-collapse.md](video-playback-backward-jump-fps-collapse.md) — **動画素材再生の「位置巻き戻り＋FPS崩壊」の原因仮説（未検証）。H1: 動画がpre-warm経路から漏れておりメインスレッド同期デコード＋追いつきスキップ→O(GOP)同期シークの暴走ループ。H2: 単調性ガードなしの `setTime` へ遅れたメディアクロックが無方向スナップ**（2026-08-22）
 - [present-scene-cold-start.md](present-scene-cold-start.md) — **`presentScene` の218〜348msは起動後の初回再生1回だけのコールドコスト。2回目は4.6〜35.3ms。addon内部の最適化ではなくpre-warmが正解。**終了時SEGV修正後3run連続でクラッシュレポート増加なし（確証には不足）（2026-08-07）
