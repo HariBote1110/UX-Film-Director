@@ -11,6 +11,13 @@ crc32fast = "1.5"
 libc = "0.2"
 uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Memory",
+] }
+
 [dev-dependencies]
 loom = "0.7"
 tempfile = "3.14"

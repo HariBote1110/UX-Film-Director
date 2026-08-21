@@ -622,6 +622,7 @@ dependencies = [
  "tempfile",
  "uxfd-decode-spike",
  "uxfd-sidecar-protocol",
+ "windows-sys",
 ]
 
 [[package]]
