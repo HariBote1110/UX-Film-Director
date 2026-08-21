@@ -121,17 +121,36 @@ Windows のためだけの作業ではなく、`wgpu24_nv12_research` の延長�
 - `queue.present` + `IDCompositionDevice::Commit` は p50 0.15ms。描画コストは支配的ではない。
 - **未検証**: 実シェーダ負荷での再測、物理 60Hz ディスプレイでの `Fifo`、Chromium 自身の fps。
 
-### Phase 1: 準対応 MVP の正式化（推定 1-2日）
+### Phase 1: 準対応 MVP の正式化（推定 1-2日）★完了 2026-08-22
 
 実測上は既に「ビルド・起動」まで満たしているので、体裁を整えるだけ。Phase 0 と独立。
+
+**結果: 完了。** 詳細は
+[windows-w1-mvp-formalisation.md](../progress/windows-w1-mvp-formalisation.md)。
 
 - `package.json` の `build` スクリプトを Windows で動くようにする
   （`CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder` の POSIX env 代入が cmd で壊れる）。
   `cross-env` 導入か、プラットフォーム分岐。
+  → **`cross-env` を導入して解決。** mainpc 実機 cmd で「素の POSIX 代入は失敗する
+  （`'CSC_IDENTITY_AUTO_DISCOVERY' は、内部コマンドまたは外部コマンド...として認識されていません`）／
+  `cross-env` 経由なら成功する」の両方を実測して確認済み。
 - `electron-builder` の `build.win` ターゲットを追加する（現状 `mac` のみ）。
+  → **追加済み（`nsis` / `x64`）。** macOS ローカルで
+  `npx electron-builder build --win --dir` と `--win --x64 --dir` の両方が
+  `win-arm64-unpacked` / `win-unpacked` の生成と `.exe` エントリの存在まで成功することを確認した。
+  **nsis インストーラ本体の生成（Wine 経由のビルド）は未検証。**
 - ffmpeg の解決を見直す。現状 `/opt/homebrew/bin` → `/usr/local/bin` → PATH の順で、
   Windows は PATH 頼み。同梱するか、明示的なエラーメッセージを出すか決める。
+  → **同梱はしない方針。** ロジックを `src/utils/ffmpegResolve.ts` に切り出して TDD 化し、
+  Windows では winget のシムディレクトリ
+  （`%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe`）を追加で確認するようにした。
+  mainpc 実機で winget インストール後の実際の設置先がこの通りであることを確認済み。
+  見つからず ffmpeg 起動が `ENOENT` になった場合は、winget での導入手順と
+  「新しいターミナルを開き直して PATH を確認する」導線を含むエラーメッセージを返すようにした。
 - remote-deck の WebSocket サーバが初回起動でファイアウォール許可ダイアログを出す件の扱い。
+  → **コード変更なし。** `startRemoteDeckServer` が `0.0.0.0` bind であることに起因する挙動と
+  今後の対応候補（NSIS カスタムスクリプトでのファイアウォール規則事前登録、または
+  UI 側での案内表示）をドキュメント化した。
 
 ### Phase 2: shm の Windows 実装（推定 2-3日）★完了 2026-08-22
 
