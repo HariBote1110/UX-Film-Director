@@ -14,11 +14,11 @@ use std::path::{Path, PathBuf};
 use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
-    Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl, MediaKind, MediaReference,
-    PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, ShapeGradientFill,
-    ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType, SubjectCropAnimation,
-    SubjectCropKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track, Transform,
-    WipeAnimation, WipeEdge,
+    Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl, ImageObjectFields,
+    MediaKind, MediaReference, PositionKeyframe, Project, ProjectSize, SamplingMode,
+    ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
+    ShapeType, SubjectCropAnimation, SubjectCropKeyframe, TextAlignment, TextObjectFields,
+    TextShadow, TextStroke, Track, Transform, WipeAnimation, WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
 
@@ -44,6 +44,7 @@ fn write_ts_bindings() {
     EvaluatedClip::export_all(&cfg).expect("EvaluatedClip の TS export に失敗しました");
     ShapeObjectFields::export_all(&cfg).expect("ShapeObjectFields の TS export に失敗しました");
     TextObjectFields::export_all(&cfg).expect("TextObjectFields の TS export に失敗しました");
+    ImageObjectFields::export_all(&cfg).expect("ImageObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -120,6 +121,7 @@ fn write_json_schemas() {
     write_schema::<TextStroke>(&dir, "TextStroke");
     write_schema::<TextShadow>(&dir, "TextShadow");
     write_schema::<TextObjectFields>(&dir, "TextObjectFields");
+    write_schema::<ImageObjectFields>(&dir, "ImageObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

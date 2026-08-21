@@ -1,6 +1,6 @@
 import { EasingType } from './utils/easings';
 import { LabPhoneme } from './utils/labParser';
-import type { ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -434,13 +434,11 @@ export type TextObject = BaseObject & TextObjectFields & { type: 'text' };
  */
 export type ShapeObject = BaseObject & ShapeObjectFields & { type: 'shape' };
 
-export interface ImageObject extends BaseObject {
-  type: 'image';
-  src: string;
-  filePath?: string;
-  width: number;
-  height: number;
-}
+/**
+ * image kind の正本は rust-core/src/schema.rs の `ImageObjectFields`（R3）。
+ * `type` と `BaseObject` 由来のフィールドだけここで足す。
+ */
+export type ImageObject = BaseObject & ImageObjectFields & { type: 'image' };
 
 /** 動画フレーム内の矩形切り抜き（左上原点・0–1 正規化）。タイムライン秒 `time`。 */
 export interface SubjectCropNormKeyframe {

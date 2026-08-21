@@ -7,6 +7,7 @@ export * from './Effect';
 export * from './EvaluatedClip';
 export * from './Fps';
 export * from './GroupControl';
+export * from './ImageObjectFields';
 export * from './MediaKind';
 export * from './MediaReference';
 export * from './PositionKeyframe';
