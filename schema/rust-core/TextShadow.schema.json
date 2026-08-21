@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TextShadow",
+  "description": "`src/types.ts` の手書き `TextShadow` と構造的に同じ形にした編集モデル用型。",
+  "type": "object",
+  "properties": {
+    "blur": {
+      "type": "number",
+      "format": "float"
+    },
+    "colour": {
+      "type": "string"
+    },
+    "offsetX": {
+      "type": "number",
+      "format": "float"
+    },
+    "offsetY": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "colour",
+    "offsetX",
+    "offsetY",
+    "blur"
+  ]
+}

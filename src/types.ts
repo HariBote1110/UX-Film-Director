@@ -1,6 +1,6 @@
 import { EasingType } from './utils/easings';
 import { LabPhoneme } from './utils/labParser';
-import type { ShapeObjectFields } from './generated/rustCore';
+import type { ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -418,40 +418,15 @@ export interface BaseObject {
   vibration?: Vibration;       
 }
 
-/** テキストの縁取り（stroke）。rust-backend の text.rs がオフセット再描画で描く。 */
-export interface TextStroke {
-  colour: string;
-  width: number;
-}
-
-/** テキストの影（shadow）。BaseObject.shadow（フィルタ経由の汎用影）とは別物で、
- * text.rs のグリフ専用オフセット再描画で描く。 */
-export interface TextShadow {
-  colour: string;
-  offsetX: number;
-  offsetY: number;
-  blur: number;
-}
-
-export interface TextObject extends BaseObject {
-  type: 'text';
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  fill: string;
-  /**
-   * PixiJS の PIXI.Text がレイアウト計算で測る実測の描画幅・高さ。
-   * Rust 側（rust-backend の cosmic-text ラスタライザ）へテキストを
-   * 橋渡しする際のメディア寸法として使う。未測定時は
-   * rustSceneSnapshot 側でヒューリスティックにフォールバックする。
-   */
-  measuredWidth?: number;
-  measuredHeight?: number;
-  textAlignment?: 'left' | 'centre' | 'right';
-  letterSpacing?: number;
-  textStroke?: TextStroke;
-  textShadow?: TextShadow;
-}
+/**
+ * text kind の正本は rust-core/src/schema.rs の `TextObjectFields`（R3）。
+ * `type` と `BaseObject` 由来のフィールドだけここで足す。
+ * `TextStroke` / `TextShadow` / `TextAlignment` も生成型を re-export する
+ * （`./generated/rustCore` の同名型を参照。text 以外の kind は使わない
+ * 専用型のためここでは共有化していない）。
+ */
+export type { TextStroke, TextShadow, TextAlignment } from './generated/rustCore';
+export type TextObject = BaseObject & TextObjectFields & { type: 'text' };
 
 /**
  * shape kind の正本は rust-core/src/schema.rs の `ShapeObjectFields`（R3）。

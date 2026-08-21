@@ -1177,7 +1177,7 @@ const Viewport: React.FC = () => {
         text: object.text,
         fontFamily: object.fontFamily,
         fontSize: object.fontSize,
-        letterSpacing: object.letterSpacing,
+        letterSpacing: object.letterSpacing ?? undefined,
       });
       if (!size) return;
       if (object.measuredWidth === size.width && object.measuredHeight === size.height) return;

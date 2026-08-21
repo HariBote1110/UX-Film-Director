@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TextStroke",
+  "description": "`src/types.ts` の手書き `TextStroke` と構造的に同じ形にした編集モデル用型。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "colour",
+    "width"
+  ]
+}

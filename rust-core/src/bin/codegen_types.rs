@@ -17,7 +17,8 @@ use uxfd_rust_core::schema::{
     Clip, ClipKind, ColourPipeline, Easing, Effect, Fps, GroupControl, MediaKind, MediaReference,
     PositionKeyframe, Project, ProjectSize, SamplingMode, ScalarKeyframe, ShapeGradientFill,
     ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType, SubjectCropAnimation,
-    SubjectCropKeyframe, Track, Transform, WipeAnimation, WipeEdge,
+    SubjectCropKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track, Transform,
+    WipeAnimation, WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
 
@@ -42,6 +43,7 @@ fn write_ts_bindings() {
     SceneSnapshot::export_all(&cfg).expect("SceneSnapshot の TS export に失敗しました");
     EvaluatedClip::export_all(&cfg).expect("EvaluatedClip の TS export に失敗しました");
     ShapeObjectFields::export_all(&cfg).expect("ShapeObjectFields の TS export に失敗しました");
+    TextObjectFields::export_all(&cfg).expect("TextObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -114,6 +116,10 @@ fn write_json_schemas() {
     write_schema::<ShapeGradientScope>(&dir, "ShapeGradientScope");
     write_schema::<ShapeGradientFill>(&dir, "ShapeGradientFill");
     write_schema::<ShapeObjectFields>(&dir, "ShapeObjectFields");
+    write_schema::<TextAlignment>(&dir, "TextAlignment");
+    write_schema::<TextStroke>(&dir, "TextStroke");
+    write_schema::<TextShadow>(&dir, "TextShadow");
+    write_schema::<TextObjectFields>(&dir, "TextObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 
