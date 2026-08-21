@@ -1,6 +1,6 @@
 import { EasingType } from './utils/easings';
 import { LabPhoneme } from './utils/labParser';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -440,36 +440,11 @@ export type ShapeObject = BaseObject & ShapeObjectFields & { type: 'shape' };
  */
 export type ImageObject = BaseObject & ImageObjectFields & { type: 'image' };
 
-/** 動画フレーム内の矩形切り抜き（左上原点・0–1 正規化）。タイムライン秒 `time`。 */
-export interface SubjectCropNormKeyframe {
-  id: string;
-  time: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+/** 動画フレーム内の矩形切り抜き（左上原点・0–1 正規化）。タイムライン秒 `time`。
+ * 定義は `rust-core/src/schema.rs` の `SubjectCropNormKeyframe` が正本。 */
+export type { SubjectCropNormKeyframe };
 
-export interface VideoObject extends BaseObject {
-  type: 'video';
-  src: string;
-  filePath?: string;
-  /** プロキシファイルの絶対パス（例: /path/to/clip.proxy.mp4）。存在する場合は再生に使用する */
-  proxyFilePath?: string;
-  /** 原本動画の幅。プロキシを使うプレビューと原本を使う書き出しを分離するために保持する */
-  sourceWidth?: number;
-  /** 原本動画の高さ。プロキシを使うプレビューと原本を使う書き出しを分離するために保持する */
-  sourceHeight?: number;
-  width: number;
-  height: number;
-  volume: number;
-  muted: boolean;
-  /** true のとき `subjectCropKeyframes` でスプライトを矩形マスク */
-  subjectCropEnabled?: boolean;
-  subjectCropKeyframes?: SubjectCropNormKeyframe[];
-  /** true のとき逆再生（エクスポート時はシーク方式フォールバック） */
-  reversed?: boolean;
-}
+export type VideoObject = BaseObject & VideoObjectFields & { type: 'video' };
 
 export interface AudioObject extends BaseObject {
   type: 'audio';

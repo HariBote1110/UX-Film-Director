@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SubjectCropNormKeyframe",
+  "description": "動画フレーム内の矩形切り抜き（左上原点・0-1 正規化）を編集モデルとして保持する\nキーフレーム。`schema::SubjectCropKeyframe`（`frame_offset` ベースの評価用ワイヤー\n型）とは別物で、こちらは `id`/`time`（秒）を持つ編集用の型。",
+  "type": "object",
+  "properties": {
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    },
+    "x": {
+      "type": "number",
+      "format": "float"
+    },
+    "y": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "id",
+    "time",
+    "x",
+    "y",
+    "width",
+    "height"
+  ]
+}

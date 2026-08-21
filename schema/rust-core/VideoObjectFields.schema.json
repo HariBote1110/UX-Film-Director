@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VideoObjectFields",
+  "description": "`VideoObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、video 固有部分。TS 側は `BaseObject & VideoObjectFields & { type: 'video' }`\nとして組み立てる。\n\n`video` は `image` と同じ media kind（`mediaReferenceForObject` に専用の\n`serialiseXxxSource` は無く、`source` は生のファイルパス文字列そのもの）。\n`src`/`filePath`/`proxyFilePath`/`width`/`height`/`sourceWidth`/`sourceHeight` は\nTimeline.tsx の `handleVideoChange` が選択したファイルの実データから都度決めるため\n固定既定値が無く、ニュートラルな空値にする。一方 `volume`/`muted` は UI が常に\n`1.0`/`false` という固定リテラルで生成しており、shape/text と同じくその実在の\n既定値を `Default` にする。",
+  "type": "object",
+  "properties": {
+    "filePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "muted": {
+      "type": "boolean"
+    },
+    "proxyFilePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reversed": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "sourceHeight": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "sourceWidth": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "src": {
+      "type": "string"
+    },
+    "subjectCropEnabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "subjectCropKeyframes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/SubjectCropNormKeyframe"
+      }
+    },
+    "volume": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "src",
+    "width",
+    "height",
+    "volume",
+    "muted"
+  ],
+  "$defs": {
+    "SubjectCropNormKeyframe": {
+      "description": "動画フレーム内の矩形切り抜き（左上原点・0-1 正規化）を編集モデルとして保持する\nキーフレーム。`schema::SubjectCropKeyframe`（`frame_offset` ベースの評価用ワイヤー\n型）とは別物で、こちらは `id`/`time`（秒）を持つ編集用の型。",
+      "type": "object",
+      "properties": {
+        "height": {
+          "type": "number",
+          "format": "float"
+        },
+        "id": {
+          "type": "string"
+        },
+        "time": {
+          "type": "number",
+          "format": "float"
+        },
+        "width": {
+          "type": "number",
+          "format": "float"
+        },
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "x",
+        "y",
+        "width",
+        "height"
+      ]
+    }
+  }
+}

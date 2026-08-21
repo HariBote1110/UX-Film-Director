@@ -23,7 +23,7 @@ const clampNormRect = (r: { x: number; y: number; width: number; height: number 
 
 export const normaliseSubjectCropKeyframesForVideo = (
   video: Pick<VideoObject, 'startTime' | 'duration'>,
-  keyframes: SubjectCropNormKeyframe[] | undefined
+  keyframes: SubjectCropNormKeyframe[] | null | undefined
 ): SubjectCropNormKeyframe[] => {
   if (!Array.isArray(keyframes) || keyframes.length === 0) return [];
 
