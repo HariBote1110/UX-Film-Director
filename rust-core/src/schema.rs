@@ -1062,6 +1062,353 @@ impl Default for ColourWheelObjectFields {
     }
 }
 
+/// `GourdObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、gourd 固有部分。TS 側は
+/// `BaseObject & GourdObjectFields & { type: 'gourd' }` として組み立てる。
+///
+/// `width`/`height` は `gourdObjectFactory.ts` の `buildAviUtlGourdObject` が
+/// プロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな
+/// `0.0` にする。他のフィールドは同ファイルの固定リテラル（bodyRadius: 80,
+/// bodyWidth: 250, waistRadius: 10, squashPercent: 40, repeatCount: 1,
+/// fillColour: '#ffffff'）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct GourdObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "bodyRadius")]
+    #[ts(rename = "bodyRadius")]
+    pub body_radius: u32,
+    #[serde(rename = "bodyWidth")]
+    #[ts(rename = "bodyWidth")]
+    pub body_width: u32,
+    #[serde(rename = "waistRadius")]
+    #[ts(rename = "waistRadius")]
+    pub waist_radius: u32,
+    #[serde(rename = "squashPercent")]
+    #[ts(rename = "squashPercent")]
+    pub squash_percent: f32,
+    #[serde(rename = "repeatCount")]
+    #[ts(rename = "repeatCount")]
+    pub repeat_count: u32,
+    #[serde(rename = "fillColour")]
+    #[ts(rename = "fillColour")]
+    pub fill_colour: String,
+}
+
+impl Default for GourdObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            body_radius: 80,
+            body_width: 250,
+            waist_radius: 10,
+            squash_percent: 40.0,
+            repeat_count: 1,
+            fill_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `GearObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、gear 固有部分。TS 側は
+/// `BaseObject & GearObjectFields & { type: 'gear' }` として組み立てる。
+///
+/// `width`/`height`/`outerRadius` は `gearObjectFactory.ts` の
+/// `buildAviUtlGearObject` がプロジェクトサイズから都度計算するため固定既定値が
+/// 無く、ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラル
+/// （innerRadiusPercent: 45, toothCount: 20, toothDepthPercent: 18,
+/// toothSkewPercent: 0, fillColour: '#ffffff'）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct GearObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "outerRadius")]
+    #[ts(rename = "outerRadius")]
+    pub outer_radius: u32,
+    #[serde(rename = "innerRadiusPercent")]
+    #[ts(rename = "innerRadiusPercent")]
+    pub inner_radius_percent: f32,
+    #[serde(rename = "toothCount")]
+    #[ts(rename = "toothCount")]
+    pub tooth_count: u32,
+    #[serde(rename = "toothDepthPercent")]
+    #[ts(rename = "toothDepthPercent")]
+    pub tooth_depth_percent: f32,
+    #[serde(rename = "toothSkewPercent")]
+    #[ts(rename = "toothSkewPercent")]
+    pub tooth_skew_percent: f32,
+    #[serde(rename = "fillColour")]
+    #[ts(rename = "fillColour")]
+    pub fill_colour: String,
+}
+
+impl Default for GearObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            outer_radius: 0,
+            inner_radius_percent: 45.0,
+            tooth_count: 20,
+            tooth_depth_percent: 18.0,
+            tooth_skew_percent: 0.0,
+            fill_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `TrackBarObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、track_bar 固有部分。TS 側は
+/// `BaseObject & TrackBarObjectFields & { type: 'track_bar' }` として組み立てる。
+///
+/// `width`/`height` は `trackBarObjectFactory.ts` の `buildAviUtlTrackBarObject`
+/// がプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな
+/// `0.0` にする。他のフィールドは同ファイルの固定リテラル（trackValues:
+/// [0,0,0,0], trackRanges: [[0,100],[0,100],[0,100],[-100,100]], labels:
+/// ['TrackA','TrackB','TrackC','TrackD'], barColour: '#ffffff',
+/// backgroundOpacity: 0.05）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TrackBarObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "trackValues")]
+    #[ts(rename = "trackValues")]
+    pub track_values: Vec<f32>,
+    #[serde(rename = "trackRanges")]
+    #[ts(rename = "trackRanges")]
+    pub track_ranges: Vec<(f32, f32)>,
+    pub labels: Vec<String>,
+    #[serde(rename = "barColour")]
+    #[ts(rename = "barColour")]
+    pub bar_colour: String,
+    #[serde(rename = "backgroundOpacity")]
+    #[ts(rename = "backgroundOpacity")]
+    pub background_opacity: f32,
+}
+
+impl Default for TrackBarObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            track_values: vec![0.0, 0.0, 0.0, 0.0],
+            track_ranges: vec![(0.0, 100.0), (0.0, 100.0), (0.0, 100.0), (-100.0, 100.0)],
+            labels: vec![
+                "TrackA".to_string(),
+                "TrackB".to_string(),
+                "TrackC".to_string(),
+                "TrackD".to_string(),
+            ],
+            bar_colour: "#ffffff".to_string(),
+            background_opacity: 0.05,
+        }
+    }
+}
+
+/// `PieChartObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、pie_chart 固有部分。TS 側は
+/// `BaseObject & PieChartObjectFields & { type: 'pie_chart' }` として組み立てる。
+///
+/// `width`/`height` は `pieChartObjectFactory.ts` の `buildAviUtlPieChartObject`
+/// がプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな
+/// `0.0` にする。他のフィールドは同ファイルの固定リテラル（values:
+/// [10,20,30,40], sortMode: 'descending', normaliseToHundred: true,
+/// labelMode: 'percentage', progressPercent: 100, strokeWidth: 20,
+/// sliceColours: ['#389ba6','#f2e2c4','#f29422','#f27830','#f24b0f']）を
+/// そのまま採用する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum PieChartSortMode {
+    None,
+    Descending,
+    Ascending,
+}
+
+impl Default for PieChartSortMode {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum PieChartLabelMode {
+    None,
+    Percentage,
+    Input,
+}
+
+impl Default for PieChartLabelMode {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PieChartObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub values: Vec<f32>,
+    #[serde(rename = "sortMode")]
+    #[ts(rename = "sortMode")]
+    pub sort_mode: PieChartSortMode,
+    #[serde(rename = "normaliseToHundred")]
+    #[ts(rename = "normaliseToHundred")]
+    pub normalise_to_hundred: bool,
+    #[serde(rename = "labelMode")]
+    #[ts(rename = "labelMode")]
+    pub label_mode: PieChartLabelMode,
+    #[serde(rename = "progressPercent")]
+    #[ts(rename = "progressPercent")]
+    pub progress_percent: f32,
+    #[serde(rename = "strokeWidth")]
+    #[ts(rename = "strokeWidth")]
+    pub stroke_width: f32,
+    #[serde(rename = "sliceColours")]
+    #[ts(rename = "sliceColours")]
+    pub slice_colours: Vec<String>,
+}
+
+impl Default for PieChartObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            values: vec![10.0, 20.0, 30.0, 40.0],
+            sort_mode: PieChartSortMode::Descending,
+            normalise_to_hundred: true,
+            label_mode: PieChartLabelMode::Percentage,
+            progress_percent: 100.0,
+            stroke_width: 20.0,
+            slice_colours: vec![
+                "#389ba6".to_string(),
+                "#f2e2c4".to_string(),
+                "#f29422".to_string(),
+                "#f27830".to_string(),
+                "#f24b0f".to_string(),
+            ],
+        }
+    }
+}
+
+/// `HistogramObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、histogram 固有部分。TS 側は
+/// `BaseObject & HistogramObjectFields & { type: 'histogram' }` として組み立てる。
+///
+/// `width`/`height` は `histogramObjectFactory.ts` の
+/// `buildAviUtlHistogramObject` の固定リテラル（256, 200）をそのまま採用する
+/// （プロジェクトサイズに依存しない固定値のため、ニュートラル化はしない）。
+/// 他のフィールドも同ファイルの固定リテラル（binValues:
+/// [0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36], heightScalePercent: 100,
+/// lineWidth: 1, showLuminance/showRed/showGreen/showBlue: true,
+/// channelColours: ['#ffffff','#ff4b4b','#4bff6a','#4b8cff'],
+/// backgroundColour: '#000000'）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct HistogramObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "binValues")]
+    #[ts(rename = "binValues")]
+    pub bin_values: Vec<f32>,
+    #[serde(rename = "heightScalePercent")]
+    #[ts(rename = "heightScalePercent")]
+    pub height_scale_percent: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(rename = "showLuminance")]
+    #[ts(rename = "showLuminance")]
+    pub show_luminance: bool,
+    #[serde(rename = "showRed")]
+    #[ts(rename = "showRed")]
+    pub show_red: bool,
+    #[serde(rename = "showGreen")]
+    #[ts(rename = "showGreen")]
+    pub show_green: bool,
+    #[serde(rename = "showBlue")]
+    #[ts(rename = "showBlue")]
+    pub show_blue: bool,
+    #[serde(rename = "channelColours")]
+    #[ts(rename = "channelColours")]
+    pub channel_colours: Vec<String>,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for HistogramObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 256.0,
+            height: 200.0,
+            bin_values: vec![0.08, 0.18, 0.32, 0.55, 0.78, 0.92, 0.64, 0.36],
+            height_scale_percent: 100.0,
+            line_width: 1.0,
+            show_luminance: true,
+            show_red: true,
+            show_green: true,
+            show_blue: true,
+            channel_colours: vec![
+                "#ffffff".to_string(),
+                "#ff4b4b".to_string(),
+                "#4bff6a".to_string(),
+                "#4b8cff".to_string(),
+            ],
+            background_colour: "#000000".to_string(),
+        }
+    }
+}
+
+/// `ToneCurveObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた、tone_curve 固有部分。TS 側は
+/// `BaseObject & ToneCurveObjectFields & { type: 'tone_curve' }` として組み立てる。
+///
+/// `width`/`height` は `toneCurveObjectFactory.ts` の
+/// `buildAviUtlToneCurveObject` の固定リテラル（360, 360）をそのまま採用する
+/// （プロジェクトサイズに依存しない固定値のため、ニュートラル化はしない）。
+/// 他のフィールドも同ファイルの固定リテラル（gridDivisions: 4, lineWidth: 3,
+/// curvePoints: [0,0.16,0.42,0.7,1], curveColour: '#ffffff',
+/// gridColour: '#333333', backgroundColour: '#000000'）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ToneCurveObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "gridDivisions")]
+    #[ts(rename = "gridDivisions")]
+    pub grid_divisions: u32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: u32,
+    #[serde(rename = "curvePoints")]
+    #[ts(rename = "curvePoints")]
+    pub curve_points: Vec<f32>,
+    #[serde(rename = "curveColour")]
+    #[ts(rename = "curveColour")]
+    pub curve_colour: String,
+    #[serde(rename = "gridColour")]
+    #[ts(rename = "gridColour")]
+    pub grid_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for ToneCurveObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 360.0,
+            height: 360.0,
+            grid_divisions: 4,
+            line_width: 3,
+            curve_points: vec![0.0, 0.16, 0.42, 0.7, 1.0],
+            curve_colour: "#ffffff".to_string(),
+            grid_colour: "#333333".to_string(),
+            background_colour: "#000000".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,

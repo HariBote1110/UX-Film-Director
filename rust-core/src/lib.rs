@@ -24,11 +24,13 @@ pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
 pub use schema::{
     AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
     AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect,
-    Fps, ImageObjectFields, MediaKind,
-    ColourWheelObjectFields, MediaReference, ParticleObjectFields, PositionKeyframe, Project,
+    Fps, GearObjectFields, GourdObjectFields, HistogramObjectFields, ImageObjectFields, MediaKind,
+    ColourWheelObjectFields, MediaReference, ParticleObjectFields, PieChartLabelMode,
+    PieChartObjectFields, PieChartSortMode, PositionKeyframe, Project,
     ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, SamplingMode, ScalarKeyframe,
     ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType,
-    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke, Track,
+    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke,
+    ToneCurveObjectFields, Track, TrackBarObjectFields,
     Transform, VideoObjectFields, WipeEdge,
 };
 pub use solid_colour_scene::{
