@@ -703,12 +703,11 @@ describe('全読込可能メディア E2E', () => {
       fillColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'colour-wheel')?.source ?? '{}')).toMatchObject({
-      generator: 'colour-wheel',
       radius: 120,
       saturation: 100,
       brightness: 100,
-      ring_width_percent: 25,
-      segment_count: 24,
+      ringWidthPercent: 25,
+      segmentCount: 24,
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'gourd-tm')?.source ?? '{}')).toMatchObject({
       generator: 'gourd-tm',

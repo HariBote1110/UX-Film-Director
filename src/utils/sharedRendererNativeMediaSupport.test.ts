@@ -90,7 +90,7 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'colour-wheel-1',
   kind: 'GeneratedColourWheel' as RustSceneMediaReference['kind'],
-  source: '{"generator":"colour-wheel","radius":120,"saturation":100,"brightness":100,"ring_width_percent":25,"segment_count":24}',
+  source: '{"width":240,"height":240,"radius":120,"saturation":100,"brightness":100,"ringWidthPercent":25,"segmentCount":24}',
   width: 240,
   height: 240,
 }, {

@@ -129,7 +129,7 @@ fn generated_colour_wheel_source_frame_contains_hues_and_transparency() {
     let media = SceneMediaReference {
             id: "colour-wheel-1".to_string(),
             kind: MediaKind::GeneratedColourWheel,
-            source: r##"{"generator":"colour-wheel","radius":48,"saturation":100,"brightness":100,"ring_width_percent":25,"segment_count":24}"##.to_string(),
+            source: r##"{"width":96,"height":96,"radius":48,"saturation":100,"brightness":100,"ringWidthPercent":25,"segmentCount":24}"##.to_string(),
             width: 96,
             height: 96,
             source_rate: None,
