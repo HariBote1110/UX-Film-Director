@@ -136,6 +136,16 @@ export interface NativeOverlayAddon {
   setNativeOverlayObstructed?: (payload: NativeOverlaySetObstructedPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   setNativeOverlaySelectionDecoration?: (payload: NativeOverlaySelectionDecorationPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
+  /**
+   * Phase 7 (W7) 需要駆動staged attach（Phase 2）: nv12パイプラインの
+   * バックグラウンド構築が完了したかどうかを返すポーリング用getter
+   * （`native-overlay/src/lib.rs`の`isNv12PipelineReady`napi関数）。
+   * addonが対応していない（古いビルド）場合は呼び出し元で`true`
+   * 扱いにフォールバックする（Phase 2以前の単段構成と同じ挙動、
+   * 安全側ではなく後方互換側のデフォルト——旧addonはnv12を常に
+   * attach完了時点で構築済みだったため）。
+   */
+  isNv12PipelineReady?: (payload: NativeOverlayDetachPayload) => boolean | Promise<boolean>
 }
 
 export interface CreateNativeOverlayMainBridgeInput {
@@ -159,6 +169,8 @@ export interface NativeOverlayMainBridge {
   setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
   setSelectionDecoration: (payload: NativeOverlaySelectionDecorationPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
+  /** Phase 7 (W7) 需要駆動staged attach（Phase 2）: `NativeOverlayAddon.isNv12PipelineReady`参照。 */
+  isNv12PipelineReady: (payload: NativeOverlayDetachPayload) => Promise<boolean>
 }
 
 export interface NativeOverlayCapabilities {
@@ -390,6 +402,28 @@ export const createNativeOverlayMainBridge = ({
         return response
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
+      }
+    },
+    async isNv12PipelineReady(payload) {
+      // Phase 7 (W7) 需要駆動staged attach（Phase 2）: attach後にVideo
+      // クリップを含むシーンをoverlayへ流してよいかをTS側（Viewport.tsx）が
+      // 判断するためのポーリング用getter。addon未対応（古いビルド）・
+      // native overlay無効時は`true`（=常時ready扱い）にフォールバックする
+      // ——旧addonは単段構成でattach完了時点で常にnv12も構築済みだった
+      // ため、この関数が無いこと自体を「まだ準備できていない」と誤解して
+      // 動画をpresenterに留め続けるのは誤り（後方互換のためのデフォルト、
+      // `getCapabilities`等の「無効/未対応ならfalse」パターンとはあえて逆）。
+      if (!nativeOverlayEnabled(env)) {
+        return true
+      }
+      const addon = loadAddon()
+      if (!addon || typeof addon.isNv12PipelineReady !== 'function') {
+        return true
+      }
+      try {
+        return await addon.isNv12PipelineReady({ windowId: payload.windowId })
+      } catch {
+        return true
       }
     },
     async clearSurface(payload) {

@@ -78,6 +78,7 @@ import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRen
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import { resolveNativeOverlayEnabled } from '../utils/nativeOverlayPlatformGate';
 import { createNativeOverlayAttachLifecycle } from '../utils/nativeOverlayAttachLifecycle';
+import { shouldRouteFrameToNativeOverlay } from '../utils/nativeOverlayNv12Gate';
 import { waitForNativeOverlayAttachGate } from '../utils/nativeOverlayAttachGateWait';
 import { psdImportTraceCollector } from '../perf/psdImportTrace';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
@@ -758,6 +759,16 @@ const Viewport: React.FC = () => {
   // 1セッション中に false → true（attach成功）→ false（トグルOFF/失敗）と
   // 遷移しうる。
   const nativeOverlayReady = nativeOverlayLifecycleState === 'overlay';
+  // Phase 7 (W7) 需要駆動staged attach（Phase 2）: nativeOverlayReady
+  // （essential ready、attach解決）とは独立に、支配的コストのnv12
+  // パイプラインがバックグラウンド構築を終えたかどうかを追跡する。
+  // false のままだと動画を含むシーンは native overlay へルーティング
+  // せず presenter に留める（`shouldRouteFrameToNativeOverlay`、
+  // src/utils/nativeOverlayNv12Gate.ts）。動画を含まないシーンには
+  // 影響しない。初期値 false（Windows実機での安全側デフォルト——
+  // macOSは常にtrueを返すブリッジのため、attach直後のポーリングで
+  // ほぼ即座にtrueへ遷移する）。
+  const [nativeOverlayNv12Ready, setNativeOverlayNv12Ready] = useState(false);
   // stage5ブロッカー修正 — container/bridge ゲート待ちのポーリング間隔。
   // 通常は起動直後の数百ms以内に両方揃うはずのため、既存の
   // NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS（rect再計算用、500ms）より
@@ -843,6 +854,27 @@ const Viewport: React.FC = () => {
     // detach/clearSurface を呼ばないことで、この cross-thread
     // DestroyWindow 自体を発生させない。
     let hasEverAttached = false;
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）: nv12ポーリングタイマー。
+    // attach成功（essential ready）のたびに false へ戻し、
+    // isNv12PipelineReady が true を返すまで一定間隔で問い合わせる
+    // （trueになったら停止——単調遷移のため再度falseへ戻すことはない）。
+    let nv12PollTimerId: number | null = null;
+    const stopNv12Poll = () => {
+      if (nv12PollTimerId !== null) {
+        window.clearInterval(nv12PollTimerId);
+        nv12PollTimerId = null;
+      }
+    };
+    const pollNv12Ready = () => {
+      void window.nativeOverlay?.isNv12PipelineReady?.({}).then((ready) => {
+        if (disposed) return;
+        setNativeOverlayNv12Ready(ready);
+        if (ready) stopNv12Poll();
+      }).catch(() => {
+        // ポーリング1回の失敗で presenter に留め続けるのは安全側
+        // （黒/欠落フレームより取りこぼしの方が良い）。次回tickで再試行。
+      });
+    };
     const nativeOverlayLifecycle = createNativeOverlayAttachLifecycle({
       attach: () => {
         // runAttach() 呼び出し直前に computeAttachRect() が pendingAttachRect を
@@ -853,6 +885,10 @@ const Viewport: React.FC = () => {
       onStateChange: setNativeOverlayLifecycleState,
       onAttached: () => {
         hasEverAttached = true;
+        setNativeOverlayNv12Ready(false);
+        stopNv12Poll();
+        pollNv12Ready();
+        nv12PollTimerId = window.setInterval(pollNv12Ready, NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS);
         // attach 成功で addon 側の選択デコレーション state が失われている可能性が
         // あるため、tick を進めて同値 quad でも再送させる。
         setNativeOverlayAttachTick((tick) => tick + 1);
@@ -933,6 +969,7 @@ const Viewport: React.FC = () => {
       // その後のresolveを無視させ、状態を直ちに 'presenter' へ戻す
       // （「最新の意図が勝つ」契約、nativeOverlayAttachLifecycle.test.ts参照）。
       nativeOverlayLifecycle.cancel();
+      stopNv12Poll();
       window.clearInterval(attachPollTimerId);
       observer?.disconnect();
       window.removeEventListener('resize', attach);
@@ -1530,6 +1567,22 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterSessionKeyRef.current = null;
       }
     }
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）: 動画クリップを含む
+    // シーン（isNativeOverlayDirectSceneSession）は nv12 パイプラインの
+    // バックグラウンド構築が終わるまで native overlay へルーティングせず
+    // presenter に留める（欠落/黒フレームを一切出さないための保守的な
+    // ルール、src/utils/nativeOverlayNv12Gate.ts）。動画を含まない
+    // シーン（native-render-only、図形/画像のみ）は essential ready
+    // （nativeOverlayReady）だけで即座に overlay へ乗ってよい——支配的
+    // コストのnv12を待つ理由がないため、下の native-render-only 分岐は
+    // 意図的に nativeOverlayReady のみで判定する（変更なし）。
+    const nativeOverlaySceneHasVideo = isNativeOverlayDirectSceneSession(session);
+    const nativeOverlayVideoSceneRoutable = nativeOverlaySceneHasVideo
+      && shouldRouteFrameToNativeOverlay({
+        nativeOverlayReady,
+        nv12Ready: nativeOverlayNv12Ready,
+        sceneHasVideo: nativeOverlaySceneHasVideo,
+      });
     if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
       const control = sharedRendererPresenterControlRef.current;
       // video-only・混在は動画デコード注入経由、native-render-only（図形/画像のみ）
@@ -1539,7 +1592,7 @@ const Viewport: React.FC = () => {
       // presentPreparedNativeRenderFrame の DOM側WebGPU canvas経路が
       // interim presenter として使われる。
       if (control?.ok && (
-        (nativeOverlayReady && isNativeOverlayDirectSceneSession(session))
+        nativeOverlayVideoSceneRoutable
         || (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session))
         || control.presentPreparedNativeRenderFrame
       )) {
@@ -1553,8 +1606,7 @@ const Viewport: React.FC = () => {
         void (async () => {
           try {
             if (
-              nativeOverlayReady
-              && isNativeOverlayDirectSceneSession(session)
+              nativeOverlayVideoSceneRoutable
               && !isSharedRendererNativeRenderOnlySession(session)
             ) {
               if (session.surfaceGate.ok) {

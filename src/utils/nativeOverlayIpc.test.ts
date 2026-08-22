@@ -36,12 +36,16 @@ describe('nativeOverlayIpc', () => {
       presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
+      // Phase 7 (W7) 需要駆動staged attach（Phase 2）— nv12パイプラインの
+      // バックグラウンド構築完了ポーリング。
+      isNv12PipelineReady: vi.fn(async () => true),
     };
 
     registerNativeOverlayIpcHandlers(ipcMain, bridge as any);
 
-    // scene-only direct present channel を含め、登録される channel は 8 個。
-    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
+    // scene-only direct present channel・isNv12PipelineReady channelを
+    // 含め、登録される channel は 9 個。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(9);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
@@ -210,7 +214,7 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(9);
     await expect(handlers.get(nativeOverlayIpcChannels.clearSurface)?.({ sender: 'webContents' }, {})).resolves.toEqual({
       success: true,
       attached: true,
@@ -243,7 +247,7 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(9);
     await expect(handlers.get(nativeOverlayIpcChannels.previewObstructionChanged)?.(
       { sender: 'webContents' },
       { obstructed: true, reason: 'export-modal' },

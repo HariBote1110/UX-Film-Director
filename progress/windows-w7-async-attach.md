@@ -767,3 +767,144 @@ flipした。** `src/utils/nativeOverlayPlatformGate.ts`の該当1箇所を
 - 「DComp/HWND作成をworkerスレッドへ逃がす」設計がなぜ実Electronアプリ
   でだけハングするのかの正確な内部機構の特定（対話デバッガが使える
   セッションで実施——今後同種の設計を検討する際の一次資料になる）。
+
+## Phase 7 (W7) 需要駆動staged attach: Phase 1（全パイプライン個別計測）
+
+`windows_port_research/notes/w7-attach-cost-mitigation.md`に追記した
+Phase 1計測（mainpc実機、RTX 3070 Ti、DXC、3回）により、`finish_pipelines`
+が構築する9パイプラインの内訳が確定した: nv12_composite 中央値57.585秒
+（全体の86.6%、支配的）、solid_composite 8.571秒（12.9%）、8種の小型
+シェーダ合計311ms（0.47%、無視できる）。段階別中央値の合算(66.466秒)と
+実測TOTAL中央値(66.465秒)が誤差1msで一致し、stage4節が記録していた
+summed-vs-measured不一致（4本合算119.9秒 vs 実測79〜88.77秒）は「別
+プロセス/deviceで測った単体値の合算と本番連続生成の実測を直接比較した
+方法論アーティファクト」であり、pipeline再利用のような未知の機構は
+存在しないと確定した。詳細・数値表は研究ノート参照。
+
+## Phase 7 (W7) 需要駆動staged attach: Phase 2（実装）
+
+### Decision
+
+Phase 1の実測に基づき、`finish_pipelines`をEssential集合
+（solid_composite + 8種の小型シェーダ、実測合計約8.9秒）と
+Deferred集合（nv12_compositeのみ、実測中央値57.585秒）に分割した。
+
+- **native-wgpu-renderer**（`src/lib.rs`）:
+  - `PreparedLiveSurface::finish_essential_pipelines`を新設。nv12以外を
+    全て構築し、`NativeWgpuRenderer.nv12_pipeline`フィールドを
+    `wgpu::RenderPipeline`から`Option<wgpu::RenderPipeline>`へ変更して
+    `None`のまま返す。`nv12_bind_group_layout`自体（DXCコンパイルを
+    伴わない、数ミリ秒）はここで作る——`nv12::create_nv12_bind_group_layout`
+    を`create_nv12_pipeline_for_format`から切り出して公開した。
+  - `finish_pipelines`（旧来の単段構成）は`finish_essential_pipelines`
+    呼び出し後に即座に`build_nv12_pipeline_now`で残りを構築するラッパー
+    として維持——macOS（`from_appkit_view`）・汎用テスト用`from_surface`
+    は変更なし（DXCコンパイル自体が無い/十分高速なため単段のままでよい
+    と判断）。
+  - `encode_prepared_clips`はNV12クリップを含むシーンで
+    `nv12_pipeline`が`None`のとき、パニックや黒フレーム描画をせず
+    `NativeWgpuRenderError::Nv12PipelineNotReady`を返す
+    （`ClipPipelineKind`ごとの分岐前に事前チェック）。
+  - `nv12_pipeline_build_inputs()`（`&self`、`wgpu::Device`/
+    `wgpu::BindGroupLayout`の安価なclone＋出力format）と
+    `install_nv12_pipeline(&mut self, pipeline)`（最初の1回だけ勝つ、
+    `OnceLock::set`と同じ思想の`&mut self`版）を新設し、公開関数
+    `compile_nv12_pipeline`（クレート境界越しに呼べる薄いラッパー）
+    と組み合わせて、バックグラウンドスレッドが「ロックを短時間だけ
+    取ってdevice/layoutをclone→ロック外でコンパイル→ロックを
+    短時間だけ取って書き戻す」という設計を可能にした。
+- **native-overlay**（`src/lib.rs`）:
+  - `attach_native_overlay_compute_pipelines`（Windows）は
+    `prepared.finish_pipelines()`ではなく`finish_essential_pipelines()`
+    を呼ぶよう変更——attachはessential集合の完成だけで解決するように
+    なった（57.6秒のnv12待ちがattachレイテンシから消える）。
+  - `finish_attach_native_overlay`（JSスレッド、registry登録直後）で
+    `spawn_nv12_pipeline_background_build`を呼び、`std::thread::spawn`で
+    nv12コンパイルをキックオフする——**初回動画使用を待たず、attach
+    直後に自動発火する**（ブリーフィングの要求どおり、57.6秒のクロックは
+    attach時点から起算される）。
+  - `LIVE_OVERLAY_RENDERERS`のMutexをコンパイル中(最大57.6秒)ずっと
+    握らないよう、`nv12_pipeline_build_inputs`でdevice/layoutを短時間
+    ロック内でcloneし、ロック外で`compile_nv12_pipeline`を実行、
+    `install_nv12_pipeline_into_registry`で再度短時間ロックして
+    書き戻す2段ロック構成にした——これを怠ると他のoverlay操作
+    （render_frame/detach/resize等）がnv12コンパイル中ずっとブロック
+    され、UIスレッド応答性を損なう（Phase 3の検証基準そのもの）。
+  - `isNv12PipelineReady`（napi、`window_id: u32 -> bool`）をTS側へ
+    公開。イベント/threadsafe functionではなくポーリング用getterを
+    選んだ理由: nv12準備状態は「attach後に1回だけfalse→trueへ遷移する」
+    単調な性質であり、既存のフレームpresentループと同じ頻度で読めば
+    十分な即応性が得られるため、実装・テストともに単純なポーリングで
+    足りると判断した。未登録windowIdはfalse（安全側デフォルト）、
+    macOSは単段構成のまま常にtrue（後方互換）。
+- **TS側**（`src/components/Viewport.tsx`）:
+  - `nativeOverlayNv12Ready`（`useState`、初期値`false`）を追加。attach
+    lifecycleの`onAttached`で`false`にリセットしポーリング
+    （`window.nativeOverlay.isNv12PipelineReady({})`、既存の
+    `NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS`と同じ間隔）を開始、
+    `true`が返ったら停止する。
+  - 純粋なゲーティングルールを`src/utils/nativeOverlayNv12Gate.ts`の
+    `shouldRouteFrameToNativeOverlay`として切り出した:
+    「attach未解決なら常にfalse」「動画を含まないシーンは
+    nativeOverlayReadyだけでtrue（nv12を待たず即座にoverlay可）」
+    「動画を含むシーンはnv12Readyもtrueになるまでfalse（presenterに
+    留める）」——欠落/黒フレームを一切出さないための最も保守的な
+    ルールとして選んだ（brief記載の「conservative correct rule」）。
+  - `publishSharedRendererPreviewSession`内の`isNativeOverlayDirectSceneSession`
+    （動画を含むシーン判定、既存関数を流用）ベースのnative overlay
+    ルーティング分岐（2箇所）を`nativeOverlayVideoSceneRoutable`
+    （上記ゲート関数の結果）に置き換えた。native-render-only
+    （図形/画像のみ、動画を含まない）分岐は意図的に無改修
+    （`nativeOverlayReady`のみで判定、nv12を待つ理由がないため）。
+- **electron IPC層**: `nativeOverlayMainBridge.ts`（`isNv12PipelineReady`
+  ブリッジ関数、addon未対応/無効時は`true`にフォールバック——旧addonは
+  単段構成で常にready済みだったため、これを「準備できていない」と
+  誤解して動画をpresenterに留め続けるのは後方互換上誤り）・
+  `nativeOverlayIpc.ts`（新規channel）・`preload.ts`
+  （`window.nativeOverlay.isNv12PipelineReady`）・`vite-env.d.ts`
+  （型定義）を一気通貫で配線した。
+
+### Alternatives considered
+
+- **threadsafe function（napi）でnv12 ready完了を1回だけpushする案**:
+  見送った。ポーリングより実装・テストの複雑さが増す割に、nv12準備
+  状態は「attach後に1回だけfalse→trueへ遷移する」単調な性質のため、
+  既存のフレームpresentループと同じ頻度のポーリングで実用上十分な
+  即応性が得られると判断した。
+- **`Mutex<Option<wgpu::RenderPipeline>>`での遅延化**（bgra_pipeline/
+  nv12_bgra_pipelineと同じOnceLockパターン）: 見送った。nv12は
+  「バックグラウンドスレッドがコンパイル→registryのMutex経由で
+  書き戻す」という、bgra版（`&self`のみの遅延構築、呼び出しスレッドが
+  そのままコンパイルする）とは異なるアクセスパターンのため、
+  `Option`+`&mut self`（registry Mutexが天然の排他制御を提供する）の
+  方が素直で、追加の内部可変性機構が不要だった。
+
+### 検証結果
+
+- macOS `cargo test`（native-wgpu-renderer）: **lib 57 passed / 0 failed**
+  （54 + 新規3件、無退行）。
+- macOS `cargo test`（native-overlay）: **lib 104 passed / 0 failed**
+  （103 + 新規1件、無退行——Windows専用テスト1件は cross-compile
+  チェックのみでmacOSでは実行されない）。
+- `cargo check --target x86_64-pc-windows-msvc --tests`
+  （native-wgpu-renderer・native-overlay両方）: エラーなし。
+- `npx tsc --noEmit`: エラーなし。
+- `npx vitest run`: **258 files / 1868 tests、全green**（257/1862ベース
+  ラインから、`nativeOverlayNv12Gate.test.ts`新規6テストの純増。
+  既存の`viewportRustVideoOnlyBoundary.test.ts`（3件）・
+  `nativeOverlayIpc.test.ts`（3件）はソース文字列検査/handler数
+  アサーションを本stageの意図した設計変更に合わせて更新した——
+  リグレッションではない）。
+- `package.json`を`0.1.1-Beta-515a`へ更新。
+
+### 次の一手 / 未検証事項
+
+- Phase 3（mainpc実機検証、次段階）: 空タイムラインでのattach→overlay
+  切替時間の実測（3回・中央値、目標: 数秒）、動画on timelineでの
+  欠落フレーム無し確認（nv12 ready後にフルoverlay切替）、UIスレッド
+  応答性（0件の応答なし）。
+- 本stageで導入した`shouldRouteFrameToNativeOverlay`のnv12ゲートは
+  純粋関数レベルのユニットテストのみで検証済み。実Electronアプリでの
+  「動画クリップをattach直後に追加した場合、nv12 readyまでpresenterで
+  正しく再生され続けるか」の対話的確認はPhase 3以降の対話操作可能な
+  セッションで実施すること。

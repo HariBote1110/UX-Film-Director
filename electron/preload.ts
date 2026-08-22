@@ -265,6 +265,11 @@ contextBridge.exposeInMainWorld('nativeOverlay', {
     // addon 側（Rust/wgpu）が scene present の最後に上乗せ描画する。
     return ipcRenderer.invoke(nativeOverlayIpcChannels.setSelectionDecoration, payload)
   },
+  isNv12PipelineReady(payload: unknown) {
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）— nv12パイプラインの
+    // バックグラウンド構築完了をViewport.tsxがポーリングするための呼び出し。
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.isNv12PipelineReady, payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {

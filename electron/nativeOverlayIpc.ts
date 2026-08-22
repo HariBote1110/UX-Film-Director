@@ -26,6 +26,9 @@ export const nativeOverlayIpcChannels = {
   // native overlay に隠れるため、選択枠・リサイズハンドルの見た目を addon 側
   // （Rust/wgpu）で描く。renderer が world 座標 quad を送る channel。
   setSelectionDecoration: 'native-overlay-set-selection-decoration',
+  // Phase 7 (W7) 需要駆動staged attach（Phase 2）: nv12パイプラインの
+  // バックグラウンド構築完了をrendererがポーリングするためのchannel。
+  isNv12PipelineReady: 'native-overlay-is-nv12-pipeline-ready',
 } as const
 
 export interface NativeOverlayCapabilities {
@@ -49,6 +52,7 @@ export interface NativeOverlayIpcBridge {
   setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
   setSelectionDecoration: (payload: NativeOverlaySelectionDecorationPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
+  isNv12PipelineReady: (payload: NativeOverlayDetachPayload) => Promise<boolean>
 }
 
 export interface RegisterNativeOverlayIpcHandlersOptions {
@@ -93,6 +97,10 @@ export const registerNativeOverlayIpcHandlers = (
   ipcMain.handle(nativeOverlayIpcChannels.setSelectionDecoration, async (event, payload) =>
     bridge.setSelectionDecoration(
       withWindowId(payload, event, options.resolveWindowIdFromEvent) as unknown as NativeOverlaySelectionDecorationPayload,
+    ))
+  ipcMain.handle(nativeOverlayIpcChannels.isNv12PipelineReady, async (event, payload) =>
+    bridge.isNv12PipelineReady(
+      withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload,
     ))
   ipcMain.handle(nativeOverlayIpcChannels.previewObstructionChanged, async (event, payload) => {
     const obstructed = typeof payload === 'object' && payload !== null && 'obstructed' in payload

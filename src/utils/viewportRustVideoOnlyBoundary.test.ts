@@ -205,7 +205,13 @@ describe('Viewport Rust video-only boundary', () => {
     const nativeReuseBlock = code.slice(start, end);
 
     // decode済み動画を注入する直接presentはMissingSourceを起こさない適格シーンに限定する。
-    expect(nativeReuseBlock).toContain('&& isNativeOverlayDirectSceneSession(session)');
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）— nv12パイプラインの
+    // バックグラウンド構築完了までは動画を含むシーンをoverlayへ流さない
+    // ゲート（nativeOverlayVideoSceneRoutable、
+    // shouldRouteFrameToNativeOverlay経由）が
+    // `nativeOverlayReady && isNativeOverlayDirectSceneSession(session)`を
+    // 置き換えている。
+    expect(nativeReuseBlock).toContain('nativeOverlayVideoSceneRoutable');
     expect(nativeReuseBlock).toContain('&& !isSharedRendererNativeRenderOnlySession(session)');
     expect(nativeReuseBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(nativeReuseBlock).toContain('activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null');
@@ -214,7 +220,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = [result.activeJob]');
     expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, {');
     expect(nativeReuseBlock).toContain('nativeRenderDiagnostics: result.diagnostics');
-    expect(nativeReuseBlock.indexOf('isNativeOverlayDirectSceneSession(session)')).toBeLessThan(
+    expect(nativeReuseBlock.indexOf('nativeOverlayVideoSceneRoutable')).toBeLessThan(
       nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, {')
     );
   });
@@ -635,7 +641,10 @@ describe('Viewport Rust video-only boundary', () => {
     expect(start).toBeGreaterThan(-1);
     // 両方の overlay 分岐は nativeOverlayReady（attach完了済みか）をガードするため、
     // 未接続/無効時はどちらもスキップされ DOM canvas 経路まで落ちる。
-    expect(block).toContain('&& isNativeOverlayDirectSceneSession(session)');
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）— 動画分岐は
+    // nativeOverlayVideoSceneRoutable（nativeOverlayReady かつ nv12Ready）
+    // でガードされる。
+    expect(block).toContain('nativeOverlayVideoSceneRoutable');
     expect(block).toContain('if (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session)) {');
     expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, {');
     expect(block).toContain('nativeRenderDiagnostics: result.diagnostics');
@@ -708,12 +717,16 @@ describe('Viewport Rust video-only boundary', () => {
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('&& isNativeOverlayDirectSceneSession(session)');
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）— 同上、
+    // nativeOverlayVideoSceneRoutable が
+    // `nativeOverlayReady && isNativeOverlayDirectSceneSession(session)`を
+    // 置き換えている（動画シーンはnv12 readyまでpresenterに留める）。
+    expect(block).toContain('nativeOverlayVideoSceneRoutable');
     expect(block).toContain('&& !isSharedRendererNativeRenderOnlySession(session)');
     expect(block).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(block).toContain('selectionDecoration: sessionSelectionDecoration');
     expect(block).toContain('if (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session)) {');
-    expect(block.indexOf('isNativeOverlayDirectSceneSession(session)'))
+    expect(block.indexOf('nativeOverlayVideoSceneRoutable'))
       .toBeLessThan(block.indexOf('if (!presentPreparedNativeRenderFrame) return;'));
   });
 

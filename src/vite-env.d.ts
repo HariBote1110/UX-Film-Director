@@ -526,6 +526,10 @@ interface Window {
       fallback?: 'webgpuPresenter';
       reason?: string;
     }>;
+    // Phase 7 (W7) 需要駆動staged attach（Phase 2）— nv12パイプラインの
+    // バックグラウンド構築完了をポーリングする。addon未対応/無効時は
+    // `true`（常時ready扱い、後方互換のデフォルト）。
+    isNv12PipelineReady: (payload: { windowId?: number }) => Promise<boolean>;
   };
 }
 
