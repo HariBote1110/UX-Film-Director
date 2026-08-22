@@ -150,6 +150,65 @@ solid の104秒に対しnv12は10分超なので、少なくとも6倍以上—�
     ツールセット/Windows SDK のバージョンが `mach-dxcompiler-rs` の
     要求と噛み合っていないと考えられる（バージョン特定は未実施）。
 
+## 追記: DXC 導入後の実測（ユーザー承認済み、mainpc へ実際に配置して比較）
+
+### DXC の入手
+
+- 配布元: **github.com/microsoft/DirectXShaderCompiler** の Releases
+  （公式リポジトリであることを URL で確認した。他の配布元は使っていない）。
+- バージョン: **v1.9.2607**（"DX Compiler Release for July 2026"）。
+- 取得したアセット: `dxc_2026_07_29.zip`
+  （<https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip>、
+  41,625,275 bytes）。mainpc 上で `Invoke-WebRequest` により直接取得し、
+  `C:\Users\gzabu\uxfd-win-probe\dxc\dxc_2026_07_29.zip` へ保存、
+  `Expand-Archive` で展開した。
+- 使用した DLL: `bin\x64\dxcompiler.dll`（28,079,968 bytes）、
+  `bin\x64\dxil.dll`（3,831,600 bytes）。x64 版のみ使用（mainpc・本アプリ
+  ともに x64 のため。x86/arm64 版も同梱されているが未使用）。
+- 配置場所（今回の再現ツール向け）: **`nv12-pipeline-repro.exe` と
+  同じディレクトリ**（`target\release\`）。`Dx12Compiler::default_dynamic_dxc()`
+  は `dxcompiler.dll`/`dxil.dll` を相対パス文字列として渡し、Windows の
+  標準 DLL 探索順序（実行ファイルと同じディレクトリが最優先）で解決される
+  ため、これが最も単純で確実な配置場所だった。
+  **本番アプリ（Electron）でどこに置く必要があるかは本ノート末尾の
+  「W1/electron-builder への申し送り」を参照。**
+
+### Fxc vs DXC 比較（mainpc、RTX 3070 Ti、rustc/wgpu 25.0.2、DX12）
+
+| シェーダ | コンパイラ | 実行1 | 実行2 | 実行3 | 中央値 | Fxc比 |
+|---|---|---|---|---|---|---|
+| solid (598行) | Fxc | — | — | 104,324ms | 104,324ms | 1.0x（基準） |
+| solid (598行) | **DXC** | 8,667ms | 7,472ms | 7,513ms | **7,513ms** | **約13.9倍高速** |
+| nv12 (678行) | Fxc | — | — | 676,907ms | 676,907ms | 1.0x（基準） |
+| nv12 (678行) | **DXC** | 54,620ms | 52,419ms | 49,950ms | **52,419ms** | **約12.9倍高速** |
+
+（Fxc は1回の実測のみ——1本あたり最大11分超かかるため中央値を取る時間的
+余裕がなく、本タスクでは1本のみとした。DXC は数十秒で完走するため
+3回とも取得できた。）
+
+`create_shader_module`（naga の WGSL→HLSL変換）はどのコンパイラ設定でも
+一貫して1ms。差はすべて `create_render_pipeline` 内の HLSL→DXBC
+コンパイル段階に閉じている。
+
+### 結論（更新）
+
+- **DXC への切替は実用的な速度改善をもたらす。** nv12 は 676.9秒
+  （約11分17秒）→ 52.4秒（中央値）に短縮。solid は 104.3秒 → 7.5秒。
+  どちらも桁で速くなったが、**nv12 は DXC でも solid よりなお約7倍
+  遅い**（52.4秒 vs 7.5秒）。DXC はレガシー Fxc の病的な遅さを解消するが、
+  「両シェーダが共有する550行超の effects tail」自体が重いこと自体は
+  変わらないため、nv12 特有の追加コスト（YCbCr変換 +80行）による
+  相対的な遅さの構造は残る。
+- attach 全体（9本のパイプライン、nv12 が最も重いと仮定）で見積もると、
+  Fxc では合計で15分超かかっていた可能性が高いのに対し、DXC では
+  1分強程度に収まる見込み。**実用範囲に入った**と判断できる。
+- 実装判断: **DXC への切替を本番の attach 経路（Windows のみ）に
+  導入する価値がある。** ただし DLL が存在しない環境（DXC 未配布の
+  ビルド・古い環境）でクラッシュしないよう、**Fxc へのグレースフル
+  フォールバックが必須**（`windows_port_research/notes/w5-attach-hang.md`
+  で確認済みの通り Fxc でも最終的には有限時間で成功するため、
+  フォールバックしても機能的には壊れない。単に遅いだけ）。
+
 ## 次の一手 / 未検証事項
 
 - **推奨される是正方向（実装はしない、本タスクの範囲外）**:
