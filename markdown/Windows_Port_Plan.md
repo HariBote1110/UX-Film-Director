@@ -486,6 +486,16 @@ parity ゲートも全通過）。詳細は
   **stage-2はpartial（★完了ではない）。残課題: attach呼び出しの非同期化、
   またはwgpu pipeline cache／DXCコンパイル結果の永続キャッシュ導入の
   いずれかが完了するまで、Windows既定ON化は見送る。**
+- **stage3-5（実施済み、2026-08-22〜23、★完了ではない）**: attach非同期化
+  （AsyncTask化）・Viewport.tsxのinterim-presenter状態機械・
+  native-wgpu-rendererのformat-aware遅延パイプライン構築（Option C）を
+  実装したが、mainpc実機のA/Bバイセクトで**「AsyncTask化そのものが
+  実Electronアプリでは機能せず、attachが恒久的に解決しない」**という
+  新しいregressionが判明した（同期実装に戻すと155.24秒でattach成功、
+  非同期実装だと並行呼び出しを直列化しても9分待って未解決）。詳細・
+  棄却済み仮説（container/bridgeゲート説・detach競合説）・次の一手は
+  `progress/windows-w7-async-attach.md` を参照。`WINDOWS_DEFAULT_ENABLED`
+  は`false`のまま、Phase 7 ★完了は引き続き見送り。
 
 ## 4. 既存設計との整合
 

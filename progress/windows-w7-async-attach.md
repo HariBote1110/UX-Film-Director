@@ -466,3 +466,151 @@ previewElement = containerRef.current; if (!previewElement ||
   見送り）。
 - `nativeOverlayPlatformGate.ts`のゲーティングテスト更新
   （flipしないため対象コードの変更自体なし）。
+
+## Stage 5 続報: mainpc実機A/Bバイセクトで根本原因を局在化（未解決のまま記録）
+
+前段のブロッカーを受け、`ssh mainpc`（plain SSH、`~/.ssh/config`の
+`mainpc`エイリアス。rpsh MCPブリッジは無関係・不使用）で直接検証を
+継続した。
+
+### 仮説1（棄却済み）: attach effectのcontainer/bridgeゲートが黙って
+   失敗し二度と再試行していない
+
+- 静的読解で `Viewport.tsx` の attach effect が
+  `!nativeOverlayPreviewEnabled` または `!previewElement ||
+  !window.nativeOverlay?.attach` の早期returnで無ログのまま
+  `'presenter'` に固定される分岐を発見し、有力候補として
+  `src/utils/nativeOverlayAttachGateWait.ts`（React非依存、fake timerで
+  6件テスト）を新設、ゲートが揃うまでポーリングして再試行する構成に
+  `Viewport.tsx` の attach effect を書き換えた（commit `eb98ebe4`）。
+- mainpc実機で再測定（`run-stage5-attach-latency.ps1 -Tag stage5fix1`）
+  したが **attach発火せず**。一時診断ログ（`console.warn`、
+  effect先頭で無条件に発火）をmainpcへ再配布して確認したところ、
+  **effectは正常に実行され、`nativeOverlayPreviewEnabled`・
+  container・bridgeいずれのゲートも満たしていた**（disabled/gate-not-
+  ready いずれの分岐にも入らない）ことが直接ログで判明。
+- **仮説1は棄却**——silent early-return は実際には発生していなかった。
+  ただしゲート待ちリトライ自体は独立に正しい改善のため実装は維持した。
+
+### 仮説2（部分的に反証）: React StrictMode二重マウントのdetach競合が
+   cross-thread DestroyWindowデッドロックを起こす
+
+- `runAttach() invoked` 診断ログにより、`window.nativeOverlay.attach()`
+  が実際に呼ばれている（1launchあたり3回——StrictModeのmount→cleanup→
+  mount相当）ことを確認、かつ main process側の`ipcMain.handle`診断
+  （`[NativeOverlay] attach IPC received`を一時追加）でも3回とも
+  main側に届いていることを確認した。
+- Rustソース読解で `native-overlay/src/win32_overlay.rs::
+  attach_overlay_window`（stage1-2でlibuv threadpool workerスレッド上で
+  実行されるようになった）が overlay HWND を `CreateWindowExW` で
+  **そのworkerスレッド上に作成**しており、Win32の「ウィンドウは作成した
+  スレッドに紐付く」制約により、まだ非同期化されていない同期版
+  `detach_native_overlay`（Electron main/JSスレッド上で実行）内の
+  `DestroyWindow` がクロススレッドで呼ばれると、所有スレッド
+  （メッセージポンプの無いlibuv worker）へメッセージを送って
+  呼び出し元スレッドを永久にブロックしうる、という筋の通った
+  デッドロック機構を特定した。
+- `Viewport.tsx`のattach effect cleanupに`hasEverAttached`ガードを追加し
+  （commit `f53f8e81`）、一度もattach成功していないインスタンスでは
+  `clearSurface`/`detach`を呼ばないよう修正——理論上この経路自体を
+  塞ぐはず、だった。
+- mainpc実機で再測定（`stage5fix2`、180秒 / `stage5diag4`、540秒＝9分）
+  したが **依然としてattach発火せず**。診断ログで確認したところ
+  `detach IPC received` は一度も出力されていない（ガードが機能し
+  detachは呼ばれていない）にもかかわらず、`runAttach() invoked`は
+  3回発火し3回ともmain側に届き、**3回とも9分待っても一切解決しない**。
+- **仮説2は「detachとのクロススレッド競合」としては反証**——detachが
+  一度も呼ばれていない状況でも同じ恒久ハングが再現するため、detach
+  競合は少なくとも唯一の原因ではない（`hasEverAttached`ガード自体は
+  安全な改善のため実装は維持）。
+
+### 仮説3（確定）: async化そのもの（d4b7f26、stage1-2）が実Electron
+   アプリでは機能しない——mainpc実機A/Bバイセクトで確定
+
+- native-overlay/native-wgpu-renderer の2クレートを個別に
+  `git checkout aa6945d0 -- <dir>` でmainpc上のみ差し替え・再ビルドし
+  比較する形でA/Bバイセクトを実施した（TSは現行のまま固定）:
+  1. **native-overlay=aa6945d0（同期実装）+ native-wgpu-renderer=HEAD**:
+     attach **成功**（`attachSeconds=155.24`、応答なしサンプル0件）。
+  2. **native-overlay=HEAD（非同期実装）+ native-wgpu-renderer=aa6945d0
+     （stage4 Option C適用前）**: attach **発火せず**（180秒待機）。
+  3. 両クレートをHEADへ戻し、`attach_native_overlay_compute`の重い本体を
+     グローバルMutexで直列化する修正を試したが（commit `29db061e`、
+     後にrevert）、180秒・540秒いずれの待機でも改善なし——**同時実行の
+     競合という仮説の精緻化も反証された**。
+- 以上より **regressionはstage4（Option C, OnceLock遅延構築）でも
+  「並行attach呼び出し間の競合」でもなく、native-overlayの
+  `attach_native_overlay`非同期化（AsyncTask化、d4b7f26）そのものが
+  実Electronアプリの実行時環境で機能していない**ことが確定した。
+  同じAsyncTaskパターンを使う `probe-attach.mjs`（裸のNodeスクリプト、
+  Electronなし）は正しくPromiseとして解決していた（stage5当初の記録）
+  ため、napi AsyncTask機構自体が全面的に壊れているわけではなく、
+  **Electronのmain process特有のNode/libuv統合と、この特定の
+  AsyncTask（`AttachNativeOverlayTask`、重いDComp/wgpu構築＋
+  `resolve`でのSetWinEventHook登録を伴う）の組み合わせでのみ**
+  再現する、より狭い条件下の問題であると考えられる。正確な内部機構
+  （Electronのlibuv threadpool統合の特性、`resolve`コールバックが
+  スケジュールされない具体的な理由等）は**未特定**。
+
+### 本stageで採用した修正（検証済みの改善のみ残す）
+
+- `src/utils/nativeOverlayAttachGateWait.ts` +
+  `Viewport.tsx`のcontainer/bridgeゲート待ちリトライ化（commit
+  `eb98ebe4`）: 根本原因ではなかったが、それ自体独立に正しい防御的
+  改善のため維持。
+- `Viewport.tsx`の`hasEverAttached`ガード（commit `f53f8e81`）:
+  根本原因の唯一の要因ではなかったが、cross-thread DestroyWindowの
+  発生条件を構造的に塞ぐ正しい改善のため維持。
+- Rustの直列化ロック（commit `29db061e`）: mainpc実機で効果が確認
+  できなかったため revert（commit `12ee8b02`）。研究ノートの原則
+  「棄却された仮説も結果」に従い、コードには残さずここに棄却記録として
+  残す。
+- 一時診断ログ（TS側`console.warn`複数箇所、`electron/
+  nativeOverlayIpc.ts`の`console.info`）は役目を終えたため削除
+  （commit `1aa4dfe1`）。
+
+### 得られた測定（正直な記録）
+
+- attach成功の実測は**native-overlayをaa6945d0（同期実装）に戻した
+  構成でのみ**得られた: `attachSeconds=155.24`、
+  `respondingFalseSamples=0`（stage2時点88.77秒より遅いが、機体負荷や
+  ビルド直後のディスクキャッシュ差等の要因は未分析、同一条件での
+  複数回計測は未実施）。
+- **現行tip（HEAD、非同期実装）での成功計測は本stageでも一度も
+  得られていない**——(a) attach window duration、(b) UI応答性（attach
+  進行中）、(d) presenter実フレームのエビデンス、いずれも引き続き
+  未取得。
+
+### DEFAULT-ON判定ゲート（再判定、変化なし）
+
+1. UIスレッド非ブロック証明: **❌ 未証明**（attach非発火のまま）。
+2. presenter実フレームカバレッジ: **❌ 未証明**（同上）。
+3. geometry追従: ✅ 満たす（前段の記録、変更なし）。
+4. stage2 soak/overflow基準: ✅ 満たす（前段の記録、変更なし）。
+
+**引き続き1・2が不成立のため `WINDOWS_DEFAULT_ENABLED` は `false` の
+まま据え置く（flipしない）。** markdown/Windows_Port_Plan.mdのPhase 7
+★完了は本stageでも見送る。
+
+### 次の一手（申し送り）
+
+- native-overlayの`attach_native_overlay`をAsyncTaskからいったん
+  同期実装に戻し（Electron main processを再びブロックする代わりに
+  確実に動く状態へ後退させ）、presenter状態機械（stage3の
+  `nativeOverlayLifecycle`）はそのまま活かして「attach中はpresenter、
+  完了したらoverlay」という見た目の挙動だけは維持しつつ、UIスレッド
+  ブロックはそのまま許容する形でDEFAULT-ONの是非を再検討する、という
+  「非同期化を諦める」選択肢を検討する価値がある。
+- あるいは、AsyncTaskをやめてnapi 3.xの`pub async fn`（tokio非依存の
+  ネイティブasync fn対応、stage1-2のAlternatives consideredで一度
+  見送った案）に変えるとElectron main processでの`resolve`スケジュール
+  が改善するかを小さなscratch検証で確かめる。
+- Electron側の`UV_THREADPOOL_SIZE`環境変数を明示的に増やす／
+  Electronの`app.commandLine`関連フラグ（GPU sandboxやfeature
+  flags）がlibuv threadpoolのafter-work callbackスケジューリングに
+  影響していないかを確認する。
+- 実Electronプロセスに`node --inspect`相当のデバッガをアタッチし
+  （またはWindows実機でProcess ExplorerのスレッドスタックをJS
+  スレッドについて確認し）、attach呼び出し後にJSスレッド/該当worker
+  スレッドが実際にどこでブロックしているかを直接観測する
+  （本stageでは対話デバッグ手段が無く実施できなかった）。
