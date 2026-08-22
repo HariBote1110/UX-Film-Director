@@ -38,7 +38,7 @@ use serde_json::Value;
 use ts_rs::TS;
 
 use crate::schema::{
-    BaseObject, CameraState, LayerState, ObjectFilter, SceneData, StageCamera3D, TimelineObject, AsanohaPatternObjectFields, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields, BarcodeObjectFields, CircularArrowObjectFields, ColourWheelObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, FocusLinesPlusObjectFields, GearObjectFields, GetColorDotFieldObjectFields, GourdObjectFields, GroupControlObjectFields, HistogramObjectFields, HksyCheckerGridObjectFields, HologramObjectFields, HoundstoothObjectFields, ImageObjectFields, PaperAirplaneObjectFields, ParticleObjectFields, PieChartObjectFields, PlainEffectorLineObjectFields, ProtractorObjectFields, PsdObjectFields, PuzzlePieceObjectFields, RandomLineExObjectFields, RegionFrameObjectFields, ShakingPolygonObjectFields, ShapeObjectFields, ShatteredSphereObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, TartanCheckObjectFields, TextObjectFields, ToneCurveObjectFields, TrackBarObjectFields, TriangleBracketObjectFields, VideoObjectFields, YagasuriObjectFields,
+    BaseObject, CameraState, ClippingParams, ColorCorrection, LayerState, ObjectFilter, ShadowEffect, ShapeGradientFill, SceneData, StageCamera3D, TimelineObject, Vibration, AsanohaPatternObjectFields, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields, BarcodeObjectFields, CircularArrowObjectFields, ColourWheelObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, FocusLinesPlusObjectFields, GearObjectFields, GetColorDotFieldObjectFields, GourdObjectFields, GroupControlObjectFields, HistogramObjectFields, HksyCheckerGridObjectFields, HologramObjectFields, HoundstoothObjectFields, ImageObjectFields, PaperAirplaneObjectFields, ParticleObjectFields, PieChartObjectFields, PlainEffectorLineObjectFields, ProtractorObjectFields, PsdObjectFields, PuzzlePieceObjectFields, RandomLineExObjectFields, RegionFrameObjectFields, ShakingPolygonObjectFields, ShapeObjectFields, ShatteredSphereObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, TartanCheckObjectFields, TextObjectFields, ToneCurveObjectFields, TrackBarObjectFields, TriangleBracketObjectFields, VideoObjectFields, YagasuriObjectFields,
 };
 
 /// 編集コマンド。第一層（本バッチ）は 42 kind 共通の汎用フィールド編集
@@ -457,6 +457,7 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                 });
             }
             filters.insert(*index, filter.clone());
+            sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
 
         Command::RemoveFilter {
@@ -484,6 +485,7 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                 });
             }
             filters.remove(*index);
+            sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
 
         Command::ToggleFilterEnabled {
@@ -500,6 +502,7 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                     filter_id: filter_id.clone(),
                 })?;
             set_filter_enabled(filter, !filter_enabled(filter));
+            sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
 
         Command::MoveFilter {
@@ -539,6 +542,7 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                 let moved = filters.remove(*from_index);
                 filters.insert(*to_index, moved);
             }
+            sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
 
         Command::UpdateFilterParams {
@@ -574,6 +578,7 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                 }
             })?;
             filters[filter_index] = patched_filter;
+            sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
 
         Command::SetCamera { next, .. } => {
@@ -623,6 +628,111 @@ fn find_object_index(scene: &SceneData, object_id: &str) -> Result<usize, Comman
 /// レガシー effect との同期は呼び出し側 (R4-8/9) の責務のまま維持する）。
 fn filters_mut(object: &mut TimelineObject) -> &mut Vec<ObjectFilter> {
     base_of_mut(object).filters.get_or_insert_with(Vec::new)
+}
+
+/// `src/utils/filterStack.ts` の `materialiseSyncedObject` を Rust 側へ移植
+/// したもの（R4-9）。`filters` 配列を正本として、legacy ミラーフィールド
+/// (`colorCorrection`/`customClipping`/`vibration`/`shadow`、shape のみ
+/// `gradient`) を「該当 type の最後方の filter」から再構築する。
+/// フィルタ系コマンド (`AddFilter`/`RemoveFilter`/`ToggleFilterEnabled`/
+/// `MoveFilter`/`UpdateFilterParams`) の適用後に必ず呼ぶことで、TS 側の
+/// forward 経路と undo/redo (Rust apply 経由) の忠実性ギャップを解消する
+/// (R4-8 で記録された既知の限界の解消)。
+fn sync_legacy_effects_with_filters(object: &mut TimelineObject) {
+    let filters = filters_mut(object).clone();
+
+    let mut last_color_correction: Option<&ObjectFilter> = None;
+    let mut last_clipping: Option<&ObjectFilter> = None;
+    let mut last_vibration: Option<&ObjectFilter> = None;
+    let mut last_shadow: Option<&ObjectFilter> = None;
+    let mut last_gradient: Option<&ObjectFilter> = None;
+    for filter in filters.iter().rev() {
+        match filter {
+            ObjectFilter::ColorCorrection { .. } if last_color_correction.is_none() => {
+                last_color_correction = Some(filter);
+            }
+            ObjectFilter::Clipping { .. } if last_clipping.is_none() => {
+                last_clipping = Some(filter);
+            }
+            ObjectFilter::Vibration { .. } if last_vibration.is_none() => {
+                last_vibration = Some(filter);
+            }
+            ObjectFilter::Shadow { .. } if last_shadow.is_none() => {
+                last_shadow = Some(filter);
+            }
+            ObjectFilter::Gradient { .. } if last_gradient.is_none() => {
+                last_gradient = Some(filter);
+            }
+            _ => {}
+        }
+        if last_color_correction.is_some()
+            && last_clipping.is_some()
+            && last_vibration.is_some()
+            && last_shadow.is_some()
+            && last_gradient.is_some()
+        {
+            break;
+        }
+    }
+
+    let base = base_of_mut(object);
+    base.color_correction = match last_color_correction {
+        Some(ObjectFilter::ColorCorrection { enabled, params, .. }) => Some(ColorCorrection {
+            enabled: *enabled,
+            brightness: params.brightness,
+            contrast: params.contrast,
+            saturation: params.saturation,
+            hue: params.hue,
+        }),
+        _ => None,
+    };
+    base.custom_clipping = match last_clipping {
+        Some(ObjectFilter::Clipping { enabled, params, .. }) => Some(ClippingParams {
+            enabled: *enabled,
+            top: params.top,
+            bottom: params.bottom,
+            left: params.left,
+            right: params.right,
+            angle: params.angle,
+            radius: params.radius,
+        }),
+        _ => None,
+    };
+    base.vibration = match last_vibration {
+        Some(ObjectFilter::Vibration { enabled, params, .. }) => Some(Vibration {
+            enabled: *enabled,
+            strength: params.strength,
+            speed: params.speed,
+        }),
+        _ => None,
+    };
+    base.shadow = match last_shadow {
+        Some(ObjectFilter::Shadow { enabled, params, .. }) => Some(ShadowEffect {
+            enabled: *enabled,
+            colour: params.colour.clone(),
+            blur: params.blur,
+            offset_x: params.offset_x,
+            offset_y: params.offset_y,
+            opacity: params.opacity,
+        }),
+        _ => None,
+    };
+
+    // `gradient` は shape kind のみが持つ (`ShapeObjectFields.gradient`)。
+    // TS 側 `materialiseSyncedObject` の `object.type !== 'shape'` ガードと同じ。
+    if let TimelineObject::Shape { fields, .. } = object {
+        fields.gradient = match last_gradient {
+            Some(ObjectFilter::Gradient { enabled, params, .. }) => Some(ShapeGradientFill {
+                enabled: *enabled,
+                kind: params.kind,
+                scope: params.scope,
+                colours: params.colours.clone(),
+                stops: params.stops.clone(),
+                direction: params.direction,
+            }),
+            _ => None,
+        };
+    }
 }
 
 fn base_of_mut(object: &mut TimelineObject) -> &mut BaseObject {

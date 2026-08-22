@@ -482,6 +482,100 @@ fn update_filter_params_patches_and_inverts() {
 }
 
 // ---------------------------------------------------------------------
+// R4-9: フィルタコマンドの legacy ミラーフィールド同期
+// (`src/utils/filterStack.ts` の `materialiseSyncedObject` 相当を
+// `apply_command` 側にも実装し、undo/redo 経由でも忠実に同期させる)
+// ---------------------------------------------------------------------
+
+#[test]
+fn update_filter_params_resyncs_legacy_color_correction_mirror() {
+    let scene = fixture_scene();
+    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let filter_id = filters_of(object)[0]["id"].as_str().unwrap().to_string();
+    assert_eq!(filter_id, "realistic-main-video-a-colour");
+    // フィクスチャの前提: legacy colorCorrection は filters[0] とすでに一致している。
+    let object_value = serde_json::to_value(object).unwrap();
+    let original_brightness = object_value["colorCorrection"]["brightness"].clone();
+    assert_eq!(object_value["filters"][0]["params"]["brightness"], original_brightness);
+
+    let command = Command::UpdateFilterParams {
+        object_id: FILTER_OBJECT_ID.to_string(),
+        filter_id,
+        next: serde_json::json!({ "brightness": 0.5 }),
+        previous: serde_json::json!({ "brightness": original_brightness }),
+    };
+    let applied = apply_command(&scene, &command).expect("UpdateFilterParams は成功するはず");
+    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let patched_value = serde_json::to_value(patched_object).unwrap();
+    // filters 配列だけでなく legacy ミラーフィールドも同期しているはず。
+    assert_eq!(patched_value["colorCorrection"]["brightness"], Value::from(0.5));
+
+    let restored = apply_command(&applied, &invert(&command)).expect("undo は成功するはず");
+    let restored_object = restored.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let restored_value = serde_json::to_value(restored_object).unwrap();
+    assert_eq!(restored_value["colorCorrection"]["brightness"], original_brightness);
+    assert_eq!(restored, scene);
+}
+
+#[test]
+fn remove_filter_clears_legacy_mirror_when_last_matching_filter_removed() {
+    let scene = fixture_scene();
+    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let original_value = serde_json::to_value(object).unwrap();
+    let original_brightness = original_value["colorCorrection"]["brightness"].clone();
+    let removed_value = filters_of(object)[0].clone();
+    let removed: uxfd_rust_core::schema::ObjectFilter = serde_json::from_value(removed_value).unwrap();
+
+    let command = Command::RemoveFilter {
+        object_id: FILTER_OBJECT_ID.to_string(),
+        filter_id: "realistic-main-video-a-colour".to_string(),
+        removed,
+        index: 0,
+    };
+    let applied = apply_command(&scene, &command).expect("RemoveFilter は成功するはず");
+    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let patched_value = serde_json::to_value(patched_object).unwrap();
+    // 対応する filter が無くなったので legacy ミラーフィールドは undefined (キー自体が省略) になるはず。
+    assert!(patched_value.get("colorCorrection").is_none());
+
+    // undo (invert(RemoveFilter) == AddFilter) で legacy ミラーも復元される。
+    let restored = apply_command(&applied, &invert(&command)).expect("undo(RemoveFilter) は成功するはず");
+    let restored_object = restored.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let restored_value = serde_json::to_value(restored_object).unwrap();
+    assert_eq!(restored_value["colorCorrection"]["brightness"], original_brightness);
+    assert_eq!(restored, scene);
+}
+
+#[test]
+fn add_filter_populates_legacy_mirror_for_new_filter_type() {
+    let scene = fixture_scene();
+    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object_value = serde_json::to_value(object).unwrap();
+    assert!(object_value.get("customClipping").is_none());
+
+    let new_filter: uxfd_rust_core::schema::ObjectFilter = serde_json::from_value(serde_json::json!({
+        "type": "clipping",
+        "id": "new-clipping-filter",
+        "enabled": true,
+        "params": { "top": 1.0, "bottom": 2.0, "left": 3.0, "right": 4.0, "angle": 0.0, "radius": 0.0 }
+    }))
+    .unwrap();
+    let command = Command::AddFilter {
+        object_id: FILTER_OBJECT_ID.to_string(),
+        filter: new_filter,
+        index: 3,
+    };
+    let applied = apply_command(&scene, &command).expect("AddFilter は成功するはず");
+    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let patched_value = serde_json::to_value(patched_object).unwrap();
+    assert_eq!(patched_value["customClipping"]["top"], Value::from(1.0));
+    assert_eq!(patched_value["customClipping"]["enabled"], Value::from(true));
+
+    let restored = apply_command(&applied, &invert(&command)).expect("undo(AddFilter) は成功するはず");
+    assert_eq!(restored, scene);
+}
+
+// ---------------------------------------------------------------------
 // R4-7: カメラコマンド (SetCamera/SetStageCamera3D)
 // ---------------------------------------------------------------------
 
