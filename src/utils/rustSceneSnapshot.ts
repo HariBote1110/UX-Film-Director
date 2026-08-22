@@ -1530,62 +1530,82 @@ const serialiseGeneratedColourWheelSource = (object: ColourWheelObject): string 
     segmentCount: object.segmentCount,
   });
 
+// `gourd` kind のワイヤーソースは rust-core の `GourdObjectFields`（正本）を
+// camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedGourdSource = (object: GourdObject): string =>
   JSON.stringify({
-    generator: 'gourd-tm',
-    body_radius: Math.max(1, Math.trunc(finiteNumberOr(object.bodyRadius, 80))),
-    body_width: Math.max(1, Math.trunc(finiteNumberOr(object.bodyWidth, 250))),
-    waist_radius: Math.max(0, Math.trunc(finiteNumberOr(object.waistRadius, 10))),
-    squash_percent: Math.min(100, Math.max(0, finiteNumberOr(object.squashPercent, 40))),
-    repeat_count: Math.min(36, Math.max(1, Math.trunc(finiteNumberOr(object.repeatCount, 1)))),
-    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    bodyRadius: object.bodyRadius,
+    bodyWidth: object.bodyWidth,
+    waistRadius: object.waistRadius,
+    squashPercent: object.squashPercent,
+    repeatCount: object.repeatCount,
+    fillColour: object.fillColour,
   });
 
+// `gear` kind のワイヤーソースは rust-core の `GearObjectFields`（正本）を
+// camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedGearSource = (object: GearObject): string =>
   JSON.stringify({
-    generator: 'gear-t',
-    outer_radius: Math.max(1, Math.trunc(finiteNumberOr(object.outerRadius, Math.min(object.width, object.height) / 2))),
-    inner_radius_percent: Math.min(99, Math.max(0, finiteNumberOr(object.innerRadiusPercent, 45))),
-    tooth_count: Math.min(240, Math.max(3, Math.trunc(finiteNumberOr(object.toothCount, 20)))),
-    tooth_depth_percent: Math.min(95, Math.max(1, finiteNumberOr(object.toothDepthPercent, 18))),
-    tooth_skew_percent: Math.min(100, Math.max(-100, finiteNumberOr(object.toothSkewPercent, 0))),
-    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    outerRadius: object.outerRadius,
+    innerRadiusPercent: object.innerRadiusPercent,
+    toothCount: object.toothCount,
+    toothDepthPercent: object.toothDepthPercent,
+    toothSkewPercent: object.toothSkewPercent,
+    fillColour: object.fillColour,
   });
 
+// `track_bar` kind のワイヤーソースは rust-core の `TrackBarObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedTrackBarSource = (object: TrackBarObject): string =>
   JSON.stringify({
-    generator: 'custom-track-bar',
-    track_values: normaliseTrackBarValues(object.trackValues),
-    track_ranges: normaliseTrackBarRanges(object.trackRanges),
-    labels: normaliseTrackBarLabels(object.labels),
-    bar_colour: /^#[0-9a-f]{6}$/i.test(object.barColour) ? object.barColour : '#ffffff',
-    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.05))),
+    width: object.width,
+    height: object.height,
+    trackValues: object.trackValues,
+    trackRanges: object.trackRanges,
+    labels: object.labels,
+    barColour: object.barColour,
+    backgroundOpacity: object.backgroundOpacity,
   });
 
+// `pie_chart` kind のワイヤーソースは rust-core の `PieChartObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedPieChartSource = (object: PieChartObject): string =>
   JSON.stringify({
-    generator: 'pie-sheet-graph',
-    values: normalisePieChartValues(object.values),
-    sort_mode: normalisePieChartSortMode(object.sortMode),
-    normalise_to_hundred: object.normaliseToHundred === true,
-    label_mode: normalisePieChartLabelMode(object.labelMode),
-    progress_percent: Math.min(100, Math.max(0, finiteNumberOr(object.progressPercent, 100))),
-    stroke_width: Math.max(1, Math.trunc(finiteNumberOr(object.strokeWidth, 20))),
-    slice_colours: normalisePieChartColours(object.sliceColours),
+    width: object.width,
+    height: object.height,
+    values: object.values,
+    sortMode: object.sortMode,
+    normaliseToHundred: object.normaliseToHundred,
+    labelMode: object.labelMode,
+    progressPercent: object.progressPercent,
+    strokeWidth: object.strokeWidth,
+    sliceColours: object.sliceColours,
   });
 
+// `histogram` kind のワイヤーソースは rust-core の `HistogramObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedHistogramSource = (object: HistogramObject): string =>
   JSON.stringify({
-    generator: 'simple-histogram',
-    bin_values: normaliseHistogramBins(object.binValues),
-    height_scale_percent: Math.min(1000, Math.max(1, finiteNumberOr(object.heightScalePercent, 100))),
-    line_width: Math.max(1, Math.trunc(finiteNumberOr(object.lineWidth, 1))),
-    show_luminance: object.showLuminance === true,
-    show_red: object.showRed === true,
-    show_green: object.showGreen === true,
-    show_blue: object.showBlue === true,
-    channel_colours: normaliseHistogramColours(object.channelColours),
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
+    width: object.width,
+    height: object.height,
+    binValues: object.binValues,
+    heightScalePercent: object.heightScalePercent,
+    lineWidth: object.lineWidth,
+    showLuminance: object.showLuminance,
+    showRed: object.showRed,
+    showGreen: object.showGreen,
+    showBlue: object.showBlue,
+    channelColours: object.channelColours,
+    backgroundColour: object.backgroundColour,
   });
 
 const serialiseGeneratedSunburstSource = (object: SunburstObject): string =>
@@ -1808,15 +1828,19 @@ const serialiseGeneratedShatteredSphereSource = (object: ShatteredSphereObject):
     seed: Math.trunc(finiteNumberOr(object.seed, 93)),
   });
 
+// `tone_curve` kind のワイヤーソースは rust-core の `ToneCurveObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedToneCurveSource = (object: ToneCurveObject): string =>
   JSON.stringify({
-    generator: 'simple-tone-curve',
-    grid_divisions: Math.min(16, Math.max(1, Math.trunc(finiteNumberOr(object.gridDivisions, 4)))),
-    line_width: Math.min(100, Math.max(1, Math.trunc(finiteNumberOr(object.lineWidth, 3)))),
-    curve_points: normaliseToneCurvePoints(object.curvePoints),
-    curve_colour: /^#[0-9a-f]{6}$/i.test(object.curveColour) ? object.curveColour : '#ffffff',
-    grid_colour: /^#[0-9a-f]{6}$/i.test(object.gridColour) ? object.gridColour : '#333333',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
+    width: object.width,
+    height: object.height,
+    gridDivisions: object.gridDivisions,
+    lineWidth: object.lineWidth,
+    curvePoints: object.curvePoints,
+    curveColour: object.curveColour,
+    gridColour: object.gridColour,
+    backgroundColour: object.backgroundColour,
   });
 
 const normaliseHksyPaletteColours = (colours: readonly string[] | undefined): string[] => {
@@ -2013,60 +2037,6 @@ const serialiseGeneratedSphericalFieldSource = (object: SphericalFieldObject): s
     container: object.container === true,
     seed: Math.trunc(finiteNumberOr(object.seed, 93)),
   });
-
-const normaliseToneCurvePoints = (points: readonly number[]): number[] => {
-  const validPoints = points
-    .filter((point) => Number.isFinite(point))
-    .map((point) => Math.max(0, Math.min(1, point)))
-    .slice(0, 64);
-  return validPoints.length >= 2 ? validPoints : [0, 1];
-};
-
-const normaliseTrackBarValues = (values: readonly number[]): number[] =>
-  Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
-
-const normaliseTrackBarRanges = (ranges: readonly [number, number][]): [number, number][] =>
-  Array.from({ length: 4 }, (_, index) => {
-    const range = ranges[index] ?? [0, 100];
-    const min = finiteNumberOr(range[0], 0);
-    const max = finiteNumberOr(range[1], 100);
-    return min === max ? [min, min + 1] : [min, max];
-  });
-
-const normaliseTrackBarLabels = (labels: readonly string[]): string[] =>
-  Array.from({ length: 4 }, (_, index) => labels[index] || `Track${String.fromCharCode(65 + index)}`);
-
-const normalisePieChartValues = (values: readonly number[]): number[] =>
-  values
-    .map((value) => Math.max(0, finiteNumberOr(value, 0)))
-    .filter((value) => value > 0)
-    .slice(0, 64);
-
-const normalisePieChartSortMode = (sortMode: PieChartObject['sortMode']): PieChartObject['sortMode'] =>
-  sortMode === 'ascending' || sortMode === 'descending' ? sortMode : 'none';
-
-const normalisePieChartLabelMode = (labelMode: PieChartObject['labelMode']): PieChartObject['labelMode'] =>
-  labelMode === 'none' || labelMode === 'input' ? labelMode : 'percentage';
-
-const normalisePieChartColours = (colours: readonly string[]): string[] => {
-  const validColours = colours.filter((colour) => /^#[0-9a-f]{6}$/i.test(colour)).slice(0, 64);
-  return validColours.length > 0 ? validColours : ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'];
-};
-
-const normaliseHistogramBins = (values: readonly number[]): number[] => {
-  const bins = values
-    .map((value) => Math.min(1, Math.max(0, finiteNumberOr(value, 0))))
-    .slice(0, 256);
-  return bins.length > 0 ? bins : [0];
-};
-
-const normaliseHistogramColours = (colours: readonly string[]): string[] =>
-  Array.from({ length: 4 }, (_, index) => {
-    const fallback = ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'][index];
-    const colour = colours[index];
-    return /^#[0-9a-f]{6}$/i.test(colour) ? colour : fallback;
-  });
-
 
 const findTargetAudioForGeneratedAudio = (
   object: Pick<AudioVisualizationObject | AudioSphereObject, 'targetAudioId' | 'targetLayer'>,

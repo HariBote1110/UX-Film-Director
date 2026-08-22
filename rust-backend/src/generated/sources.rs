@@ -23,63 +23,25 @@ pub(crate) use uxfd_rust_core::PuzzlePieceObjectFields;
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
 pub(crate) use uxfd_rust_core::ColourWheelObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedGourdSource {
-    pub(crate) generator: String,
-    pub(crate) body_radius: u32,
-    pub(crate) body_width: u32,
-    pub(crate) waist_radius: u32,
-    pub(crate) squash_percent: f32,
-    pub(crate) repeat_count: u32,
-    pub(crate) fill_colour: String,
-}
+// `gourd` kind のワイヤーソースは rust-core の `GourdObjectFields`（正本、
+// camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::GourdObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedGearSource {
-    pub(crate) generator: String,
-    pub(crate) outer_radius: u32,
-    pub(crate) inner_radius_percent: f32,
-    pub(crate) tooth_count: u32,
-    pub(crate) tooth_depth_percent: f32,
-    pub(crate) tooth_skew_percent: f32,
-    pub(crate) fill_colour: String,
-}
+// `gear` kind のワイヤーソースは rust-core の `GearObjectFields`（正本、
+// camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::GearObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedTrackBarSource {
-    pub(crate) generator: String,
-    pub(crate) track_values: Vec<f32>,
-    pub(crate) track_ranges: Vec<[f32; 2]>,
-    pub(crate) labels: Vec<String>,
-    pub(crate) bar_colour: String,
-    pub(crate) background_opacity: f32,
-}
+// `track_bar` kind のワイヤーソースは rust-core の `TrackBarObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::TrackBarObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedPieChartSource {
-    pub(crate) generator: String,
-    pub(crate) values: Vec<f32>,
-    pub(crate) sort_mode: String,
-    pub(crate) normalise_to_hundred: bool,
-    pub(crate) label_mode: String,
-    pub(crate) progress_percent: f32,
-    pub(crate) stroke_width: f32,
-    pub(crate) slice_colours: Vec<String>,
-}
+// `pie_chart` kind のワイヤーソースは rust-core の `PieChartObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::{PieChartLabelMode, PieChartObjectFields, PieChartSortMode};
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedHistogramSource {
-    pub(crate) generator: String,
-    pub(crate) bin_values: Vec<f32>,
-    pub(crate) height_scale_percent: f32,
-    pub(crate) line_width: f32,
-    pub(crate) show_luminance: bool,
-    pub(crate) show_red: bool,
-    pub(crate) show_green: bool,
-    pub(crate) show_blue: bool,
-    pub(crate) channel_colours: Vec<String>,
-    pub(crate) background_colour: String,
-}
+// `histogram` kind のワイヤーソースは rust-core の `HistogramObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::HistogramObjectFields;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedSunburstSource {
@@ -297,16 +259,9 @@ pub(crate) struct GeneratedShatteredSphereSource {
     pub(crate) seed: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedToneCurveSource {
-    pub(crate) generator: String,
-    pub(crate) grid_divisions: u32,
-    pub(crate) line_width: u32,
-    pub(crate) curve_points: Vec<f32>,
-    pub(crate) curve_colour: String,
-    pub(crate) grid_colour: String,
-    pub(crate) background_colour: String,
-}
+// `tone_curve` kind のワイヤーソースは rust-core の `ToneCurveObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::ToneCurveObjectFields;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedGetColorDotsSource {

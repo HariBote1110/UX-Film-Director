@@ -462,38 +462,36 @@ const isSharedRendererNativeGeneratedColourWheelSourceSupported = (source: strin
 const isSharedRendererNativeGeneratedGourdSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      body_radius?: unknown;
-      body_width?: unknown;
-      waist_radius?: unknown;
-      squash_percent?: unknown;
-      repeat_count?: unknown;
-      fill_colour?: unknown;
+      bodyRadius?: unknown;
+      bodyWidth?: unknown;
+      waistRadius?: unknown;
+      squashPercent?: unknown;
+      repeatCount?: unknown;
+      fillColour?: unknown;
     };
     return (
-      parsed.generator === 'gourd-tm'
-      && typeof parsed.body_radius === 'number'
-      && Number.isInteger(parsed.body_radius)
-      && parsed.body_radius > 0
-      && parsed.body_radius <= 2000
-      && typeof parsed.body_width === 'number'
-      && Number.isInteger(parsed.body_width)
-      && parsed.body_width > 0
-      && parsed.body_width <= 4000
-      && typeof parsed.waist_radius === 'number'
-      && Number.isInteger(parsed.waist_radius)
-      && parsed.waist_radius >= 0
-      && parsed.waist_radius <= 2000
-      && typeof parsed.squash_percent === 'number'
-      && Number.isFinite(parsed.squash_percent)
-      && parsed.squash_percent >= 0
-      && parsed.squash_percent <= 100
-      && typeof parsed.repeat_count === 'number'
-      && Number.isInteger(parsed.repeat_count)
-      && parsed.repeat_count >= 1
-      && parsed.repeat_count <= 36
-      && typeof parsed.fill_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+      typeof parsed.bodyRadius === 'number'
+      && Number.isInteger(parsed.bodyRadius)
+      && parsed.bodyRadius > 0
+      && parsed.bodyRadius <= 2000
+      && typeof parsed.bodyWidth === 'number'
+      && Number.isInteger(parsed.bodyWidth)
+      && parsed.bodyWidth > 0
+      && parsed.bodyWidth <= 4000
+      && typeof parsed.waistRadius === 'number'
+      && Number.isInteger(parsed.waistRadius)
+      && parsed.waistRadius >= 0
+      && parsed.waistRadius <= 2000
+      && typeof parsed.squashPercent === 'number'
+      && Number.isFinite(parsed.squashPercent)
+      && parsed.squashPercent >= 0
+      && parsed.squashPercent <= 100
+      && typeof parsed.repeatCount === 'number'
+      && Number.isInteger(parsed.repeatCount)
+      && parsed.repeatCount >= 1
+      && parsed.repeatCount <= 36
+      && typeof parsed.fillColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fillColour)
     );
   } catch {
     return false;
@@ -503,38 +501,36 @@ const isSharedRendererNativeGeneratedGourdSourceSupported = (source: string): bo
 const isSharedRendererNativeGeneratedGearSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      outer_radius?: unknown;
-      inner_radius_percent?: unknown;
-      tooth_count?: unknown;
-      tooth_depth_percent?: unknown;
-      tooth_skew_percent?: unknown;
-      fill_colour?: unknown;
+      outerRadius?: unknown;
+      innerRadiusPercent?: unknown;
+      toothCount?: unknown;
+      toothDepthPercent?: unknown;
+      toothSkewPercent?: unknown;
+      fillColour?: unknown;
     };
     return (
-      parsed.generator === 'gear-t'
-      && typeof parsed.outer_radius === 'number'
-      && Number.isInteger(parsed.outer_radius)
-      && parsed.outer_radius > 0
-      && parsed.outer_radius <= 2000
-      && typeof parsed.inner_radius_percent === 'number'
-      && Number.isFinite(parsed.inner_radius_percent)
-      && parsed.inner_radius_percent >= 0
-      && parsed.inner_radius_percent < 100
-      && typeof parsed.tooth_count === 'number'
-      && Number.isInteger(parsed.tooth_count)
-      && parsed.tooth_count >= 3
-      && parsed.tooth_count <= 240
-      && typeof parsed.tooth_depth_percent === 'number'
-      && Number.isFinite(parsed.tooth_depth_percent)
-      && parsed.tooth_depth_percent > 0
-      && parsed.tooth_depth_percent <= 95
-      && typeof parsed.tooth_skew_percent === 'number'
-      && Number.isFinite(parsed.tooth_skew_percent)
-      && parsed.tooth_skew_percent >= -100
-      && parsed.tooth_skew_percent <= 100
-      && typeof parsed.fill_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+      typeof parsed.outerRadius === 'number'
+      && Number.isInteger(parsed.outerRadius)
+      && parsed.outerRadius > 0
+      && parsed.outerRadius <= 2000
+      && typeof parsed.innerRadiusPercent === 'number'
+      && Number.isFinite(parsed.innerRadiusPercent)
+      && parsed.innerRadiusPercent >= 0
+      && parsed.innerRadiusPercent < 100
+      && typeof parsed.toothCount === 'number'
+      && Number.isInteger(parsed.toothCount)
+      && parsed.toothCount >= 3
+      && parsed.toothCount <= 240
+      && typeof parsed.toothDepthPercent === 'number'
+      && Number.isFinite(parsed.toothDepthPercent)
+      && parsed.toothDepthPercent > 0
+      && parsed.toothDepthPercent <= 95
+      && typeof parsed.toothSkewPercent === 'number'
+      && Number.isFinite(parsed.toothSkewPercent)
+      && parsed.toothSkewPercent >= -100
+      && parsed.toothSkewPercent <= 100
+      && typeof parsed.fillColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fillColour)
     );
   } catch {
     return false;
@@ -544,26 +540,24 @@ const isSharedRendererNativeGeneratedGearSourceSupported = (source: string): boo
 const isSharedRendererNativeGeneratedTrackBarSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      track_values?: unknown;
-      track_ranges?: unknown;
+      trackValues?: unknown;
+      trackRanges?: unknown;
       labels?: unknown;
-      bar_colour?: unknown;
-      background_opacity?: unknown;
+      barColour?: unknown;
+      backgroundOpacity?: unknown;
     };
     return (
-      parsed.generator === 'custom-track-bar'
-      && isFiniteNumberArrayOfLength(parsed.track_values, 4)
-      && isTrackBarRangeArray(parsed.track_ranges)
+      isFiniteNumberArrayOfLength(parsed.trackValues, 4)
+      && isTrackBarRangeArray(parsed.trackRanges)
       && Array.isArray(parsed.labels)
       && parsed.labels.length === 4
       && parsed.labels.every((label) => typeof label === 'string' && label.length <= 64)
-      && typeof parsed.bar_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.bar_colour)
-      && typeof parsed.background_opacity === 'number'
-      && Number.isFinite(parsed.background_opacity)
-      && parsed.background_opacity >= 0
-      && parsed.background_opacity <= 1
+      && typeof parsed.barColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.barColour)
+      && typeof parsed.backgroundOpacity === 'number'
+      && Number.isFinite(parsed.backgroundOpacity)
+      && parsed.backgroundOpacity >= 0
+      && parsed.backgroundOpacity <= 1
     );
   } catch {
     return false;
@@ -573,35 +567,33 @@ const isSharedRendererNativeGeneratedTrackBarSourceSupported = (source: string):
 const isSharedRendererNativeGeneratedPieChartSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       values?: unknown;
-      sort_mode?: unknown;
-      normalise_to_hundred?: unknown;
-      label_mode?: unknown;
-      progress_percent?: unknown;
-      stroke_width?: unknown;
-      slice_colours?: unknown;
+      sortMode?: unknown;
+      normaliseToHundred?: unknown;
+      labelMode?: unknown;
+      progressPercent?: unknown;
+      strokeWidth?: unknown;
+      sliceColours?: unknown;
     };
     return (
-      parsed.generator === 'pie-sheet-graph'
-      && Array.isArray(parsed.values)
+      Array.isArray(parsed.values)
       && parsed.values.length > 0
       && parsed.values.length <= 64
       && parsed.values.every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0)
-      && (parsed.sort_mode === 'none' || parsed.sort_mode === 'descending' || parsed.sort_mode === 'ascending')
-      && typeof parsed.normalise_to_hundred === 'boolean'
-      && (parsed.label_mode === 'none' || parsed.label_mode === 'percentage' || parsed.label_mode === 'input')
-      && typeof parsed.progress_percent === 'number'
-      && Number.isFinite(parsed.progress_percent)
-      && parsed.progress_percent >= 0
-      && parsed.progress_percent <= 100
-      && typeof parsed.stroke_width === 'number'
-      && Number.isFinite(parsed.stroke_width)
-      && parsed.stroke_width > 0
-      && Array.isArray(parsed.slice_colours)
-      && parsed.slice_colours.length > 0
-      && parsed.slice_colours.length <= 64
-      && parsed.slice_colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+      && (parsed.sortMode === 'none' || parsed.sortMode === 'descending' || parsed.sortMode === 'ascending')
+      && typeof parsed.normaliseToHundred === 'boolean'
+      && (parsed.labelMode === 'none' || parsed.labelMode === 'percentage' || parsed.labelMode === 'input')
+      && typeof parsed.progressPercent === 'number'
+      && Number.isFinite(parsed.progressPercent)
+      && parsed.progressPercent >= 0
+      && parsed.progressPercent <= 100
+      && typeof parsed.strokeWidth === 'number'
+      && Number.isFinite(parsed.strokeWidth)
+      && parsed.strokeWidth > 0
+      && Array.isArray(parsed.sliceColours)
+      && parsed.sliceColours.length > 0
+      && parsed.sliceColours.length <= 64
+      && parsed.sliceColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
     );
   } catch {
     return false;
@@ -611,39 +603,37 @@ const isSharedRendererNativeGeneratedPieChartSourceSupported = (source: string):
 const isSharedRendererNativeGeneratedHistogramSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      bin_values?: unknown;
-      height_scale_percent?: unknown;
-      line_width?: unknown;
-      show_luminance?: unknown;
-      show_red?: unknown;
-      show_green?: unknown;
-      show_blue?: unknown;
-      channel_colours?: unknown;
-      background_colour?: unknown;
+      binValues?: unknown;
+      heightScalePercent?: unknown;
+      lineWidth?: unknown;
+      showLuminance?: unknown;
+      showRed?: unknown;
+      showGreen?: unknown;
+      showBlue?: unknown;
+      channelColours?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'simple-histogram'
-      && Array.isArray(parsed.bin_values)
-      && parsed.bin_values.length > 0
-      && parsed.bin_values.length <= 256
-      && parsed.bin_values.every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)
-      && typeof parsed.height_scale_percent === 'number'
-      && Number.isFinite(parsed.height_scale_percent)
-      && parsed.height_scale_percent > 0
-      && parsed.height_scale_percent <= 1000
-      && typeof parsed.line_width === 'number'
-      && Number.isFinite(parsed.line_width)
-      && parsed.line_width > 0
-      && typeof parsed.show_luminance === 'boolean'
-      && typeof parsed.show_red === 'boolean'
-      && typeof parsed.show_green === 'boolean'
-      && typeof parsed.show_blue === 'boolean'
-      && Array.isArray(parsed.channel_colours)
-      && parsed.channel_colours.length === 4
-      && parsed.channel_colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      Array.isArray(parsed.binValues)
+      && parsed.binValues.length > 0
+      && parsed.binValues.length <= 256
+      && parsed.binValues.every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)
+      && typeof parsed.heightScalePercent === 'number'
+      && Number.isFinite(parsed.heightScalePercent)
+      && parsed.heightScalePercent > 0
+      && parsed.heightScalePercent <= 1000
+      && typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth > 0
+      && typeof parsed.showLuminance === 'boolean'
+      && typeof parsed.showRed === 'boolean'
+      && typeof parsed.showGreen === 'boolean'
+      && typeof parsed.showBlue === 'boolean'
+      && Array.isArray(parsed.channelColours)
+      && parsed.channelColours.length === 4
+      && parsed.channelColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;
@@ -1385,34 +1375,32 @@ const finiteNumberInRange = (value: unknown, min: number, max: number): boolean 
 const isSharedRendererNativeGeneratedToneCurveSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      grid_divisions?: unknown;
-      line_width?: unknown;
-      curve_points?: unknown;
-      curve_colour?: unknown;
-      grid_colour?: unknown;
-      background_colour?: unknown;
+      gridDivisions?: unknown;
+      lineWidth?: unknown;
+      curvePoints?: unknown;
+      curveColour?: unknown;
+      gridColour?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'simple-tone-curve'
-      && typeof parsed.grid_divisions === 'number'
-      && Number.isInteger(parsed.grid_divisions)
-      && parsed.grid_divisions >= 1
-      && parsed.grid_divisions <= 16
-      && typeof parsed.line_width === 'number'
-      && Number.isInteger(parsed.line_width)
-      && parsed.line_width >= 1
-      && parsed.line_width <= 100
-      && Array.isArray(parsed.curve_points)
-      && parsed.curve_points.length >= 2
-      && parsed.curve_points.length <= 64
-      && parsed.curve_points.every((point) => typeof point === 'number' && Number.isFinite(point) && point >= 0 && point <= 1)
-      && typeof parsed.curve_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.curve_colour)
-      && typeof parsed.grid_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.grid_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      typeof parsed.gridDivisions === 'number'
+      && Number.isInteger(parsed.gridDivisions)
+      && parsed.gridDivisions >= 1
+      && parsed.gridDivisions <= 16
+      && typeof parsed.lineWidth === 'number'
+      && Number.isInteger(parsed.lineWidth)
+      && parsed.lineWidth >= 1
+      && parsed.lineWidth <= 100
+      && Array.isArray(parsed.curvePoints)
+      && parsed.curvePoints.length >= 2
+      && parsed.curvePoints.length <= 64
+      && parsed.curvePoints.every((point) => typeof point === 'number' && Number.isFinite(point) && point >= 0 && point <= 1)
+      && typeof parsed.curveColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.curveColour)
+      && typeof parsed.gridColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.gridColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;

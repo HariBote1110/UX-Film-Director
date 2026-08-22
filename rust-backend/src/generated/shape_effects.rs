@@ -98,7 +98,7 @@ pub(crate) fn build_generated_gourd_source_frame(
             media.width, media.height
         ));
     }
-    let gourd: GeneratedGourdSource = serde_json::from_str(&media.source)
+    let gourd: GourdObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedGourd media '{}': {error}", media.id))?;
     validate_generated_gourd_source(&gourd)
         .map_err(|message| format!("Invalid GeneratedGourd media '{}': {message}", media.id))?;
@@ -170,7 +170,7 @@ pub(crate) fn build_generated_gear_source_frame(
             media.width, media.height
         ));
     }
-    let gear: GeneratedGearSource = serde_json::from_str(&media.source)
+    let gear: GearObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedGear media '{}': {error}", media.id))?;
     validate_generated_gear_source(&gear)
         .map_err(|message| format!("Invalid GeneratedGear media '{}': {message}", media.id))?;

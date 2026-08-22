@@ -413,11 +413,8 @@ pub(crate) fn validate_generated_shattered_sphere_source(
 }
 
 pub(crate) fn validate_generated_tone_curve_source(
-    source: &GeneratedToneCurveSource,
+    source: &ToneCurveObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "simple-tone-curve" {
-        return Err("generator must be simple-tone-curve".to_string());
-    }
     if source.grid_divisions == 0 || source.grid_divisions > 16 {
         return Err("grid_divisions must be 1..16".to_string());
     }

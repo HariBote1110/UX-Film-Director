@@ -1,11 +1,8 @@
 use super::*;
 
 pub(crate) fn validate_generated_track_bar_source(
-    source: &GeneratedTrackBarSource,
+    source: &TrackBarObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "custom-track-bar" {
-        return Err("generator must be custom-track-bar".to_string());
-    }
     if source.track_values.len() != 4 {
         return Err("track_values must contain 4 values".to_string());
     }
@@ -19,9 +16,7 @@ pub(crate) fn validate_generated_track_bar_source(
         return Err("track_values must be finite".to_string());
     }
     for range in &source.track_ranges {
-        if !range[0].is_finite()
-            || !range[1].is_finite()
-            || (range[0] - range[1]).abs() < f32::EPSILON
+        if !range.0.is_finite() || !range.1.is_finite() || (range.0 - range.1).abs() < f32::EPSILON
         {
             return Err("track_ranges must be finite non-zero ranges".to_string());
         }
@@ -40,11 +35,8 @@ pub(crate) fn validate_generated_track_bar_source(
 }
 
 pub(crate) fn validate_generated_pie_chart_source(
-    source: &GeneratedPieChartSource,
+    source: &PieChartObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "pie-sheet-graph" {
-        return Err("generator must be pie-sheet-graph".to_string());
-    }
     if source.values.is_empty() || source.values.len() > 64 {
         return Err("values must contain 1..64 values".to_string());
     }
@@ -57,18 +49,6 @@ pub(crate) fn validate_generated_pie_chart_source(
     }
     if source.values.iter().all(|value| *value <= f32::EPSILON) {
         return Err("values must contain at least one positive value".to_string());
-    }
-    if source.sort_mode != "none"
-        && source.sort_mode != "descending"
-        && source.sort_mode != "ascending"
-    {
-        return Err("sort_mode must be none, descending, or ascending".to_string());
-    }
-    if source.label_mode != "none"
-        && source.label_mode != "percentage"
-        && source.label_mode != "input"
-    {
-        return Err("label_mode must be none, percentage, or input".to_string());
     }
     if !source.progress_percent.is_finite()
         || source.progress_percent < 0.0
@@ -89,11 +69,8 @@ pub(crate) fn validate_generated_pie_chart_source(
 }
 
 pub(crate) fn validate_generated_histogram_source(
-    source: &GeneratedHistogramSource,
+    source: &HistogramObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "simple-histogram" {
-        return Err("generator must be simple-histogram".to_string());
-    }
     if source.bin_values.is_empty() || source.bin_values.len() > 256 {
         return Err("bin_values must contain 1..256 values".to_string());
     }

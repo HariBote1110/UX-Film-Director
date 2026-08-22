@@ -15,10 +15,7 @@ pub(crate) fn validate_generated_puzzle_piece_source(
     Ok(())
 }
 
-pub(crate) fn validate_generated_gourd_source(source: &GeneratedGourdSource) -> Result<(), String> {
-    if source.generator != "gourd-tm" {
-        return Err("generator must be gourd-tm".to_string());
-    }
+pub(crate) fn validate_generated_gourd_source(source: &GourdObjectFields) -> Result<(), String> {
     if source.body_radius == 0 || source.body_radius > 2000 {
         return Err("body_radius must be 1..2000".to_string());
     }
@@ -61,10 +58,7 @@ pub(crate) fn validate_shape_object_fields(source: &ShapeObjectFields) -> Result
     Ok(())
 }
 
-pub(crate) fn validate_generated_gear_source(source: &GeneratedGearSource) -> Result<(), String> {
-    if source.generator != "gear-t" {
-        return Err("generator must be gear-t".to_string());
-    }
+pub(crate) fn validate_generated_gear_source(source: &GearObjectFields) -> Result<(), String> {
     if source.outer_radius == 0 || source.outer_radius > 2000 {
         return Err("outer_radius must be 1..2000".to_string());
     }

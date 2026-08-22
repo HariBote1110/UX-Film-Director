@@ -161,7 +161,7 @@ fn generated_gourd_source_frame_contains_shape_and_transparency() {
     let media = SceneMediaReference {
             id: "gourd-1".to_string(),
             kind: MediaKind::GeneratedGourd,
-            source: r##"{"generator":"gourd-tm","body_radius":80,"body_width":250,"waist_radius":10,"squash_percent":40,"repeat_count":1,"fill_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":400,"height":400,"bodyRadius":80,"bodyWidth":250,"waistRadius":10,"squashPercent":40,"repeatCount":1,"fillColour":"#ffffff"}"##.to_string(),
             width: 400,
             height: 400,
             source_rate: None,
@@ -188,7 +188,7 @@ fn generated_gear_source_frame_contains_teeth_hole_and_transparency() {
     let media = SceneMediaReference {
             id: "gear-1".to_string(),
             kind: MediaKind::GeneratedGear,
-            source: r##"{"generator":"gear-t","outer_radius":160,"inner_radius_percent":45,"tooth_count":20,"tooth_depth_percent":18,"tooth_skew_percent":0,"fill_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":320,"height":320,"outerRadius":160,"innerRadiusPercent":45,"toothCount":20,"toothDepthPercent":18,"toothSkewPercent":0,"fillColour":"#ffffff"}"##.to_string(),
             width: 320,
             height: 320,
             source_rate: None,
@@ -218,7 +218,7 @@ fn generated_track_bar_source_frame_contains_bars_and_background() {
     let media = SceneMediaReference {
             id: "track-bar-1".to_string(),
             kind: MediaKind::GeneratedTrackBar,
-            source: r##"{"generator":"custom-track-bar","track_values":[0,25,50,-50],"track_ranges":[[0,100],[0,100],[0,100],[-100,100]],"labels":["TrackA","TrackB","TrackC","TrackD"],"bar_colour":"#ffffff","background_opacity":0.05}"##.to_string(),
+            source: r##"{"width":360,"height":120,"trackValues":[0,25,50,-50],"trackRanges":[[0,100],[0,100],[0,100],[-100,100]],"labels":["TrackA","TrackB","TrackC","TrackD"],"barColour":"#ffffff","backgroundOpacity":0.05}"##.to_string(),
             width: 360,
             height: 120,
             source_rate: None,
@@ -249,7 +249,7 @@ fn generated_pie_chart_source_frame_contains_slices_hole_and_transparency() {
     let media = SceneMediaReference {
             id: "pie-chart-1".to_string(),
             kind: MediaKind::GeneratedPieChart,
-            source: r##"{"generator":"pie-sheet-graph","values":[10,20,30,40],"sort_mode":"descending","normalise_to_hundred":true,"label_mode":"percentage","progress_percent":100,"stroke_width":20,"slice_colours":["#389ba6","#f2e2c4","#f29422","#f27830","#f24b0f"]}"##.to_string(),
+            source: r##"{"width":400,"height":400,"values":[10,20,30,40],"sortMode":"descending","normaliseToHundred":true,"labelMode":"percentage","progressPercent":100,"strokeWidth":20,"sliceColours":["#389ba6","#f2e2c4","#f29422","#f27830","#f24b0f"]}"##.to_string(),
             width: 400,
             height: 400,
             source_rate: None,
@@ -284,7 +284,7 @@ fn generated_histogram_source_frame_contains_channel_bars_and_background() {
     let media = SceneMediaReference {
             id: "histogram-1".to_string(),
             kind: MediaKind::GeneratedHistogram,
-            source: r##"{"generator":"simple-histogram","bin_values":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],"height_scale_percent":100,"line_width":1,"show_luminance":true,"show_red":true,"show_green":true,"show_blue":true,"channel_colours":["#ffffff","#ff4b4b","#4bff6a","#4b8cff"],"background_colour":"#000000"}"##.to_string(),
+            source: r##"{"width":256,"height":200,"binValues":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],"heightScalePercent":100,"lineWidth":1,"showLuminance":true,"showRed":true,"showGreen":true,"showBlue":true,"channelColours":["#ffffff","#ff4b4b","#4bff6a","#4b8cff"],"backgroundColour":"#000000"}"##.to_string(),
             width: 256,
             height: 200,
             source_rate: None,
@@ -896,7 +896,7 @@ fn generated_tone_curve_source_frame_contains_grid_and_curve() {
     let media = SceneMediaReference {
             id: "tone-curve-1".to_string(),
             kind: MediaKind::GeneratedToneCurve,
-            source: r##"{"generator":"simple-tone-curve","grid_divisions":4,"line_width":3,"curve_points":[0,0.16,0.42,0.7,1],"curve_colour":"#ffffff","grid_colour":"#333333","background_colour":"#000000"}"##.to_string(),
+            source: r##"{"width":360,"height":360,"gridDivisions":4,"lineWidth":3,"curvePoints":[0,0.16,0.42,0.7,1],"curveColour":"#ffffff","gridColour":"#333333","backgroundColour":"#000000"}"##.to_string(),
             width: 360,
             height: 360,
             source_rate: None,

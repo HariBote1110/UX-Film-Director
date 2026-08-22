@@ -12,7 +12,7 @@ pub(crate) fn build_generated_tone_curve_source_frame(
             media.width, media.height
         ));
     }
-    let tone_curve: GeneratedToneCurveSource = serde_json::from_str(&media.source)
+    let tone_curve: ToneCurveObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedToneCurve media '{}': {error}", media.id))?;
     validate_generated_tone_curve_source(&tone_curve)
         .map_err(|message| format!("Invalid GeneratedToneCurve media '{}': {message}", media.id))?;

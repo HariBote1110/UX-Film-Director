@@ -12,7 +12,7 @@ pub(crate) fn build_generated_track_bar_source_frame(
             media.width, media.height
         ));
     }
-    let track_bar: GeneratedTrackBarSource = serde_json::from_str(&media.source)
+    let track_bar: TrackBarObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedTrackBar media '{}': {error}", media.id))?;
     validate_generated_track_bar_source(&track_bar)
         .map_err(|message| format!("Invalid GeneratedTrackBar media '{}': {message}", media.id))?;
@@ -60,7 +60,7 @@ pub(crate) fn build_generated_track_bar_source_frame(
         );
 
         let value = track_bar.track_values[index];
-        let [min, max] = track_bar.track_ranges[index];
+        let (min, max) = track_bar.track_ranges[index];
         let progress = ((value - min) / (max - min)).clamp(0.0, 1.0);
         let fill_right = bar_left + (bar_width as f32 * progress).round() as i32;
         fill_rect_rgba(
@@ -88,18 +88,18 @@ pub(crate) fn build_generated_pie_chart_source_frame(
             media.width, media.height
         ));
     }
-    let pie_chart: GeneratedPieChartSource = serde_json::from_str(&media.source)
+    let pie_chart: PieChartObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedPieChart media '{}': {error}", media.id))?;
     validate_generated_pie_chart_source(&pie_chart)
         .map_err(|message| format!("Invalid GeneratedPieChart media '{}': {message}", media.id))?;
 
     let mut values = pie_chart.values.clone();
-    match pie_chart.sort_mode.as_str() {
-        "descending" => values
+    match pie_chart.sort_mode {
+        uxfd_rust_core::PieChartSortMode::Descending => values
             .sort_by(|left, right| right.partial_cmp(left).unwrap_or(std::cmp::Ordering::Equal)),
-        "ascending" => values
+        uxfd_rust_core::PieChartSortMode::Ascending => values
             .sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal)),
-        _ => {}
+        uxfd_rust_core::PieChartSortMode::None => {}
     }
     let total = if pie_chart.normalise_to_hundred {
         values.iter().sum::<f32>()
@@ -187,7 +187,7 @@ pub(crate) fn build_generated_histogram_source_frame(
             media.width, media.height
         ));
     }
-    let histogram: GeneratedHistogramSource = serde_json::from_str(&media.source)
+    let histogram: HistogramObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedHistogram media '{}': {error}", media.id))?;
     validate_generated_histogram_source(&histogram)
         .map_err(|message| format!("Invalid GeneratedHistogram media '{}': {message}", media.id))?;
