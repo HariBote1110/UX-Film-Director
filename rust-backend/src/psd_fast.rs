@@ -489,6 +489,10 @@ pub struct PsdFastLayer {
 pub struct PsdFastResult {
     pub width: u32,
     pub height: u32,
+    /// Bit depth per channel, as read from the PSD file header (8/16/32).
+    /// Callers that only support 8-bit colour must check this explicitly —
+    /// `PsdFastResult` itself does not reject other depths.
+    pub depth: u16,
     pub layers: Vec<PsdFastLayer>,
 }
 
@@ -855,6 +859,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -869,6 +874,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -1034,6 +1040,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
     Ok(PsdFastResult {
         width: doc_width,
         height: doc_height,
+        depth,
         layers,
     })
 }
@@ -1069,7 +1076,17 @@ pub fn parse_psd_meta_only(bytes: &[u8]) -> Result<PsdFastResult, String> {
     let _num_channels = read_u16(&mut c)?;
     let doc_height = read_u32(&mut c)?;
     let doc_width = read_u32(&mut c)?;
-    let _depth = read_u16(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    if depth != 8 {
+        // `parse_psd_fast`（フル pixel decode）は 16-bit を高位バイトのみ
+        // 保持する近似デコードで通しているが、この meta-only 経路はそれを
+        // 経由しない呼び出し元（レイヤーツリーだけを必要とする RPC）にも
+        // 使われるため、ここで明示的に拒否する。ag-psd 経路
+        // （`psdWasm.ts`）も `depth: 8` を決め打ちしており、この拒否は
+        // 既存動作からの後退ではない。16-bit/32-bit の実デコードは対象外
+        // （R5-1 で意図的にスコープ外とした）。
+        return Err(format!("16bit/32bit PSD は未対応です（depth={depth}）"));
+    }
     let _color_mode = read_u16(&mut c)?;
 
     // ── Skip colour mode data ─────────────────────────────────────────────────
@@ -1090,6 +1107,7 @@ pub fn parse_psd_meta_only(bytes: &[u8]) -> Result<PsdFastResult, String> {
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -1104,6 +1122,7 @@ pub fn parse_psd_meta_only(bytes: &[u8]) -> Result<PsdFastResult, String> {
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -1230,6 +1249,7 @@ pub fn parse_psd_meta_only(bytes: &[u8]) -> Result<PsdFastResult, String> {
     Ok(PsdFastResult {
         width: doc_width,
         height: doc_height,
+        depth,
         layers,
     })
 }
@@ -1547,6 +1567,7 @@ pub fn parse_psd_fast_for_display(
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -1560,6 +1581,7 @@ pub fn parse_psd_fast_for_display(
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -1725,6 +1747,7 @@ pub fn parse_psd_fast_for_display(
     Ok(PsdFastResult {
         width: doc_width,
         height: doc_height,
+        depth,
         layers,
     })
 }
@@ -1798,6 +1821,7 @@ fn parse_psd_fast_for_display_with_cache(
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -1811,6 +1835,7 @@ fn parse_psd_fast_for_display_with_cache(
         return Ok(PsdFastResult {
             width: doc_width,
             height: doc_height,
+            depth,
             layers: vec![],
         });
     }
@@ -2015,6 +2040,7 @@ fn parse_psd_fast_for_display_with_cache(
     Ok(PsdFastResult {
         width: doc_width,
         height: doc_height,
+        depth,
         layers,
     })
 }
@@ -2280,6 +2306,7 @@ mod tests {
         let psd = PsdFastResult {
             width: 3,
             height: 2,
+            depth: 8,
             layers: vec![
                 // フラット列の先頭 = 最背面（PSD ファイル格納順は下→上）。
                 leaf(
@@ -2332,6 +2359,7 @@ mod tests {
         let psd = PsdFastResult {
             width: 1,
             height: 1,
+            depth: 8,
             layers: vec![
                 leaf(
                     "psd-layer-0",
@@ -2366,6 +2394,7 @@ mod tests {
         let psd = PsdFastResult {
             width: 1,
             height: 1,
+            depth: 8,
             layers: vec![
                 leaf(
                     "psd-layer-0",
@@ -2401,6 +2430,7 @@ mod tests {
         let psd = PsdFastResult {
             width: 1,
             height: 1,
+            depth: 8,
             layers: vec![leaf(
                 "psd-layer-0",
                 "wink",
@@ -2423,6 +2453,7 @@ mod tests {
         let psd = PsdFastResult {
             width: 1,
             height: 1,
+            depth: 8,
             layers: vec![
                 leaf(
                     "psd-layer-0",
@@ -2469,6 +2500,7 @@ mod tests {
         PsdFastResult {
             width: 1,
             height: 1,
+            depth: 8,
             layers: vec![
                 leaf(
                     "psd-layer-0",
@@ -2530,6 +2562,15 @@ mod tests {
         doc_height: u32,
         records: &[(u8, &str, (i32, i32, i32, i32), bool)],
     ) -> Vec<u8> {
+        build_test_psd_with_depth(doc_width, doc_height, 8, records)
+    }
+
+    fn build_test_psd_with_depth(
+        doc_width: u32,
+        doc_height: u32,
+        depth: u16,
+        records: &[(u8, &str, (i32, i32, i32, i32), bool)],
+    ) -> Vec<u8> {
         let mut record_bytes: Vec<u8> = Vec::new();
         for (kind, name, (top, left, bottom, right), hidden) in records {
             record_bytes.extend(top.to_be_bytes());
@@ -2572,7 +2613,7 @@ mod tests {
         bytes.extend(3u16.to_be_bytes()); // channels
         bytes.extend(doc_height.to_be_bytes());
         bytes.extend(doc_width.to_be_bytes());
-        bytes.extend(8u16.to_be_bytes()); // depth
+        bytes.extend(depth.to_be_bytes()); // depth
         bytes.extend(3u16.to_be_bytes()); // colour mode = RGB
         bytes.extend(0u32.to_be_bytes()); // colour mode data
         bytes.extend(0u32.to_be_bytes()); // image resources
@@ -3187,5 +3228,25 @@ mod tests {
             parallel.pixels.iter().all(|&byte| byte == 0),
             "一致するレイヤーが無ければキャンバスは全透明のまま"
         );
+    }
+
+    #[test]
+    fn parse_psd_meta_only_rejects_16bit_depth() {
+        let bytes = build_test_psd_with_depth(1, 1, 16, &[(0, "leaf", (0, 0, 1, 1), false)]);
+        let err = match parse_psd_meta_only(&bytes) {
+            Err(err) => err,
+            Ok(_) => panic!("16bit depth must be rejected"),
+        };
+        assert!(
+            err.contains("16bit/32bit PSD"),
+            "エラーメッセージが未対応 depth を示していない: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_psd_meta_only_accepts_8bit_depth() {
+        let bytes = build_test_psd_with_depth(1, 1, 8, &[(0, "leaf", (0, 0, 1, 1), false)]);
+        let meta = parse_psd_meta_only(&bytes).expect("8bit depth must be accepted");
+        assert_eq!(meta.depth, 8);
     }
 }
