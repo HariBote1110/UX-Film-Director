@@ -1537,36 +1537,11 @@ pub enum AttachNativeOverlayOutcome {
     },
 }
 
-/// Phase 7 (W7) stage5根本原因の修正 — `attach_native_overlay` の
-/// AsyncTask化（d4b7f26、非同期化）により、React側（StrictModeの
-/// mount→cleanup→mount等）から同一プロセス内で複数の attach 呼び出しが
-/// ほぼ同時に libuv threadpool へ積まれ得るようになった。旧同期実装では
-/// 1回の attach が Electron main/JSスレッドを最大約89秒ブロックしていた
-/// ため、次の attach 呼び出し自体が物理的に発生し得ず「同一 attach の
-/// 多重実行」という状況が存在しなかった。非同期化後は複数の
-/// `attach_overlay_window`/wgpuレンダラ構築（DXCパイプラインコンパイル
-/// 含む、各数十秒）が複数の worker スレッドで真に並行実行され得るように
-/// なり、mainpc実機で attach が数分〜恒久的に完了しない regression
-/// （windows-w7-async-attach.md stage5ブロッカー）として顕在化した
-/// （TS側のcontainer/bridgeゲート待ちリトライ・detachガードだけでは
-/// 解消しなかったことをmainpc実機のA/Bバイセクトで確認済み）。
-/// このグローバルロックで compute の重い部分を直列化し、旧同期実装が
-/// 暗黙に持っていた「同時に1つの attach しか進行しない」という不変条件を
-/// 明示的に復元する。JSスレッドはこの関数を呼ばない（compute は必ず
-/// worker スレッド上）ため、ここでブロックしても UI スレッドには影響しない。
-static ATTACH_NATIVE_OVERLAY_SERIALIZE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
 /// worker スレッドで実行してよい部分（native window handle 解決、
 /// contract 構築、macOS/Windows それぞれの overlay window + wgpu
 /// レンダラ構築）。Windows の SetWinEventHook 登録だけは含まない
 /// （[`finish_attach_native_overlay`] へ委譲する）。
 fn attach_native_overlay_compute(payload: NativeOverlayAttachPayload) -> AttachNativeOverlayOutcome {
-    // 複数の attach が並行して worker スレッドに積まれても、実際に
-    // window/device/pipeline を構築する区間は1つずつ直列に実行する。
-    let _serialize_guard = ATTACH_NATIVE_OVERLAY_SERIALIZE_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let window_id = payload.window_id;
     let native_window_handle = match native_window_handle_bytes(&payload) {
         Ok(bytes) => bytes,
