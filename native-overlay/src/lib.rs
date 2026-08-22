@@ -1505,38 +1505,10 @@ impl NativeOverlayLiveSurfaceRenderer {
 /// macOSはDXCコンパイル自体が存在せず全体が高速なため、`prepare_*`と
 /// `finish_pipelines`の両方をこの同期区間内で完結させ、Doneとして
 /// 即座に確定する（compute側では何もしない）。
-/// stage6実機検証で判明した問題への一時対応: `npm run dev:native-overlay`
-/// をschtasks/リダイレクト経由で起動すると、Node/Electronのstdio
-/// パイプがフルバッファリングされ、eprintln!/console.*の出力がプロセス
-/// 終了までログファイルへ反映されない（実時刻の切り分けができない）。
-/// 直接ファイルへ都度flushして書き込むことで、この問題を回避する。
-#[cfg(target_os = "windows")]
-fn diag_timestamp_log(message: &str) {
-    use std::io::Write;
-    let Ok(mut file) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(r"C:\Users\gzabu\UXFD\bench-w7\attach-events.log")
-    else {
-        return;
-    };
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let _ = writeln!(file, "{now} {message}");
-    let _ = file.flush();
-}
-
-#[cfg(not(target_os = "windows"))]
-fn diag_timestamp_log(_message: &str) {}
-
 #[napi(js_name = "attachNativeOverlay")]
 pub fn attach_native_overlay(
     payload: NativeOverlayAttachPayload,
 ) -> napi::Result<AsyncTask<AttachNativeOverlayTask>> {
-    diag_timestamp_log("attach_native_overlay: entered (JS thread, before prepare_sync)");
-    eprintln!("[uxfd-diag] attach_native_overlay: entered (JS thread, before prepare_sync)");
     let state = match std::panic::catch_unwind(AssertUnwindSafe(|| {
         attach_native_overlay_prepare_sync(payload)
     })) {
@@ -1545,8 +1517,6 @@ pub fn attach_native_overlay(
             "Native overlay attach panicked.",
         )),
     };
-    diag_timestamp_log("attach_native_overlay: prepare_sync returned, creating AsyncTask");
-        eprintln!("[uxfd-diag] attach_native_overlay: prepare_sync returned, creating AsyncTask");
     Ok(AsyncTask::new(AttachNativeOverlayTask::new(state)))
 }
 
@@ -1581,8 +1551,6 @@ impl Task for AttachNativeOverlayTask {
     type JsValue = NativeOverlayResponse;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
-        diag_timestamp_log("AttachNativeOverlayTask::compute: entered (worker thread)");
-        eprintln!("[uxfd-diag] AttachNativeOverlayTask::compute: entered (worker thread)");
         let state = self
             .state
             .take()
@@ -1595,17 +1563,11 @@ impl Task for AttachNativeOverlayTask {
                 "Native overlay attach panicked.",
             )),
         };
-        diag_timestamp_log("AttachNativeOverlayTask::compute: returning");
-        eprintln!("[uxfd-diag] AttachNativeOverlayTask::compute: returning");
         Ok(result)
     }
 
     fn resolve(&mut self, _env: Env, outcome: Self::Output) -> napi::Result<Self::JsValue> {
-        diag_timestamp_log("AttachNativeOverlayTask::resolve: entered (JS thread)");
-        eprintln!("[uxfd-diag] AttachNativeOverlayTask::resolve: entered (JS thread)");
         let response = finish_attach_native_overlay(outcome);
-        diag_timestamp_log("AttachNativeOverlayTask::resolve: returning");
-        eprintln!("[uxfd-diag] AttachNativeOverlayTask::resolve: returning");
         Ok(response)
     }
 }
@@ -1704,18 +1666,13 @@ fn attach_native_overlay_prepare_sync(
     }
     #[cfg(target_os = "windows")]
     {
-        diag_timestamp_log("attach_native_overlay_prepare_sync: before attach_overlay_window");
-        eprintln!("[uxfd-diag] attach_native_overlay_prepare_sync: before attach_overlay_window");
         let (overlay_hwnd, dcomp_device, visual) =
             match win32_overlay::attach_overlay_window(&native_window_handle, &contract) {
                 Ok(result) => result,
                 Err(reason) => {
-                    eprintln!("[uxfd-diag] attach_overlay_window failed: {reason}");
                     return AttachNativeOverlayPreparedState::Done(failure(&reason));
                 }
             };
-        diag_timestamp_log(&format!("attach_overlay_window done, overlay_hwnd={overlay_hwnd:x}; before prepare_from_hwnd"));
-        eprintln!("[uxfd-diag] attach_overlay_window done, overlay_hwnd={overlay_hwnd:x}; before prepare_from_hwnd");
         let prepared = match pollster::block_on(NativeWgpuLiveSurfaceRenderer::prepare_from_hwnd(
             dcomp_device,
             visual,
@@ -1724,15 +1681,12 @@ fn attach_native_overlay_prepare_sync(
         )) {
             Ok(prepared) => prepared,
             Err(error) => {
-                eprintln!("[uxfd-diag] prepare_from_hwnd failed: {error:?}");
                 let _ = win32_overlay::detach_overlay_window(&native_window_handle);
                 return AttachNativeOverlayPreparedState::Done(failure(&format!(
                     "Native overlay live surface creation failed: {error:?}"
                 )));
             }
         };
-        diag_timestamp_log("prepare_from_hwnd done; returning NeedsPipelines");
-        eprintln!("[uxfd-diag] prepare_from_hwnd done; returning NeedsPipelines");
         return AttachNativeOverlayPreparedState::NeedsPipelines {
             prepared,
             native_window_handle,

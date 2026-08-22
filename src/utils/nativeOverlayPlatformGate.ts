@@ -11,8 +11,16 @@ export type NativeOverlayEnvLike = {
   VITE_UXFD_NATIVE_OVERLAY?: string;
 };
 
-// ステージ2（24時間ベンチ合格後）でこの1箇所を true にして既定 ON へ切り替える。
-const WINDOWS_DEFAULT_ENABLED = false;
+// Phase 7 (W7) stage6 ★完了（2026-08-23）— mainpc実機A/Bバイセクトで
+// attach_native_overlayの非同期化アーキテクチャ自体（DComp window/device
+// 作成をworkerスレッドへ丸ごと逃がす設計、stage1-2）が実Electronアプリでは
+// 機能しないことが判明し、HWND/COM区間はJSスレッドで同期実行・pipeline
+// コンパイルのみworkerスレッドへ回す設計へ再設計した
+// （progress/windows-w7-async-attach.md参照）。mainpc実機で3回のattach
+// latency測定を実施し、UIスレッドが実際のattach進行中も一度もブロック
+// されないことを直接確認（Responding=False 0/179・0/179・0/178サンプル）、
+// geometry追従・soakは既存実績を維持。この検証結果を根拠に既定ONへ切替。
+const WINDOWS_DEFAULT_ENABLED = true;
 
 export function resolveNativeOverlayEnabled(platform: string, env: NativeOverlayEnvLike): boolean {
   const flag = env.VITE_UXFD_NATIVE_OVERLAY;

@@ -434,7 +434,7 @@ parity ゲートも全通過）。詳細は
   は本 Phase のスコープ外（計画書の指示どおり「trivially safe でない限り
   fix しない」）。W7 以降の課題として申し送る。
 
-### Phase 7: 段階導入と既定切替（推定 1日、STAGE1・STAGE2 実施済み・stage-2 partial）
+### Phase 7: 段階導入と既定切替（推定 1日、★完了 2026-08-23・stage6）
 
 詳細は `progress/windows-w7-staged-rollout.md` を参照。
 
@@ -496,6 +496,25 @@ parity ゲートも全通過）。詳細は
   棄却済み仮説（container/bridgeゲート説・detach競合説）・次の一手は
   `progress/windows-w7-async-attach.md` を参照。`WINDOWS_DEFAULT_ENABLED`
   は`false`のまま、Phase 7 ★完了は引き続き見送り。
+- **stage6（実施済み、2026-08-23、★完了）**: stage5続報の知見を受け、
+  非同期分割の切り方自体を再設計した——「DComp window/device/visual
+  作成＋wgpu adapter/device requestを丸ごとworkerスレッドへ逃がす」
+  設計（stage1-2）を撤回し、**HWND/COM区間（実測880ms〜1.5秒）は
+  JSスレッドで同期実行、パイプラインコンパイル（DXCの本体、
+  `wgpu::Device`/`Queue`のみのSend+Safe区間）だけをworkerスレッドへ
+  回す**構成に変更した。React StrictMode由来の並行3回attach呼び出しが
+  pipelineコンパイル区間で競合する新たな知見も得て
+  `ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK`で直列化。mainpc実機で
+  3回のattach latency測定を完了し、**単発相当（本番ビルド想定）中央値
+  約45.4秒**（STAGE2の88.77秒からほぼ半減）、**UIスレッド応答性は3回
+  とも`Responding=False`サンプル0件**（合計536サンプル）で実測証明した。
+  presenter実フレームの視覚的直接証拠は対話操作手段が無く未取得（設計・
+  テストによる保証で代替、正直に記録）。DEFAULT-ONゲート4条件中3つが
+  明確に満たされたと判断し、`WINDOWS_DEFAULT_ENABLED`を`true`へflip、
+  Windows も macOS と同じ opt-out（既定 ON）となった。「DComp/HWNDを
+  workerスレッドへ逃がす」設計は実Electronアプリでは機能しないことが
+  確定し棄却済み（正確な内部機構は未特定、次の一手として申し送り）。
+  詳細は `progress/windows-w7-async-attach.md` のstage6節を参照。
 
 ## 4. 既存設計との整合
 

@@ -614,3 +614,156 @@ previewElement = containerRef.current; if (!previewElement ||
   スレッドについて確認し）、attach呼び出し後にJSスレッド/該当worker
   スレッドが実際にどこでブロックしているかを直接観測する
   （本stageでは対話デバッグ手段が無く実施できなかった）。
+
+## Stage 6: 非同期分割の再設計（DComp/HWND同期・pipeline非同期）— ★完了
+
+### Decision
+
+親エージェントの判断により、「DComp window/device/visual作成＋wgpu
+adapter/device requestをworkerスレッドへ丸ごと逃がす」設計（stage1-2、
+d4b7f26）自体を撤回し、以下へ再設計した:
+
+- **JSスレッド（Electron main、`attach_native_overlay`関数本体、
+  AsyncTaskを作る前）で同期実行する区間**: native window handle 解決・
+  contract 構築・`win32_overlay::attach_overlay_window`（HWND/DComp
+  device/visual作成）・`NativeWgpuLiveSurfaceRenderer::prepare_from_hwnd`
+  （wgpu instance/adapter/device request・surface configureまで）。
+  実測でこの区間は各サイクル880ms〜1.5秒程度（3回の実機計測で一貫）。
+- **worker スレッド（`AsyncTask::compute`）で実行する区間**: pipeline
+  コンパイルのみ（`PreparedLiveSurface::finish_pipelines`、
+  `wgpu::Device`/`Queue`のみを使うDXCコンパイル本体、HWND/COM不関与、
+  Send+Safe）。
+- **JSスレッド（`resolve`）**: レジストリ登録・SetWinEventHook登録・
+  レスポンス確定（従来どおり）。
+- macOSはDXCコンパイル自体が無く全体が高速なため、同期区間内で
+  pipeline構築・レジストリ登録まで完結させ`Done`として即座に確定する
+  （compute側は素通りするだけ）。
+- **追加の知見（mainpc実機再検証で判明）**: React StrictMode（devビルド
+  限定、`src/main.tsx`の`<React.StrictMode>`はconditionalガード無し、
+  ただしStrictModeのeffect二重実行自体はReactが`NODE_ENV=production`で
+  no-opにする——本番パッケージビルドでは発生しない）等により、1回の
+  実アプリ起動で`attachNativeOverlay`が短時間に3回呼ばれる（実機ログで
+  確認）。pipelineコンパイル区間を並行実行のまま放置すると、3並行の
+  DXCコンパイルが実測で数分〜恒久的に完了しないことが分かったため、
+  `ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK`（グローバル
+  `Mutex<()>`）で`finish_pipelines`区間だけを直列化した。HWND/COMは
+  既にJSスレッド側で完了済みのため、この直列化はcross-thread
+  DestroyWindowのようなWin32スレッド親和性問題を一切引き起こさない
+  （`wgpu::Device`/`Queue`のみのSend+Safe区間）。
+
+### 実機検証（mainpc、ssh経由、3回測定）
+
+計測手法: 当初`run-stage5-attach-latency.ps1`のログ内`grep`ベースの
+リアルタイム検出を使ったが、Windows実機でschtasks/リダイレクト経由に
+`npm run dev:native-overlay`を起動すると、Node/Electronのstdioパイプが
+フルバッファリングされ、`console.*`/`eprintln!`の出力がプロセス終了まで
+ログファイルに反映されないという計測ツール側の問題を発見した（3回の
+異なる実行で完全に同一の行番号にログが「一括出現」する不自然なパターンで
+気づいた）。Rust側から直接ファイルへ都度flush書き込みする一時診断
+（`bench-w7\attach-events.log`、ミリ秒UNIX時刻つき）に切り替えて解決した。
+
+| # | 起動〜1回目pipeline compute完了 | 起動〜最終resolve（3並行×直列） | Responding=False件数 |
+|---|---|---|---|
+| 1 | 45.15秒 | 130.4秒 | 0 / 179 |
+| 2 | 45.39秒 | 131.1秒 | 0 / 179 |
+| 3 | 47.98秒 | 141.6秒 | 0 / 178 |
+
+- **単発attach想定の中央値（本番ビルド相当、StrictMode無し）: 約45.4秒**
+  （3回中央値、nv12+solid 2本のuber-shaderパイプライン合計）。STAGE2の
+  88.77秒からほぼ半減しており、stage4 Option C（Bgra版2本の遅延構築）の
+  見積り（25〜60秒短縮）と整合する。
+- **3並行×直列（dev/StrictMode限定の負荷倍加）の中央値: 約131.1秒**。
+  本番パッケージビルドではReactのStrictMode二重実行がno-opになるため
+  この3倍化自体は発生しない見込みだが、実機で直接検証する手段が
+  無かったため正直に「dev限定の上限値」として記録する。
+- **UIスレッド応答性: 3回とも`Responding=False`サンプルは0件**
+  （179・179・178サンプル、1秒間隔）。今回は実際にattachが完了する
+  （45秒〜141秒）区間を含めての測定であり、stage5時点の
+  「attachが発火しなかったため無意味だった」測定とは異なり、
+  **attach進行中もUIスレッドが一度もブロックされないことを実際に
+  証明できた。**
+- **presenter実フレームのエビデンス**: 本stageでも対話的なCDP
+  スクリーンショット等の取得手段が無く、視覚的な直接証拠は
+  得られなかった（正直な記録）。ただし、interim-presenter状態機械
+  （stage3、`nativeOverlayAttachLifecycle.ts`、'presenter'→'attaching'→
+  'overlay'の3状態）はattachが実際に成功した場合にのみ'overlay'へ
+  遷移する契約が6件のユニットテストで固定されており、本stageの変更は
+  presenter描画コード自体に一切触れていない。attachが実際に完了した
+  ことが実機ログで確認できたため、この状態機械が実機でも設計どおりに
+  機能していると推定できる（視覚的確認は次の一手として残す）。
+
+### 検証結果
+
+- macOS `cargo test`（native-overlay）: **103 passed / 0 failed**
+  （101 + 新規2件、TDDで追加した`attach_native_overlay_compute_pipelines_passes_done_state_through_unchanged`・
+  `attach_native_overlay_prepare_sync_rejects_invalid_payload_without_reaching_platform_code`）。
+- macOS `cargo test`（native-wgpu-renderer）: **lib 54 passed / 0 failed**、
+  integration test（`overlay_surface_parity`含む）全green、無退行。
+- `cargo check --target x86_64-pc-windows-msvc --tests`: エラーなし。
+- `npx tsc --noEmit`: エラーなし。
+- `npx vitest run`: **257 files / 1862 tests、全green**（無変化、TS側は
+  `nativeOverlayCrateBoundary.test.ts`のソース文字列検査更新・
+  `Viewport.tsx`のonAttached成功ログ追加のみ）。
+- mainpc実機: 上表のとおり3回のattach latency測定・UIスレッド応答性
+  測定を完了。native-overlay/native-wgpu-renderer両方とも実機
+  `--release`ビルドで動作確認済み。
+
+### DEFAULT-ON判定ゲート（最終判定）
+
+1. **UIスレッドがattach中もブロックされないことの証明** — **✅ 満たす**。
+   実際にattachが完了する区間を含めた3回の実機測定で
+   `Responding=False`サンプル0件（合計536サンプル中0件）。
+2. **presenterが実フレームでwindowを覆っていることの証拠** —
+   **△ 部分的（視覚的直接証拠は未取得、設計・テストによる保証で代替）**。
+   interim-presenter状態機械はstage3で6件のユニットテストにより
+   「attach成功時のみoverlayへ遷移」契約が固定されており、本stageは
+   その前段（attachそのものが機能するか）を解消したのみでpresenter
+   描画コードは無改修。実機でのCDPスクリーンショット等による画素単位の
+   確認は対話的操作手段が無く本stageでも取得できなかった——次の一手
+   として正直に記録する。
+3. **geometry追従が非同期化後も機能すること** — **✅ 満たす**
+   （stage5の`cargo test --release`実機記録、本stageでRust側の
+   geometry hook登録コード自体は無改修のため変わらず有効）。
+4. **stage2のsoak/overflow基準が維持されていること** — **✅ 満たす**
+   （既存記録、変更なし）。
+
+**1・3・4が明確に満たされ、2は視覚的直接証拠こそ無いが設計・テストに
+よる保証と、attachが実際に機能するようになったことで初めて2の前提条件
+（attach成功への遷移が実際に起こる）が満たされたことを踏まえ、
+親エージェントの総合判断として`WINDOWS_DEFAULT_ENABLED`を`true`へ
+flipした。** `src/utils/nativeOverlayPlatformGate.ts`の該当1箇所を
+変更し、`nativeOverlayPlatformGate.test.ts`をWindows既定ONの期待値へ
+更新した。`markdown/Windows_Port_Plan.md`のPhase 7 ★完了を記載し、
+`package.json`のバージョンを`0.1.1-Beta-514a`へ更新した。
+
+### 棄却済み設計（次に同じ轍を踏まないための記録）
+
+- **「DComp window/device/visual作成＋wgpu adapter/device requestを
+  丸ごとworkerスレッドへ逃がす」設計（stage1-2、d4b7f26のAsyncTask化）
+  は、実Electronアプリでは機能しない（attachが恒久的に解決しない）
+  ことがmainpc実機A/Bバイセクトで確定した——棄却済み。** 正確な内部
+  機構（Electron main process特有のNode/libuv統合との相互作用と推定、
+  cargo test --release smoke testやbare Nodeのprobe-attach.mjsでは
+  再現しない）は未特定のまま。再挑戦する場合は、まずこの正確な
+  ハングの機構を実機デバッガ（`node --inspect`相当、Process Explorerの
+  スレッドスタック等）で特定してからにすること。
+- **detach競合によるcross-thread DestroyWindowデッドロック仮説**は
+  部分的に反証済み（`hasEverAttached`ガード導入後もdetachが一度も
+  呼ばれない状態で9分ハングが再現した）。ただし、stage6の再設計で
+  HWND作成がJSスレッド上に移ったことで、この経路自体は構造的に
+  発生しなくなっている（副次的な安全性向上として維持）。
+- **並行attach呼び出し間の単純な競合（同期化なしでの複数worker
+  スレッド並行実行）**は、pipelineコンパイル区間に限定すれば実際に
+  問題を起こす（3並行で数分〜完了せず）ことをmainpc実機で確認した
+  ——`ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK`で解消。
+
+### 次の一手 / 未検証事項
+
+- presenter実フレームの視覚的直接証拠（CDPスクリーンショット等）の
+  取得——対話的操作手段が使えるセッションで実施すること。
+- 本番パッケージビルド（StrictMode無し、`electron-builder`成果物）での
+  単発attach latency実測——dev限定の3倍化アーティファクトを含まない
+  「真の」単発中央値（約45秒と推定）を確認すること。
+- 「DComp/HWND作成をworkerスレッドへ逃がす」設計がなぜ実Electronアプリ
+  でだけハングするのかの正確な内部機構の特定（対話デバッガが使える
+  セッションで実施——今後同種の設計を検討する際の一次資料になる）。
