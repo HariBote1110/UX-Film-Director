@@ -131,7 +131,8 @@ describe('Viewport Rust video-only boundary', () => {
     const code = viewportSource();
 
     expect(code).toContain('buildNativeOverlayAttachRect');
-    expect(code).toContain("const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';");
+    // W7 STAGE1: プラットフォーム別ゲート（resolveNativeOverlayEnabled）経由になった。
+    expect(code).toContain('const nativeOverlayPreviewEnabled = resolveNativeOverlayEnabled(window.uxfdPlatform');
     expect(code).toContain('window.nativeOverlay?.attach');
     expect(code).toContain('window.nativeOverlay?.detach');
   });

@@ -138,6 +138,12 @@ contextBridge.exposeInMainWorld('electronFile', {
   },
 })
 
+// Phase 7 (W7) STAGE 1: native overlayのプラットフォーム別既定ゲート
+// （src/utils/nativeOverlayPlatformGate.ts）がrenderer側で判定できるよう、
+// process.platformを静的値として公開する（関数越しではなく値そのものを渡す
+// のはelectronFileと同様の設計）。
+contextBridge.exposeInMainWorld('uxfdPlatform', process.platform)
+
 contextBridge.exposeInMainWorld('rustBackend', {
   health() {
     return ipcRenderer.invoke('rust-backend-health')

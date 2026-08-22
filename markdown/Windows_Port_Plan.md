@@ -434,13 +434,39 @@ parity ゲートも全通過）。詳細は
   は本 Phase のスコープ外（計画書の指示どおり「trivially safe でない限り
   fix しない」）。W7 以降の課題として申し送る。
 
-### Phase 7: 段階導入と既定切替（推定 1日）
+### Phase 7: 段階導入と既定切替（推定 1日、STAGE1 実施済み・24時間ベンチ待ち）
+
+詳細は `progress/windows-w7-staged-rollout.md` を参照。
 
 - macOS と同じ env / flag 規約に合わせる。**現状の macOS は既に opt-out で既定 ON**
-  （`Viewport.tsx:731` は `VITE_UXFD_NATIVE_OVERLAY !== '0'`）。Windows は導入直後だけ
-  opt-in 相当に倒し、24 時間ベンチ後に macOS と同じ opt-out へ揃える。
-- 既存の WebGPU presenter は parity 比較用に残す（ADR-011 の方針を踏襲）。
-- 24 時間ベンチで安定を確認してから既定 ON。`package.json` の PhaseVer を +1。
+  （`Viewport.tsx` は `resolveNativeOverlayEnabled(window.uxfdPlatform, {...})`
+  経由、macOS は内部的に `VITE_UXFD_NATIVE_OVERLAY !== '0'` と同じ判定）。Windows は
+  導入直後だけ opt-in 相当に倒し（`VITE_UXFD_NATIVE_OVERLAY === '1'` でのみ有効）、
+  24 時間ベンチ後に macOS と同じ opt-out へ揃える。判定ロジックは純粋関数
+  `resolveNativeOverlayEnabled(platform, env)`（`src/utils/
+  nativeOverlayPlatformGate.ts`）に切り出し TDD で 7 件のユニットテストを追加した。
+  既定反転は同ファイルの `WINDOWS_DEFAULT_ENABLED` 定数を `true` にする 1 行変更で
+  済む。renderer 側のプラットフォーム判定用に `electron/preload.ts` で
+  `window.uxfdPlatform`（`process.platform`）を新規公開した。
+- 既存の WebGPU presenter は parity 比較用に残す（ADR-011 の方針を踏襲、無改造）。
+- **STAGE1（実施済み）**: mainpc 実機で `VITE_UXFD_NATIVE_OVERLAY=1`（opt-in）+
+  `VITE_PERF_AGENT_MODE=1` により実 Electron アプリを起動し、native overlay の
+  attach が実際に成功することを確認した（`schtasks /it` 経由、DirectComposition は
+  SSH 直実行だと `E_ACCESSDENIED` になるため）。DXC DLL（`dxcompiler.dll`/
+  `dxil.dll`）を実 Electron exe と同じディレクトリへ初めて配置した（W5/W6 は
+  テストバイナリ横のみ）。W6 の未検証 3 点のうち、Bug E の見た目確認・devtools
+  開閉時の挙動は対話操作を送る手段がない環境だったため今回も未検証のまま。
+  初回 attach の UI スレッドブロック時間は DXC あり/なしの定量比較まではできて
+  いない。
+- **24 時間ベンチ（実施中）**: `npm run bench:native-overlay`
+  （`scripts/run-native-overlay-long-bench.mjs`）を mainpc で schtasks 経由で
+  無人起動した。実行中に見つかった 2 件の不具合・欠落
+  （Windows での `spawn EINVAL`、重量動画フィクスチャ欠落）を修正・補填し、
+  Windows は in-process decode 未実装のため steady-playback の frame time
+  予算を環境変数で緩めて（fps parity ゲートではなく安定性ソークとして）起動した。
+  開始時刻・ログパス・結果の読み方は `progress/windows-w7-staged-rollout.md`
+  参照。**24 時間の結果を見てから既定 ON への切替と ★完了・PhaseVer +1 を行う
+  （本 STAGE1 の時点ではまだ行わない）。**
 
 ## 4. 既存設計との整合
 
