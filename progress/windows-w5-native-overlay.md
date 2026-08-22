@@ -68,6 +68,16 @@ native-overlay の失敗 2 件（`getcolor_source_image_metadata_changes_native_
 メタデータの revision 生成）。別タスクとして切り出した
 （progress spawn: "Fix Windows path bugs in native-overlay tests"）。
 
+**修正済み・実機再検証待ち（詳細は
+[windows-native-overlay-test-path-bugs.md](windows-native-overlay-test-path-bugs.md)）**:
+2 件とも本番コード（`local_media_source_path` 等）ではなく、テストコードが
+Windows 形状の入力（バックスラッシュ・ドライブレター・埋め込みスペース）を
+誤って組み立てていたテストインフラのバグと判明（`windows-cfg-unix-gaps.md`
+記載のバグ分類と同一）。macOS 上で cross-platform に固定・修正済み
+（`native-overlay` cargo test 99→101 passed、Windows target `cargo check` 0
+errors）。**実機（mainpc）での `cargo test --release`（native-overlay）
+再実行は W7 stage 2 に委譲**。
+
 ## 未解決の課題（重要）
 
 **DirectComposition 経路の実機での実際の attach 成立を確認できていない。**
