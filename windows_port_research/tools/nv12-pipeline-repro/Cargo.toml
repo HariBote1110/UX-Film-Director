@@ -5,8 +5,12 @@ edition = "2021"
 publish = false
 
 # 研究用の使い捨てツール。windows_port_research/notes/w5-attach-hang.md /
-# nv12-pipeline-compile-time.md の再現手順。native-wgpu-renderer には
-# 依存しない（wgpu だけの最小構成でパイプライン生成そのものを計測する）。
+# nv12-pipeline-compile-time.md の再現手順。単発シェーダの `--shader`
+# モードは wgpu のみの最小構成（native-wgpu-renderer に依存しない）。
+# Phase 7 (W7) Phase 1計測で追加した `--all` モードのみ、finish_pipelines
+# が実際に構築する全パイプラインを本番と同一コードで計測するため
+# uxfd-native-wgpu-renderer に依存する
+# （windows_port_research/notes/w7-attach-cost-mitigation.md 参照）。
 
 [[bin]]
 name = "nv12-pipeline-repro"
@@ -15,6 +19,7 @@ path = "src/main.rs"
 [dependencies]
 wgpu = "25"
 pollster = "0.3"
+uxfd-native-wgpu-renderer = { path = "../../../native-wgpu-renderer" }
 
 [features]
 # `Dx12Compiler::StaticDxc` を試すためのフラグ。mach-dxcompiler-rs を

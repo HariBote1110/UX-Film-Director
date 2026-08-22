@@ -363,3 +363,140 @@ mainpc実機検証を実施した。詳細は`progress/windows-w7-async-attach.m
 - この未解決ブロッカーにより、attach window durationの実測・presenterの
   実フレームカバレッジ証拠のいずれも取得できず、DEFAULT-ON判定は
   flipしない（`WINDOWS_DEFAULT_ENABLED`は`false`のまま）。
+
+## 追記（2026-08-23、W7 需要駆動 staged attach Phase 1: 全パイプライン個別計測）
+
+### 目的 / 仮説
+
+`progress/windows-w7-async-attach.md` stage4-6完了後もなお、summed-vs-measured
+不一致（4本uber-shader版の単純合算119.9秒 vs 実測79.09〜88.77秒）が
+「次の一手」として未解決のまま残っていた。本タスクの目的は、
+`PreparedLiveSurface::finish_pipelines`（`native-wgpu-renderer/src/lib.rs`）が
+実際に構築する全パイプライン（Bgra版2本のOnceLock遅延variantを除く）を
+**同一device・同一プロセス内で・本番と同一の生成コードを呼びながら**個別に
+計測すれば、この不一致が「別々のプロセス/deviceで測ったことによる方法論の
+アーティファクト」であり「pipeline再利用のような未知の機構」ではないことを
+示せる、という仮説を立てた。あわせて、staged attach（Essential/Deferred分割）の
+設計判断に必要な「nv12が本当に支配的コストか」を確定させる。
+
+### 環境
+
+- mainpc（`ssh mainpc`、Windows実機、GPU: NVIDIA GeForce RTX 3070 Ti、
+  DX12バックエンド、`Dx12Compiler::default_dynamic_dxc()`＝DXC、
+  `dxcompiler.dll`/`dxil.dll`は`native-overlay/target/release/deps/`・
+  `node_modules/electron/dist/`に既存配置分を流用）。
+- mainpcのgit checkout（`C:\Users\gzabu\UXFD`、branch `w7final2`、
+  tip `610f4b5e`＝ローカル`feature-proxy`と同一コミット）に、未コミットの
+  計測用差分（`native-wgpu-renderer/src/lib.rs`・
+  `windows_port_research/tools/nv12-pipeline-repro/{Cargo.toml,src/main.rs}`）
+  のみを`scp`で直接転送（bundle転送ではなく差分3ファイルのみ、
+  git treeはそのまま）。
+- 計測前にmainpc上の残留`electron.exe`/`node.exe`プロセスを`taskkill /F`で
+  終了（schtasksタスクは今回未使用、plain SSH + `cargo run`のみ——DComp/
+  実HWNDを一切介さない純粋なパイプラインコンパイル計測のため schtasks /it
+  は不要と判断）。
+- `cargo build --release`（`nv12-pipeline-repro`、`--features static-dxc`は
+  リンクエラー`__std_find_trivial_*`未解決で失敗したため不使用——
+  `mach-dxcompiler-rs`の静的リンクとmainpcのMSVC STLバージョンの不整合と
+  推測、既存のDXC DLL動的ロード経路で十分なため深追いせず`dxc`
+  （`default_dynamic_dxc`）を採用）。
+
+### 手順
+
+1. `native-wgpu-renderer/src/lib.rs`に計測専用の`pub fn
+   bench_finish_pipelines_per_stage(device, surface_format) -> Vec<(&str,
+   Duration)>`を追加。`finish_pipelines`が実際に呼ぶ生成関数
+   （`create_pipeline_for_format`・`nv12::create_nv12_pipeline_for_format`・
+   `particle`/`audio_reactive`/`getcolor`/`hksy`/`simple_tube`/
+   `focus_lines`/`shaking_polygon`/`shattered_sphere`各`GpuRenderer::new`）を
+   構築順序どおりに呼び、各段階を`Instant`で個別計測する
+   （Bgra版2本＝`bgra_pipeline`/`nv12_bgra_pipeline`はOnceLock遅延のまま
+   `finish_pipelines`内で未構築のため、本計測でも意図的に対象外——
+   スコープ外として指示どおりラベル分離）。本番コードパス
+   （`from_surface`/`finish_pipelines`自体）は無改修、この関数は計測専用の
+   追加コードのみ。
+2. `windows_port_research/tools/nv12-pipeline-repro`に`--all`モードを追加し、
+   `uxfd-native-wgpu-renderer`をpath依存として追加（既存の`--shader nv12|solid`
+   モードは無改修、コメントで役割分担を明記）。`--all`は単一の
+   `wgpu::Instance`/`Device`を1回だけ作成し、上記ベンチ関数を1回呼んで
+   全段階のタイミングをまとめて出力する（＝本番の`finish_pipelines`呼び出し
+   1回分と完全に同一の構造）。`surface_format`は`Bgra8UnormSrgb`固定
+   （Windows実機のDComp overlayが`choose_live_surface_format`で実際に選ぶ
+   フォーマットと一致）。
+3. macOSでビルド確認（`cargo check --lib`/`cargo check --target
+   x86_64-pc-windows-msvc --tests`両方クリーン）、`cargo run --release -- --all`
+   でツール自体の動作をMetal上でスモークテスト（正常終了・全段階の
+   タイミングが出力されることを確認）。
+4. mainpcへ差分転送・ビルド・`target\release\nv12-pipeline-repro.exe --all
+   --compiler dxc`を3回連続実行（ウォームアップ切り離しなし——1回目から
+   3回とも同一プロセス内蔵の新規`Instance`/`Device`のため、OS/ドライバの
+   シェーダキャッシュ効果を含めた「実際の単発attach相当」の値をそのまま
+   採用する方針。3回とも独立プロセスとして起動）。
+
+### 結果
+
+mainpc実測（3回、単位ミリ秒、DXC）:
+
+| パイプライン | Run1 | Run2 | Run3 | 中央値 | 全体に占める比率 |
+|---|---:|---:|---:|---:|---:|
+| solid_composite (rgba) | 9007 | 8571 | 8553 | **8571** | 12.9% |
+| nv12_composite | 58394 | 57585 | 52713 | **57585** | 86.6% |
+| particle | 204 | 14 | 15 | 15 | 0.02% |
+| audio_reactive | 57 | 25 | 26 | 26 | 0.04% |
+| getcolor | 61 | 36 | 32 | 36 | 0.05% |
+| hksy | 112 | 69 | 70 | 70 | 0.11% |
+| simple_tube | 18 | 21 | 22 | 21 | 0.03% |
+| focus_lines | 24 | 16 | 13 | 16 | 0.02% |
+| shaking_polygon | 47 | 45 | 37 | 45 | 0.07% |
+| shattered_sphere | 124 | 79 | 81 | 81 | 0.12% |
+| **TOTAL（プロセス実測）** | 68052 | 66465 | 61566 | **66465** | 100% |
+
+GPU/backend: `NVIDIA GeForce RTX 3070 Ti`、`Dx12`、`DiscreteGpu`
+（3回とも同一）。
+
+**summed-vs-measured不一致の解消**: 各段階の中央値を単純合算すると
+`8571+57585+15+26+36+70+21+16+45+81 = 66466ms`となり、実測TOTAL中央値
+`66465ms`と**誤差1ms（測定誤差の範囲内）で一致した**。旧ノート
+（stage4節、`windows-w7-async-attach.md`）が記録した「4本のuber-shader版を
+単純合算すると119.9秒になり実測79.09〜88.77秒と矛盾する」不一致は、
+**「複数の独立プロセス・独立deviceで別々に測った単体実測値を、実際には
+1プロセス1device内で連続生成される本番の`finish_pipelines`呼び出しの
+合計と直接比較した」という方法論上のアーティファクトであり、
+device内でのpipeline再利用のような未知の機構は存在しない**ことが
+本計測で確定した。9本を同一device・同一プロセスで連続生成した場合、
+所要時間は単純合算とほぼ一致する（＝各パイプラインの生成コストは
+互いに独立、キャッシュ的な相互作用はほぼ無視できる）。
+
+### 結論
+
+- 仮説採択: summed-vs-measured不一致は方法論アーティファクトであり、
+  正確な内訳は上表のとおり。**nv12_compositeが全体の86.6%（中央値
+  57.585秒）を占め、圧倒的な支配的コストである**ことを実測で確定した
+  （旧ノートの推定「nv12 ~45-52s」よりやや高い52.7〜58.4秒だが、
+  同じオーダーで整合）。
+- solid_compositeは12.9%（8.571秒）で無視できない副次コストだが、
+  nv12単体より1桁小さい。
+- 8種の小型シェーダ（particle/audio_reactive/getcolor/hksy/simple_tube/
+  focus_lines/shaking_polygon/shattered_sphere）は合計311ms（0.47%）と
+  完全に無視できるレベルで、「小型シェーダは高速」という当初の想定
+  （タスクブリーフィング）を実測で裏付けた。
+- **Phase 2のEssential/Deferred分割方針への示唆**: Essential集合を
+  「solid_composite + 8種の小型シェーダ」（中央値合計 約8.9秒）、
+  Deferred集合を「nv12_compositeのみ」（中央値 57.585秒）とすれば、
+  attach-to-overlay switchoverの理論上の短縮は約87%（66.465秒→約8.9秒）。
+  Bgra版2本（`bgra_pipeline`/`nv12_bgra_pipeline`）は既にstage4で
+  OnceLock遅延構築済みのため、Essential/Deferredいずれの集合にも
+  含めない（BGRA IOSurface export呼び出し時に初めて構築される、
+  live attach経路では到達しない設計は変更なし）。
+
+### 次の一手 / 未検証事項
+
+- Phase 2: 上記Essential/Deferred分割を`finish_pipelines`に実装し、
+  Deferred（nv12）をserialize lock配下のバックグラウンドタスクへ
+  切り出す。video-in-scene時の`nv12Ready`ゲーティング設計（TS側）が
+  必須（このPhase 1計測はcorrectness側には触れていない）。
+- 本計測は「ウォームアップなしの初回コンパイル」を3回とも独立プロセスで
+  行った値であり、OS/ドライバのシェーダキャッシュが2回目以降の実行を
+  高速化する可能性を意図的に排除していない（3回間でのバラつき、
+  特にnv12の52.7〜58.4秒の幅はこの影響を含む可能性がある）。
+  Phase 3の実attach latency測定で最終的な数値を確定させる。

@@ -40,6 +40,7 @@ struct Args {
     compiler: String,
     timeout_secs: u64,
     shader: String,
+    all: bool,
 }
 
 fn parse_args() -> Args {
@@ -47,6 +48,7 @@ fn parse_args() -> Args {
     let mut compiler = "fxc".to_string();
     let mut timeout_secs = 120u64;
     let mut shader = "nv12".to_string();
+    let mut all = false;
     let mut i = 1;
     while i < raw.len() {
         match raw[i].as_str() {
@@ -65,6 +67,10 @@ fn parse_args() -> Args {
                 shader = raw.get(i + 1).cloned().unwrap_or(shader);
                 i += 2;
             }
+            "--all" => {
+                all = true;
+                i += 1;
+            }
             _ => {
                 i += 1;
             }
@@ -74,7 +80,79 @@ fn parse_args() -> Args {
         compiler,
         timeout_secs,
         shader,
+        all,
     }
+}
+
+/// Phase 7 (W7) Phase 1計測: `PreparedLiveSurface::finish_pipelines` が
+/// 実際に構築する全パイプライン（Bgra版2本の遅延OnceLock変種を除く）を
+/// 本番と同一の生成コード（`uxfd_native_wgpu_renderer::
+/// bench_finish_pipelines_per_stage`）経由で個別計測する。
+/// `--shader`/`--timeout-secs`のstage別ハードタイムアウト機構は使わず
+/// （このモードは全パイプラインを一括構築するため個別タイムアウトの
+/// 意味が薄く、代わりに全体のプロセスタイムアウトは呼び出し側
+/// （PowerShell/シェル）に委ねる）、単純に各段階の所要時間を出力する。
+fn run_all(compiler: &str) {
+    #[cfg(not(target_os = "windows"))]
+    let _ = compiler;
+    #[cfg(target_os = "windows")]
+    let dx12_compiler = match compiler {
+        "dxc" => wgpu::Dx12Compiler::default_dynamic_dxc(),
+        #[cfg(feature = "static-dxc")]
+        "staticdxc" => wgpu::Dx12Compiler::StaticDxc,
+        _ => wgpu::Dx12Compiler::Fxc,
+    };
+    #[cfg(target_os = "windows")]
+    let backends = wgpu::Backends::DX12;
+    #[cfg(not(target_os = "windows"))]
+    let backends = wgpu::Backends::METAL;
+
+    let mut instance_descriptor = wgpu::InstanceDescriptor::default();
+    instance_descriptor.backends = backends;
+    #[cfg(target_os = "windows")]
+    {
+        instance_descriptor.backend_options.dx12.shader_compiler = dx12_compiler;
+    }
+    let instance = wgpu::Instance::new(&instance_descriptor);
+
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: None,
+        force_fallback_adapter: false,
+    }))
+    .expect("no adapter");
+    let info = adapter.get_info();
+    eprintln!(
+        "[nv12-repro-all] adapter name={} backend={:?} device_type={:?}",
+        info.name, info.backend, info.device_type
+    );
+
+    let (device, _queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("nv12-pipeline-repro-all device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: wgpu::Limits::default(),
+        memory_hints: wgpu::MemoryHints::default(),
+        trace: wgpu::Trace::Off,
+    }))
+    .expect("request_device failed");
+
+    // finish_pipelines は surface_format に live surface の実際の
+    // configure結果を使うが、Windows実機ではDComp overlayの構成上
+    // 常にBgra8UnormSrgbが選ばれる（choose_live_surface_format）ため
+    // それに固定する。
+    let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
+
+    let overall_start = Instant::now();
+    let stages = uxfd_native_wgpu_renderer::bench_finish_pipelines_per_stage(&device, surface_format);
+    let total = overall_start.elapsed();
+
+    for (label, elapsed) in &stages {
+        eprintln!(
+            "[nv12-repro-all] stage={label} elapsed_ms={}",
+            elapsed.as_millis()
+        );
+    }
+    eprintln!("[nv12-repro-all] TOTAL elapsed_ms={}", total.as_millis());
 }
 
 /// 別スレッドでブロッキング呼び出しを実行し、`timeout` を超えたら
@@ -112,6 +190,13 @@ where
 
 fn main() {
     let args = parse_args();
+
+    if args.all {
+        eprintln!("[nv12-repro-all] start compiler={}", args.compiler);
+        run_all(&args.compiler);
+        return;
+    }
+
     let timeout = Duration::from_secs(args.timeout_secs);
 
     eprintln!(

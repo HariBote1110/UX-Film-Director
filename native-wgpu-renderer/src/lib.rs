@@ -492,6 +492,58 @@ impl PreparedLiveSurface {
     }
 }
 
+/// Phase 7 (W7) の attach 所要時間計測専用ベンチ関数。
+/// `PreparedLiveSurface::finish_pipelines` が実際に構築する各パイプライン
+/// （Bgra版の遅延2本を除く）を、本番と同一の生成関数を呼びつつ個別に
+/// `std::time::Instant` で計測する。`windows_port_research/tools/
+/// nv12-pipeline-repro` から呼ばれる（研究計測専用、本番コードパスからは
+/// 呼ばれない——実際の attach は引き続き `finish_pipelines` を使う）。
+/// 戻り値のラベルは `finish_pipelines` 内の構築順序と一致させてある。
+pub fn bench_finish_pipelines_per_stage(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> Vec<(&'static str, std::time::Duration)> {
+    let mut results = Vec::new();
+    let mut time_stage = |label: &'static str, f: &mut dyn FnMut()| {
+        let start = std::time::Instant::now();
+        f();
+        results.push((label, start.elapsed()));
+    };
+
+    time_stage("solid_composite (rgba)", &mut || {
+        let _ = create_pipeline_for_format(device, surface_format);
+    });
+    time_stage("nv12_composite", &mut || {
+        let _ = nv12::create_nv12_pipeline_for_format(device, surface_format);
+    });
+    time_stage("particle", &mut || {
+        let _ = particle::ParticleGpuRenderer::new(device);
+    });
+    time_stage("audio_reactive", &mut || {
+        let _ = audio_reactive::AudioReactiveGpuRenderer::new(device);
+    });
+    time_stage("getcolor", &mut || {
+        let _ = getcolor::GetColorGpuRenderer::new(device);
+    });
+    time_stage("hksy", &mut || {
+        let _ = hksy::HksyGpuRenderer::new(device);
+    });
+    time_stage("simple_tube", &mut || {
+        let _ = simple_tube::SimpleTubeGpuRenderer::new(device);
+    });
+    time_stage("focus_lines", &mut || {
+        let _ = focus_lines::FocusLinesGpuRenderer::new(device);
+    });
+    time_stage("shaking_polygon", &mut || {
+        let _ = shaking_polygon::ShakingPolygonGpuRenderer::new(device);
+    });
+    time_stage("shattered_sphere", &mut || {
+        let _ = shattered_sphere::ShatteredSphereGpuRenderer::new(device);
+    });
+
+    results
+}
+
 impl NativeWgpuLiveSurfaceRenderer {
     #[cfg(target_os = "macos")]
     pub async fn from_appkit_view(
