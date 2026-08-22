@@ -113,12 +113,45 @@ SurfaceTargetUnsafe::CompositionVisual）を実 Electron ウィンドウに対�
 1 本目のパイプライン（598行のシェーダ、1分未満で完了）との所要時間差が
 行数差に見合わないことから、単純な「シェーダが大きいから遅い」ではなく
 `nv12_composite.wgsl` 固有の構造が naga→HLSL 変換または DXC のコード生成を
-病的に遅くしている可能性が高いと判断した。
+病的に遅くしている可能性が高いと判断した（当時点の暫定判断）。
+
+**追記2（`windows_port_research/notes/nv12-pipeline-compile-time.md` 参照、
+最小再現ツール `windows_port_research/tools/nv12-pipeline-repro` による
+切り分け結果）**: 「nv12 固有」という上記の暫定判断は**棄却**した。
+`nv12_composite.wgsl` を持たない `solid_composite.wgsl`（1本目のパイプライン
+のシェーダ、598行）だけを単体で計測したところ、Windows/DX12 上では
+**104秒** かかった（macOS/Metal では1〜3秒未満）。真因は
+「シェーダが大きい／nv12固有」ではなく、**両シェーダが共有する550行超の
+"effects tail"（ぼかし・色調補正・ワイプ・クリッピング・アウトライン・
+グラデーション等）自体が、wgpu の DX12 既定シェーダコンパイラ Fxc
+（wgpu 自身が "old, slow and unmaintained" と明記するレガシーコンパイラ）
+にとって病的に遅い**こと。`create_shader_module`（naga の WGSL→HLSL変換）は
+両シェーダとも1msで、遅いのは一貫して `create_render_pipeline`
+（Fxc本体のHLSL→DXBCコンパイル）。nv12はこの共通部分に加えYCbCr変換
+コード（+80行）を持つため、タイムアウト900秒での再実行では
+**676.9秒（約11分17秒）で完了**した（solid比で約6.5倍、行数差はわずか
++13%なので非線形な悪化と判断）。**「無限ループ・デッドロックではなく、
+有限だが非常に長い時間のかかるコンパイル」だったことが確定した。**
+W5 のスモークテスト実行時に3分で強制終了した判断は、結果的に早すぎた
+（あと8分待てば正常完了していた）ことになる。
+
+代替コンパイラの実機試行はどちらも本ホストでは即座に失敗した:
+`DynamicDxc`（システムの`dxcompiler.dll`/`dxil.dll`）は両DLLが
+mainpcに存在せずDX12バックエンド自体が初期化できず失敗。`StaticDxc`
+（`mach-dxcompiler-rs`静的リンク、`static-dxc` cargo feature）は
+MSVC標準ライブラリの新しめのシンボル（`__std_find_trivial_8`等）が
+未解決でリンクエラー。どちらも追加のダウンロードやツールチェイン更新
+なしにはこのホストで検証できない。
 
 この理由により、`markdown/Windows_Port_Plan.md` の Phase 5 は引き続き
 「コード実装は完了・実機の attach/present 経路は未検証」として ★完了 には
-していない。**次に着手すべきは message pump ではなく `nv12_composite.wgsl`
-のパイプライン生成の切り分け**（最小再現、macOS/Metal との比較）。
+していない。DirectComposition + wgpu composition surface という設計自体は
+健全（全段階が有限時間で成功する）ことは確定したので、**次に着手すべきは
+message pump でも nv12 固有調査でもなく、DX12 シェーダコンパイラ
+（Fxc→DXCへの切替を最優先、次点で static-dxc 用ツールチェイン更新、
+shader 分割は最終手段）の対応**（`nv12-pipeline-compile-time.md` の
+「次の一手」「W5/W6 を止めているものへの結論」参照）。attach 経路自体は
+このコンパイルコストを解消すれば実用的な時間で完走できる見込みが高い。
 
 ## Phase 6 への申し送り
 

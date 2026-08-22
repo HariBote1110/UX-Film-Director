@@ -321,8 +321,31 @@ parity ゲートも全通過）。詳細は
   病的に遅くしている可能性が高い。DirectComposition/wgpu surface
   attach 自体の設計は健全であることが実機で確認できたため、
   残る未検証事項はこのシェーダのコンパイル時間問題のみに絞られた。
-  次のセッションでの優先課題は message pump ではなく
-  `nv12_composite.wgsl` の切り分け。
+
+  **さらに切り分け完了（`windows_port_research/notes/nv12-pipeline-compile-time.md`、
+  最小再現ツール `windows_port_research/tools/nv12-pipeline-repro`）**:
+  「nv12 固有の構造が原因」という上記の推測は**棄却**。nv12版を持たない
+  `solid_composite.wgsl`（598行、1本目のパイプラインのシェーダ）だけを
+  単体計測しても Windows/DX12 で **104秒** かかった
+  （macOS/Metal では1〜3秒未満、H-C採択）。`create_shader_module`
+  （naga の WGSL→HLSL変換）はどちらのシェーダも1msで、遅いのは一貫して
+  `create_render_pipeline`（DX12 既定コンパイラ Fxc 本体）。真因は
+  **両シェーダが共有する550行超の "effects tail" が、wgpu 自身
+  "old, slow and unmaintained" と明記するレガシーコンパイラ Fxc に
+  とって病的に遅いこと**で、nv12 はこれに YCbCr変換コード（+80行）が
+  加わり悪化する。**タイムアウト900秒での再実行で 676.9秒（約11分17秒）
+  で完了することを確認——無限ループ・デッドロックではなく、有限だが
+  非常に長い時間のかかるコンパイルだったと確定した**（solid比で約6.5倍、
+  行数差はわずか+13%なので非線形な悪化）。DirectComposition + wgpu
+  composition surface の設計自体は健全（全段階が有限時間で成功する）
+  ことも同時に確定した。代替コンパイラ
+  （`DynamicDxc`: mainpc に dxcompiler.dll/dxil.dll 無く即失敗、
+  `StaticDxc`: MSVC標準ライブラリのシンボル未解決でリンクエラー）は
+  どちらも本ホストでは追加のダウンロード/ツールチェイン更新なしに
+  検証できなかった。次のセッションでの優先課題は DX12 シェーダ
+  コンパイラの切替（DXC の DLL 同梱を最優先、次点で `static-dxc` ビルド
+  環境の整備、shader 分割は最終手段）であり、`nv12_composite.wgsl` 固有の
+  調査ではない。
 
 コードの実装（cfg分岐・型・pure関数・Cargo依存）は完了し、pure関数と
 既存の周辺テストは実機で確認済みだが、**この機能の中核である
