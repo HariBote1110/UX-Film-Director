@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 
 use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
+use uxfd_rust_core::agent_project::AgentProjectSpec;
 use uxfd_rust_core::schema::{
     AsanohaPatternObjectFields, AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields,
     AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, BaseObject,
@@ -49,6 +50,13 @@ fn ts_out_dir() -> PathBuf {
 
 fn schema_out_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../schema/rust-core")
+}
+
+/// `schema/agent-project.schema.json`（トップレベル、`schema/rust-core/` 配下
+/// ではない）。エディタ補完・AIエージェントの自己検証で参照される既存パスを
+/// 変えないため、他の生成物とは別の出力先にする。
+fn agent_project_schema_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../schema/agent-project.schema.json")
 }
 
 fn write_ts_bindings() {
@@ -165,6 +173,9 @@ fn write_ts_bindings() {
     LayerState::export_all(&cfg).expect("LayerState の TS export に失敗しました");
     CameraState::export_all(&cfg).expect("CameraState の TS export に失敗しました");
     SceneData::export_all(&cfg).expect("SceneData の TS export に失敗しました");
+
+    // R4-4: エージェント用プロジェクトレシピ。
+    AgentProjectSpec::export_all(&cfg).expect("AgentProjectSpec の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -305,6 +316,13 @@ fn write_json_schemas() {
     write_schema::<LayerState>(&dir, "LayerState");
     write_schema::<CameraState>(&dir, "CameraState");
     write_schema::<SceneData>(&dir, "SceneData");
+
+    // R4-4: `schema/agent-project.schema.json`（トップレベル、既存パスを維持）。
+    let agent_schema = SchemaGenerator::default().into_root_schema_for::<AgentProjectSpec>();
+    let agent_schema_json =
+        serde_json::to_string_pretty(&agent_schema).expect("AgentProjectSpec schema の JSON 化に失敗しました");
+    fs::write(agent_project_schema_path(), format!("{agent_schema_json}\n"))
+        .expect("schema/agent-project.schema.json の書き込みに失敗しました");
 
     println!("codegen:types (JSON Schema) 完了 -> {}", dir.display());
 }
