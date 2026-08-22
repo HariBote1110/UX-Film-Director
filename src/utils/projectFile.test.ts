@@ -1496,4 +1496,141 @@ describe('parseProjectPayloadV2', () => {
     });
     expect(restored.layerTree?.[0].children[0].checked).toBe(false);
   });
+
+  it('round-trips a PSD-bearing project (rootLayer/layerTree/activeLayerIds) with an identical JSON shape', async () => {
+    const psd: PsdObject = {
+      ...minimalPsdWithWorldPlacement(),
+      rootLayer: {
+        id: 'root',
+        name: 'Root',
+        isGroup: true,
+        isRadio: false,
+        children: [{
+          id: 'psd-group-1',
+          name: 'Character',
+          isGroup: true,
+          isRadio: true,
+          children: [{
+            id: 'psd-layer-1',
+            name: 'Face',
+            isGroup: false,
+            isRadio: false,
+            children: [],
+            width: 16,
+            height: 16,
+            left: 8,
+            top: 4,
+            defaultVisible: true,
+            src: 'blob:layer-face',
+            // Runtime-only field; must never survive persistence.
+            textureSource: {} as ImageBitmap,
+          }],
+          width: 64,
+          height: 48,
+          left: 0,
+          top: 0,
+          defaultVisible: true,
+        }],
+        width: 64,
+        height: 48,
+        left: 0,
+        top: 0,
+        defaultVisible: true,
+      },
+      activeLayerIds: {
+        root: true,
+        'psd-group-1': true,
+        'psd-layer-1': false,
+      },
+      layerTree: [{
+        seq: null,
+        name: 'Character',
+        checked: true,
+        isRadio: true,
+        children: [{
+          seq: 'psd-layer-1',
+          name: 'Face',
+          checked: false,
+          isRadio: false,
+          children: [],
+        }],
+      }],
+    };
+
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [{
+        id: 's1',
+        name: 'One',
+        duration: 10,
+        layers,
+        objects: [psd],
+        camera,
+        stageCamera3D: defaultStage()
+      }],
+      activeSceneId: 's1',
+      objects: [psd],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const wire = JSON.parse(JSON.stringify(file)) as {
+      scenes: Array<{ objects: Array<Record<string, unknown>> }>;
+    };
+    const savedPsd = wire.scenes[0].objects[0] as unknown as PsdObject;
+
+    // No GPU-only leakage: stripped rootLayer must not carry textureSource.
+    expect(savedPsd.rootLayer).toBeDefined();
+    expect(JSON.stringify(savedPsd.rootLayer)).not.toContain('textureSource');
+    expect(savedPsd.rootLayer?.children[0].children[0].src).toBe('blob:layer-face');
+
+    // Exact shape preserved (missing-key vs explicit-value distinction intact).
+    expect(savedPsd.rootLayer).toEqual({
+      id: 'root',
+      name: 'Root',
+      isGroup: true,
+      isRadio: false,
+      children: [{
+        id: 'psd-group-1',
+        name: 'Character',
+        isGroup: true,
+        isRadio: true,
+        children: [{
+          id: 'psd-layer-1',
+          name: 'Face',
+          isGroup: false,
+          isRadio: false,
+          children: [],
+          width: 16,
+          height: 16,
+          left: 8,
+          top: 4,
+          defaultVisible: true,
+          src: 'blob:layer-face',
+        }],
+        width: 64,
+        height: 48,
+        left: 0,
+        top: 0,
+        defaultVisible: true,
+      }],
+      width: 64,
+      height: 48,
+      left: 0,
+      top: 0,
+      defaultVisible: true,
+    });
+
+    const parsed = parseProjectPayloadV2(wire);
+    const restoredObj = parsed.scenes[0].objects[0];
+    expect(restoredObj.type).toBe('psd');
+    if (restoredObj.type !== 'psd') throw new Error('expected psd');
+    // activeLayerIds restoration still keyed by matching name/isGroup shape.
+    expect(restoredObj.activeLayerIds).toEqual(psd.activeLayerIds);
+    expect(restoredObj.rootLayer).toEqual(savedPsd.rootLayer);
+  });
 });
