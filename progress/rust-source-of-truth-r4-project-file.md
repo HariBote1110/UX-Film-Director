@@ -181,3 +181,99 @@ particle の 7 kind のラウンドトリップ）が green。`codegen_types` �
   受け付ける点が TS 側（型リテラル `'uxfd-project'`/`2`）より緩い。
   IPC 層で実際に読み込みに使う場合は呼び出し側で値検証を追加する必要が
   ある。
+
+---
+
+# R4-2: rust-core project_file のIPC境界公開・精度検証（2026-08-22）
+
+## 決定
+- **数値精度**: `project_file_to_json_value`（`serde_json::Value`経由）は
+  `f32`→`f64`拡大で `1.03` が `1.0299999713897705` に劣化するため、
+  ディスク書き出し用には使わずテストの構造比較専用と明記した。代わりに
+  `ProjectFile` から直接文字列化する `project_file_to_json_string`
+  （compact）/`project_file_to_json_pretty`（`serde_json::to_string_pretty`、
+  既定2スペースインデントでTS側 `JSON.stringify(x, null, 2)` と同じ体裁）
+  を新設し、serdeの直接シリアライズパス（ryuの最短表現）を使うことで
+  精度劣化を回避した。`rust-core/tests/project_file_boundary.rs` の
+  `to_json_string_preserves_shortest_f32_literal` 等で
+  `1.03` がそのまま出力され、かつ `1.0299999` を含まないことをピン留め。
+- **境界値検証**: `project_file_from_json` を `ProjectFileVersioned`
+  untagged enum経由からserde_json::Valueでの事前検証方式へ変更。
+  `format`/`version` を最初にチェックし、TS側 `parseProjectPayloadV2`/
+  `parseProjectPayload` のV1/V2分岐と同じ「対応していないプロジェクト
+  ファイル形式です。」エラーメッセージをそのまま移植した
+  （不正format・非対応version・format欠損はすべてこの1メッセージに
+  集約する点もTS側の挙動に合わせた）。壊れたJSONは別メッセージ
+  （「プロジェクトファイルの JSON 解析に失敗しました: ...」）。
+  `ProjectFileVersioned`型自体はテスト等で未使用になったが、
+  スキーマ定義としての価値があるため`schema.rs`からは削除していない。
+- **IPC配線**: `rust-backend/src/project_file.rs` に
+  `handle_project_deserialize`/`handle_project_serialize` を新設し、
+  `rpc_dispatch.rs` に `project.deserialize`/`project.serialize` として
+  登録（既存の `scene.replace`/`proxy.generate` と同じ「paramsを
+  `serde::Deserialize`構造体で受けてエラーは`response_error`」パターン）。
+  `project.deserialize`のドメインエラー（format/version不正等）は
+  `-32602`（invalid params、paramsの構造自体が壊れている場合）とは
+  区別し、`scene.replace`の`-32061`（stale revision）と同様の
+  アプリケーション定義コードとして`32610`
+  （`PROJECT_FILE_INVALID_CODE`）を新設した。
+  `electron/main.ts`には`rust-backend-project-deserialize`/
+  `rust-backend-project-serialize`ハンドラを追加し、scene RPCと同じ
+  `sceneRpcFailure`（`errorCode`をrendererまで保持する整形）を再利用。
+  `electron/preload.ts`に`deserializeProjectFile`/`serializeProjectFile`
+  を追加、`src/vite-env.d.ts`の`window.rustBackend`型に追記した。
+  **renderer側の実消費（`src/utils/projectFile.ts`をこのIPCへ置き換える
+  かどうか）はR4-3のスコープであり、今回は型・配線のみ。**
+
+## E2Eテストカバレッジと既知のギャップ
+- `rust-backend/src/project_file.rs`の`#[cfg(test)] mod tests`で
+  `handle_project_deserialize`/`handle_project_serialize`を直接呼び出し、
+  V2フィクスチャ（`rust-core/tests/fixtures/uxfd/realistic-heavy-edit-v2.uxfd.json`
+  を`include_str!`で共有）のdeserialize→serialize→deserialize往復と
+  `1.03`精度保持、不正format時の構造化エラー（code=32610）、
+  paramsスキーマ違反時のinvalid params（-32602）をテストした。
+  これは「rust-backend RPCディスパッチ層を実際に叩く」テストであり、
+  IPC自体（Electron `ipcMain.handle`〜`callRustBackend`の子プロセス
+  RPC）より一段内側だが、ドメインロジックとしての正しさは十分に
+  検証できている。
+- **既知のギャップ**: このリポジトリのvitest環境には、
+  `electron/main.ts`の`ipcMain.handle`ハンドラを実際に起動して
+  （子プロセスとして立ち上がる`rust-backend`と実際にJSON-RPCで
+  通信して）検証する仕組みが存在しない
+  （`rustBackendSceneControlBoundary.test.ts`等の既存パターンも
+  「main/preload/renderer型の文字列的な配線一貫性」を確認するのみで、
+  実RPC呼び出しは行っていない）。今回追加した
+  `src/utils/rustBackendProjectFileBoundary.test.ts`も同じ限界の
+  下で、配線の一貫性（チャネル名・`sceneRpcFailure`再利用）のみを
+  検証しており、「Electronプロセスを実際に起動してIPC往復する」
+  真のE2Eはこのバッチでは未達成。将来この gap を埋めるには
+  Electronのheadlessテストランナー導入（既存インフラの新規構築）が
+  必要で、R4-2の範囲を超えると判断した。
+
+## ゲート結果（2026-08-22）
+- `npx tsc --noEmit`: green。
+- `cargo test --manifest-path rust-core/Cargo.toml`: 全green
+  （新規`project_file_boundary.rs` 7件を含む）。
+- `cargo test --manifest-path rust-backend/Cargo.toml`: 全green
+  （新規`project_file::tests` 4件を含む）。
+- `npm run codegen:types:check`: exit 0（差分なし、schema変更なしのため
+  当然）。
+- `npm run fixture:evaluation-parity` + `cargo test --test
+  ts_evaluation_parity`: 447フレーム比較、`KNOWN_DIFFERENCES.json`は
+  `[]`のまま green。
+- `npx vitest run`: 254 files / 1843 tests
+  （ベースライン253/1841 + 新規1ファイル2件）、全green。
+
+## R4-3への申し送り
+- `src/utils/projectFile.ts`の`parseProjectPayloadV2`/`migrateV1ToV2`/
+  `openProjectFileWithDialog`等をRust実装（今回公開したIPC）へ実際に
+  置き換えるかどうかは未着手・未決定のまま。今回のIPCはrenderer側
+  からまだ一切呼ばれていない（型と配線のみが存在する状態）。
+- 置き換える場合、保存時は`serializeProjectFile`（pretty JSON文字列を
+  そのまま`fs.writeFile`）、読込時は`deserializeProjectFile`
+  （返ってきた`ProjectFile`をrenderer側の型にキャストするか、
+  ts-rs生成済みの`ProjectFile`型と統合するか）の設計判断が必要。
+- Electron実プロセスを介したIPC E2Eテストのインフラ不足は
+  `projectFile.ts`置き換え作業でも同様に残るため、R4-3でも
+  「rust-backend側ユニットテストで担保し、vitestは配線一貫性のみ」
+  という同じ方針を踏襲するのが妥当と考えられる。

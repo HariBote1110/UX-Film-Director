@@ -409,6 +409,17 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 `electron/`・`projectFile.ts` の書き換えは引き続き未着手（R4-2 以降）。詳細は
 `progress/rust-source-of-truth-r4-project-file.md` を参照。
 
+**進捗（R4-2・2026-08-22）**: `project_file_from_json` の `format`/`version`
+検証を明示チェックへ変更（TS 側 `parseProjectPayloadV2` と同じエラー
+意味論）、`serde_json::Value` 経由の精度劣化（f32→f64 拡大で `1.03` が
+`1.0299999713897705` 化）を避ける `project_file_to_json_string`/
+`_pretty` を新設し、rust-backend RPC（`project.deserialize`/
+`project.serialize`）と Electron IPC
+（`rust-backend-project-deserialize`/`-serialize`、preload・
+`window.rustBackend` 型込み）に配線した。`src/utils/projectFile.ts` の
+実際の置き換え（renderer 側消費）は未着手のまま R4-3 へ持ち越し。詳細は
+`progress/rust-source-of-truth-r4-project-file.md` を参照。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、
