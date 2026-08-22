@@ -22,7 +22,10 @@ pub use generated_particle::{
     generated_particle_unit, parse_generated_particle_source, GeneratedParticleParams,
 };
 pub use nv12_source::{Nv12ColourMatrix, Nv12ColourRange, Nv12IoSurfaceRef};
-pub use project_file::{project_file_from_json, project_file_to_json_value};
+pub use project_file::{
+    project_file_from_json, project_file_to_json_pretty, project_file_to_json_string,
+    project_file_to_json_value,
+};
 pub use schema::{
     AreaExpandFilterParams, AsanohaPatternObjectFields, AudioLabPhoneme, AudioObjectFields,
     AudioSphereObjectFields, AudioVisualizationObjectFields, AudioVisualizationType,
