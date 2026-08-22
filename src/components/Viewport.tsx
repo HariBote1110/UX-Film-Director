@@ -801,6 +801,11 @@ const Viewport: React.FC = () => {
     if (!nativeOverlayPreviewEnabled) {
       // 設定値そのものがOFF（未対応OS/明示opt-out）——attachライフサイクル自体を
       // 起動しない。presenter が唯一の描画対象になる。
+      // TEMP DIAGNOSTIC（stage5ブロッカー切り分け、後で削除/1行warnへ格下げ）:
+      console.warn('[NativeOverlay] attach lifecycle disabled by gate', {
+        platform: window.uxfdPlatform,
+        VITE_UXFD_NATIVE_OVERLAY: import.meta.env.VITE_UXFD_NATIVE_OVERLAY,
+      });
       setNativeOverlayLifecycleState('presenter');
       return;
     }
