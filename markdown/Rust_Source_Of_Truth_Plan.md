@@ -582,15 +582,40 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
   関数削除（R5-4）、`package.json` の `ag-psd` 除去（R5-6）は未着手。
   R5-4 は着手条件が揃った状態（本バッチで `parsePsdArrayBufferAsObject`
   のプロダクション呼び出し元がゼロになった）。
-- `ag-psd` 経路（`psdWasm.ts` の Worker 実装と `psdParser.ts` の main thread fallback）を
-  `psd.parse` / `psd.parseMeta` / `psd.renderComposite` RPC に置き換える。
-- 合格条件は借用 VM で進めている PSD parser 研究の結果を使う。
-  ag-psd と同等以上（速度・レイヤー名の文字化けを含む互換性）が出ていることを
-  代表 PSD（`葵ちゃん.psd` を含む）で確認してから切る。
-- `package.json` から `ag-psd` を削除。`src/utils/psdParser.ts` (1,266行) は
-  UI 向けのレイヤーツリー構築だけを残して縮む。
+- **R5-4/R5-6（完了）**: レガシー PSD 経路を削除し ag-psd を撤去、CI 用
+  PSD インポート e2e ゲートを新設した。`psdWasm.ts`/`psdAgPsdWorker.ts`、
+  `psdParser.ts` の `parsePsdArrayBufferAsObject`（および ag-psd/wasm 専用の
+  内部ヘルパー群）、対応テスト2本（`psdParserArrayBufferWasm.test.ts`/
+  `psdParser.perf.test.ts`）を削除。`electron/main.ts` の `'parse-psd'`
+  IPC ハンドラ（psd.parse + 二段階 blob 待ち）を削除、`'parse-psd-meta'`/
+  `'render-psd-composite'` は無改修。`rust-backend` は `handle_psd_parse`
+  （media.rs）と `psd.parse` dispatch entry を削除、`psd_blob_result`/
+  `psd.await_blob` は `psd.renderComposite` と共有状態のため維持
+  （cargo test フルで renderComposite 系が green のまま）。`package.json`
+  から `ag-psd` を除去し `npm install` でロックファイル更新。
+  `remoteDeckPsdLayers.e2e.test.ts`（実 PSD 全数検証、parsing 以外に
+  CommandBus→property.set→activeLayerIds の全数検証というカバレッジを
+  持っていた）は削除ではなくリワークを選択: R5-3 パリティベースライン
+  （`aoi-chan-agpsd-baseline.json`）を `psd.parseMeta` RPC 応答形式へ変換し
+  `parsePsdMetaFromPath` の注入 `bridge` 経由で流し込む形にし、
+  ag-psd 依存とテスト内の Node canvas/DOM モックを排除しつつ本番と同じ
+  ツリー構築コード（`parsePsdMetaViaRust`）を通すよう変更（6テスト全て
+  green、実行時間はミリ秒オーダーに短縮）。
+  CI e2e ゲート: `src/e2e/psdImportParityHarness.ts`
+  （`?psdImportParityE2e=1` で有効化、`window.__UXFD_PSD_IMPORT_PARITY_E2E__`、
+  `initVisibility` と同一アルゴリズムを再計算して `activeLayerIds` を
+  厳密比較）と `scripts/run-psd-import-e2e-parity.mjs`
+  （`npm run test:psd-import:e2e`）を新設。実 Electron + 実 rust-backend で
+  葵ちゃん.psd を実際にインポートし、レイヤーツリー構造（ノード数・名前・
+  入れ子・isGroup/isRadio）を R5-3 ベースラインと機械 diff、
+  `activeLayerIds` 初期値を再計算値と突合。タイミング計測はしない
+  （計測は引き続き研究用の `scripts/run-psd-import-e2e.mjs` が担当）。
+  このマシンで実行し green（exit 0）を確認済み。詳細は
+  `progress/rust-source-of-truth-r5-psd-unification.md` の R5-4/R5-6 節。
 
 **合格条件**: `npm run test:psd-import:e2e` 相当が緑、代表 PSD の目視一致。
+（R5-4/R5-6 で `npm run test:psd-import:e2e` を実装し、このマシンで green
+達成——上記参照）
 
 ### R6: 描画の単一実装化（推定 5-8日）★Windows W7 完了が前提
 

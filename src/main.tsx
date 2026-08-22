@@ -21,6 +21,7 @@ if (
   || urlSearchParams.has('shatteredSpherePreviewE2e')
   || urlSearchParams.has('realisticHeavyEditE2e')
   || urlSearchParams.has('rustTimelineGeneratedE2e')
+  || urlSearchParams.has('psdImportParityE2e')
 ) {
   useStore.getState().initializeProject({
     width: 1920,
@@ -63,6 +64,12 @@ if (urlSearchParams.has('realisticHeavyEditE2e')) {
 if (urlSearchParams.has('rustTimelineGeneratedE2e')) {
   void import('./e2e/rustTimelineGeneratedScenario').then(({ installRustTimelineGeneratedHarness }) => {
     installRustTimelineGeneratedHarness();
+  });
+}
+
+if (urlSearchParams.has('psdImportParityE2e')) {
+  void import('./e2e/psdImportParityHarness').then(({ installPsdImportParityHarness }) => {
+    installPsdImportParityHarness();
   });
 }
 

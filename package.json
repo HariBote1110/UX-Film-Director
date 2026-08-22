@@ -10,8 +10,7 @@
     "bench:native-overlay": "node scripts/run-native-overlay-long-bench.mjs",
     "perf": "VITE_PERF_AUTORUN=1 vite",
     "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
-    "test": "vitest run --exclude **/psdParser.perf.test.ts",
-    "test:psd-perf": "vitest run src/utils/psdParser.perf.test.ts",
+    "test": "vitest run",
     "test:export": "VITE_EXPORT_TEST=1 vite",
     "test:export:ci": "node scripts/run-export-test.mjs",
     "test:export:fast": "EXPORT_FAST=1 node scripts/run-export-test.mjs",
@@ -27,6 +26,7 @@
     "agent:video": "node scripts/run-agent-video.mjs",
     "test:realistic-heavy-edit:e2e": "node scripts/run-realistic-heavy-edit-e2e.mjs",
     "test:realistic-heavy-edit:e2e:cpu-throttle": "UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE=4 node scripts/run-realistic-heavy-edit-e2e.mjs",
+    "test:psd-import:e2e": "node scripts/run-psd-import-e2e-parity.mjs",
     "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
     "build": "tsc && vite build && npm run remote-deck:build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
@@ -107,7 +107,6 @@
     }
   },
   "dependencies": {
-    "ag-psd": "^29.0.0",
     "lucide-react": "^1.8.0",
     "mp4-muxer": "^5.2.2",
     "qrcode": "^1.5.4",

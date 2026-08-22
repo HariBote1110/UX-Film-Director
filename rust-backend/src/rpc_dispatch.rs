@@ -9,7 +9,7 @@ use crate::encode::{
 };
 use crate::fonts::handle_fonts_list;
 use crate::media::{
-    handle_audio_waveform_samples, handle_media_probe, handle_psd_await_blob, handle_psd_parse,
+    handle_audio_waveform_samples, handle_media_probe, handle_psd_await_blob,
     handle_psd_parse_meta, handle_psd_render_composite,
 };
 use crate::native_render::{
@@ -50,7 +50,6 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "media.probe" => handle_media_probe(request.id, request.params),
         "fonts.list" => handle_fonts_list(request.id),
         "audio.waveformSamples" => handle_audio_waveform_samples(request.id, request.params),
-        "psd.parse" => handle_psd_parse(request.id, request.params, state),
         "psd.parseMeta" => handle_psd_parse_meta(request.id, request.params, state),
         "psd.renderComposite" => {
             handle_psd_render_composite(request.id, request.params, state)

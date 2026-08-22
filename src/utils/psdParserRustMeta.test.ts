@@ -6,10 +6,9 @@ import { parsePsdAsObject } from './psdParser';
 // progress/rust-source-of-truth-r5-psd-unification.md.
 // Test environment is 'node' (see vite.config.ts), so `window` is stubbed
 // manually the same way mediaMetadata.test.ts does it.
-
-vi.mock('./psdWasm', () => ({
-  parsePsdWithWasm: vi.fn().mockRejectedValue(new Error('ag-psd must not be reachable from the import flow')),
-}));
+//
+// R5-4: the ag-psd fallback path (`./psdWasm`) this test used to mock no
+// longer exists in `psdParser.ts` at all — the module itself was deleted.
 
 const makeElectronFile = (path: string): File => {
   const file = new File([new Uint8Array(4)], 'sample.psd', { type: 'image/vnd.adobe.photoshop' }) as File & {

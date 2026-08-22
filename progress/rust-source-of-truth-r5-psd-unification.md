@@ -1,6 +1,185 @@
-# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化 / R5-5 復元経路の単一化
+# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化 / R5-5 復元経路の単一化 / R5-4+R5-6 レガシー削除+ag-psd撤去+CI e2e
 
 ## Decision
+
+### R5-4 + R5-6: レガシー PSD 経路の削除、`ag-psd` 撤去、CI 用 PSD インポート e2e ゲート新設
+
+- **削除したもの**:
+  - `src/utils/psdWasm.ts`（ag-psd を Web Worker で回す実装）・
+    `src/utils/psdAgPsdWorker.ts`（worker 本体）。
+  - `src/utils/psdParser.ts` の `parsePsdArrayBufferAsObject`（R5-3 の
+    「移行中」コメント付き関数）本体と、それ専用だった内部ヘルパー群
+    （`buildPsdObjectFromWasmParse`／`loadLayerImage`／
+    `rasterCanvasToLayerSource`／`normaliseLayerImageData`／
+    `getLayerWidth`／`getLayerHeight`／`isImageBitmapValue`／
+    `LayerWithBounds`／`LayerImageDataNormalised` 型など、`ag-psd`
+    の `readPsd`/`Layer` import も含む）。レイヤー名エンコーディング
+    復元系（`restoreLayerNameEncoding` 等）は Rust meta 経路
+    （`parsePsdMetaViaRust`）が引き続き使うため残置。
+  - テスト2本: `src/utils/psdParserArrayBufferWasm.test.ts`（ag-psd
+    ArrayBuffer 経路の単体テスト、equivalent coverage は
+    `psdParserRustMeta.test.ts` — meta-only 経路の単体テストが同種の
+    契約をカバー）／`src/utils/psdParser.perf.test.ts`（ag-psd 経路の
+    パフォーマンス計測、meta-only 経路は pixel decode 自体をしないため
+    同種の計測対象が存在しない。実測タイミングは
+    `scripts/run-psd-import-e2e.mjs` の path B 計測が引き継ぐ）。
+    `package.json` の `test:psd-perf` npm script も削除、`test`
+    script から perf test の exclude 指定を除去（除外対象が無くなった
+    ため）。
+  - `electron/main.ts` の `'parse-psd'` IPC ハンドラ（psd.parse を呼び、
+    `psd.await_blob` で pixel blob を待って読み戻す二段階プロトコル）。
+    `'parse-psd-meta'`／`'render-psd-composite'` は無改修。
+  - `rust-backend/src/media.rs` の `handle_psd_parse`（psd.parse ハンドラ
+    本体）と `rust-backend/src/rpc_dispatch.rs` の `"psd.parse"` dispatch
+    entry・対応 import。
+  - `package.json` dependencies の `ag-psd`、`npm install` でロック
+    ファイル更新（`node_modules/ag-psd` 消滅を確認済み）。
+- **`psd.await_blob`/`psd_blob_result` は削除しなかった**（CRITICAL
+  制約）: `state.psd_blob_result`（`rust-backend/src/state.rs`）は
+  `handle_psd_render_composite`（`psd.renderComposite`）も同じフィールドに
+  書き込む共有状態。`handle_psd_await_blob` はどちらが書いたかを区別せず
+  drain するだけの汎用待ち合わせなので、`psd.parse` 側の呼び出し元
+  （削除済みの `handle_psd_parse` と `electron/main.ts` の `'parse-psd'`
+  ハンドラ）だけを消し、`handle_psd_await_blob` 関数・dispatch entry・
+  `state.psd_blob_result` フィールド自体には触れていない。cargo test
+  フルで renderComposite 系（`decode_control_plane.rs` の
+  `native_render_shared_frame_builds_psd_sources_from_media` 等）が
+  green のままであることで、共有状態への影響が無いことを確認した。
+- **`remoteDeckPsdLayers.e2e.test.ts` は削除せずリワークした**: 元の
+  テストは ag-psd 経由の `parsePsdArrayBufferAsObject` で実 PSD
+  （葵ちゃん.psd）を読み込んだ上で、CommandBus → `property.set` →
+  `useStore` という「parsing の先」の経路（171ノード全数の deck 表示
+  一致・タップ操作での activeLayerIds 反転・ラジオグループ/ラジオリーフ
+  の排他制御・enum property 露出・deck visibility の store 同期）を
+  検証していた。これは削除対象（parsing 経路のみを検証していたテスト）
+  ではなく、`parsePsdArrayBufferAsObject` 削除後も守るべき独立した
+  リグレッションカバレッジと判断した。
+  - リワーク方法: R5-3 で作った ag-psd 由来パリティベースライン
+    （`rust-backend/tests/fixtures/psd-parity/aoi-chan-agpsd-baseline.json`、
+    `ownGroupId`/`parentGroupId`/`order`/`visible` フィールド）を、
+    `psd.parseMeta` RPC が実際に返す `RustPsdMetaNode[]` 形式
+    （`psdId`/`parentPsdId`/`defaultVisible`）に変換する小さな
+    マッピング関数を追加し、`parsePsdMetaFromPath` の注入可能な
+    `PsdMetaRpcBridge`（R5-5 で追加済み）経由でこの変換済みフィクスチャを
+    流し込む。両者の id 名前空間は同一と確認済み: `rust-backend/src/media.rs`
+    の `handle_psd_parse_meta` は `psdId = is_group ? own_group_id : idx`
+    （`idx` はフラット配列の通し番号）／`parentPsdId = parent_group_id`
+    を計算しており、ag-psd ベースラインの `ownGroupId`/`parentGroupId`/
+    `order`（`order` もフラット配列内の通し番号）とまったく同じ採番
+    規則（R5-3 の設計記録どおり、ag-psd 由来の numbering scheme を
+    Rust 側も踏襲している）。
+  - 効果: テスト本体（deck 表示一致・タップ操作・ラジオ排他・enum
+    property・visibility 同期の6テスト）は無改修のまま、実行経路だけを
+    `parsePsdMetaViaRust`（本番の import/復元経路と同じツリー構築コード）
+    へ切り替えられた。副次効果として、ag-psd の実バイト列デコードと
+    Node 環境向け canvas/DOM モック（`installNodePsdMocks`、
+    `initializeCanvas`）が不要になり、テスト実行が数秒〜十数秒オーダーから
+    15ms 程度まで短縮された。
+  - 却下した代替案: 「実 rust-backend プロセスを起動してバイト列レベルで
+    検証する」案。これは事実上 Electron + rust-backend を要する e2e に
+    なり、vitest ユニットテストの枠を超える（それは今回新設した
+    `scripts/run-psd-import-e2e-parity.mjs` の役目）。
+- **CI 用 PSD インポート e2e ゲートの新設**（R5-6 のもう一つの柱）:
+  - `src/e2e/psdImportParityHarness.ts`: `?psdImportParityE2e=1` の
+    URL フラグで有効化される読み取り専用フック
+    （`window.__UXFD_PSD_IMPORT_PARITY_E2E__.snapshot()`）。
+    `installRealisticHeavyEditHarness` と同じ注入パターン
+    （`src/main.tsx` の `void import(...).then(...)`）を踏襲。
+    `snapshot()` は `useStore` から最後にインポートされた PSD オブジェクト
+    の `rootLayer`/`activeLayerIds` を取り出し、
+    (a) レイヤーツリーを `{name, isGroup, isRadio, children}` へ
+    シリアライズ、(b) `initVisibility`（`psdParser.ts`）と**同一の
+    アルゴリズムをこのハーネス内で再計算**し、実際の `activeLayerIds`
+    と厳密比較（差分ゼロが合格）する。
+    - 設計判断: 最初は「ラジオノードは常に active」という単純化した
+      不変条件チェックを書いたが、実機で走らせたところ大量の
+      false positive が出た（`initVisibility` はラジオ「グループ」自身は
+      強制 active にするが、ラジオ「リーフ」は通常レイヤーと同じく
+      `defaultVisible` に従うだけで、かつラジオグループが選ぶ
+      「デフォルトで active にする子」の決定ロジックはグループ単位の
+      話であって単純な per-node 不変条件には落ちないため）。
+      不変条件を精緻化する代わりに、production の `initVisibility` を
+      そのまま複製して独立に再実行し、結果を丸ごと diff する方式に
+      切り替えた。理由: 別実装で近似すると今回のような見落としが
+      再発しうるが、複製した実装同士の完全一致比較なら「production の
+      アルゴリズムどおりに動いているか」を過不足なく検証できる
+      （アルゴリズム自体の正しさは `remoteDeckPsdLayers.e2e.test.ts` が
+      別途カバー済み）。
+  - `scripts/run-psd-import-e2e-parity.mjs`
+    （`npm run test:psd-import:e2e`）: Electron/CDP 起動の骨格は
+    `scripts/lib/electron-e2e-driver.mjs`（既存の共通実装）を使用。
+    Vite + Electron を実際に起動し、PSD 追加ボタン → ファイル選択
+    （`DOM.setFileInputFiles`）という通常の UI 操作で葵ちゃん.psd を
+    実際にインポートさせ（実 `parse-psd-meta` IPC → 実 rust-backend
+    `psd.parseMeta`）、`psdImportParityHarness` のスナップショットを
+    R5-3 ベースラインと機械 diff する。検証項目: (1) タイムライン項目の
+    出現（import 成功）、(2) ノード数一致（171）、(3) ドキュメントサイズ
+    一致（2700×3700）、(4) レイヤーツリー構造の完全一致（名前・
+    isGroup・isRadio・入れ子順序、`diffTrees` によるインデックス単位の
+    diff）、(5) `activeLayerIds` 初期値の完全一致、(6) ランタイム例外
+    ゼロ。合否のみを見るゲートでありタイミング計測はしない
+    （計測は既存の `scripts/run-psd-import-e2e.mjs` が引き続き担当、
+    ファイルは無改修）。
+  - 却下した代替案: 「新設スクリプトを `run-psd-import-e2e.mjs` に
+    直接追記する」案。却下理由: 既存スクリプトは研究用の計測ドライバ
+    （path A/B 切替、native present 到達可否の記録等）であり役割が違う。
+    タイミング計測ロジックと合否判定ロジックを同じファイルに混ぜると
+    「計測が失敗しても CI ゲートとしては通ってしまう／その逆」の
+    どちらかの事故が起きやすいため、責務ごとにファイルを分離した。
+  - **実行結果（このマシン、2026-08-22、実 Electron + 実 rust-backend）**:
+    `npm run test:psd-import:e2e` は exit 0（green）。
+    `nodeCountMatches: true`／`docSizeMatches: true`／
+    `structureDiffs: []`／`activeLayerIdDiffs: []`／
+    `runtimeErrors: []`。ヘッドレス実行不可の事情は無し（通常の
+    Electron ウィンドウを起動して検証できた）。
+
+### Constraints / Gotchas（R5-4/R5-6）
+
+- `npx tsc --noEmit` clean。`npx vitest run` は 255 files / 1850 tests
+  全 green（R5-5 完了時点の 257 files/1857 tests から、削除した
+  2 テストファイル分でファイル数 -2、テスト内訳の純減は 7 件——
+  `psdParserArrayBufferWasm.test.ts`/`psdParser.perf.test.ts` が持って
+  いたテスト数の合計から `remoteDeckPsdLayers.e2e.test.ts` のリワーク
+  前後でテスト数自体は変わっていない=6件のまま）。`cargo test`
+  （rust-backend フル 30+170+64+2+3(ignored)+5 件・rust-core フル）
+  全 green（renderComposite/psd.await_blob 系を含む）。
+  `npm run codegen:types:check` diff ゼロ。
+  `npm run fixture:evaluation-parity`（447 フレーム）+
+  `cargo test --test ts_evaluation_parity`（`KNOWN_DIFFERENCES.json` は
+  `[]` のまま）を全て確認済み（2026-08-22）。
+- `native-overlay/`・`native-wgpu-renderer/`・`rust-core/`・
+  `projectFile.ts` には触れていない（スコープ外）。
+- `vm_tuning_research/` 配下のベンチ/比較スクリプト（`bench-agpsd*.mjs`・
+  `compare-psd-parity.mjs`・`dump-psd-tree.mjs`・
+  `psd-native-bench/src/*.rs` 内のコメント）は `ag-psd` への言及や
+  `psdAgPsdWorker.ts` への参照コメントを残したまま無改修（スコープ外の
+  研究ディレクトリ）。`ag-psd` が `package.json` から消えたことで、
+  これらのうち実際に `ag-psd` パッケージを import するスクリプト
+  （例: `bench-agpsd.mjs`/`bench-agpsd-oneshot.mjs`）は今後
+  `npm install` 済みの `node_modules` に `ag-psd` が存在しないため
+  実行不能になる。これは研究ディレクトリのスクリプトであり本タスクの
+  スコープ外だが、後続バッチでの削除・注記追加候補として記録する
+  （`bench-psd.mjs`／`wasm-node` 系がすでに同じ状態にあることは
+  R5-2 の記録に既出）。
+- R5-7（本バッチでは未着手）: 全体の最終検証として、この記録と
+  `progress/rust-source-of-truth-r5-psd-unification.md` の各節・
+  `markdown/Rust_Source_Of_Truth_Plan.md` の R5 セクションを突き合わせ、
+  R5-1〜R5-6 の全ゲート（tsc/vitest/cargo test/codegen:types:check/
+  fixture parity/`test:psd-import:e2e`）が揃って green であることの
+  再確認と、R5 全体としての完了判定を行う。
+
+### Alternatives considered（R5-4/R5-6）
+
+- **`remoteDeckPsdLayers.e2e.test.ts` を削除し、同等カバレッジを新規
+  ユニットテストとして書き直す案**: 却下。既存テストは実 PSD
+  （171ノード、ラジオグループ/リーフ混在の実データ）を使った全数検証
+  であり、この規模のテストデータを新規に作り直すコストがベースライン
+  フィクスチャ（既に存在する）を再利用するより高い。ベースラインを
+  変換して同じ実データで検証を続ける方が合理的と判断した。
+- **`psdImportParityHarness.ts` の `activeLayerIds` 検証を「ラジオは
+  常に active」という単純な不変条件のまま残す案**: 却下（上記
+  Decision 参照）。実機で false positive が確認できたため、
+  production ロジックの複製・再実行による厳密比較に切り替えた。
 
 ### R5-1: 16-bit/32-bit depth の明示拒否ガード
 
