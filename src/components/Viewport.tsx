@@ -869,7 +869,15 @@ const Viewport: React.FC = () => {
       void window.nativeOverlay?.isNv12PipelineReady?.({}).then((ready) => {
         if (disposed) return;
         setNativeOverlayNv12Ready(ready);
-        if (ready) stopNv12Poll();
+        if (ready) {
+          stopNv12Poll();
+          // Phase 3実機検証用ログ — onAttachedの
+          // '[NativeOverlay] attach {"success":true}' と同じ狙い
+          // （mainpc実機でschtasks/リダイレクト経由の場合stdioが
+          // フルバッファリングされるため、Chromium経由のCONSOLE出力を
+          // リアルタイム検出手段として使う）。
+          console.info('[NativeOverlay] nv12Ready {"ready":true}');
+        }
       }).catch(() => {
         // ポーリング1回の失敗で presenter に留め続けるのは安全側
         // （黒/欠落フレームより取りこぼしの方が良い）。次回tickで再試行。
