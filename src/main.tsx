@@ -37,10 +37,10 @@ if (agentProjectPath) {
       if (!response.ok) {
         throw new Error(`Agent project fetch failed: ${response.status} ${response.statusText}`);
       }
-      return response.json() as Promise<unknown>;
+      return response.text();
     })
-    .then((payload) => {
-      const project = buildAgentProjectFile(payload);
+    .then(async (json) => {
+      const project = await buildAgentProjectFile(json);
       const scenesRestored = project.scenes.map((scene) => ({
         ...scene,
         objects: scene.objects,

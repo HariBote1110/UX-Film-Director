@@ -187,6 +187,63 @@ fn resolves_align_center_padding_and_relative_to() {
 }
 
 #[test]
+fn explainer_recipe_expands_expected_scene() {
+    // `src/agentProject/explainerProject.test.ts`（削除済み、R4-4でRustへ移送）の
+    // 等価カバレッジ。
+    let project = build_agent_project_file(EXPLAINER).unwrap();
+    assert_eq!(project.project_settings.width, 1280.0);
+    assert_eq!(project.project_settings.height, 720.0);
+    assert_eq!(project.project_settings.fps, 60.0);
+
+    let scene = &project.scenes[0];
+    assert_eq!(scene.duration, 10.0);
+
+    let object_ids: std::collections::HashSet<&str> = scene
+        .objects
+        .iter()
+        .map(|object| match object {
+            uxfd_rust_core::schema::TimelineObject::Text { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::Shape { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::Image { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::Video { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::Audio { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::Particle { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::GetColorDotField { base, .. }
+            | uxfd_rust_core::schema::TimelineObject::ShatteredSphere { base, .. } => base.id.as_str(),
+            _ => "",
+        })
+        .collect();
+    for expected in [
+        "intro-title",
+        "step-1",
+        "step-2",
+        "step-3",
+        "step-4",
+        "closing-title",
+    ] {
+        assert!(object_ids.contains(expected), "missing object id: {expected}");
+    }
+
+    let text_contents: Vec<&str> = scene
+        .objects
+        .iter()
+        .filter_map(|object| match object {
+            uxfd_rust_core::schema::TimelineObject::Text { fields, .. } => Some(fields.text.as_str()),
+            _ => None,
+        })
+        .collect();
+    for expected in [
+        "AIエージェントで動画を作る流れ",
+        "1  意図をJSONにする",
+        "2  シーンを組み立てる",
+        "3  プレビューで確認",
+        "4  MP4へ出力",
+    ] {
+        assert!(text_contents.contains(&expected), "missing text: {expected}");
+    }
+}
+
+#[test]
 fn rejects_unresolved_relative_to() {
     let mut recipe = minimal_recipe();
     recipe["objects"] = serde_json::json!([{

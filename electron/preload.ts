@@ -199,6 +199,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   serializeProjectFile(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-project-serialize', payload)
   },
+  buildAgentProjectFile(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-agent-build-project-file', payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {

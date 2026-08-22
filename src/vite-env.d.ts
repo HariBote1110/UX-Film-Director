@@ -125,6 +125,15 @@ interface Window {
       error?: string;
       errorCode?: number;
     }>;
+    // R4-4/R4-5: エージェント用プロジェクトレシピの解析・展開
+    // （src/agentProject/agentProject.ts の buildAgentProjectFile）を
+    // rust-backend RPC 経由で公開するIPC。
+    buildAgentProjectFile: (payload: { json: string }) => Promise<{
+      success: boolean;
+      result?: { project: unknown };
+      error?: string;
+      errorCode?: number;
+    }>;
     requestAudioWaveformSamples: (payload: {
       source: string;
       sampleRate: number;
