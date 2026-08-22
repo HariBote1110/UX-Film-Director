@@ -82,9 +82,11 @@ Single Source of Truth: 本ファイル。設計判断は確定し次第
 
 ### 1.3 副次的に判明したこと
 
-- **`psd-wasm` クレートは現在デッドコード。** `src/wasm/psd/` の成果物を含め、
-  TS からの import が 1 箇所も無い。名前が紛らわしいが `src/utils/psdWasm.ts` は
-  ag-psd を Web Worker で回す実装であり、Rust とは無関係。
+- **`psd-wasm` クレートは R5-2 で削除済み。** 削除前の時点で `src/wasm/psd/` の
+  成果物を含め TS からの import が 1 箇所も無いデッドコードだったため
+  （§8 設計判断 5 = 削除で確定）、crate 本体と付随するビルド成果物・
+  ベンチスクリプトを削除した。名前が紛らわしいが `src/utils/psdWasm.ts` は
+  ag-psd を Web Worker で回す実装であり、Rust とは無関係（この worker は R5-3 で対応）。
 - **native overlay は既定 ON。** `Viewport.tsx:731` は
   `VITE_UXFD_NATIVE_OVERLAY !== '0'` の opt-out 判定で、
   `Windows_Port_Plan.md` Phase 7 の「`VITE_UXFD_NATIVE_OVERLAY=1` で opt-in」という記述は古い。
@@ -547,8 +549,17 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
 
 ### R5: PSD 単一実装化（推定 5-8日）
 
-- まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、
-  削除するか `rust-backend/psd_fast.rs` の wasm 版として再生するかを先に確定させる（§7 の設計判断 5）。
+- **R5-1（完了）**: `rust-backend/src/psd_fast.rs` の meta-only 解析経路に
+  16-bit/32-bit depth の明示拒否ガードを追加した。`PsdFastResult` に
+  `depth` フィールドを露出し、`parse_psd_meta_only` が depth != 8 を拒否する。
+  実デコード対応はスコープ外（ag-psd 経路も `depth: 8` を決め打ちしているため
+  既存動作からの後退ではない）。
+- **R5-2（完了）**: `psd-wasm` クレートの扱いを決定した（§8 設計判断 5 =
+  **削除で確定**）。**現在デッドコード**だったため、クレート本体・
+  `src/wasm/psd/` のビルド成果物・`perf/wasm-node/`・`perf/bench-psd.mjs`
+  を削除した。`perf/bench-psd.mjs` は `vm_tuning_research/tools/bench-wasm.mjs`
+  と同じ計測（wasm-node package 前提）を重複して持っていたベンチであり、
+  wasm 成果物が無いと動かない点も同じだったため、移送ではなく削除とした。
 - `ag-psd` 経路（`psdWasm.ts` の Worker 実装と `psdParser.ts` の main thread fallback）を
   `psd.parse` / `psd.parseMeta` / `psd.renderComposite` RPC に置き換える。
 - 合格条件は借用 VM で進めている PSD parser 研究の結果を使う。
@@ -667,8 +678,10 @@ R5 までで区切る場合（R6 / R7 を後続扱い）は本計画 35-53 日�
 4. **`rust-core` の評価をどの経路で呼ぶか。**
    現状の `scene.evaluate` RPC（実測 0.4-4ms）／napi addon 直呼び／wasm の 3 択。
    UI ハンドルの 60fps 追従が要件に入るかで答えが変わる。R2 の最初に実測して決める。
-5. **`psd-wasm` クレートを削除するか再生するか。**
-   現在デッドコード。ブラウザ側で PSD を解析する要件が今後あるかによる。
+5. **`psd-wasm` クレートを削除するか再生するか。** → **削除で確定（R5-2 で実施）**。
+   デッドコードで TS からの import が 0 件だった。ブラウザ側で PSD を解析する
+   要件は `psd.parse` / `psd.parseMeta` RPC（rust-backend 常駐プロセス経由）に
+   置き換える方針であり、wasm 版を再生する理由が無い。
 6. **`.uxfd` の後方互換をどこまで保証するか。**
    R4 で保存形式の正本が移るときに、既存ファイルの読込互換をどのバージョンまで保つか。
 

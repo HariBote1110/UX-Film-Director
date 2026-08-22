@@ -179,14 +179,19 @@ psdParser.ts
 
 ## 関連ファイル
 
+> **削除済み（`Rust_Source_Of_Truth_Plan.md` R5-2、§8 設計判断 5 = 削除で確定）**:
+> `psd-wasm/`（クレート本体）・`src/wasm/psd/`（ビルド成果物）・
+> `perf/wasm-node/`（Node 向け WASM ビルド）・`perf/bench-psd.mjs` は
+> デッドコードのため削除した。以下の表はチャレンジ当時の記録として残す。
+
 | ファイル | 役割 |
 |---|---|
-| `psd-wasm/src/lib.rs` | WASM バインディング（Phase 1 メタデータ用） |
-| `psd-wasm/src/psd_fast.rs` | Rust PSD パーサー（Phase 1 のみ使用） |
-| `src/wasm/psd/` | wasm-pack ビルド成果物 |
+| `psd-wasm/src/lib.rs`（削除済み） | WASM バインディング（Phase 1 メタデータ用） |
+| `psd-wasm/src/psd_fast.rs`（削除済み） | Rust PSD パーサー（Phase 1 のみ使用） |
+| `src/wasm/psd/`（削除済み） | wasm-pack ビルド成果物 |
 | `src/utils/psdWasm.ts` | ハイブリッドパーサー（公開 API） |
 | `src/utils/psdAgPsdWorker.ts` | ag-psd Worker |
 | `src/utils/psdDecompress.ts` | JS PackBits 実装（現在は未使用・参考実装） |
 | `src/utils/psdWorker.ts` | 旧 WASM Worker（現在は未使用） |
-| `perf/bench-psd.mjs` | Node.js ベンチマークスクリプト |
-| `perf/wasm-node/` | Node.js 向け WASM ビルド |
+| `perf/bench-psd.mjs`（削除済み） | Node.js ベンチマークスクリプト |
+| `perf/wasm-node/`（削除済み） | Node.js 向け WASM ビルド |

@@ -25,7 +25,8 @@
   TS 側で評価済み snapshot を渡す経路（`rustSceneSnapshot.ts` 経由、2,722 行）が並存する。
   イージング関数は `src/utils/easings.ts` と `rust-core/src/keyframe.rs::evaluate_easing` に
   同じ 30 種以上が二重実装されている。キーフレーム評価も同様。
-- **`psd-wasm` クレートは現在デッドコード。** `src/wasm/psd/` の成果物を含め TS からの import が 0 件。
+- **`psd-wasm` クレートは R5-2 で削除済み（詳細: `progress/rust-source-of-truth-r5-psd-unification.md`）。**
+  削除前の時点で `src/wasm/psd/` の成果物を含め TS からの import が 0 件のデッドコードだった。
   名前が紛らわしいが `src/utils/psdWasm.ts` は **ag-psd を Web Worker で回す実装**であり Rust とは無関係。
   実稼働している PSD 経路は ag-psd（TS）と `rust-backend/src/psd_fast.rs`（native RPC）の 2 本。
 - **native overlay は既に既定 ON（opt-out）。** `src/components/Viewport.tsx:731` は
