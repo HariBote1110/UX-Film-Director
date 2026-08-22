@@ -282,7 +282,11 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   `getcolor_dot_field` は `sampleSourceObjectId`/`sampleSourceLayer`
   経由のクロスオブジェクト参照があり `audio_visualization`/`audio_sphere`
   と同じ理由で wire 統一を見送り、型移送のみで完了とした。残り5 kindは
-  wire 統一まで完了。
+  wire 統一まで完了。続けて `sunburst`/`circular_arrow`/`triangle_bracket`/
+  `tartan_check`/`houndstooth`/`yagasuri` の6 kindも2026-08-22に wire 統一
+  まで完了した（`progress/rust-source-of-truth-r3-generated-batch4.md`）。
+  6 kind ともクロスオブジェクト参照・optional フィールドが無いことを
+  確認済み。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
