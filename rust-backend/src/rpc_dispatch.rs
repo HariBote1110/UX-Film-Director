@@ -1,3 +1,4 @@
+use crate::agent_project::handle_agent_build_project_file;
 use crate::decode::{
     handle_decode_release_frame, handle_decode_request_frame, handle_decode_start,
     handle_decode_stop,
@@ -85,6 +86,7 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "proxy.generate" => handle_proxy_generate(request.id, request.params),
         "project.deserialize" => handle_project_deserialize(request.id, request.params),
         "project.serialize" => handle_project_serialize(request.id, request.params),
+        "agent.buildProjectFile" => handle_agent_build_project_file(request.id, request.params),
         _ => RpcResponse {
             id: request.id,
             ok: false,
