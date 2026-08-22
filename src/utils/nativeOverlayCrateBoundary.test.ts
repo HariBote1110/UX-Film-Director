@@ -11,7 +11,7 @@ describe('native overlay napi crate boundary', () => {
     const cargoToml = read('native-overlay/Cargo.toml');
 
     expect(cargoToml).toContain('name = "uxfd-native-overlay"');
-    expect(cargoToml).toContain('crate-type = ["cdylib"]');
+    expect(cargoToml).toContain('crate-type = ["cdylib", "rlib"]');
     expect(cargoToml).toContain('napi = ');
     expect(cargoToml).toContain('napi-derive = ');
     expect(cargoToml).toContain('napi-build = ');
