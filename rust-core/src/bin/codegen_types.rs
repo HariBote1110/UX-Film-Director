@@ -23,7 +23,8 @@ use uxfd_rust_core::schema::{
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
-    Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
+    Project, ProjectSize, ProtractorObjectFields,
+    PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields,
     SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
@@ -130,6 +131,8 @@ fn write_ts_bindings() {
         .expect("PlainEffectorLineObjectFields の TS export に失敗しました");
     HologramObjectFields::export_all(&cfg)
         .expect("HologramObjectFields の TS export に失敗しました");
+    ProtractorObjectFields::export_all(&cfg)
+        .expect("ProtractorObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -248,6 +251,7 @@ fn write_json_schemas() {
     write_schema::<DisplacementPolyObjectFields>(&dir, "DisplacementPolyObjectFields");
     write_schema::<PlainEffectorLineObjectFields>(&dir, "PlainEffectorLineObjectFields");
     write_schema::<HologramObjectFields>(&dir, "HologramObjectFields");
+    write_schema::<ProtractorObjectFields>(&dir, "ProtractorObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

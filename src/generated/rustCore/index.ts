@@ -39,6 +39,7 @@ export * from './PlainEffectorLineObjectFields';
 export * from './PositionKeyframe';
 export * from './Project';
 export * from './ProjectSize';
+export * from './ProtractorObjectFields';
 export * from './PuzzleConnectorMode';
 export * from './PuzzlePieceObjectFields';
 export * from './RandomLineExObjectFields';

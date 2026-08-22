@@ -31,6 +31,7 @@ pub use schema::{
     ImageObjectFields, MediaKind, ColourWheelObjectFields, MediaReference,
     PaperAirplaneObjectFields, ParticleObjectFields, PieChartLabelMode, PieChartObjectFields,
     PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe, Project, ProjectSize,
+    ProtractorObjectFields,
     PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields, SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
