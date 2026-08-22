@@ -37,6 +37,7 @@ $bat = @(
   'set ELECTRON_ENABLE_STACK_DUMPING=1',
   'set VITE_UXFD_NATIVE_OVERLAY=1',
   'set UXFD_NATIVE_OVERLAY=1',
+  'set UXFD_PERF_KEEP_ALIVE=1',
   "npm run dev:native-overlay > $log 2>&1",
   "echo DONE_MARKER >> $log",
   "echo done > $done"
@@ -61,7 +62,7 @@ $pollJob = Start-Job -ScriptBlock {
 
 $attachTime = $null
 $nv12ReadyTime = $null
-$deadline = (Get-Date).AddSeconds(150)
+$deadline = (Get-Date).AddSeconds(200)
 $lastLineIndex = 0
 while ((Get-Date) -lt $deadline) {
   Start-Sleep -Milliseconds 500

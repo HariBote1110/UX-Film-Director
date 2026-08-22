@@ -18,6 +18,11 @@ import { validateProxyDuration } from '../src/utils/proxyValidation';
 if (process.env.UXFD_REMOTE_DEBUG_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.UXFD_REMOTE_DEBUG_PORT);
   app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
+  // 新しめのChromiumはDevTools HTTPエンドポイントへの接続元Originを
+  // 検証し、許可されていないと即座にソースを閉じる（レスポンス無し）。
+  // SSHローカルポートフォワード越しの接続もこれに引っかかるため、
+  // 明示的に許可する。
+  app.commandLine.appendSwitch('remote-allow-origins', '*');
 }
 import {
   buildFfmpegNotFoundMessage,
