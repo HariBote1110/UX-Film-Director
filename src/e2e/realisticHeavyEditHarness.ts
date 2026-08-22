@@ -388,7 +388,7 @@ const exercise = async (
 const roundTrip = async (): Promise<HarnessResult> => {
   const serialisedBefore = JSON.stringify(activeProjectFile());
   const fingerprintBefore = projectFingerprint(serialisedBefore);
-  const parsed = parseProjectPayloadV2(JSON.parse(serialisedBefore));
+  const parsed = await parseProjectPayloadV2(serialisedBefore);
   const restoredScenes = await Promise.all(parsed.scenes.map(async (scene) => ({
     ...scene,
     objects: await restoreProjectObjects(scene.objects, parsed.projectSettings),
