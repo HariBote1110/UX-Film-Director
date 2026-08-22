@@ -52,11 +52,13 @@ pub(crate) const BINDING_RENDER_PARAMS: u32 = 3;
 /// で RGBA パイプラインと NV12 パイプラインを `set_pipeline` で切り替えても
 /// 合成結果（premultiplied over ブレンド）が一致することが compositing
 /// parity の前提になる。
-pub(crate) fn create_nv12_pipeline_for_format(
-    device: &wgpu::Device,
-    output_format: wgpu::TextureFormat,
-) -> (wgpu::BindGroupLayout, wgpu::RenderPipeline) {
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+/// Phase 7 (W7) 需要駆動staged attach: bind group layout 自体の作成は
+/// 数ミリ秒（DXCコンパイルを伴わない）なので、`finish_essential_pipelines`
+/// から即座に呼べる。実際に重いのは
+/// `create_nv12_pipeline_for_format_with_layout`（`create_render_pipeline`＝
+/// DXCコンパイル本体）のみ——これだけをバックグラウンドへ遅延する。
+pub(crate) fn create_nv12_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("UXFD native wgpu nv12 bind group layout"),
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -100,7 +102,14 @@ pub(crate) fn create_nv12_pipeline_for_format(
                 count: None,
             },
         ],
-    });
+    })
+}
+
+pub(crate) fn create_nv12_pipeline_for_format(
+    device: &wgpu::Device,
+    output_format: wgpu::TextureFormat,
+) -> (wgpu::BindGroupLayout, wgpu::RenderPipeline) {
+    let bind_group_layout = create_nv12_bind_group_layout(device);
     let pipeline =
         create_nv12_pipeline_for_format_with_layout(device, output_format, &bind_group_layout);
 

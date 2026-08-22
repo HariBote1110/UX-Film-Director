@@ -41,7 +41,8 @@ use import_stub::import_nv12_iosurface_textures;
 pub(crate) use cache::Nv12MediaTextureCache;
 use cache::Nv12MediaTextureCacheEntry;
 pub(crate) use pipeline::{
-    create_nv12_pipeline_for_format, create_nv12_pipeline_for_format_with_layout,
+    create_nv12_bind_group_layout, create_nv12_pipeline_for_format,
+    create_nv12_pipeline_for_format_with_layout,
 };
 use pipeline::{build_prepared_nv12_clip_bind_group, Nv12Params};
 
@@ -172,6 +173,18 @@ impl NativeWgpuRenderer {
 
         self.evict_stale_nv12_textures(&touched_nv12_media_ids);
 
+        // Phase 7 (W7) 需要駆動staged attach: このエントリポイントは
+        // `NativeWgpuRenderer::new`（offscreen export経路、nv12_pipelineは
+        // 常に構築直後にSome）専用のテスト用縮小版のため、実運用上は常に
+        // 満たされるが、live attach経路と同じ型（`Option`）を共有している
+        // 以上、同じガードをここにも置いておく（パニックの代わりに明示エラー）。
+        let needs_nv12 = prepared
+            .iter()
+            .any(|layer| matches!(layer, PreparedLayer::Nv12(_)));
+        if needs_nv12 && self.nv12_pipeline.is_none() {
+            return Err(NativeWgpuRenderError::Nv12PipelineNotReady);
+        }
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -215,7 +228,10 @@ impl NativeWgpuRenderer {
                     pass.set_bind_group(0, &prepared.bind_group, &[]);
                 }
                 PreparedLayer::Nv12(prepared) => {
-                    pass.set_pipeline(&self.nv12_pipeline);
+                    pass.set_pipeline(self.nv12_pipeline.as_ref().expect(
+                        "render_layers_to_rgba already verified nv12_pipeline is ready \
+                         whenever a Nv12 layer is present",
+                    ));
                     pass.set_bind_group(0, &prepared.bind_group, &[]);
                 }
             }

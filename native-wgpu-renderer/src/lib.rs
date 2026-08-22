@@ -147,6 +147,14 @@ pub enum NativeWgpuRenderError {
         actual_width: u32,
         actual_height: u32,
     },
+    /// Phase 7 (W7) 需要駆動staged attach: `finish_essential_pipelines`で
+    /// 構築を後回しにした`nv12_pipeline`（バックグラウンドでコンパイル中）が
+    /// まだ完成していない状態で、NV12クリップを含むシーンのpresent/renderが
+    /// 呼ばれた。パニックや黒フレーム描画はせず、この明示的なエラーとして
+    /// 呼び出し元（native-overlay側）へ伝える——呼び出し元はこれを
+    /// 「presenter側にフォールバックすべき」信号として扱う契約
+    /// （`windows-w7-async-attach.md` Phase 2参照）。
+    Nv12PipelineNotReady,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -261,7 +269,16 @@ pub struct NativeWgpuRenderer {
     /// レイアウトを持つが、blend state・出力フォーマット・頂点シェーダは
     /// 完全に同一なので同一レンダーパス内で両方の pipeline を交互に
     /// `set_pipeline` して合成できる）。
-    nv12_pipeline: wgpu::RenderPipeline,
+    /// Phase 7 (W7) 需要駆動staged attach: live overlay attach経路では
+    /// `finish_essential_pipelines`が`None`のまま返し、attach後に
+    /// バックグラウンドスレッドが`ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK`
+    /// 配下でコンパイルして`Some`へ差し替える（native-overlay側、
+    /// registryのMutexを介した`&mut`アクセスで書き込む——`OnceLock`ではなく
+    /// 素の`Option`で足りるのは、書き込み・読み出しとも常にregistryの
+    /// Mutex越しに`&mut`/`&`で行われ、追加の内部可変性が不要なため）。
+    /// offscreen export経路（`NativeWgpuRenderer::new`）では常に構築直後に
+    /// `Some`で埋める（既存の即時コンパイル挙動を維持、staging対象外）。
+    nv12_pipeline: Option<wgpu::RenderPipeline>,
     nv12_bind_group_layout: wgpu::BindGroupLayout,
     // Phase 7 (W7) Option C: Bgra8UnormSrgb版のuber-shaderパイプライン2本は
     // BGRA IOSurface export専用（`render_frame_to_bgra_iosurface_with_audio_waveforms`
@@ -416,7 +433,32 @@ impl PreparedLiveSurface {
     /// worker スレッドで呼んでよい区間——`wgpu::Device`/`Queue`だけを使う
     /// パイプライン・小レンダラ構築（DXCシェーダコンパイルの本体）。
     /// HWND/COMには一切触れない。
+    ///
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: 全パイプラインを
+    /// 即座に構築する旧来の単段構成。macOS（`from_appkit_view`）と
+    /// テスト用の汎用`from_surface`は、DXCコンパイル自体が無い/十分高速な
+    /// ため、この単段構成のままでよいと判断し変更していない
+    /// （`windows-w7-async-attach.md` Phase 2参照）。Windows実機の
+    /// live attach経路（native-overlay側）は代わりに
+    /// `finish_essential_pipelines` + バックグラウンドでの
+    /// `install_nv12_pipeline`（後述）の2段構成を使う。
     pub fn finish_pipelines(self) -> NativeWgpuLiveSurfaceRenderer {
+        let mut renderer = self.finish_essential_pipelines();
+        renderer.core.build_nv12_pipeline_now();
+        renderer
+    }
+
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: `nv12_composite`
+    /// パイプライン（Phase 1実測で全体の86.6%・中央値57.585秒を占める
+    /// 支配的コスト、`windows_port_research/notes/w7-attach-cost-mitigation.md`
+    /// 参照）だけを構築せずに残す。それ以外（solid_composite +
+    /// 8種の小型シェーダ、実測合計約8.9秒）はここで全て完成させる。
+    /// `nv12_bind_group_layout`自体（DXCコンパイルを伴わない、数ミリ秒）は
+    /// ここで作る——nv12_pipeline未構築でもbind group作成コード自体は
+    /// 参照するため（実際に`Nv12`クリップを含むシーンをpresentしようと
+    /// すると`encode_prepared_clips`が`Nv12PipelineNotReady`を返す設計、
+    /// パニックや黒フレーム描画にはならない）。
+    pub fn finish_essential_pipelines(self) -> NativeWgpuLiveSurfaceRenderer {
         let PreparedLiveSurface {
             instance,
             surface,
@@ -431,8 +473,8 @@ impl PreparedLiveSurface {
 
         let pipeline = create_pipeline_for_format(&device, surface_format);
         let bind_group_layout = pipeline.get_bind_group_layout(0);
-        let (nv12_bind_group_layout, nv12_pipeline) =
-            nv12::create_nv12_pipeline_for_format(&device, surface_format);
+        let nv12_bind_group_layout = nv12::create_nv12_bind_group_layout(&device);
+        let nv12_pipeline: Option<wgpu::RenderPipeline> = None;
         // Phase 7 (W7) Option C: Bgra8UnormSrgb版の2本は BGRA IOSurface export
         // 専用で、live surface renderer からは到達できない（構造体フィールド
         // コメント参照）。attach時点ではコンパイルせず OnceLock のまま残す。
@@ -544,7 +586,40 @@ pub fn bench_finish_pipelines_per_stage(
     results
 }
 
+/// Phase 7 (W7) 需要駆動staged attach（Phase 2）: バックグラウンドスレッド
+/// （native-overlay側）が`NativeWgpuLiveSurfaceRenderer::nv12_pipeline_build_inputs`
+/// で取り出した入力からnv12パイプラインを実際にコンパイルするための
+/// 公開関数。`nv12`モジュールの生成関数自体は`pub(crate)`のため、クレート
+/// 境界を越えて呼べるようこの薄いラッパーを公開する。
+pub fn compile_nv12_pipeline(
+    device: &wgpu::Device,
+    bind_group_layout: &wgpu::BindGroupLayout,
+    output_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    nv12::create_nv12_pipeline_for_format_with_layout(device, output_format, bind_group_layout)
+}
+
 impl NativeWgpuLiveSurfaceRenderer {
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）:
+    /// `PreparedLiveSurface::finish_essential_pipelines`が構築した
+    /// essential集合だけを持つrendererを返す（Windows実機のattach経路が
+    /// 使う——native-overlay側が呼ぶ）。
+    pub fn finish_essential(prepared: PreparedLiveSurface) -> Self {
+        prepared.finish_essential_pipelines()
+    }
+
+    pub fn nv12_pipeline_ready(&self) -> bool {
+        self.core.nv12_pipeline_ready()
+    }
+
+    pub fn nv12_pipeline_build_inputs(&self) -> (wgpu::Device, wgpu::BindGroupLayout, wgpu::TextureFormat) {
+        self.core.nv12_pipeline_build_inputs()
+    }
+
+    pub fn install_nv12_pipeline(&mut self, pipeline: wgpu::RenderPipeline) {
+        self.core.install_nv12_pipeline(pipeline);
+    }
+
     #[cfg(target_os = "macos")]
     pub async fn from_appkit_view(
         view_handle: usize,
@@ -823,7 +898,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     label: Some("UXFD native wgpu live surface encoder"),
                 });
         self.core
-            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips)?;
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
@@ -916,7 +991,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     label: Some("UXFD native wgpu live surface decoration encoder"),
                 });
         self.core
-            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips)?;
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
@@ -994,7 +1069,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     label: Some("UXFD native wgpu live NV12 decoration encoder"),
                 });
         self.core
-            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips)?;
         let render_start = Instant::now();
         self.core.queue.submit(Some(encoder.finish()));
         surface_texture.present();
@@ -1072,7 +1147,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     label: Some("UXFD native wgpu resident live readback encoder"),
                 });
         self.core
-            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips)?;
         copy_live_surface_texture_to_readback(
             &mut encoder,
             &surface_texture.texture,
@@ -1208,7 +1283,7 @@ impl NativeWgpuLiveSurfaceRenderer {
                     label: Some("UXFD native wgpu live surface readback encoder"),
                 });
         self.core
-            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips)?;
         copy_live_surface_texture_to_readback(
             &mut encoder,
             &surface_texture.texture,
@@ -1327,7 +1402,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         );
         // 通常の clear と同一の描画（空シーン + デコレーション）。
         self.core
-            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips)?;
         // 透明クリア描画後の drawable 内容を捕捉。
         copy_live_surface_texture_to_readback(
             &mut encoder,
@@ -1423,6 +1498,10 @@ impl NativeWgpuRenderer {
         let bind_group_layout = pipeline.get_bind_group_layout(0);
         let (nv12_bind_group_layout, nv12_pipeline) =
             nv12::create_nv12_pipeline_for_format(&device, OUTPUT_FORMAT);
+        // offscreen export経路は常に即時構築（staging対象外、Phase 2の
+        // `Option<wgpu::RenderPipeline>`化はlive attach経路とのフィールド
+        // 共有のためだけの変更で、この経路の挙動は変えない）。
+        let nv12_pipeline: Option<wgpu::RenderPipeline> = Some(nv12_pipeline);
         // Phase 7 (W7) Option C: `NativeWgpuRenderer::new` は
         // `render_frame_to_bgra_iosurface_with_audio_waveforms`（BGRA
         // IOSurface export、macOS限定機能）以外の大多数の呼び出し
@@ -1476,6 +1555,72 @@ impl NativeWgpuRenderer {
             shaking_polygon_renderer,
             shattered_sphere_renderer,
         })
+    }
+
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: `nv12_pipeline`が
+    /// （`finish_essential_pipelines`経由の遅延構築で）まだコンパイル
+    /// されていないかどうかをTS側へ晒すための読み取り専用チェック。
+    /// napi境界（native-overlay側）はこれを`isNv12PipelineReady`という
+    /// 単純なポーリング用getterとして公開する——イベント/threadsafe function
+    /// より実装・テストともに単純で、「attach後1回だけ状態が変わる」
+    /// 性質（true→false方向の遷移は無い）にはポーリングで十分と判断した
+    /// （`progress/windows-w7-async-attach.md` Phase 2参照）。
+    pub fn nv12_pipeline_ready(&self) -> bool {
+        self.nv12_pipeline.is_some()
+    }
+
+    /// `finish_essential_pipelines`が呼び出しスレッド上で直ちにnv12
+    /// パイプラインを構築したい場合（macOS単段構成・テスト）に使う。
+    /// 既に構築済みなら何もしない（冪等）。
+    fn build_nv12_pipeline_now(&mut self) {
+        if self.nv12_pipeline.is_some() {
+            return;
+        }
+        let format = self.output_texture.format();
+        let pipeline = nv12::create_nv12_pipeline_for_format_with_layout(
+            &self.device,
+            format,
+            &self.nv12_bind_group_layout,
+        );
+        self.nv12_pipeline = Some(pipeline);
+    }
+
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: バックグラウンド
+    /// スレッドがnv12パイプラインをコンパイルするために必要な入力
+    /// （`wgpu::Device`/`wgpu::BindGroupLayout`はいずれも内部でArc参照
+    /// カウントされる軽量ハンドルなので`clone()`は安価、DXCコンパイルの
+    /// 重さとは無関係）を取り出す。呼び出し元（native-overlay側）は
+    /// これをレジストリのMutexを**短時間だけ**保持した状態で呼び、
+    /// 直後にロックを解放してからコンパイル本体（数十秒）を実行する
+    /// ——registry Mutexをコンパイル中ずっと握ったままにすると、他の
+    /// overlay操作（render_frame/detach等）が全てブロックされてしまう
+    /// ため、この分離が必須（`install_nv12_pipeline`もセットで参照）。
+    pub fn nv12_pipeline_build_inputs(&self) -> (wgpu::Device, wgpu::BindGroupLayout, wgpu::TextureFormat) {
+        (
+            self.device.clone(),
+            self.nv12_bind_group_layout.clone(),
+            self.output_texture.format(),
+        )
+    }
+
+    /// `nv12_pipeline_build_inputs`で取り出した入力からロック外で
+    /// コンパイルした`wgpu::RenderPipeline`を格納する。二重呼び出しでも
+    /// 安全（既に`Some`なら上書きしない——`OnceLock::set`と同じ
+    /// 「最初の1回だけ勝つ」契約を`&mut self`版として実装したもの、
+    /// 呼び出し元はレジストリのMutexを再取得した状態でこれを呼ぶ）。
+    pub fn install_nv12_pipeline(&mut self, pipeline: wgpu::RenderPipeline) {
+        if self.nv12_pipeline.is_none() {
+            self.nv12_pipeline = Some(pipeline);
+        }
+    }
+
+    /// テスト専用: `finish_essential_pipelines`直後の「nv12未構築」状態を、
+    /// 実際のlive surface（ウィンドウ実体が要る）を経由せず
+    /// `NativeWgpuRenderer::new`（offscreen、常にeager構築）から再現する。
+    /// 本番コードパスからは呼ばれない。
+    #[cfg(test)]
+    fn clear_nv12_pipeline_for_test(&mut self) {
+        self.nv12_pipeline = None;
     }
 
     pub fn width(&self) -> u32 {
@@ -1660,7 +1805,7 @@ impl NativeWgpuRenderer {
             &target_view,
             &prepared_clips,
             self.bgra_pipeline(),
-            self.nv12_bgra_pipeline(),
+            Some(self.nv12_bgra_pipeline()),
         );
 
         let render_start = Instant::now();
@@ -1836,7 +1981,7 @@ impl NativeWgpuRenderer {
         let output_view = self
             .output_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.encode_prepared_clips(&mut encoder, &output_view, &prepared_clips);
+        self.encode_prepared_clips(&mut encoder, &output_view, &prepared_clips)?;
 
         let render_start = Instant::now();
         self.queue.submit(Some(encoder.finish()));
@@ -1918,7 +2063,7 @@ impl NativeWgpuRenderer {
         let output_view = self
             .output_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.encode_prepared_clips(&mut encoder, &output_view, &prepared_clips);
+        self.encode_prepared_clips(&mut encoder, &output_view, &prepared_clips)?;
 
         let render_start = Instant::now();
         self.queue.submit(Some(encoder.finish()));
@@ -2441,19 +2586,31 @@ impl NativeWgpuRenderer {
         )
     }
 
+    /// Phase 7 (W7) 需要駆動staged attach: `prepared_clips`にNV12クリップが
+    /// 1つでも含まれ、かつ`self.nv12_pipeline`がまだ（バックグラウンドで）
+    /// 構築されていない場合、パニックや黒フレーム描画をせず
+    /// `Nv12PipelineNotReady`を返す。呼び出し元（native-overlay側）は
+    /// これを「presenterへフォールバックすべき」信号として扱う。
     fn encode_prepared_clips(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         prepared_clips: &[Arc<PreparedClip>],
-    ) {
+    ) -> Result<(), NativeWgpuRenderError> {
+        let needs_nv12 = prepared_clips
+            .iter()
+            .any(|clip| clip.pipeline_kind == ClipPipelineKind::Nv12);
+        if needs_nv12 && self.nv12_pipeline.is_none() {
+            return Err(NativeWgpuRenderError::Nv12PipelineNotReady);
+        }
         self.encode_prepared_clips_with_pipelines(
             encoder,
             output_view,
             prepared_clips,
             &self.pipeline,
-            &self.nv12_pipeline,
+            self.nv12_pipeline.as_ref(),
         );
+        Ok(())
     }
 
     fn encode_prepared_clips_with_pipelines(
@@ -2462,7 +2619,7 @@ impl NativeWgpuRenderer {
         output_view: &wgpu::TextureView,
         prepared_clips: &[Arc<PreparedClip>],
         rgba_pipeline: &wgpu::RenderPipeline,
-        nv12_pipeline: &wgpu::RenderPipeline,
+        nv12_pipeline: Option<&wgpu::RenderPipeline>,
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("UXFD native wgpu render pass"),
@@ -2482,7 +2639,10 @@ impl NativeWgpuRenderer {
         for prepared_clip in prepared_clips {
             match prepared_clip.pipeline_kind {
                 ClipPipelineKind::Rgba => pass.set_pipeline(rgba_pipeline),
-                ClipPipelineKind::Nv12 => pass.set_pipeline(nv12_pipeline),
+                ClipPipelineKind::Nv12 => pass.set_pipeline(nv12_pipeline.expect(
+                    "encode_prepared_clips already verified nv12_pipeline is ready \
+                     whenever a Nv12 clip is present",
+                )),
             }
             pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
             pass.draw(0..3, 0..1);
@@ -4593,7 +4753,7 @@ mod tests {
                 let output_view = renderer
                     .output_texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
-                renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+                renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
                 renderer.queue.submit(Some(encoder.finish()));
                 renderer
                     .read_output_texture_to_rgba8()
@@ -4695,7 +4855,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -4793,7 +4953,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -4882,7 +5042,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -4971,7 +5131,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -5055,7 +5215,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -5163,7 +5323,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -5253,7 +5413,7 @@ mod tests {
         let output_view = renderer
             .output_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+        renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
         renderer.queue.submit(Some(encoder.finish()));
         let frame = renderer
             .read_output_texture_to_rgba8()
@@ -5333,7 +5493,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -5414,7 +5574,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -5499,7 +5659,7 @@ mod tests {
             let output_view = renderer
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared);
+            renderer.encode_prepared_clips(&mut encoder, &output_view, &prepared).expect("test renderer builds nv12_pipeline eagerly, never deferred");
             renderer.queue.submit(Some(encoder.finish()));
             renderer
                 .read_output_texture_to_rgba8()
@@ -6178,6 +6338,160 @@ mod tests {
             renderer.nv12_bgra_pipeline_build_count(),
             1,
             "repeated access must reuse the already-built NV12 Bgra pipeline"
+        );
+    }
+
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: `finish_essential_pipelines`
+    /// が`nv12_pipeline`を`None`のまま返し、`install_nv12_pipeline`が
+    /// 呼ばれて初めて`nv12_pipeline_ready()`が`true`へ変わることを固定する。
+    /// 実際のウィンドウ実体を要するlive surface構築は経由せず、offscreen
+    /// export用の`NativeWgpuRenderer::new`（常にeager構築）を出発点に
+    /// テスト専用ヘルパでクリアして「staged構築直後」を再現する
+    /// （`clear_nv12_pipeline_for_test`はこのテストのためだけに存在する）。
+    #[test]
+    fn nv12_pipeline_ready_reflects_deferred_construction_and_flips_after_install() {
+        let mut renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!(
+                    "skipping nv12 staged-attach readiness test: no GPU adapter available"
+                );
+                return;
+            }
+            Err(error) => panic!("native renderer setup failed: {error:?}"),
+        };
+        assert!(
+            renderer.nv12_pipeline_ready(),
+            "offscreen export path builds nv12_pipeline eagerly, staging is opt-in only"
+        );
+
+        renderer.clear_nv12_pipeline_for_test();
+        assert!(
+            !renderer.nv12_pipeline_ready(),
+            "finish_essential_pipelines defers nv12_pipeline construction"
+        );
+
+        let (device, bind_group_layout, format) = renderer.nv12_pipeline_build_inputs();
+        let pipeline = compile_nv12_pipeline(&device, &bind_group_layout, format);
+        renderer.install_nv12_pipeline(pipeline);
+        assert!(
+            renderer.nv12_pipeline_ready(),
+            "install_nv12_pipeline must make the deferred pipeline ready"
+        );
+    }
+
+    /// `install_nv12_pipeline`の「最初の1回だけ勝つ」契約（`OnceLock::set`と
+    /// 同じ思想を`&mut self`版として実装したもの）を、既にSomeの状態へ
+    /// 再度installしてもpanicしないことで固定する。
+    #[test]
+    fn install_nv12_pipeline_is_idempotent_after_already_installed() {
+        let mut renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!(
+                    "skipping nv12 staged-attach idempotency test: no GPU adapter available"
+                );
+                return;
+            }
+            Err(error) => panic!("native renderer setup failed: {error:?}"),
+        };
+        assert!(renderer.nv12_pipeline_ready());
+
+        let (device, bind_group_layout, format) = renderer.nv12_pipeline_build_inputs();
+        let pipeline = compile_nv12_pipeline(&device, &bind_group_layout, format);
+        renderer.install_nv12_pipeline(pipeline);
+        assert!(renderer.nv12_pipeline_ready());
+    }
+
+    /// 需要駆動staged attachの核心的な契約: nv12パイプラインが未構築の間に
+    /// NV12クリップを含むシーンをencodeしようとすると、パニックでも黒
+    /// フレーム描画でもなく`Nv12PipelineNotReady`を返す。インストール後は
+    /// 同じシーンが成功する。実NV12テクスチャimportは不要（`encode_prepared_clips`
+    /// は`pipeline_kind`だけを見てready判定するため、RGBA用のダミー
+    /// テクスチャにNv12ラベルを付けて流用できる）。
+    #[test]
+    fn encode_prepared_clips_reports_not_ready_for_nv12_clip_before_install_and_succeeds_after() {
+        let mut renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping nv12 staged-attach gating test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("native renderer setup failed: {error:?}"),
+        };
+        renderer.clear_nv12_pipeline_for_test();
+        assert!(!renderer.nv12_pipeline_ready());
+
+        let dummy_texture = renderer.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("nv12 staged-attach test dummy texture"),
+            size: wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let dummy_view = dummy_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let clip = EvaluatedClip {
+            clip_id: "clip-nv12-staged-test".to_string(),
+            track_id: "track-1".to_string(),
+            media_id: "media-nv12-staged-test".to_string(),
+            source_frame: 0,
+            z_index: 0,
+            transform: uxfd_rust_core::Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
+        };
+        let render_params = build_render_params(&clip, 0.0, 4, 4);
+        let mut dummy_clip = build_prepared_clip_bind_group(
+            &renderer.device,
+            &renderer.bind_group_layout,
+            &dummy_view,
+            render_params,
+        );
+        dummy_clip.pipeline_kind = ClipPipelineKind::Nv12;
+        let prepared_clips = vec![Arc::new(dummy_clip)];
+
+        let output_view = renderer
+            .output_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder_before =
+            renderer
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("nv12 staged-attach test encoder (before install)"),
+                });
+        let result_before =
+            renderer.encode_prepared_clips(&mut encoder_before, &output_view, &prepared_clips);
+        assert!(
+            matches!(
+                result_before,
+                Err(NativeWgpuRenderError::Nv12PipelineNotReady)
+            ),
+            "expected Nv12PipelineNotReady before install, got {result_before:?}"
+        );
+
+        let (device, bind_group_layout, format) = renderer.nv12_pipeline_build_inputs();
+        let pipeline = compile_nv12_pipeline(&device, &bind_group_layout, format);
+        renderer.install_nv12_pipeline(pipeline);
+
+        let mut encoder_after =
+            renderer
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("nv12 staged-attach test encoder (after install)"),
+                });
+        let result_after =
+            renderer.encode_prepared_clips(&mut encoder_after, &output_view, &prepared_clips);
+        assert!(
+            result_after.is_ok(),
+            "after install, nv12 clip encoding must succeed: {result_after:?}"
         );
     }
 
