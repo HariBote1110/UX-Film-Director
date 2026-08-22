@@ -1780,12 +1780,13 @@ const serialiseGeneratedPlainEffectorLineSource = (object: PlainEffectorLineObje
 
 const serialiseGeneratedHologramSource = (object: HologramObject): string =>
   JSON.stringify({
-    generator: 'hologram',
-    tile_size: Math.min(1000, Math.max(10, Math.trunc(finiteNumberOr(object.tileSize, 80)))),
-    rotation_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.rotationDegrees, 0))),
-    gradient_angle_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.gradientAngleDegrees, -60))),
-    colour_mode: Math.min(2, Math.max(0, Math.trunc(finiteNumberOr(object.colourMode, 1)))),
-    tint_colour: /^#[0-9a-f]{6}$/i.test(object.tintColour) ? object.tintColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    tileSize: Math.min(1000, Math.max(10, Math.trunc(finiteNumberOr(object.tileSize, 80)))),
+    rotationDegrees: Math.min(720, Math.max(-720, finiteNumberOr(object.rotationDegrees, 0))),
+    gradientAngleDegrees: Math.min(720, Math.max(-720, finiteNumberOr(object.gradientAngleDegrees, -60))),
+    colourMode: Math.min(2, Math.max(0, Math.trunc(finiteNumberOr(object.colourMode, 1)))),
+    tintColour: /^#[0-9a-f]{6}$/i.test(object.tintColour) ? object.tintColour : '#ffffff',
   });
 
 const serialiseGeneratedProtractorSource = (object: ProtractorObject): string =>

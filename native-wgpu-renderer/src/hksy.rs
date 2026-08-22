@@ -60,24 +60,30 @@ struct HksyParams {
     max_join_distance: Option<f32>,
 }
 
-// hologram は batch6 未対応（旧 snake_case + `generator` タグ形式のまま）。
+// hologram は R3 batch6 で rust-core (`uxfd-rust-core::schema::HologramObjectFields`)
+// の camelCase wire フォーマットへ統一済み。`generator` タグは廃止されたため、
+// この構造体では受け取らない（フィールド名/case のみを rust-core にミラーする）。
 #[derive(Debug, Deserialize)]
 struct HologramParams {
-    generator: String,
+    #[serde(rename = "tileSize")]
     tile_size: u32,
+    #[serde(rename = "rotationDegrees")]
     rotation_degrees: f32,
+    #[serde(rename = "gradientAngleDegrees")]
     gradient_angle_degrees: f32,
+    #[serde(rename = "colourMode")]
     colour_mode: u32,
+    #[serde(rename = "tintColour")]
     tint_colour: String,
 }
 
-// hksy_checker_grid（新形式・`generator` フィールド無し）と
-// hologram（旧形式・`generator":"hologram"`）を同じ HashMap 経由で受け取る
-// ため、`generator` の有無で振り分ける。
+// hksy_checker_grid と hologram はどちらも `generator` タグを持たなくなった
+// ため、`tileSize` キーの有無で振り分ける（hksy_checker_grid には存在しない
+// hologram 固有のフィールド）。
 #[derive(Debug, Deserialize)]
 struct GeneratedSourceKind {
-    #[serde(default)]
-    generator: Option<String>,
+    #[serde(rename = "tileSize", default)]
+    tile_size: Option<u32>,
 }
 
 #[repr(C)]
@@ -320,7 +326,7 @@ impl HksyGpuRenderer {
 
         let source_kind: GeneratedSourceKind = serde_json::from_str(&source.source)
             .map_err(|error| format!("Invalid generated fill source JSON: {error}"))?;
-        if source_kind.generator.as_deref() == Some("hologram") {
+        if source_kind.tile_size.is_some() {
             let params: HologramParams = serde_json::from_str(&source.source)
                 .map_err(|error| format!("Invalid Hologram source JSON: {error}"))?;
             validate_hologram_source(source, &params)?;
@@ -668,9 +674,6 @@ fn validate_hologram_source(
 ) -> Result<(), String> {
     if source.width == 0 || source.height == 0 {
         return Err("Hologram dimensions must be positive.".to_string());
-    }
-    if params.generator != "hologram" {
-        return Err("Hologram generator must be hologram.".to_string());
     }
     if !(10..=1000).contains(&params.tile_size) {
         return Err("Hologram tile_size must be 10..1000.".to_string());

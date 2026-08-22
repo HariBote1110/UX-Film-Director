@@ -850,12 +850,11 @@ describe('全読込可能メディア E2E', () => {
       lineColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-hologram')?.source ?? '{}')).toMatchObject({
-      generator: 'hologram',
-      tile_size: 80,
-      rotation_degrees: 0,
-      gradient_angle_degrees: -60,
-      colour_mode: 1,
-      tint_colour: '#ffffff',
+      tileSize: 80,
+      rotationDegrees: 0,
+      gradientAngleDegrees: -60,
+      colourMode: 1,
+      tintColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-protractor')?.source ?? '{}')).toMatchObject({
       generator: 'protractor',

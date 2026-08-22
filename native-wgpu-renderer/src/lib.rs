@@ -4701,7 +4701,7 @@ mod tests {
             }],
         };
         let source = NativeHksySource {
-            source: r##"{"generator":"hologram","tile_size":10,"rotation_degrees":17,"gradient_angle_degrees":-60,"colour_mode":2,"tint_colour":"#80c0ff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"tileSize":10,"rotationDegrees":17,"gradientAngleDegrees":-60,"colourMode":2,"tintColour":"#80c0ff"}"##.to_string(),
             width: 32,
             height: 24,
             config_revision: 21,

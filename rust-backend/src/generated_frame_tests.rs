@@ -730,7 +730,7 @@ fn generated_hologram_source_frame_contains_prism_stripes_and_opacity() {
     let media = SceneMediaReference {
             id: "hologram-1".to_string(),
             kind: MediaKind::GeneratedHologram,
-            source: r##"{"generator":"hologram","tile_size":80,"rotation_degrees":0,"gradient_angle_degrees":-60,"colour_mode":1,"tint_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"tileSize":80,"rotationDegrees":0,"gradientAngleDegrees":-60,"colourMode":1,"tintColour":"#ffffff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,

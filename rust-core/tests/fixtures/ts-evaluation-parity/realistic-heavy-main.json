@@ -245,7 +245,7 @@
       {
         "id": "realistic-main-hologram",
         "kind": "GeneratedHologram",
-        "source": "{\"generator\":\"hologram\",\"tile_size\":96,\"rotation_degrees\":17,\"gradient_angle_degrees\":-60,\"colour_mode\":2,\"tint_colour\":\"#80c0ff\"}",
+        "source": "{\"width\":1920,\"height\":1080,\"tileSize\":96,\"rotationDegrees\":17,\"gradientAngleDegrees\":-60,\"colourMode\":2,\"tintColour\":\"#80c0ff\"}",
         "width": 1920,
         "height": 1080
       },

@@ -106,15 +106,9 @@ pub(crate) use uxfd_rust_core::DisplacementPolyObjectFields;
 // 直接デシリアライズする。
 pub(crate) use uxfd_rust_core::PlainEffectorLineObjectFields as GeneratedPlainEffectorLineSource;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedHologramSource {
-    pub(crate) generator: String,
-    pub(crate) tile_size: u32,
-    pub(crate) rotation_degrees: f32,
-    pub(crate) gradient_angle_degrees: f32,
-    pub(crate) colour_mode: u32,
-    pub(crate) tint_colour: String,
-}
+// `hologram` kind のワイヤーソースは rust-core の `HologramObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::HologramObjectFields as GeneratedHologramSource;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedProtractorSource {

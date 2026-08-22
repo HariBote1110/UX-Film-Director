@@ -243,9 +243,6 @@ pub(crate) fn validate_generated_plain_effector_line_source(
 pub(crate) fn validate_generated_hologram_source(
     source: &GeneratedHologramSource,
 ) -> Result<(), String> {
-    if source.generator != "hologram" {
-        return Err("generator must be hologram".to_string());
-    }
     if source.tile_size < 10 || source.tile_size > 1000 {
         return Err("tile_size must be 10..1000".to_string());
     }

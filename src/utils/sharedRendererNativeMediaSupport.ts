@@ -1106,33 +1106,31 @@ const isSharedRendererNativeGeneratedDisplacementPolySourceSupported = (source: 
 const isSharedRendererNativeGeneratedHologramSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      tile_size?: unknown;
-      rotation_degrees?: unknown;
-      gradient_angle_degrees?: unknown;
-      colour_mode?: unknown;
-      tint_colour?: unknown;
+      tileSize?: unknown;
+      rotationDegrees?: unknown;
+      gradientAngleDegrees?: unknown;
+      colourMode?: unknown;
+      tintColour?: unknown;
     };
     return (
-      parsed.generator === 'hologram'
-      && typeof parsed.tile_size === 'number'
-      && Number.isInteger(parsed.tile_size)
-      && parsed.tile_size >= 10
-      && parsed.tile_size <= 1000
-      && typeof parsed.rotation_degrees === 'number'
-      && Number.isFinite(parsed.rotation_degrees)
-      && parsed.rotation_degrees >= -720
-      && parsed.rotation_degrees <= 720
-      && typeof parsed.gradient_angle_degrees === 'number'
-      && Number.isFinite(parsed.gradient_angle_degrees)
-      && parsed.gradient_angle_degrees >= -720
-      && parsed.gradient_angle_degrees <= 720
-      && typeof parsed.colour_mode === 'number'
-      && Number.isInteger(parsed.colour_mode)
-      && parsed.colour_mode >= 0
-      && parsed.colour_mode <= 2
-      && typeof parsed.tint_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.tint_colour)
+      typeof parsed.tileSize === 'number'
+      && Number.isInteger(parsed.tileSize)
+      && parsed.tileSize >= 10
+      && parsed.tileSize <= 1000
+      && typeof parsed.rotationDegrees === 'number'
+      && Number.isFinite(parsed.rotationDegrees)
+      && parsed.rotationDegrees >= -720
+      && parsed.rotationDegrees <= 720
+      && typeof parsed.gradientAngleDegrees === 'number'
+      && Number.isFinite(parsed.gradientAngleDegrees)
+      && parsed.gradientAngleDegrees >= -720
+      && parsed.gradientAngleDegrees <= 720
+      && typeof parsed.colourMode === 'number'
+      && Number.isInteger(parsed.colourMode)
+      && parsed.colourMode >= 0
+      && parsed.colourMode <= 2
+      && typeof parsed.tintColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.tintColour)
     );
   } catch {
     return false;

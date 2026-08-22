@@ -186,7 +186,7 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'hologram-1',
   kind: 'GeneratedHologram' as RustSceneMediaReference['kind'],
-  source: '{"generator":"hologram","tile_size":80,"rotation_degrees":0,"gradient_angle_degrees":-60,"colour_mode":1,"tint_colour":"#ffffff"}',
+  source: '{"width":800,"height":450,"tileSize":80,"rotationDegrees":0,"gradientAngleDegrees":-60,"colourMode":1,"tintColour":"#ffffff"}',
   width: 800,
   height: 450,
 }, {
