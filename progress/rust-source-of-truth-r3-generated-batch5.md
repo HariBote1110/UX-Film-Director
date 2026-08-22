@@ -109,3 +109,68 @@
   `serde_json::to_value` の f64 昇格丸め誤差に当たることがあるため、
   小数点を含む既定値のテストは許容誤差比較（`(value - expected).abs() < 1e-6`）
   にしておくと安全。
+
+## 追記（2026-08-22）: 第六の消費者 `native-wgpu-renderer` の盲点
+
+batch1〜5 の wire 統一作業では `rust-backend/` 側（TS シリアライザとペアになる
+5 ファイル）だけを消費者として grep していたが、`native-wgpu-renderer/` が
+`media.source` を**自前の `Deserialize` 構造体で直接パースする独立した第六の
+消費者**であることが判明した。rust-backend の
+`collect_native_render_simple_tube_sources`/`collect_native_render_hksy_sources`
+などは `media.source` 文字列をバリデーションせずそのまま
+`NativeSimpleTubeSource`/`NativeHksySource`/`NativeFocusLinesSource` に詰めて
+native-wgpu-renderer へ渡すだけで、実際の JSON パース・検証は
+`native-wgpu-renderer/src/simple_tube.rs`・`hksy.rs`（`HksyParams`）・
+`focus_lines.rs` の各ローカル struct が担っている。particle のみ例外で、
+production 経路は `rust-backend/src/generated/misc_effects.rs` と
+`native_render.rs` が `uxfd_rust_core::parse_generated_particle_source`
+（rust-core の ObjectFields 正本）を呼んでおり native-wgpu-renderer 自体は
+パースしない（テスト内でのみ rust-core 関数を直接呼んでいた）。
+
+この結果、batch3 (`simple_tube`, `hksy_checker_grid`) と batch5
+(`focus_lines_plus`) の wire を camelCase へ統一した際、
+native-wgpu-renderer 側のローカル struct が旧 snake_case + `generator` タグ
+形式のまま取り残され、`cargo test --manifest-path native-wgpu-renderer/Cargo.toml`
+の `particle_source_is_rasterised_on_gpu_without_rgba_upload` ほかが
+`missing field 'width'` で panic するクロスレーン破壊が発生した
+（feature-proxy ブランチで発覚、native-wgpu-renderer は別レーン所有のため
+R3 バッチ側の footprint から漏れていた）。
+
+### 対応方針
+
+- rust-core に依存済み（`Cargo.toml` に `uxfd-rust-core = { path = "../rust-core" }`
+  済み）なので理想は `XxxObjectFields` を直接デシリアライズすることだが、
+  `simple_tube.rs`/`hksy.rs`/`focus_lines.rs` は下流計算が `seed: i64`・
+  `colour_pattern`/`fog_colour` 等を非 Option 文字列で扱う設計になっており、
+  ObjectFields（`seed: u32`・`Option<String>`）へ差し替えると呼び出し側を
+  広範囲に書き換える必要があった。今回は時間対効果を優先し、**ローカル
+  struct のフィールド名/case のみを rust-core にミラーする**（`#[serde(rename
+  = "...")]` を追加し `generator` フィールドと関連バリデーションを削除）
+  フォールバック方針を採った。
+- `hksy.rs` は `hksy_checker_grid`（新形式・`generator` フィールド無し）と
+  `hologram`（batch6 未対応・旧形式で `generator":"hologram"` を維持）を
+  同じ `HashMap<String, NativeHksySource>` 経由で受け取り、内部の
+  `GeneratedSourceKind{ generator: String }` で振り分けていた。新形式には
+  `generator` キー自体が無いため、`generator: Option<String>` に変更し
+  `None`/`Some("hksy-checker-grid")` 相当を hksy 側、`Some("hologram")` の
+  ときだけ hologram 側にルーティングする形へ変更した。
+- `native-overlay/src/lib.rs` は `uxfd_native_wgpu_renderer` の構造体・関数を
+  再利用しているだけで独自パーサは持たないため、production コードの修正は
+  不要だった。ただしテスト内のハードコード JSON フィクスチャ（particle /
+  hksy_checker_grid / simple_tube / focus_lines_plus、旧 snake_case + tag 付き）
+  は同様に stale だったため camelCase へ更新した。
+
+### 次バッチ（batch6: `plain_effector_line`, `hologram`, `protractor`,
+`shaking_polygon`, `shattered_sphere`）への申し送り
+
+- 消費者 grep リストに **`native-wgpu-renderer/src/*.rs`
+  （`rg "source\.source\|serde_json::from_str" native-wgpu-renderer/src`）
+  と `native-overlay/src/lib.rs`（`rg "media\.source\|serde_json::from_str"`）
+  を追加すること。上記5ファイル固定リストは rust-backend 側の消費者のみで、
+  ネイティブレンダラー側の独立パーサを検出できない。
+- batch6 の5 kind は現時点で native-wgpu-renderer 側も旧形式のままなので
+  （`shattered_sphere.rs`/`shaking_polygon.rs`/`hksy.rs` の
+  `HologramParams` はいずれも `generator: String` タグ付きの旧仕様）、
+  batch6 の TS/rust-core 側 wire 統一と native-wgpu-renderer 側の追随を
+  **同一 PR ないし直後のフォローアップ**で行い、今回のようなクロスレーン
+  破壊を再発させないこと。

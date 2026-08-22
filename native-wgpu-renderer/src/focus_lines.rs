@@ -18,18 +18,28 @@ pub struct NativeFocusLinesSource {
     pub config_revision: u64,
 }
 
+// focus_lines_plus は R3 batch5 で rust-core
+// (`uxfd-rust-core::schema::FocusLinesPlusObjectFields`) の camelCase
+// wire フォーマットへ統一済み。`generator` タグは廃止されたため受け取らない。
 #[derive(Debug, Deserialize)]
 struct FocusLinesParams {
-    generator: String,
+    #[serde(rename = "rayWidth")]
     ray_width: f32,
     gap: f32,
+    #[serde(rename = "centreRadius")]
     centre_radius: f32,
+    #[serde(rename = "rotationDegrees")]
     rotation_degrees: f32,
+    #[serde(rename = "centreX")]
     centre_x: f32,
+    #[serde(rename = "centreY")]
     centre_y: f32,
+    #[serde(rename = "centreJitterPercent")]
     centre_jitter_percent: f32,
     seed: i64,
+    #[serde(rename = "keyframeInterval")]
     keyframe_interval: u64,
+    #[serde(rename = "lineColour")]
     line_colour: String,
 }
 
@@ -323,8 +333,7 @@ fn validate_source(
     if source.width == 0 || source.height == 0 {
         return Err("FocusLinesPlus dimensions must be positive.".to_string());
     }
-    if params.generator != "focus-lines-plus"
-        || !params.ray_width.is_finite()
+    if !params.ray_width.is_finite()
         || !(0.1..=10.0).contains(&params.ray_width)
         || !params.gap.is_finite()
         || !(1.0..=20.0).contains(&params.gap)

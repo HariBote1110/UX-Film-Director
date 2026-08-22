@@ -24,32 +24,43 @@ struct HksyAnchorPoint {
     y: f32,
 }
 
+// hksy_checker_grid は R3 batch3 で rust-core
+// (`uxfd-rust-core::schema::HksyCheckerGridObjectFields`) の camelCase
+// wire フォーマットへ統一済み。`generator` タグは廃止されたため、この構造体
+// では受け取らない（フィールド名/case のみを rust-core にミラーする）。
 #[derive(Debug, Deserialize)]
 struct HksyParams {
-    generator: String,
     #[serde(default)]
     pattern: Option<String>,
+    #[serde(rename = "cellSize")]
     cell_size: u32,
+    #[serde(rename = "lineWidth")]
     line_width: u32,
+    #[serde(rename = "checkerEnabled")]
     checker_enabled: bool,
+    #[serde(rename = "gridEnabled")]
     grid_enabled: bool,
+    #[serde(rename = "foregroundColour")]
     foreground_colour: String,
+    #[serde(rename = "secondaryColour")]
     secondary_colour: String,
+    #[serde(rename = "backgroundColour")]
     background_colour: String,
-    #[serde(default)]
+    #[serde(rename = "paletteColours", default)]
     palette_colours: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(rename = "separateInterval", default)]
     separate_interval: Option<u32>,
-    #[serde(default)]
+    #[serde(rename = "separateLineWidth", default)]
     separate_line_width: Option<u32>,
-    #[serde(default)]
+    #[serde(rename = "anchorPoints", default)]
     anchor_points: Option<Vec<HksyAnchorPoint>>,
-    #[serde(default)]
+    #[serde(rename = "roundCaps", default)]
     round_caps: Option<bool>,
-    #[serde(default)]
+    #[serde(rename = "maxJoinDistance", default)]
     max_join_distance: Option<f32>,
 }
 
+// hologram は batch6 未対応（旧 snake_case + `generator` タグ形式のまま）。
 #[derive(Debug, Deserialize)]
 struct HologramParams {
     generator: String,
@@ -60,9 +71,13 @@ struct HologramParams {
     tint_colour: String,
 }
 
+// hksy_checker_grid（新形式・`generator` フィールド無し）と
+// hologram（旧形式・`generator":"hologram"`）を同じ HashMap 経由で受け取る
+// ため、`generator` の有無で振り分ける。
 #[derive(Debug, Deserialize)]
 struct GeneratedSourceKind {
-    generator: String,
+    #[serde(default)]
+    generator: Option<String>,
 }
 
 #[repr(C)]
@@ -305,7 +320,7 @@ impl HksyGpuRenderer {
 
         let source_kind: GeneratedSourceKind = serde_json::from_str(&source.source)
             .map_err(|error| format!("Invalid generated fill source JSON: {error}"))?;
-        if source_kind.generator == "hologram" {
+        if source_kind.generator.as_deref() == Some("hologram") {
             let params: HologramParams = serde_json::from_str(&source.source)
                 .map_err(|error| format!("Invalid Hologram source JSON: {error}"))?;
             validate_hologram_source(source, &params)?;
@@ -600,9 +615,6 @@ fn hksy_colour_target() -> wgpu::ColorTargetState {
 fn validate_source(source: &NativeHksySource, params: &HksyParams) -> Result<(), String> {
     if source.width == 0 || source.height == 0 {
         return Err("HKSY dimensions must be positive.".to_string());
-    }
-    if params.generator != "hksy-checker-grid" {
-        return Err("HKSY generator must be hksy-checker-grid.".to_string());
     }
     if params.cell_size == 0 || params.cell_size > 1000 || params.line_width > 100 {
         return Err("HKSY cell_size or line_width is out of range.".to_string());

@@ -16,23 +16,32 @@ pub struct NativeSimpleTubeSource {
     pub config_revision: u64,
 }
 
+// R3 で rust-core (`uxfd-rust-core::schema::SimpleTubeObjectFields`) が
+// wire フォーマットの正本となった。native-wgpu-renderer は rust-core に
+// 依存済みだが、`seed`/`colour_pattern` 等の下流計算が i64・非 Option を
+// 前提にしているため、直接 ObjectFields を使わずフィールド名/case のみを
+// ここでミラーする（幅/高さは NativeSimpleTubeSource 側で別途保持済みのため
+// 未知フィールドとして無視される）。
 #[derive(Debug, Deserialize)]
 struct SimpleTubeParams {
-    generator: String,
     radius: f32,
     depth: f32,
     segments: u32,
     rings: u32,
+    #[serde(rename = "twistDegrees")]
     twist_degrees: f32,
+    #[serde(rename = "randomAmount")]
     random_amount: f32,
+    #[serde(rename = "strokeWidth")]
     stroke_width: f32,
     colour: String,
+    #[serde(rename = "secondaryColour")]
     secondary_colour: String,
-    #[serde(default = "default_colour_pattern")]
+    #[serde(rename = "colourPattern", default = "default_colour_pattern")]
     colour_pattern: String,
-    #[serde(default)]
+    #[serde(rename = "fogStrength", default)]
     fog_strength: f32,
-    #[serde(default = "default_fog_colour")]
+    #[serde(rename = "fogColour", default = "default_fog_colour")]
     fog_colour: String,
     seed: i64,
     torus: bool,
@@ -319,8 +328,7 @@ fn validate_source(
     if source.width == 0 || source.height == 0 {
         return Err("SimpleTube dimensions must be positive.".to_string());
     }
-    if params.generator != "simple-tube-93"
-        || !params.radius.is_finite()
+    if !params.radius.is_finite()
         || !(0.0..=9000.0).contains(&params.radius)
         || !params.depth.is_finite()
         || !(-12000.0..=12000.0).contains(&params.depth)

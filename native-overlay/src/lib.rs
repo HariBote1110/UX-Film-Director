@@ -4831,9 +4831,9 @@ mod tests {
                 id: "hksy-media".to_string(),
                 kind: "GeneratedHksyCheckerGrid".to_string(),
                 source: concat!(
-                    r##"{"generator":"hksy-checker-grid","cell_size":8,"line_width":1,"##,
-                    r##""checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","##,
-                    r##""secondary_colour":"#333333","background_colour":"#000000"}"##
+                    r##"{"width":64,"height":36,"cellSize":8,"lineWidth":1,"##,
+                    r##""checkerEnabled":true,"gridEnabled":true,"foregroundColour":"#ffffff","##,
+                    r##""secondaryColour":"#333333","backgroundColour":"#000000"}"##
                 )
                 .to_string(),
                 width: 64,
@@ -4953,7 +4953,7 @@ mod tests {
             media: vec![NativeOverlaySceneMedia {
                 id: "hksy-media".to_string(),
                 kind: "GeneratedHksyCheckerGrid".to_string(),
-                source: r##"{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":8,"line_width":1,"checker_enabled":false,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#808080","background_colour":"#000000","palette_colours":null,"separate_interval":4,"separate_line_width":3,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+                source: r##"{"width":64,"height":48,"pattern":"measured-grid","cellSize":8,"lineWidth":1,"checkerEnabled":false,"gridEnabled":true,"foregroundColour":"#ffffff","secondaryColour":"#808080","backgroundColour":"#000000","paletteColours":null,"separateInterval":4,"separateLineWidth":3,"anchorPoints":null,"roundCaps":null,"maxJoinDistance":null}"##.to_string(),
                 width: 64,
                 height: 48,
                 source_rate: None,
@@ -5053,7 +5053,7 @@ mod tests {
             media: vec![NativeOverlaySceneMedia {
                 id: "simple-tube-media".to_string(),
                 kind: "GeneratedSimpleTube".to_string(),
-                source: r##"{"generator":"simple-tube-93","radius":28,"depth":32,"segments":12,"rings":6,"twist_degrees":45,"random_amount":0,"stroke_width":2,"colour":"#ff0000","secondary_colour":"#00ff00","colour_pattern":"ring","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}"##.to_string(),
+                source: r##"{"width":64,"height":48,"radius":28,"depth":32,"segments":12,"rings":6,"twistDegrees":45,"randomAmount":0,"strokeWidth":2,"colour":"#ff0000","secondaryColour":"#00ff00","colourPattern":"ring","fogStrength":0,"fogColour":"#ffffff","seed":93,"torus":false}"##.to_string(),
                 width: 64,
                 height: 48,
                 source_rate: None,
@@ -5104,7 +5104,7 @@ mod tests {
             media: vec![NativeOverlaySceneMedia {
                 id: "focus-lines-media".to_string(),
                 kind: "GeneratedFocusLinesPlus".to_string(),
-                source: r##"{"generator":"focus-lines-plus","ray_width":2.5,"gap":6,"centre_radius":8,"rotation_degrees":15,"centre_x":32,"centre_y":24,"centre_jitter_percent":20,"seed":93,"keyframe_interval":0,"line_colour":"#ff8000"}"##.to_string(),
+                source: r##"{"width":64,"height":48,"rayWidth":2.5,"gap":6,"centreRadius":8,"rotationDegrees":15,"centreX":32,"centreY":24,"centreJitterPercent":20,"seed":93,"keyframeInterval":0,"lineColour":"#ff8000"}"##.to_string(),
                 width: 64,
                 height: 48,
                 source_rate: None,
@@ -5140,11 +5140,11 @@ mod tests {
         let mut bucket_nine_scene = build_scene(9);
         bucket_nine_scene.media[0].source = bucket_nine_scene.media[0]
             .source
-            .replace(r#""keyframe_interval":0"#, r#""keyframe_interval":10"#);
+            .replace(r#""keyframeInterval":0"#, r#""keyframeInterval":10"#);
         let mut bucket_ten_scene = build_scene(10);
         bucket_ten_scene.media[0].source = bucket_ten_scene.media[0]
             .source
-            .replace(r#""keyframe_interval":0"#, r#""keyframe_interval":10"#);
+            .replace(r#""keyframeInterval":0"#, r#""keyframeInterval":10"#);
         let bucket_nine = native_overlay_focus_lines_sources_for_scene(&bucket_nine_scene)
             .expect("bucket nine descriptor resolution succeeds");
         let bucket_ten = native_overlay_focus_lines_sources_for_scene(&bucket_ten_scene)
@@ -5297,7 +5297,7 @@ mod tests {
             media: vec![NativeOverlaySceneMedia {
                 id: "particle-media".to_string(),
                 kind: "GeneratedParticle".to_string(),
-                source: r##"{"generator":"standard-particle","seed":93,"particle_count":64,"spread":48,"speed":24,"size":3,"colour":"#80d8ff","lifetime_seconds":2}"##.to_string(),
+                source: r##"{"width":160,"height":90,"particleCount":64,"seed":93,"spread":48,"speed":24,"size":3,"colour":"#80d8ff","lifetimeSeconds":2}"##.to_string(),
                 width: 160,
                 height: 90,
                 source_rate: None,

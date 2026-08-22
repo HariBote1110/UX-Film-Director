@@ -4313,7 +4313,7 @@ mod tests {
             }],
         };
         let params = uxfd_rust_core::parse_generated_particle_source(
-            r##"{"generator":"standard-particle","seed":93,"particle_count":8,"spread":16,"speed":20,"size":3,"colour":"#80d8ff","lifetime_seconds":2}"##,
+            r##"{"width":64,"height":64,"particleCount":8,"seed":93,"spread":16,"speed":20,"size":3,"colour":"#80d8ff","lifetimeSeconds":2}"##,
         )
         .expect("valid particle source");
         let mut particle_sources = HashMap::from([(
@@ -4612,7 +4612,7 @@ mod tests {
             }],
         };
         let source = NativeHksySource {
-            source: r##"{"generator":"hksy-checker-grid","pattern":"checker-grid","cell_size":8,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            source: r##"{"width":16,"height":16,"pattern":"checker-grid","cellSize":8,"lineWidth":2,"checkerEnabled":true,"gridEnabled":true,"foregroundColour":"#ff0000","secondaryColour":"#00ff00","backgroundColour":"#0000ff","paletteColours":null,"separateInterval":null,"separateLineWidth":null,"anchorPoints":null,"roundCaps":null,"maxJoinDistance":null}"##.to_string(),
             width: 16,
             height: 16,
             config_revision: 9,
@@ -4828,7 +4828,7 @@ mod tests {
         };
 
         let diamond = render(NativeHksySource {
-            source: r##"{"generator":"hksy-checker-grid","pattern":"diamond","cell_size":8,"line_width":4,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            source: r##"{"width":32,"height":32,"pattern":"diamond","cellSize":8,"lineWidth":4,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ff0000","secondaryColour":"#00ff00","backgroundColour":"#0000ff","paletteColours":null,"separateInterval":null,"separateLineWidth":null,"anchorPoints":null,"roundCaps":null,"maxJoinDistance":null}"##.to_string(),
             width: 32,
             height: 32,
             config_revision: 1,
@@ -4840,7 +4840,7 @@ mod tests {
             .any(|pixel| pixel[0] > 200 && pixel[3] > 0));
 
         let measured = render(NativeHksySource {
-            source: r##"{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":8,"line_width":1,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":2,"separate_line_width":3,"anchor_points":null,"round_caps":null,"max_join_distance":null}"##.to_string(),
+            source: r##"{"width":32,"height":32,"pattern":"measured-grid","cellSize":8,"lineWidth":1,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ff0000","secondaryColour":"#00ff00","backgroundColour":"#0000ff","paletteColours":null,"separateInterval":2,"separateLineWidth":3,"anchorPoints":null,"roundCaps":null,"maxJoinDistance":null}"##.to_string(),
             width: 32,
             height: 32,
             config_revision: 2,
@@ -4855,7 +4855,7 @@ mod tests {
             .any(|pixel| pixel[0] > 200 && pixel[3] > 0));
 
         let anchor = render(NativeHksySource {
-            source: r##"{"generator":"hksy-checker-grid","pattern":"anchor-line","cell_size":8,"line_width":4,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ff0000","secondary_colour":"#00ff00","background_colour":"#0000ff","palette_colours":null,"separate_interval":null,"separate_line_width":null,"anchor_points":[{"x":-8,"y":0},{"x":8,"y":0}],"round_caps":true,"max_join_distance":100}"##.to_string(),
+            source: r##"{"width":32,"height":32,"pattern":"anchor-line","cellSize":8,"lineWidth":4,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ff0000","secondaryColour":"#00ff00","backgroundColour":"#0000ff","paletteColours":null,"separateInterval":null,"separateLineWidth":null,"anchorPoints":[{"x":-8,"y":0},{"x":8,"y":0}],"roundCaps":true,"maxJoinDistance":100}"##.to_string(),
             width: 32,
             height: 32,
             config_revision: 3,
@@ -4893,7 +4893,7 @@ mod tests {
             }],
         };
         let source = NativeSimpleTubeSource {
-            source: r##"{"generator":"simple-tube-93","radius":28,"depth":32,"segments":12,"rings":6,"twist_degrees":45,"random_amount":0,"stroke_width":2,"colour":"#ff0000","secondary_colour":"#00ff00","colour_pattern":"ring","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}"##.to_string(),
+            source: r##"{"width":64,"height":48,"radius":28,"depth":32,"segments":12,"rings":6,"twistDegrees":45,"randomAmount":0,"strokeWidth":2,"colour":"#ff0000","secondaryColour":"#00ff00","colourPattern":"ring","fogStrength":0,"fogColour":"#ffffff","seed":93,"torus":false}"##.to_string(),
             width: 64,
             height: 48,
             config_revision: 11,
@@ -4986,7 +4986,7 @@ mod tests {
         let simple_tube_sources = HashMap::from([(
             "simple-torus-media".to_string(),
             NativeSimpleTubeSource {
-                source: r##"{"generator":"simple-tube-93","radius":28,"depth":32,"segments":16,"rings":8,"twist_degrees":30,"random_amount":0,"stroke_width":2,"colour":"#ff0000","secondary_colour":"#00ff00","colour_pattern":"ring","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":true}"##.to_string(),
+                source: r##"{"width":64,"height":48,"radius":28,"depth":32,"segments":16,"rings":8,"twistDegrees":30,"randomAmount":0,"strokeWidth":2,"colour":"#ff0000","secondaryColour":"#00ff00","colourPattern":"ring","fogStrength":0,"fogColour":"#ffffff","seed":93,"torus":true}"##.to_string(),
                 width: 64,
                 height: 48,
                 config_revision: 12,
@@ -5063,7 +5063,7 @@ mod tests {
         let focus_lines_sources = HashMap::from([(
             "focus-lines-media".to_string(),
             NativeFocusLinesSource {
-                source: r##"{"generator":"focus-lines-plus","ray_width":2.5,"gap":6,"centre_radius":8,"rotation_degrees":15,"centre_x":32,"centre_y":24,"centre_jitter_percent":0,"seed":93,"keyframe_interval":0,"line_colour":"#ff8000"}"##.to_string(),
+                source: r##"{"width":64,"height":48,"rayWidth":2.5,"gap":6,"centreRadius":8,"rotationDegrees":15,"centreX":32,"centreY":24,"centreJitterPercent":0,"seed":93,"keyframeInterval":0,"lineColour":"#ff8000"}"##.to_string(),
                 width: 64,
                 height: 48,
                 source_frame: 0,
