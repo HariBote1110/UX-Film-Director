@@ -2769,3 +2769,70 @@ pub struct Project {
     #[serde(default)]
     pub group_controls: Vec<GroupControl>,
 }
+
+/// 3D ステージ用ワールド座標。`src/types.ts` の `Vec3` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct Vec3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+/// 透視カメラ（lookAt target）。`src/types.ts` の `StageCamera3D` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct StageCamera3D {
+    pub position: Vec3,
+    pub target: Vec3,
+}
+
+/// PSD を 3D 空間に配置するときのパラメータ。`src/types.ts` の
+/// `PsdWorldPlacement` と同形（`billboard` は true のときカメラ方向へ
+/// Y 回転を合わせる、立ち絵向けのフラグ）。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PsdWorldPlacement {
+    pub enabled: bool,
+    pub position: Vec3,
+    #[serde(rename = "rotationYDeg")]
+    #[ts(rename = "rotationYDeg")]
+    pub rotation_y_deg: f32,
+    pub scale: f32,
+    pub billboard: bool,
+}
+
+/// `src/types.ts` の `LipSyncSetting.sourceMode: 'layer' | 'object'` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum LipSyncSourceMode {
+    Layer,
+    Object,
+}
+
+/// リップシンク用の母音/子音マッピング。`src/types.ts` の
+/// `LipSyncSetting.mapping` と同形の固定フィールド構造体。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct LipSyncMapping {
+    pub a: String,
+    pub i: String,
+    pub u: String,
+    pub e: String,
+    pub o: String,
+    pub n: String,
+}
+
+/// リップシンク設定。`src/types.ts` の `LipSyncSetting` と同形。`audioId` は
+/// クロスオブジェクト参照（他オブジェクトの id）で `string | null`
+/// （missing keyではなく明示的な null が「未設定」を表す）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct LipSyncSetting {
+    pub enabled: bool,
+    #[serde(rename = "sourceMode")]
+    #[ts(rename = "sourceMode")]
+    pub source_mode: LipSyncSourceMode,
+    #[serde(rename = "targetLayer")]
+    #[ts(rename = "targetLayer")]
+    pub target_layer: u32,
+    #[serde(rename = "audioId")]
+    #[ts(rename = "audioId")]
+    pub audio_id: Option<String>,
+    pub mapping: LipSyncMapping,
+}

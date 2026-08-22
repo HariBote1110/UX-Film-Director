@@ -3,7 +3,9 @@
 //! `src/types.ts` の手書き interface とフィールド構成・camelCase命名・
 //! optional/defaultの扱いにおいて一致することを固定する。
 
-use uxfd_rust_core::{LipSyncMapping, LipSyncSetting, PsdWorldPlacement, StageCamera3D, Vec3};
+use uxfd_rust_core::{
+    LipSyncMapping, LipSyncSetting, LipSyncSourceMode, PsdWorldPlacement, StageCamera3D, Vec3,
+};
 
 fn sample_vec3() -> Vec3 {
     Vec3 { x: 1.0, y: 2.0, z: 3.0 }
@@ -54,7 +56,7 @@ fn psd_world_placement_serialises_with_camel_case_field_names() {
 fn lip_sync_setting_serialises_with_camel_case_and_nested_mapping() {
     let setting = LipSyncSetting {
         enabled: true,
-        source_mode: "layer".to_string(),
+        source_mode: LipSyncSourceMode::Layer,
         target_layer: 2,
         audio_id: Some("audio-1".to_string()),
         mapping: LipSyncMapping {
@@ -85,7 +87,7 @@ fn lip_sync_setting_audio_id_none_serialises_as_null() {
     // 省略ではなくクロスオブジェクト参照の「未設定」を明示する null を保つ。
     let setting = LipSyncSetting {
         enabled: false,
-        source_mode: "object".to_string(),
+        source_mode: LipSyncSourceMode::Object,
         target_layer: 0,
         audio_id: None,
         mapping: LipSyncMapping {
