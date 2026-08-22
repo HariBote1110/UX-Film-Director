@@ -193,6 +193,12 @@ contextBridge.exposeInMainWorld('rustBackend', {
   listFonts() {
     return ipcRenderer.invoke('rust-backend-fonts-list')
   },
+  deserializeProjectFile(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-project-deserialize', payload)
+  },
+  serializeProjectFile(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-project-serialize', payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {

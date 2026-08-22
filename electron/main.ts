@@ -1484,6 +1484,24 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('rust-backend-project-deserialize', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('project.deserialize', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return sceneRpcFailure(error);
+    }
+  });
+
+  ipcMain.handle('rust-backend-project-serialize', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('project.serialize', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return sceneRpcFailure(error);
+    }
+  });
+
   ipcMain.handle('coreml-track-object-supported', () => ({
     supported: process.platform === 'darwin',
   }));

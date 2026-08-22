@@ -109,6 +109,22 @@ interface Window {
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     renderNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     releaseNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    // R4-2: rust-core の project_file 境界（ProjectFile の解析/移行と
+    // pretty JSON 直列化）を rust-backend RPC 経由で公開する薄いIPC。
+    // renderer 側の実際の消費（src/utils/projectFile.ts 置き換え）は
+    // R4-3 の範囲。ここでは IPC surface の型のみを用意する。
+    deserializeProjectFile: (payload: { json: string }) => Promise<{
+      success: boolean;
+      result?: { project: unknown };
+      error?: string;
+      errorCode?: number;
+    }>;
+    serializeProjectFile: (payload: { project: unknown }) => Promise<{
+      success: boolean;
+      result?: { json: string };
+      error?: string;
+      errorCode?: number;
+    }>;
     requestAudioWaveformSamples: (payload: {
       source: string;
       sampleRate: number;
