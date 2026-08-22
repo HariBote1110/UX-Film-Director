@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PsdObjectFields",
+  "description": "`psd` kind の編集モデル（R3バッチC）。`src/types.ts` の `PsdObject` と同形。\n\n`PsdObject` は「平坦な intersection ではなく明示的な合成」の唯一の例外\n（バッチBの注記どおり）で、TS 側は\n`Omit<PsdObjectFields, 'rootLayer'> & PsdRuntimeFields & { rootLayer?: PsdLayerNode, layerTree?: PsdLayerStruct[] }`\nとして組み立てる。以下2フィールドはこの Rust 型には**含めない**:\n\n- `layerTree: PsdLayerStruct[]` — `buildPsdLayerTree` が `rootLayer` +\n  `activeLayerIds` から都度再構築する表示専用の派生ビュー\n  （`restorePsdObjectFromFile` は保存済みの値を信頼せず必ず再計算する）。\n  独立した永続状態ではないため、`PsdLayerStruct` 自体もバッチBと同じ理由で\n  TS 側の手書き型のまま残す。\n- `file?: File` — ブラウザの `File` オブジェクト。GPU テクスチャと同様の\n  ランタイム専用値で JSON にシリアライズされない\n  （`sanitiseObjectForSave` が保存直前に `undefined` へ落とす）。\n\n`activeLayerIds` はキー集合がレイヤーIDに依存し動的だが、決定的な JSON\nキー順を保証するため `HashMap` ではなく `BTreeMap` を使う。保存済み\nファイルの既存キー順（挿入順）とはズレうるが、消費側\n（`Object.entries`/`Record` として読む TS コード、および\n`projectFile.test.ts` の `toEqual` によるラウンドトリップ検証）はすべて\nキー順に依存しない構造比較のため、バイト互換ではなく shape 互換で足りる\n（このバッチCで実測・確認済み）。",
+  "type": "object",
+  "properties": {
+    "activeLayerIds": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "filePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lipSync": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LipSyncSetting"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rootLayer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PsdLayerNodeFields"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "scale": {
+      "type": "number",
+      "format": "float"
+    },
+    "src": {
+      "type": "string"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    },
+    "worldPlacement": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PsdWorldPlacement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "src",
+    "width",
+    "height",
+    "scale"
+  ],
+  "$defs": {
+    "LipSyncMapping": {
+      "description": "リップシンク用の母音/子音マッピング。`src/types.ts` の\n`LipSyncSetting.mapping` と同形の固定フィールド構造体。",
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string"
+        },
+        "e": {
+          "type": "string"
+        },
+        "i": {
+          "type": "string"
+        },
+        "n": {
+          "type": "string"
+        },
+        "o": {
+          "type": "string"
+        },
+        "u": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "a",
+        "i",
+        "u",
+        "e",
+        "o",
+        "n"
+      ]
+    },
+    "LipSyncSetting": {
+      "description": "リップシンク設定。`src/types.ts` の `LipSyncSetting` と同形。`audioId` は\nクロスオブジェクト参照（他オブジェクトの id）で `string | null`\n（missing keyではなく明示的な null が「未設定」を表す）。",
+      "type": "object",
+      "properties": {
+        "audioId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "mapping": {
+          "$ref": "#/$defs/LipSyncMapping"
+        },
+        "sourceMode": {
+          "$ref": "#/$defs/LipSyncSourceMode"
+        },
+        "targetLayer": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "enabled",
+        "sourceMode",
+        "targetLayer",
+        "mapping"
+      ]
+    },
+    "LipSyncSourceMode": {
+      "description": "`src/types.ts` の `LipSyncSetting.sourceMode: 'layer' | 'object'` と同形。",
+      "type": "string",
+      "enum": [
+        "layer",
+        "object"
+      ]
+    },
+    "PsdLayerNodeFields": {
+      "description": "PSD レイヤーツリーのノード。`src/types.ts` の `PsdLayerNode` と同形の\n再帰構造（`children: Vec<PsdLayerNodeFields>`）。R3バッチAのスパイクで\n確認済みのとおり `Box<>` は不要（`Vec` 自体がヒープ間接参照）。\n\nTS 側は `textureSource?: ImageBitmap`（GPU 専用・非シリアライズ）を\n別レイヤー（`PsdLayerNodeRuntimeFields`）として合成するため、この\nフィールドはここには含めない。`PsdLayerStruct`（`seq`/`checked`/\n`isRadio`/`blobUrl` を持つ表示専用の派生ビュー、`buildPsdLayerTree` が\n`PsdLayerNode` から都度再構築する）も同じ理由でここには含めず、\nTS 側の手書き型のまま残す。",
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PsdLayerNodeFields"
+          }
+        },
+        "defaultVisible": {
+          "type": "boolean"
+        },
+        "height": {
+          "type": "number",
+          "format": "float"
+        },
+        "id": {
+          "type": "string"
+        },
+        "isGroup": {
+          "type": "boolean"
+        },
+        "isRadio": {
+          "type": "boolean"
+        },
+        "left": {
+          "type": "number",
+          "format": "float"
+        },
+        "name": {
+          "type": "string"
+        },
+        "src": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "top": {
+          "type": "number",
+          "format": "float"
+        },
+        "width": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isGroup",
+        "isRadio",
+        "children",
+        "width",
+        "height",
+        "left",
+        "top",
+        "defaultVisible"
+      ]
+    },
+    "PsdWorldPlacement": {
+      "description": "PSD を 3D 空間に配置するときのパラメータ。`src/types.ts` の\n`PsdWorldPlacement` と同形（`billboard` は true のときカメラ方向へ\nY 回転を合わせる、立ち絵向けのフラグ）。",
+      "type": "object",
+      "properties": {
+        "billboard": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "rotationYDeg": {
+          "type": "number",
+          "format": "float"
+        },
+        "scale": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "enabled",
+        "position",
+        "rotationYDeg",
+        "scale",
+        "billboard"
+      ]
+    },
+    "Vec3": {
+      "description": "3D ステージ用ワールド座標。`src/types.ts` の `Vec3` と同形。",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    }
+  }
+}

@@ -45,6 +45,7 @@ export * from './Project';
 export * from './ProjectSize';
 export * from './ProtractorObjectFields';
 export * from './PsdLayerNodeFields';
+export * from './PsdObjectFields';
 export * from './PsdWorldPlacement';
 export * from './PuzzleConnectorMode';
 export * from './PuzzlePieceObjectFields';
