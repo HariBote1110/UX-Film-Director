@@ -21,6 +21,10 @@ use uxfd_native_wgpu_renderer::{
     NativeShatteredSphereSource, NativeSimpleTubeSource, NativeWgpuFrameStageTimings,
     NativeWgpuLiveSurfaceRenderer,
 };
+// Windows専用（Phase 7 W7 stage6の`AttachNativeOverlayPreparedState::NeedsPipelines`
+// でのみ使う——pipelineコンパイル前の中間状態、HWND/COM不関与）。
+#[cfg(target_os = "windows")]
+use uxfd_native_wgpu_renderer::PreparedLiveSurface;
 use uxfd_rust_backend::{
     build_native_generated_source_frame, build_native_psd_source_frame, is_jpeg_source,
     load_native_getcolor_sample_frame, local_media_source_path,
@@ -931,20 +935,24 @@ pub struct NativeOverlayLiveSurfaceRenderer {
 unsafe impl Send for NativeOverlayLiveSurfaceRenderer {}
 
 impl NativeOverlayLiveSurfaceRenderer {
+    /// Phase 7 (W7) stage6 — `finish_pipelines`（`wgpu::Device`/`Queue`のみ
+    /// 使うDXCコンパイル区間、worker スレッドで呼んでよい）の結果を
+    /// `NativeOverlayLiveSurfaceRenderer`へ組み立てる共通部分。HashMap
+    /// フィールドはいずれも新規 attach 時は空で始まるため、プラットフォーム
+    /// 非依存。
+    /// Phase 7 (W7) stage6 — `PreparedLiveSurface::finish_pipelines`
+    /// （`wgpu::Device`/`Queue`のみ使うDXCコンパイル区間、worker スレッドで
+    /// 呼んでよい）の結果を`NativeOverlayLiveSurfaceRenderer`へ組み立てる
+    /// 共通部分。HashMap フィールドはいずれも新規 attach 時は空で始まるため
+    /// プラットフォーム非依存。
     #[cfg(target_os = "macos")]
-    fn from_appkit_view(
+    fn finish_from_appkit_view(
         window_id: u32,
         view_handle: usize,
         contract: &OverlayLayerContract,
-    ) -> Result<Self, String> {
-        let renderer = pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_appkit_view(
-            view_handle,
-            contract.drawable_width,
-            contract.drawable_height,
-        ))
-        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
-
-        Ok(Self {
+        renderer: NativeWgpuLiveSurfaceRenderer,
+    ) -> Self {
+        Self {
             window_id,
             drawable_width: contract.drawable_width,
             drawable_height: contract.drawable_height,
@@ -961,33 +969,23 @@ impl NativeOverlayLiveSurfaceRenderer {
             last_focus_lines_sources: HashMap::new(),
             last_shaking_polygon_sources: HashMap::new(),
             last_shattered_sphere_sources: HashMap::new(),
-            #[cfg(target_os = "macos")]
             video_decoders: HashMap::new(),
             native_source_cache: NativeOverlaySourceCache::default(),
             getcolor_sample_cache: NativeOverlaySourceCache::default(),
             audio_pcm_cache: NativeOverlayAudioPcmCache::default(),
             view_handle,
             renderer,
-        })
+        }
     }
 
     #[cfg(target_os = "windows")]
-    fn from_hwnd(
+    fn finish_from_hwnd(
         window_id: u32,
         overlay_hwnd: usize,
-        dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
-        visual: windows::Win32::Graphics::DirectComposition::IDCompositionVisual,
         contract: &OverlayLayerContract,
-    ) -> Result<Self, String> {
-        let renderer = pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_hwnd(
-            dcomp_device,
-            visual,
-            contract.drawable_width,
-            contract.drawable_height,
-        ))
-        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
-
-        Ok(Self {
+        renderer: NativeWgpuLiveSurfaceRenderer,
+    ) -> Self {
+        Self {
             window_id,
             drawable_width: contract.drawable_width,
             drawable_height: contract.drawable_height,
@@ -1009,7 +1007,22 @@ impl NativeOverlayLiveSurfaceRenderer {
             audio_pcm_cache: NativeOverlayAudioPcmCache::default(),
             overlay_hwnd,
             renderer,
-        })
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn from_appkit_view(
+        window_id: u32,
+        view_handle: usize,
+        contract: &OverlayLayerContract,
+    ) -> Result<Self, String> {
+        let renderer = pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_appkit_view(
+            view_handle,
+            contract.drawable_width,
+            contract.drawable_height,
+        ))
+        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
+        Ok(Self::finish_from_appkit_view(window_id, view_handle, contract, renderer))
     }
 
     fn present_upload_frame(
@@ -1465,35 +1478,71 @@ impl NativeOverlayLiveSurfaceRenderer {
 /// hook 登録だけは `compute`（worker）から `resolve`（JS スレッド、
 /// Electron main のメッセージポンプ上）へ切り出す。DComp
 /// ウィンドウ作成＋wgpu レンダラ構築（重い部分）は `compute` 側に残す。
+/// Phase 7 (W7) stage6 — mainpc実機A/Bバイセクト（windows-w7-async-attach.md
+/// のstage5続報）で、「DComp window/device/visual作成＋wgpu adapter/device
+/// requestまでをworkerスレッドで行う」設計（stage1-2、d4b7f26）そのものが
+/// 実Electronアプリでは機能しない（attachが恒久的に解決しない）ことが
+/// 確定した。W5実測（`windows_port_research/notes/`）により、DComp
+/// window/device/target/visual作成・wgpu adapter/device request・surface
+/// configureはいずれも数秒未満で完了し、実測89秒の大半はDXCシェーダ
+/// コンパイル（`create_render_pipeline`系、`wgpu::Device`/`Queue`のみで
+/// 完結しHWND/COMに一切触れない）であることが分かっている。
+///
+/// そこで本stageでは非同期化の切り方を変える:
+/// - HWND/COMに触れる区間（`win32_overlay::attach_overlay_window`・
+///   `NativeWgpuLiveSurfaceRenderer::prepare_from_hwnd`——adapter/device
+///   requestとsurface configureまで）は、この`attach_native_overlay`
+///   本体（napi関数自体、AsyncTaskを作る"前"に呼ばれる、必ずJS/Electron
+///   mainスレッド上）で**同期的に**実行する。旧同期実装（stage1-2以前）
+///   と同じスレッドで同じ処理を行うため、Win32のスレッド親和性・COM
+///   アパートメント境界を安全側に保つ。
+/// - パイプラインコンパイル（`PreparedLiveSurface::finish_pipelines`、
+///   `wgpu::Device`/`Queue`のみを使うSend+Safe安全な処理）だけを
+///   `AsyncTask::compute`（worker スレッド）へ回す。
+/// - `resolve`（JSスレッド）でレンダラをレジストリへ登録し
+///   SetWinEventHookを登録して応答を確定する（従来どおり）。
+///
+/// macOSはDXCコンパイル自体が存在せず全体が高速なため、`prepare_*`と
+/// `finish_pipelines`の両方をこの同期区間内で完結させ、Doneとして
+/// 即座に確定する（compute側では何もしない）。
 #[napi(js_name = "attachNativeOverlay")]
 pub fn attach_native_overlay(
     payload: NativeOverlayAttachPayload,
 ) -> napi::Result<AsyncTask<AttachNativeOverlayTask>> {
-    Ok(AsyncTask::new(AttachNativeOverlayTask::new(payload)))
+    let state = match std::panic::catch_unwind(AssertUnwindSafe(|| {
+        attach_native_overlay_prepare_sync(payload)
+    })) {
+        Ok(state) => state,
+        Err(_) => AttachNativeOverlayPreparedState::Done(failure(
+            "Native overlay attach panicked.",
+        )),
+    };
+    Ok(AsyncTask::new(AttachNativeOverlayTask::new(state)))
 }
 
 /// [`attach_native_overlay`] の同期版。napi/JS ランタイムの外
 /// （`tests/win32_overlay_smoke.rs` のような素の Rust テストバイナリ）から
-/// 従来どおり同期的に attach を検証するために公開する。`compute` と
-/// `resolve` を同一スレッドで直列に呼ぶだけで、非同期化前の
-/// `attach_native_overlay_inner` と挙動は完全に同一（hook 登録スレッドも
-/// 呼び出しスレッドのまま——テストは元々シングルスレッドで
-/// メッセージポンプの有無を検証していないため、この差は無害）。
+/// 従来どおり同期的に attach を検証するために公開する。同期区間
+/// （`attach_native_overlay_prepare_sync`）→ pipelineコンパイル区間
+/// （`attach_native_overlay_compute_pipelines`）→ 仕上げ区間
+/// （`finish_attach_native_overlay`）を同一スレッドで直列に呼ぶだけで、
+/// stage6以降の設計変更後も挙動は完全に同一（テストは元々シングル
+/// スレッドでスレッド分割自体を検証していないため、この差は無害）。
 pub fn attach_native_overlay_sync_for_test(
     payload: NativeOverlayAttachPayload,
 ) -> NativeOverlayResponse {
-    finish_attach_native_overlay(attach_native_overlay_compute(payload))
+    let state = attach_native_overlay_prepare_sync(payload);
+    let outcome = attach_native_overlay_compute_pipelines(state);
+    finish_attach_native_overlay(outcome)
 }
 
 pub struct AttachNativeOverlayTask {
-    payload: Option<NativeOverlayAttachPayload>,
+    state: Option<AttachNativeOverlayPreparedState>,
 }
 
 impl AttachNativeOverlayTask {
-    fn new(payload: NativeOverlayAttachPayload) -> Self {
-        Self {
-            payload: Some(payload),
-        }
+    fn new(state: AttachNativeOverlayPreparedState) -> Self {
+        Self { state: Some(state) }
     }
 }
 
@@ -1502,12 +1551,14 @@ impl Task for AttachNativeOverlayTask {
     type JsValue = NativeOverlayResponse;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
-        let payload = self
-            .payload
+        let state = self
+            .state
             .take()
             .expect("AttachNativeOverlayTask::compute must run exactly once");
         Ok(
-            match std::panic::catch_unwind(AssertUnwindSafe(|| attach_native_overlay_compute(payload))) {
+            match std::panic::catch_unwind(AssertUnwindSafe(|| {
+                attach_native_overlay_compute_pipelines(state)
+            })) {
                 Ok(outcome) => outcome,
                 Err(_) => AttachNativeOverlayOutcome::Done(failure(
                     "Native overlay attach panicked.",
@@ -1521,10 +1572,29 @@ impl Task for AttachNativeOverlayTask {
     }
 }
 
-/// `compute`（worker スレッド）が返す中間結果。Windows で attach が
-/// 成功した場合は、SetWinEventHook 登録に必要な情報（owner の native
-/// window handle・overlay HWND・contract）を JS スレッド側へ持ち越す
-/// ために `NeedsWindowsGeometryHook` を使う。それ以外（macOS・失敗）は
+/// `attach_native_overlay_prepare_sync`（JSスレッド、必ず同期）が返す
+/// 中間結果。Windows で HWND/COM 区間まで成功した場合は、pipeline
+/// コンパイル前の `PreparedLiveSurface`（HWND/COMを一切保持しない、
+/// `wgpu::Device`/`Queue`のみ）を worker スレッドへ持ち越すために
+/// `NeedsPipelines` を使う。それ以外（macOS・失敗）は最終レスポンスが
+/// この時点で確定しているため `Done` に包む（compute 側は何もしない）。
+pub enum AttachNativeOverlayPreparedState {
+    Done(NativeOverlayResponse),
+    #[cfg(target_os = "windows")]
+    NeedsPipelines {
+        prepared: PreparedLiveSurface,
+        native_window_handle: Vec<u8>,
+        overlay_hwnd: usize,
+        contract: OverlayLayerContract,
+        window_id: u32,
+    },
+}
+
+/// `compute`（worker スレッド）が返す中間結果。Windows で pipeline
+/// コンパイルが完了した場合は、SetWinEventHook 登録・レジストリ登録に
+/// 必要な情報（owner の native window handle・overlay HWND・contract・
+/// 完成した renderer）を JS スレッド側へ持ち越すために
+/// `NeedsWindowsGeometryHook` を使う。それ以外（macOS・失敗）は
 /// 最終レスポンスがこの時点で確定しているため `Done` に包む。
 pub enum AttachNativeOverlayOutcome {
     Done(NativeOverlayResponse),
@@ -1533,35 +1603,40 @@ pub enum AttachNativeOverlayOutcome {
         native_window_handle: Vec<u8>,
         overlay_hwnd: usize,
         contract: OverlayLayerContract,
+        window_id: u32,
+        renderer: NativeOverlayLiveSurfaceRenderer,
         response: NativeOverlayResponse,
     },
 }
 
-/// worker スレッドで実行してよい部分（native window handle 解決、
-/// contract 構築、macOS/Windows それぞれの overlay window + wgpu
-/// レンダラ構築）。Windows の SetWinEventHook 登録だけは含まない
-/// （[`finish_attach_native_overlay`] へ委譲する）。
-fn attach_native_overlay_compute(payload: NativeOverlayAttachPayload) -> AttachNativeOverlayOutcome {
+/// **JSスレッド（Electron main）で同期的に実行する区間。** native
+/// window handle 解決・contract 構築・macOS/Windows それぞれの
+/// overlay window 作成＋wgpu instance/adapter/device request＋surface
+/// configureまでを行う（HWND/COMに触れる・またはW5実測で数秒未満と
+/// 分かっている区間）。Windows の場合はここではまだ pipeline を
+/// コンパイルせず `PreparedLiveSurface` のまま `NeedsPipelines` に
+/// 包んで返す（呼び出し元が worker スレッドへ渡す）。macOS は
+/// pipeline コンパイルも十分高速なため、この関数の中で
+/// `finish_pipelines` まで完了させ `Done` として確定する。
+fn attach_native_overlay_prepare_sync(
+    payload: NativeOverlayAttachPayload,
+) -> AttachNativeOverlayPreparedState {
     let window_id = payload.window_id;
     let native_window_handle = match native_window_handle_bytes(&payload) {
         Ok(bytes) => bytes,
-        Err(reason) => return AttachNativeOverlayOutcome::Done(failure(reason)),
+        Err(reason) => return AttachNativeOverlayPreparedState::Done(failure(reason)),
     };
     let contract = match build_overlay_layer_contract(&payload) {
         Ok(contract) => contract,
-        Err(reason) => return AttachNativeOverlayOutcome::Done(failure(reason)),
+        Err(reason) => return AttachNativeOverlayPreparedState::Done(failure(reason)),
     };
     #[cfg(target_os = "macos")]
     {
         let view_handle = match macos_overlay::attach_overlay_view(&native_window_handle, &contract)
         {
             Ok(view_handle) => view_handle,
-            Err(reason) => return AttachNativeOverlayOutcome::Done(failure(reason)),
+            Err(reason) => return AttachNativeOverlayPreparedState::Done(failure(reason)),
         };
-        if let Err(reason) = attach_live_overlay_surface_renderer(window_id, view_handle, &contract)
-        {
-            return AttachNativeOverlayOutcome::Done(failure(&reason));
-        }
         // `wgpu::create_surface_unsafe` は NSView の layer を CAMetalLayer に差し替えるため、
         // surface 構築前に設定した `contentsScale` は失われている。HiDPI 環境では
         // ここで再度反映しないと drawable の左下 1/4 しか画面に貼り出されない（Bug B）。
@@ -1570,43 +1645,57 @@ fn attach_native_overlay_compute(payload: NativeOverlayAttachPayload) -> AttachN
         // 再適用しないと `LoadOp::Clear(TRANSPARENT)` が compositor 上で不透明扱いされ、
         // 編集画面の preview が真っ黒になる（Bug E — Bug D 直後の実機リグレッション）。
         macos_overlay::set_overlay_view_opaque(view_handle, false);
+        // macOSはDXCコンパイル区間が無く全体が高速なため、この同期区間内で
+        // pipelineコンパイル・レジストリ登録まで完結させる（stage5続報の
+        // 親エージェント指示どおり "may simply do everything in the sync
+        // part and resolve immediately"）。
+        if let Err(reason) = attach_live_overlay_surface_renderer(window_id, view_handle, &contract)
+        {
+            return AttachNativeOverlayPreparedState::Done(failure(&reason));
+        }
+        return AttachNativeOverlayPreparedState::Done(NativeOverlayResponse {
+            success: true,
+            attached: true,
+            reason: None,
+            release_frame: None,
+            live_prepared_clip_count: None,
+            live_readback_non_transparent_pixels: None,
+            live_readback_checksum: None,
+            live_readback_export_max_channel_delta: None,
+        });
     }
     #[cfg(target_os = "windows")]
     {
         let (overlay_hwnd, dcomp_device, visual) =
             match win32_overlay::attach_overlay_window(&native_window_handle, &contract) {
                 Ok(result) => result,
-                Err(reason) => return AttachNativeOverlayOutcome::Done(failure(&reason)),
+                Err(reason) => return AttachNativeOverlayPreparedState::Done(failure(&reason)),
             };
-        if let Err(reason) = attach_live_overlay_surface_renderer(
-            window_id,
-            overlay_hwnd,
+        let prepared = match pollster::block_on(NativeWgpuLiveSurfaceRenderer::prepare_from_hwnd(
             dcomp_device,
             visual,
-            &contract,
-        ) {
-            let _ = win32_overlay::detach_overlay_window(&native_window_handle);
-            return AttachNativeOverlayOutcome::Done(failure(&reason));
-        }
-        return AttachNativeOverlayOutcome::NeedsWindowsGeometryHook {
+            contract.drawable_width,
+            contract.drawable_height,
+        )) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                let _ = win32_overlay::detach_overlay_window(&native_window_handle);
+                return AttachNativeOverlayPreparedState::Done(failure(&format!(
+                    "Native overlay live surface creation failed: {error:?}"
+                )));
+            }
+        };
+        return AttachNativeOverlayPreparedState::NeedsPipelines {
+            prepared,
             native_window_handle,
             overlay_hwnd,
             contract,
-            response: NativeOverlayResponse {
-                success: true,
-                attached: true,
-                reason: None,
-                release_frame: None,
-                live_prepared_clip_count: None,
-                live_readback_non_transparent_pixels: None,
-                live_readback_checksum: None,
-                live_readback_export_max_channel_delta: None,
-            },
+            window_id,
         };
     }
 
     #[allow(unreachable_code)]
-    AttachNativeOverlayOutcome::Done(NativeOverlayResponse {
+    AttachNativeOverlayPreparedState::Done(NativeOverlayResponse {
         success: true,
         attached: true,
         reason: None,
@@ -1618,9 +1707,51 @@ fn attach_native_overlay_compute(payload: NativeOverlayAttachPayload) -> AttachN
     })
 }
 
+/// **worker スレッドで実行してよい区間。** `wgpu::Device`/`Queue`のみを
+/// 使うパイプラインコンパイル（DXCの本体、Windowsで数十秒）。HWND/COM
+/// には一切触れない。macOS・失敗ケースは`Done`を素通しするだけ
+/// （既にJSスレッド側で確定済み）。
+fn attach_native_overlay_compute_pipelines(
+    state: AttachNativeOverlayPreparedState,
+) -> AttachNativeOverlayOutcome {
+    match state {
+        AttachNativeOverlayPreparedState::Done(response) => AttachNativeOverlayOutcome::Done(response),
+        #[cfg(target_os = "windows")]
+        AttachNativeOverlayPreparedState::NeedsPipelines {
+            prepared,
+            native_window_handle,
+            overlay_hwnd,
+            contract,
+            window_id,
+        } => {
+            let renderer = prepared.finish_pipelines();
+            let overlay_renderer =
+                NativeOverlayLiveSurfaceRenderer::finish_from_hwnd(window_id, overlay_hwnd, &contract, renderer);
+            AttachNativeOverlayOutcome::NeedsWindowsGeometryHook {
+                native_window_handle,
+                overlay_hwnd,
+                contract,
+                window_id,
+                renderer: overlay_renderer,
+                response: NativeOverlayResponse {
+                    success: true,
+                    attached: true,
+                    reason: None,
+                    release_frame: None,
+                    live_prepared_clip_count: None,
+                    live_readback_non_transparent_pixels: None,
+                    live_readback_checksum: None,
+                    live_readback_export_max_channel_delta: None,
+                },
+            }
+        }
+    }
+}
+
 /// JS スレッド（`AsyncTask::resolve`、または同期テストヘルパー）で
-/// 実行しなければならない部分。Windows の場合のみ、ここで
-/// SetWinEventHook を登録する（メッセージポンプの契約を満たすため）。
+/// 実行しなければならない部分。Windows の場合のみ、ここでレンダラを
+/// レジストリへ登録し SetWinEventHook を登録する（メッセージポンプの
+/// 契約を満たすため）。
 fn finish_attach_native_overlay(outcome: AttachNativeOverlayOutcome) -> NativeOverlayResponse {
     match outcome {
         AttachNativeOverlayOutcome::Done(response) => response,
@@ -1629,8 +1760,14 @@ fn finish_attach_native_overlay(outcome: AttachNativeOverlayOutcome) -> NativeOv
             native_window_handle,
             overlay_hwnd,
             contract,
+            window_id,
+            renderer,
             response,
         } => {
+            if let Err(reason) = register_live_overlay_renderer(window_id, renderer) {
+                let _ = win32_overlay::detach_overlay_window(&native_window_handle);
+                return failure(&reason);
+            }
             win32_overlay::register_overlay_geometry_hook(
                 &native_window_handle,
                 overlay_hwnd,
@@ -2043,14 +2180,15 @@ fn present_native_overlay_scene_inner(
     }
 }
 
-#[cfg(target_os = "macos")]
-fn attach_live_overlay_surface_renderer(
+/// `LIVE_OVERLAY_RENDERERS` レジストリへ完成済み renderer を登録する
+/// 共通ヘルパー。Phase 7 (W7) stage6 — Windows は pipeline コンパイル
+/// （worker スレッド）完了後、JS スレッド側の `finish_attach_native_overlay`
+/// から呼ぶ。macOS は同期区間内で直接この関数を呼ぶ
+/// （`attach_live_overlay_surface_renderer`経由）。
+fn register_live_overlay_renderer(
     window_id: u32,
-    view_handle: usize,
-    contract: &OverlayLayerContract,
+    renderer: NativeOverlayLiveSurfaceRenderer,
 ) -> Result<(), String> {
-    let renderer =
-        NativeOverlayLiveSurfaceRenderer::from_appkit_view(window_id, view_handle, contract)?;
     let mut renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -2059,27 +2197,15 @@ fn attach_live_overlay_surface_renderer(
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(target_os = "macos")]
 fn attach_live_overlay_surface_renderer(
     window_id: u32,
-    overlay_hwnd: usize,
-    dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
-    visual: windows::Win32::Graphics::DirectComposition::IDCompositionVisual,
+    view_handle: usize,
     contract: &OverlayLayerContract,
 ) -> Result<(), String> {
-    let renderer = NativeOverlayLiveSurfaceRenderer::from_hwnd(
-        window_id,
-        overlay_hwnd,
-        dcomp_device,
-        visual,
-        contract,
-    )?;
-    let mut renderers = LIVE_OVERLAY_RENDERERS
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
-    renderers.insert(window_id, renderer);
-    Ok(())
+    let renderer =
+        NativeOverlayLiveSurfaceRenderer::from_appkit_view(window_id, view_handle, contract)?;
+    register_live_overlay_renderer(window_id, renderer)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -3989,6 +4115,63 @@ fn platform_capabilities() -> NativeOverlayCapabilities {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    // Phase 7 (W7) stage6 — attach_native_overlayの再設計（HWND/COM区間は
+    // JSスレッドで同期実行、pipelineコンパイルだけがworkerスレッド
+    // （AttachNativeOverlayTask::compute）へ回る）の核となる契約:
+    // 「同期区間で既に確定した状態（Done）は、worker スレッド側の
+    // attach_native_overlay_compute_pipelines を素通りするだけで一切
+    // 変更されない」——これはプラットフォーム非依存でテストできる
+    // （native_window_handle_bytes・build_overlay_layer_contract の
+    // 失敗パスや macOS の成功パスがいずれもここを通る）。
+
+    #[test]
+    fn attach_native_overlay_compute_pipelines_passes_done_state_through_unchanged() {
+        let response = failure("synthetic done state for stage6 split contract test");
+        let state = AttachNativeOverlayPreparedState::Done(response);
+        let outcome = attach_native_overlay_compute_pipelines(state);
+        match outcome {
+            AttachNativeOverlayOutcome::Done(response) => {
+                assert!(!response.success);
+                assert_eq!(
+                    response.reason.as_deref(),
+                    Some("synthetic done state for stage6 split contract test")
+                );
+            }
+            #[cfg(target_os = "windows")]
+            AttachNativeOverlayOutcome::NeedsWindowsGeometryHook { .. } => {
+                panic!("Done state must never turn into NeedsWindowsGeometryHook");
+            }
+        }
+    }
+
+    #[test]
+    fn attach_native_overlay_prepare_sync_rejects_invalid_payload_without_reaching_platform_code() {
+        // width/height が不正な payload は native_window_handle_bytes/
+        // build_overlay_layer_contract のどちらかで弾かれ、Doneとして即座に
+        // 確定する——HWND/COM 区間・wgpu 区間のどちらにも到達しない
+        // ことを保証する（実 attach を伴わずに検証できる回帰ガード）。
+        let payload = NativeOverlayAttachPayload {
+            window_id: 1,
+            native_window_handle: None,
+            x: 0.0,
+            y: 0.0,
+            width: -1.0,
+            height: -1.0,
+            scale_factor: 1.0,
+        };
+        let state = attach_native_overlay_prepare_sync(payload);
+        match state {
+            AttachNativeOverlayPreparedState::Done(response) => {
+                assert!(!response.success);
+                assert!(!response.attached);
+            }
+            #[cfg(target_os = "windows")]
+            AttachNativeOverlayPreparedState::NeedsPipelines { .. } => {
+                panic!("an invalid payload must resolve to Done, never reach the HWND/wgpu path");
+            }
+        }
+    }
 
     #[test]
     fn resolve_frame_advance_no_current_frame_seeks() {

@@ -392,6 +392,106 @@ pub struct NativeWgpuLiveSurfaceRenderer {
     composition_commit: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
+/// Phase 7 (W7) stage6 — `NativeWgpuLiveSurfaceRenderer::from_surface`の
+/// 前半（instance/surface/adapter/device/surface configureまで、HWND/COM
+/// に触れうる区間＋W5実測で数秒未満の区間）の結果。呼び出し元スレッド
+/// （Electron main/JSスレッド）で構築し、`finish_pipelines`だけを別
+/// スレッドへ渡してよい。`wgpu::Device`/`wgpu::Queue`・`wgpu::Surface`は
+/// いずれもSend+Sync（`LIVE_OVERLAY_RENDERERS`のstatic `Mutex<HashMap<...,
+/// NativeWgpuLiveSurfaceRenderer>>`が今日既にコンパイルできている時点で
+/// 型全体がSendであることは自明）なので、この構造体をスレッド間で
+/// 受け渡すこと自体は安全。
+pub struct PreparedLiveSurface {
+    instance: wgpu::Instance,
+    surface: wgpu::Surface<'static>,
+    surface_config: wgpu::SurfaceConfiguration,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    width: u32,
+    height: u32,
+    composition_commit: Option<Arc<dyn Fn() + Send + Sync>>,
+}
+
+impl PreparedLiveSurface {
+    /// worker スレッドで呼んでよい区間——`wgpu::Device`/`Queue`だけを使う
+    /// パイプライン・小レンダラ構築（DXCシェーダコンパイルの本体）。
+    /// HWND/COMには一切触れない。
+    pub fn finish_pipelines(self) -> NativeWgpuLiveSurfaceRenderer {
+        let PreparedLiveSurface {
+            instance,
+            surface,
+            surface_config,
+            device,
+            queue,
+            width,
+            height,
+            composition_commit,
+        } = self;
+        let surface_format = surface_config.format;
+
+        let pipeline = create_pipeline_for_format(&device, surface_format);
+        let bind_group_layout = pipeline.get_bind_group_layout(0);
+        let (nv12_bind_group_layout, nv12_pipeline) =
+            nv12::create_nv12_pipeline_for_format(&device, surface_format);
+        // Phase 7 (W7) Option C: Bgra8UnormSrgb版の2本は BGRA IOSurface export
+        // 専用で、live surface renderer からは到達できない（構造体フィールド
+        // コメント参照）。attach時点ではコンパイルせず OnceLock のまま残す。
+        let output_texture =
+            create_output_texture_for_format(&device, width, height, surface_format);
+        let readback_buffer = create_readback_buffer(&device, width, height);
+        let particle_renderer = particle::ParticleGpuRenderer::new(&device);
+        let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
+        let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
+        let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
+        let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
+        let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
+        let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
+        let shattered_sphere_renderer = shattered_sphere::ShatteredSphereGpuRenderer::new(&device);
+        let core = NativeWgpuRenderer {
+            width,
+            height,
+            device,
+            queue,
+            pipeline,
+            bind_group_layout,
+            output_texture,
+            readback_buffer,
+            prepared_scene_cache: Mutex::new(None),
+            prepared_scene_cache_hits: AtomicU64::new(0),
+            prepared_scene_cache_misses: AtomicU64::new(0),
+            media_texture_cache: Mutex::new(MediaTextureCache::default()),
+            media_texture_cache_hits: AtomicU64::new(0),
+            media_texture_cache_misses: AtomicU64::new(0),
+            nv12_pipeline,
+            nv12_bind_group_layout,
+            bgra_pipeline: OnceLock::new(),
+            nv12_bgra_pipeline: OnceLock::new(),
+            nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
+            nv12_texture_cache_hits: AtomicU64::new(0),
+            nv12_texture_cache_misses: AtomicU64::new(0),
+            upload_fence_wait_count: AtomicU64::new(0),
+            bgra_pipeline_build_count: AtomicU64::new(0),
+            nv12_bgra_pipeline_build_count: AtomicU64::new(0),
+            particle_renderer,
+            audio_reactive_renderer,
+            getcolor_renderer,
+            hksy_renderer,
+            simple_tube_renderer,
+            focus_lines_renderer,
+            shaking_polygon_renderer,
+            shattered_sphere_renderer,
+        };
+
+        NativeWgpuLiveSurfaceRenderer {
+            instance,
+            surface,
+            surface_config,
+            core,
+            composition_commit,
+        }
+    }
+}
+
 impl NativeWgpuLiveSurfaceRenderer {
     #[cfg(target_os = "macos")]
     pub async fn from_appkit_view(
@@ -399,13 +499,31 @@ impl NativeWgpuLiveSurfaceRenderer {
         width: u32,
         height: u32,
     ) -> Result<Self, NativeWgpuRenderError> {
+        Self::prepare_from_appkit_view(view_handle, width, height)
+            .await
+            .map(PreparedLiveSurface::finish_pipelines)
+    }
+
+    /// macOSの同期区間（AppKit view由来のsurface作成・adapter/device
+    /// request・surface configure、いずれもW5実測で高速）。呼び出し元
+    /// スレッドで実行してよい。macOSのDXCコンパイルは十分高速なため
+    /// （windows-w7-async-attach.md参照）、呼び出し元は
+    /// `prepare_from_appkit_view`の直後に`finish_pipelines`を同じ
+    /// スレッドで呼んでも実害はないが、Windowsと対称な構造を保つため
+    /// 分離しておく。
+    #[cfg(target_os = "macos")]
+    pub async fn prepare_from_appkit_view(
+        view_handle: usize,
+        width: u32,
+        height: u32,
+    ) -> Result<PreparedLiveSurface, NativeWgpuRenderError> {
         let instance = wgpu::Instance::default();
         let appkit_view = AppKitSurfaceView::new(view_handle);
         let target = unsafe { wgpu::SurfaceTargetUnsafe::from_window(&appkit_view) }
             .map_err(|_| NativeWgpuRenderError::AdapterUnavailable)?;
         let surface = unsafe { instance.create_surface_unsafe(target) }
             .map_err(NativeWgpuRenderError::CreateSurface)?;
-        Self::from_surface(instance, surface, width, height).await
+        Self::prepare_from_surface(instance, surface, width, height).await
     }
 
     /// Windows 版 native overlay（`win32_overlay.rs`）の対応物。
@@ -457,6 +575,26 @@ impl NativeWgpuLiveSurfaceRenderer {
         width: u32,
         height: u32,
     ) -> Result<Self, NativeWgpuRenderError> {
+        Self::prepare_from_hwnd(dcomp_device, visual, width, height)
+            .await
+            .map(PreparedLiveSurface::finish_pipelines)
+    }
+
+    /// Windowsの同期区間（DComp visual由来のsurface作成・DXC compiler選択・
+    /// adapter/device request・surface configure・`composition_commit`
+    /// closureの構築、いずれもW5実測で高速——DXCシェーダコンパイル自体は
+    /// 含まない）。HWND/COM（`IDCompositionDevice`/`IDCompositionVisual`）
+    /// に触れるのはこの関数の中だけで、呼び出し元スレッド
+    /// （Electron main/JSスレッド、Win32のスレッド親和性を尊重）で
+    /// 実行する契約。戻り値の`PreparedLiveSurface`はHWND/COMを一切
+    /// 保持しないため、以降は任意のスレッドへ渡してよい。
+    #[cfg(target_os = "windows")]
+    pub async fn prepare_from_hwnd(
+        dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
+        visual: windows::Win32::Graphics::DirectComposition::IDCompositionVisual,
+        width: u32,
+        height: u32,
+    ) -> Result<PreparedLiveSurface, NativeWgpuRenderError> {
         use windows::core::Interface as _;
 
         let mut instance_descriptor = wgpu::InstanceDescriptor::default();
@@ -476,7 +614,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let target = wgpu::SurfaceTargetUnsafe::CompositionVisual(visual_ptr);
         let surface = unsafe { instance.create_surface_unsafe(target) }
             .map_err(NativeWgpuRenderError::CreateSurface)?;
-        let mut renderer = Self::from_surface(instance, surface, width, height).await?;
+        let mut prepared = Self::prepare_from_surface(instance, surface, width, height).await?;
 
         // present の都度 `IDCompositionDevice::Commit` を呼んで合成を確定
         // させる（Phase 0 実測: p50 0.15ms・p99 0.48ms で無視できる）。present
@@ -496,7 +634,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         unsafe impl Sync for SendSyncDcompDevice {}
 
         let dcomp_device = SendSyncDcompDevice(dcomp_device);
-        renderer.composition_commit = Some(Arc::new(move || {
+        prepared.composition_commit = Some(Arc::new(move || {
             // Rust 2021 の disjoint closure capture 対策: `dcomp_device.0` の
             // ようにフィールドだけへアクセスすると、closure は `SendSyncDcompDevice`
             // 全体ではなく内側の `IDCompositionDevice` だけを capture してしまい、
@@ -505,7 +643,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             let dcomp_device = &dcomp_device;
             let _ = unsafe { dcomp_device.0.Commit() };
         }));
-        Ok(renderer)
+        Ok(prepared)
     }
 
     /// present 後にプラットフォームの合成を確定させる。Windows の
@@ -524,6 +662,36 @@ impl NativeWgpuLiveSurfaceRenderer {
         width: u32,
         height: u32,
     ) -> Result<Self, NativeWgpuRenderError> {
+        Self::prepare_from_surface(instance, surface, width, height)
+            .await
+            .map(PreparedLiveSurface::finish_pipelines)
+    }
+
+    /// Phase 7 (W7) stage6 — `attach_native_overlay`の非同期化がElectron
+    /// main process上では機能しなかったregression（windows-w7-async-attach.md
+    /// のstage5ブロッカー・mainpc実機A/Bバイセクトで確定）を受けた再設計。
+    ///
+    /// W5実測（`windows_port_research/notes/`各種）により、DComp window/
+    /// device/target/visual作成・wgpu adapter/device request・surface
+    /// configureはいずれも数秒未満で完了し、実測89秒の大半（DXCシェーダ
+    /// コンパイル、`create_render_pipeline`系）だけが本当に長い、という
+    /// ことが分かっている。そこで「HWND/COMに触れる区間」と「純粋に
+    /// wgpu::Device/Queueだけで完結するパイプライン構築」を分離し、
+    /// 前者は呼び出し元スレッド（Electron main/JSスレッド、Win32の
+    /// スレッド親和性・COMアパートメント境界を安全側に保つ）で同期実行、
+    /// 後者だけを別スレッド（napi AsyncTaskのworkerスレッド）へ逃がせる
+    /// ようにする。`wgpu::Device`/`wgpu::Queue`はSend+Syncであり
+    /// HWND/COMハンドルを一切保持しないため、この分離は安全。
+    ///
+    /// この関数自体（adapter/device request・surface configureまで）も
+    /// 呼び出し元スレッドで実行してよい——`prepare_from_hwnd`/
+    /// `prepare_from_appkit_view`から呼ばれる想定。
+    pub async fn prepare_from_surface(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        width: u32,
+        height: u32,
+    ) -> Result<PreparedLiveSurface, NativeWgpuRenderError> {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -564,64 +732,14 @@ impl NativeWgpuLiveSurfaceRenderer {
         };
         surface.configure(&device, &surface_config);
 
-        let pipeline = create_pipeline_for_format(&device, surface_format);
-        let bind_group_layout = pipeline.get_bind_group_layout(0);
-        let (nv12_bind_group_layout, nv12_pipeline) =
-            nv12::create_nv12_pipeline_for_format(&device, surface_format);
-        // Phase 7 (W7) Option C: Bgra8UnormSrgb版の2本は BGRA IOSurface export
-        // 専用で、live surface renderer からは到達できない（上のフィールド
-        // コメント参照）。attach時点ではコンパイルせず OnceLock のまま残す。
-        let output_texture =
-            create_output_texture_for_format(&device, width, height, surface_format);
-        let readback_buffer = create_readback_buffer(&device, width, height);
-        let particle_renderer = particle::ParticleGpuRenderer::new(&device);
-        let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
-        let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
-        let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
-        let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
-        let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
-        let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
-        let shattered_sphere_renderer = shattered_sphere::ShatteredSphereGpuRenderer::new(&device);
-        let core = NativeWgpuRenderer {
-            width,
-            height,
-            device,
-            queue,
-            pipeline,
-            bind_group_layout,
-            output_texture,
-            readback_buffer,
-            prepared_scene_cache: Mutex::new(None),
-            prepared_scene_cache_hits: AtomicU64::new(0),
-            prepared_scene_cache_misses: AtomicU64::new(0),
-            media_texture_cache: Mutex::new(MediaTextureCache::default()),
-            media_texture_cache_hits: AtomicU64::new(0),
-            media_texture_cache_misses: AtomicU64::new(0),
-            nv12_pipeline,
-            nv12_bind_group_layout,
-            bgra_pipeline: OnceLock::new(),
-            nv12_bgra_pipeline: OnceLock::new(),
-            nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
-            nv12_texture_cache_hits: AtomicU64::new(0),
-            nv12_texture_cache_misses: AtomicU64::new(0),
-            upload_fence_wait_count: AtomicU64::new(0),
-            bgra_pipeline_build_count: AtomicU64::new(0),
-            nv12_bgra_pipeline_build_count: AtomicU64::new(0),
-            particle_renderer,
-            audio_reactive_renderer,
-            getcolor_renderer,
-            hksy_renderer,
-            simple_tube_renderer,
-            focus_lines_renderer,
-            shaking_polygon_renderer,
-            shattered_sphere_renderer,
-        };
-
-        Ok(Self {
+        Ok(PreparedLiveSurface {
             instance,
             surface,
             surface_config,
-            core,
+            device,
+            queue,
+            width,
+            height,
             composition_commit: None,
         })
     }

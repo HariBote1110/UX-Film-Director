@@ -158,7 +158,10 @@ describe('native overlay napi crate boundary', () => {
     const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
 
     expect(nativeWgpuRenderer).toContain('instance: wgpu::Instance');
-    expect(nativeWgpuRenderer).toContain('Self::from_surface(instance, surface, width, height).await');
+    // Phase 7 (W7) stage6 — from_surfaceはprepare_from_surface（HWND/COM
+    // 不関与、adapter/device request＋surface configureまで）へ委譲する
+    // 薄いラッパーになった（windows-w7-async-attach.md参照）。
+    expect(nativeWgpuRenderer).toContain('Self::prepare_from_surface(instance, surface, width, height)');
     expect(nativeWgpuRenderer).toContain('.request_adapter(&wgpu::RequestAdapterOptions');
     expect(nativeWgpuRenderer).not.toContain('pub async fn from_surface(\n        surface: wgpu::Surface');
   });
