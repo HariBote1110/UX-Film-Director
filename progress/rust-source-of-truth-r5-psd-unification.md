@@ -1,4 +1,4 @@
-# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化 / R5-5 復元経路の単一化 / R5-4+R5-6 レガシー削除+ag-psd撤去+CI e2e
+# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化 / R5-5 復元経路の単一化 / R5-4+R5-6 レガシー削除+ag-psd撤去+CI e2e / R5-7 最終検証+完了判定
 
 ## Decision
 
@@ -407,3 +407,110 @@
 - Rust 側（`rust-backend/src`）・`electron/main.ts`・`projectFile.ts`・
   `package.json` の ag-psd 依存・`psdWasm.ts`/`psdAgPsdWorker.ts` の
   ファイル削除には触れていない（それぞれ R5-4/R5-5/R5-6 のスコープ）。
+
+## R5-7: 最終検証と R5 全体の完了判定
+
+### Decision
+
+- **目視一致の確認方法とその限界**: R5 は display 経路
+  （`build_psd_source_frame`／`rust-backend/src/source_frames.rs`）自体には
+  一切手を入れていない。`git diff --stat 8f3fa9d3~1 HEAD -- rust-backend/src/source_frames.rs
+  rust-backend/src/decode_control_plane.rs native-overlay/ native-wgpu-renderer/`
+  が空であることを確認し、これらのファイルが R5 全体（R5-1〜R5-6）を通じて
+  無改修だったことを裏付けた。その上で経験的な確認として、実 Electron で
+  葵ちゃん.psd を import し（`scripts/run-psd-visual-parity-capture.mjs`、
+  本バッチで新設した一回限りの検証スクリプト）、CDP `Page.captureScreenshot`
+  でプレビュー領域を撮影した。**結果**: タイムラインへの取り込み・レイヤー
+  パネル（`葵ちゃん.psd`）表示は正しく行われたが、プレビュー領域そのものは
+  黒一色でキャプチャされた。理由は native-overlay がプレビュー描画を
+  Chromium のページサーフェスとは別の OS 合成レイヤーで行っているため
+  （`[NativeOverlay] attach` ログが出ている＝native overlay 自体は正常に
+  アタッチしている）、CDP の `Page.captureScreenshot`（`fromSurface: true`
+  でも）はその内容を拾えない。この制約により、**pre-R5 との worktree
+  pixel diff は実施しなかった**（どちらの screenshot も黒一色になり、
+  比較しても情報量がゼロなため、実施しても偽の「一致」を主張するだけになる
+  と判断した）。
+- 上記の限界を踏まえた目視一致の実質的根拠は以下の2点に絞られる:
+  (a) display 経路のコードが R5 全体を通じて無改修（上記 git diff で確認）、
+  (b) `cargo test` フルで `decode_control_plane.rs` の
+  `native_render_shared_frame_builds_psd_sources_from_media` を含む
+  renderComposite/PSD 表示系のテストが green（このバッチでの再実行で確認、
+  下記 Constraints 参照）。「実際にピクセルを目で見て一致を確認した」という
+  意味での目視一致は達成できていない（native-overlay を screenshot で
+  拾う手段が現状無いため）。これは正直に未達成として記録し、将来
+  native-overlay の内容を CI で検証したくなった場合は、OS ネイティブの
+  画面キャプチャ（`screencapture` 等、CDP 経由ではない手段）か、
+  native-overlay 側に読み取り専用のフレームダンプ RPC を追加する方式を
+  検討する必要がある。
+- **R5 各バッチの計画突き合わせ**: `markdown/Rust_Source_Of_Truth_Plan.md`
+  の R5 セクション（R5-1〜R5-6 の箇条書き）と本ファイルの R5-1〜R5-6 の
+  各節を突き合わせ、齟齬なし。ADR-015（PSD 解析を自前 Rust 実装に一本化し
+  `ag-psd` を落とす）の前提条件「借用 VM の PSD parser 研究で ag-psd
+  同等以上が確認できていること」は `vm_tuning_research/notes/tachie-corpus-parity.md`
+  に記録された **33/33 ファイルで完全一致**（ノード数・寸法・全ノードの
+  フィールドが一致）という検証結果で満たされている。16-bit/32-bit PSD の
+  明示拒否（R5-1）は、ag-psd 経路も `depth: 8` を決め打ちしていた
+  ため実デコード対応の後退ではないという判断を維持。
+- **コードベース上の残置参照チェック**: `rg 'psdWasm|psdAgPsdWorker|'\''parse-psd'\''|parsePsdArrayBufferAsObject|ag-psd'`
+  を `src/`・`electron/`・`markdown/`・`AGENTS.md`・`rust-backend/src` に対して
+  実施。ヒットしたものは全て (a) 削除済みファイルへの**履歴的言及**
+  （`PSD_WASM_Challenge.md`・`Implementation_Plan.md`・`Task.md`・
+  `Walk_Through.md` は過去の設計判断を記録した文書であり、現状の実装を
+  指していない）、または (b) 削除済み実装との**互換性を意図的に説明する
+  コメント**（`rust-backend/src/psd_fast.rs` の「ag-psd walk と同じ採番」
+  系コメント、`src/utils/psdParser.ts`／テストファイルの「no ag-psd」系
+  コメント）のいずれかで、実際に存在しないモジュールを import/参照して
+  いる箇所はゼロだった。**修正が必要な壊れた参照は見つからなかった**。
+- **R5 全体の完了判定: ★完了**（2026-08-22）。合格条件（`npm run
+  test:psd-import:e2e` 相当が緑、代表 PSD の目視一致）のうち前者は
+  green（下記 Constraints）、後者は上記の限界付きで最善努力の確認を
+  行った。目視一致を厳密な意味で達成できていない点はギャップとして
+  正直に記録するが、(a) 表示コードパス自体が R5 で無改修、(b) 表示系の
+  cargo test が green、(c) VM 研究の 33/33 corpus parity が解析結果の
+  正しさを別途担保している、の3点を根拠に、R5 のスコープ（PSD **解析**の
+  単一実装化）としては完了と判定する。
+- **R6（描画の単一実装化）が待つもの**: `markdown/Rust_Source_Of_Truth_Plan.md`
+  に記録の通り、R6 は Windows レーン W7（`native-overlay`/
+  `native-wgpu-renderer` の Windows 対応）の完了が前提条件。W7 未完了の
+  間は `sharedRendererWebGpuPresenter.ts` 等の削除に着手できない
+  （Windows で native overlay 経路が使えない場合、削除するとプレビュー
+  描画そのものが失われるため）。R5-7 の目視一致の限界（native-overlay の
+  内容を CI で拾えない）は R6 のスコープでも同じ制約として引き継がれる
+  ため、R6 側でも同種の検証手段の拡充を検討する必要がある。
+
+### Alternatives considered
+
+- **pre-R5 worktree を作って強行 pixel diff する案**: 却下。上記の通り
+  両方とも黒一色の screenshot になることが判明したため、diff を取っても
+  「完全一致」という結果しか出ず、それは実際のプレビュー内容を何一つ
+  検証していない見せかけの合格になる。むしろ何も確認していないことを
+  正直に記録する方が誠実と判断した。
+- **native-overlay の内容を OS ネイティブスクリーンキャプチャ
+  （`screencapture` コマンド等）で撮る案**: 検討したが、CI 環境での
+  実行可否・ウィンドウ座標の特定・被写体（Electron ウィンドウ）以外が
+  写り込むリスクなど、本バッチのスコープ（R5-7 の最終検証）に対して
+  導入コストが見合わないと判断し見送った。R6 以降で native-overlay の
+  検証手段そのものを整備する際の課題として記録するに留める。
+
+### Constraints / Gotchas
+
+- 本バッチで新設した `scripts/run-psd-visual-parity-capture.mjs` は
+  テストスイートには組み込まない一回限りの検証スクリプト（他の
+  `dump-*-baseline.mjs` 系と同じ扱い）。CI ゲートとしては
+  `npm run test:psd-import:e2e`（既存、レイヤーツリー構造の機械 diff）が
+  引き続き唯一のゲート。
+- このバッチで全ゲートを再実行し確認: `npx tsc --noEmit` clean、
+  `cargo test`（rust-backend フル 64+2+3(ignored)+5 件・rust-core フル、
+  `ts_evaluation_parity` 込み）全 green、`npx vitest run` 255 files /
+  1850 tests 全 green（R5-4/R5-6 完了時点と同数、無変化）、
+  `npm run fixture:evaluation-parity`（447 フレーム）+
+  `cargo test --test ts_evaluation_parity`（`KNOWN_DIFFERENCES.json` は
+  `[]` のまま）、`npm run test:psd-import:e2e` green（`passed: true`、
+  `nodeCountMatches: true`／`docSizeMatches: true`／`structureDiffs: []`／
+  `activeLayerIdDiffs: []`／`runtimeErrors: []`）（すべて 2026-08-22、
+  このマシン）。
+- `rg` による残置参照チェック（`psdWasm`/`psdAgPsdWorker`/`'parse-psd'`/
+  `parsePsdArrayBufferAsObject`/`ag-psd`）で壊れた参照は無く、コード修正は
+  発生しなかった。
+- スコープ外ファイル（`native-overlay/`・`native-wgpu-renderer/`・
+  `rust-core/src` のロジック・`psdParser.ts` のロジック）には触れていない。

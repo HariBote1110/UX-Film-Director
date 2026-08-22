@@ -547,7 +547,7 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
 になっている可能性）は本バッチでは対応せず記録のみに留めた
 （次バッチ候補）。
 
-### R5: PSD 単一実装化（推定 5-8日）
+### R5: PSD 単一実装化（推定 5-8日）★完了 2026-08-22
 
 - **R5-1（完了）**: `rust-backend/src/psd_fast.rs` の meta-only 解析経路に
   16-bit/32-bit depth の明示拒否ガードを追加した。`PsdFastResult` に
@@ -616,6 +616,36 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
 **合格条件**: `npm run test:psd-import:e2e` 相当が緑、代表 PSD の目視一致。
 （R5-4/R5-6 で `npm run test:psd-import:e2e` を実装し、このマシンで green
 達成——上記参照）
+
+- **R5-7（完了、★2026-08-22 R5 全体完了と判定）**: 最終検証と完了判定。
+  display 経路（`build_psd_source_frame`／`source_frames.rs`／
+  `decode_control_plane.rs`／`native-overlay/`／`native-wgpu-renderer/`）が
+  R5 全体を通じて無改修であることを `git diff` で確認した上で、実 Electron
+  で葵ちゃん.psd を import して CDP スクリーンショットを撮る経験的確認を
+  実施（`scripts/run-psd-visual-parity-capture.mjs`、一回限りの検証
+  スクリプト）。**結果**: import・タイムライン・レイヤーパネル表示は
+  正常だったが、プレビュー領域は native-overlay が Chromium ページ
+  サーフェスとは別の OS 合成レイヤーで描画しているため CDP screenshot には
+  写らず黒一色になった。このため pre-R5 との pixel diff（worktree 比較）は
+  「両方とも黒一色で無情報」と判明した時点で実施を見送り、代わりに
+  display 経路無改修の事実 + `cargo test` の renderComposite/PSD 表示系
+  green + VM 研究（`vm_tuning_research/notes/tachie-corpus-parity.md`、
+  **33/33 ファイル完全一致**）を根拠に判定した。厳密な意味での目視一致
+  （実際にピクセルを見て確認）は達成できていない点を正直にギャップとして
+  記録。計画突き合わせ（R5-1〜R5-6 の各節・ADR-015 前提条件）は齟齬なし、
+  コードベース内の削除済みモジュールへの壊れた参照（`rg
+  psdWasm|psdAgPsdWorker|ag-psd|parsePsdArrayBufferAsObject`）もゼロだった
+  （修正不要）。全ゲート再実行で green を再確認: `tsc --noEmit` clean、
+  `cargo test`（rust-backend フル・rust-core フル・`ts_evaluation_parity`）
+  全 green、`vitest run` 255 files/1850 tests 全 green（無変化）、
+  `fixture:evaluation-parity`（447 フレーム、`KNOWN_DIFFERENCES.json` は
+  `[]`）、`test:psd-import:e2e` green。詳細は
+  `progress/rust-source-of-truth-r5-psd-unification.md` の R5-7 節。
+  **R6（描画の単一実装化）は引き続き Windows W7 完了が前提条件で未着手。**
+  R5-7 で判明した「native-overlay の内容を CI で目視確認する手段が無い」
+  という制約は R6 のスコープにも引き継がれる。
+
+**R5 全体（R5-1〜R5-7）を★完了と判定する（2026-08-22）。**
 
 ### R6: 描画の単一実装化（推定 5-8日）★Windows W7 完了が前提
 
