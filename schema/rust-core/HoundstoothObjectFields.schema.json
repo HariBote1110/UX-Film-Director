@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HoundstoothObjectFields",
+  "description": "`houndstooth` kind (`src/types.ts` の `HoundstoothObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & HoundstoothObjectFields & { type: 'houndstooth' }` として\n組み立てる。\n\n`width`/`height` は `houndstoothObjectFactory.ts` の\n`buildAviUtlHoundstoothObject` の固定リテラル (800x450) をそのまま採用\nする（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "foregroundColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "patternSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "patternSize",
+    "foregroundColour",
+    "backgroundColour"
+  ]
+}

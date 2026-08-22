@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SunburstObjectFields",
+  "description": "`sunburst` kind (`src/types.ts` の `SunburstObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & SunburstObjectFields & { type: 'sunburst' }` として組み立てる。\n\n`width`/`height` は `sunburstObjectFactory.ts` の\n`buildAviUtlSunburstObject` の固定リテラル (800x450) をそのまま採用する\n（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "centreXPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "centreYPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "motifShape": {
+      "type": "string"
+    },
+    "motifSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "rayColour": {
+      "type": "string"
+    },
+    "rayCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "rayCoveragePercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "rotationOffsetDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "rayCount",
+    "rayCoveragePercent",
+    "rotationOffsetDegrees",
+    "centreXPercent",
+    "centreYPercent",
+    "motifSize",
+    "motifShape",
+    "rayColour",
+    "backgroundColour"
+  ]
+}

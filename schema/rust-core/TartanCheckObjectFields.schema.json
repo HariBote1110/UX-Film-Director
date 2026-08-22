@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TartanCheckObjectFields",
+  "description": "`tartan_check` kind (`src/types.ts` の `TartanCheckObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & TartanCheckObjectFields & { type: 'tartan_check' }` として\n組み立てる。\n\n`width`/`height` は `tartanCheckObjectFactory.ts` の\n`buildAviUtlTartanCheckObject` の固定リテラル (800x450) をそのまま採用\nする（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "baseColour": {
+      "type": "string"
+    },
+    "blurRadius": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineColour": {
+      "type": "string"
+    },
+    "stripeColourA": {
+      "type": "string"
+    },
+    "stripeColourB": {
+      "type": "string"
+    },
+    "tileSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "tileSize",
+    "blurRadius",
+    "baseColour",
+    "stripeColourA",
+    "stripeColourB",
+    "lineColour"
+  ]
+}

@@ -24,11 +24,12 @@ use uxfd_rust_core::schema::{
     Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RegionFrameObjectFields,
     SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
-    ShapeType, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields,
-    SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
+    CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, SimpleTubeObjectFields,
+    SphereDotsObjectFields, SphericalFieldObjectFields, SubjectCropAnimation, SubjectCropKeyframe,
+    SubjectCropNormKeyframe, SunburstObjectFields, TartanCheckObjectFields, TextAlignment,
     TextObjectFields, TextShadow, TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields,
-    Transform, VideoObjectFields, WipeAnimation,
-    WipeEdge,
+    TriangleBracketObjectFields, Transform, VideoObjectFields, WipeAnimation, WipeEdge,
+    YagasuriObjectFields,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
 
@@ -98,6 +99,18 @@ fn write_ts_bindings() {
         .expect("SphereDotsObjectFields の TS export に失敗しました");
     SphericalFieldObjectFields::export_all(&cfg)
         .expect("SphericalFieldObjectFields の TS export に失敗しました");
+    SunburstObjectFields::export_all(&cfg)
+        .expect("SunburstObjectFields の TS export に失敗しました");
+    CircularArrowObjectFields::export_all(&cfg)
+        .expect("CircularArrowObjectFields の TS export に失敗しました");
+    TriangleBracketObjectFields::export_all(&cfg)
+        .expect("TriangleBracketObjectFields の TS export に失敗しました");
+    TartanCheckObjectFields::export_all(&cfg)
+        .expect("TartanCheckObjectFields の TS export に失敗しました");
+    HoundstoothObjectFields::export_all(&cfg)
+        .expect("HoundstoothObjectFields の TS export に失敗しました");
+    YagasuriObjectFields::export_all(&cfg)
+        .expect("YagasuriObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -202,6 +215,12 @@ fn write_json_schemas() {
     write_schema::<SimpleTubeObjectFields>(&dir, "SimpleTubeObjectFields");
     write_schema::<SphereDotsObjectFields>(&dir, "SphereDotsObjectFields");
     write_schema::<SphericalFieldObjectFields>(&dir, "SphericalFieldObjectFields");
+    write_schema::<SunburstObjectFields>(&dir, "SunburstObjectFields");
+    write_schema::<CircularArrowObjectFields>(&dir, "CircularArrowObjectFields");
+    write_schema::<TriangleBracketObjectFields>(&dir, "TriangleBracketObjectFields");
+    write_schema::<TartanCheckObjectFields>(&dir, "TartanCheckObjectFields");
+    write_schema::<HoundstoothObjectFields>(&dir, "HoundstoothObjectFields");
+    write_schema::<YagasuriObjectFields>(&dir, "YagasuriObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

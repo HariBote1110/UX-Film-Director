@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -486,85 +486,22 @@ export type PieChartObject = BaseObject & PieChartObjectFields & { type: 'pie_ch
 export type HistogramObject = BaseObject & HistogramObjectFields & { type: 'histogram' };
 
 // AviUtlPackV4 日の出互換の生成オブジェクト
-export interface SunburstObject extends BaseObject {
-  type: 'sunburst';
-  width: number;
-  height: number;
-  rayCount: number;
-  rayCoveragePercent: number;
-  rotationOffsetDegrees: number;
-  centreXPercent: number;
-  centreYPercent: number;
-  motifSize: number;
-  motifShape: 'circle' | 'rect';
-  rayColour: string;
-  backgroundColour: string;
-}
+export type SunburstObject = BaseObject & SunburstObjectFields & { type: 'sunburst' };
 
 // AviUtlPackV4 円矢印互換の生成オブジェクト
-export interface CircularArrowObject extends BaseObject {
-  type: 'circular_arrow';
-  width: number;
-  height: number;
-  radius: number;
-  lineWidth: number;
-  headSize: number;
-  angleDegrees: number;
-  centreAngleDegrees: number;
-  headShape: 'triangle' | 'circle';
-  showTailHead: boolean;
-  flipVertical: boolean;
-  flipHorizontal: boolean;
-  arrowColour: string;
-}
+export type CircularArrowObject = BaseObject & CircularArrowObjectFields & { type: 'circular_arrow' };
 
 // AviUtlPackV4 三角括弧互換の生成オブジェクト
-export interface TriangleBracketObject extends BaseObject {
-  type: 'triangle_bracket';
-  width: number;
-  height: number;
-  bracketWidth: number;
-  angleDegrees: number;
-  armLength: number;
-  offsetDistance: number;
-  bracketColour: string;
-}
+export type TriangleBracketObject = BaseObject & TriangleBracketObjectFields & { type: 'triangle_bracket' };
 
 // AviUtlPackV4 タータンチェック互換の生成オブジェクト
-export interface TartanCheckObject extends BaseObject {
-  type: 'tartan_check';
-  width: number;
-  height: number;
-  tileSize: number;
-  blurRadius: number;
-  baseColour: string;
-  stripeColourA: string;
-  stripeColourB: string;
-  lineColour: string;
-}
+export type TartanCheckObject = BaseObject & TartanCheckObjectFields & { type: 'tartan_check' };
 
 // AviUtlPackV4 千鳥格子互換の生成オブジェクト
-export interface HoundstoothObject extends BaseObject {
-  type: 'houndstooth';
-  width: number;
-  height: number;
-  patternSize: number;
-  foregroundColour: string;
-  backgroundColour: string;
-}
+export type HoundstoothObject = BaseObject & HoundstoothObjectFields & { type: 'houndstooth' };
 
 // AviUtlPackV4 矢がすり互換の生成オブジェクト
-export interface YagasuriObject extends BaseObject {
-  type: 'yagasuri';
-  width: number;
-  height: number;
-  arrowWidth: number;
-  arrowHeight: number;
-  lineWidth: number;
-  staggered: boolean;
-  foregroundColour: string;
-  backgroundColour: string;
-}
+export type YagasuriObject = BaseObject & YagasuriObjectFields & { type: 'yagasuri' };
 
 // AviUtlPackV4 紙飛行機互換の生成オブジェクト
 export interface PaperAirplaneObject extends BaseObject {
