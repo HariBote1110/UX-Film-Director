@@ -2152,6 +2152,300 @@ impl Default for YagasuriObjectFields {
     }
 }
 
+/// `paper_airplane` kind (`src/types.ts` の `PaperAirplaneObject`) の kind
+/// 固有フィールド。編集モデル型は
+/// `BaseObject & PaperAirplaneObjectFields & { type: 'paper_airplane' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `paperAirplaneObjectFactory.ts` の
+/// `buildAviUtlPaperAirplaneObject` の固定リテラル (320x240) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PaperAirplaneObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "bodyLength")]
+    #[ts(rename = "bodyLength")]
+    pub body_length: f32,
+    #[serde(rename = "wingWidth")]
+    #[ts(rename = "wingWidth")]
+    pub wing_width: f32,
+    #[serde(rename = "foldHeight")]
+    #[ts(rename = "foldHeight")]
+    pub fold_height: f32,
+    pub gap: f32,
+    #[serde(rename = "followMotionDirection")]
+    #[ts(rename = "followMotionDirection")]
+    pub follow_motion_direction: bool,
+    #[serde(rename = "axisMode")]
+    #[ts(rename = "axisMode")]
+    pub axis_mode: f32,
+    #[serde(rename = "fillColour")]
+    #[ts(rename = "fillColour")]
+    pub fill_colour: String,
+}
+
+impl Default for PaperAirplaneObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 320.0,
+            height: 240.0,
+            body_length: 200.0,
+            wing_width: 80.0,
+            fold_height: 50.0,
+            gap: 50.0,
+            follow_motion_direction: false,
+            axis_mode: 0.0,
+            fill_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `asanoha_pattern` kind (`src/types.ts` の `AsanohaPatternObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & AsanohaPatternObjectFields & { type: 'asanoha_pattern' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `asanohaPatternObjectFactory.ts` の
+/// `buildAviUtlAsanohaPatternObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AsanohaPatternObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "patternSize")]
+    #[ts(rename = "patternSize")]
+    pub pattern_size: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(rename = "foregroundColour")]
+    #[ts(rename = "foregroundColour")]
+    pub foreground_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for AsanohaPatternObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            pattern_size: 50.0,
+            line_width: 2.0,
+            foreground_colour: "#000000".to_string(),
+            background_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `focus_lines_plus` kind (`src/types.ts` の `FocusLinesPlusObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & FocusLinesPlusObjectFields & { type: 'focus_lines_plus' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `focusLinesPlusObjectFactory.ts` の
+/// `buildAviUtlFocusLinesPlusObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。`rust-core/src/
+/// focus_lines.rs` の `focus_lines_frame_bucket` はこの構造体と独立した
+/// バケット計算関数であり、クロスオブジェクト参照は持たない。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct FocusLinesPlusObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "rayWidth")]
+    #[ts(rename = "rayWidth")]
+    pub ray_width: f32,
+    pub gap: f32,
+    #[serde(rename = "centreRadius")]
+    #[ts(rename = "centreRadius")]
+    pub centre_radius: f32,
+    #[serde(rename = "rotationDegrees")]
+    #[ts(rename = "rotationDegrees")]
+    pub rotation_degrees: f32,
+    #[serde(rename = "centreX")]
+    #[ts(rename = "centreX")]
+    pub centre_x: f32,
+    #[serde(rename = "centreY")]
+    #[ts(rename = "centreY")]
+    pub centre_y: f32,
+    #[serde(rename = "centreJitterPercent")]
+    #[ts(rename = "centreJitterPercent")]
+    pub centre_jitter_percent: f32,
+    pub seed: u32,
+    #[serde(rename = "keyframeInterval")]
+    #[ts(rename = "keyframeInterval")]
+    pub keyframe_interval: f32,
+    #[serde(rename = "lineColour")]
+    #[ts(rename = "lineColour")]
+    pub line_colour: String,
+}
+
+impl Default for FocusLinesPlusObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            ray_width: 1.0,
+            gap: 5.0,
+            centre_radius: 100.0,
+            rotation_degrees: 0.0,
+            centre_x: 400.0,
+            centre_y: 225.0,
+            centre_jitter_percent: 20.0,
+            seed: 0,
+            keyframe_interval: 0.0,
+            line_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `random_line_ex` kind (`src/types.ts` の `RandomLineExObject`) の kind
+/// 固有フィールド。編集モデル型は
+/// `BaseObject & RandomLineExObjectFields & { type: 'random_line_ex' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `randomLineExObjectFactory.ts` の
+/// `buildAviUtlRandomLineExObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct RandomLineExObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "lineCount")]
+    #[ts(rename = "lineCount")]
+    pub line_count: u32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    pub threshold: f32,
+    #[serde(rename = "noiseCellSize")]
+    #[ts(rename = "noiseCellSize")]
+    pub noise_cell_size: f32,
+    #[serde(rename = "widthVariance")]
+    #[ts(rename = "widthVariance")]
+    pub width_variance: f32,
+    pub seed: u32,
+    #[serde(rename = "lineColour")]
+    #[ts(rename = "lineColour")]
+    pub line_colour: String,
+}
+
+impl Default for RandomLineExObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            line_count: 3,
+            line_width: 6.0,
+            threshold: 128.0,
+            noise_cell_size: 12.0,
+            width_variance: 0.0,
+            seed: 0,
+            line_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `contour_trace` kind (`src/types.ts` の `ContourTraceObject`) の kind
+/// 固有フィールド。編集モデル型は
+/// `BaseObject & ContourTraceObjectFields & { type: 'contour_trace' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `contourTraceObjectFactory.ts` の
+/// `buildAviUtlContourTraceObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ContourTraceObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(rename = "contourCount")]
+    #[ts(rename = "contourCount")]
+    pub contour_count: u32,
+    #[serde(rename = "jitterAmount")]
+    #[ts(rename = "jitterAmount")]
+    pub jitter_amount: f32,
+    #[serde(rename = "traceColour")]
+    #[ts(rename = "traceColour")]
+    pub trace_colour: String,
+    #[serde(rename = "backgroundOpacity")]
+    #[ts(rename = "backgroundOpacity")]
+    pub background_opacity: f32,
+    pub seed: u32,
+}
+
+impl Default for ContourTraceObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            line_width: 3.0,
+            contour_count: 5,
+            jitter_amount: 1.5,
+            trace_colour: "#ffffff".to_string(),
+            background_opacity: 0.0,
+            seed: 93,
+        }
+    }
+}
+
+/// `displacement_poly` kind (`src/types.ts` の `DisplacementPolyObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & DisplacementPolyObjectFields & { type: 'displacement_poly' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `displacementPolyObjectFactory.ts` の
+/// `buildAviUtlDisplacementPolyObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct DisplacementPolyObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub columns: u32,
+    pub rows: u32,
+    #[serde(rename = "displacementScale")]
+    #[ts(rename = "displacementScale")]
+    pub displacement_scale: f32,
+    #[serde(rename = "depthScale")]
+    #[ts(rename = "depthScale")]
+    pub depth_scale: f32,
+    #[serde(rename = "meshOpacity")]
+    #[ts(rename = "meshOpacity")]
+    pub mesh_opacity: f32,
+    #[serde(rename = "fillOpacity")]
+    #[ts(rename = "fillOpacity")]
+    pub fill_opacity: f32,
+    #[serde(rename = "lineColour")]
+    #[ts(rename = "lineColour")]
+    pub line_colour: String,
+    #[serde(rename = "fillColour")]
+    #[ts(rename = "fillColour")]
+    pub fill_colour: String,
+    pub seed: u32,
+}
+
+impl Default for DisplacementPolyObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            columns: 14,
+            rows: 8,
+            displacement_scale: 42.0,
+            depth_scale: 18.0,
+            mesh_opacity: 0.85,
+            fill_opacity: 0.18,
+            line_colour: "#36c2ff".to_string(),
+            fill_colour: "#0b1020".to_string(),
+            seed: 93,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,

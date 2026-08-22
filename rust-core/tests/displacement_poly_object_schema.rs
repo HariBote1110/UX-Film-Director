@@ -48,8 +48,8 @@ fn displacement_poly_object_fields_serialise_with_camel_case_field_names() {
     assert_eq!(value["rows"], 9);
     assert_eq!(value["displacementScale"], 50.0);
     assert_eq!(value["depthScale"], 20.0);
-    assert_eq!(value["meshOpacity"], 0.9);
-    assert_eq!(value["fillOpacity"], 0.2);
+    assert!((value["meshOpacity"].as_f64().unwrap() - 0.9).abs() < 1e-6);
+    assert!((value["fillOpacity"].as_f64().unwrap() - 0.2).abs() < 1e-6);
     assert_eq!(value["lineColour"], "#111111");
     assert_eq!(value["fillColour"], "#222222");
     assert_eq!(value["seed"], 5);
