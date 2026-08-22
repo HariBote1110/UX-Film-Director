@@ -1,0 +1,92 @@
+diff --git a/native-wgpu-renderer/src/lib.rs b/native-wgpu-renderer/src/lib.rs
+index 4d72bb5a..38a3de10 100644
+--- a/native-wgpu-renderer/src/lib.rs
++++ b/native-wgpu-renderer/src/lib.rs
+@@ -412,9 +412,12 @@ impl NativeWgpuLiveSurfaceRenderer {
+         let instance = wgpu::Instance::new(&instance_descriptor);
+         let visual_ptr = visual.as_raw() as *mut std::ffi::c_void;
+         let target = wgpu::SurfaceTargetUnsafe::CompositionVisual(visual_ptr);
++        eprintln!("[w5-hang] stage=wgpu_instance_created");
+         let surface = unsafe { instance.create_surface_unsafe(target) }
+             .map_err(NativeWgpuRenderError::CreateSurface)?;
++        eprintln!("[w5-hang] stage=surface_created");
+         let mut renderer = Self::from_surface(instance, surface, width, height).await?;
++        eprintln!("[w5-hang] stage=from_surface_done");
+ 
+         // present の都度 `IDCompositionDevice::Commit` を呼んで合成を確定
+         // させる（Phase 0 実測: p50 0.15ms・p99 0.48ms で無視できる）。present
+@@ -462,6 +465,7 @@ impl NativeWgpuLiveSurfaceRenderer {
+         width: u32,
+         height: u32,
+     ) -> Result<Self, NativeWgpuRenderError> {
++        eprintln!("[w5-hang] stage=request_adapter_begin");
+         let adapter = instance
+             .request_adapter(&wgpu::RequestAdapterOptions {
+                 power_preference: wgpu::PowerPreference::HighPerformance,
+@@ -470,7 +474,9 @@ impl NativeWgpuLiveSurfaceRenderer {
+             })
+             .await
+             .map_err(|_| NativeWgpuRenderError::AdapterUnavailable)?;
++        eprintln!("[w5-hang] stage=request_adapter_end");
+         let required_limits = required_limits_for_frame(&adapter, width, height)?;
++        eprintln!("[w5-hang] stage=request_device_begin");
+         let (device, queue) = adapter
+             .request_device(&wgpu::DeviceDescriptor {
+                 label: Some("UXFD native wgpu live surface device"),
+@@ -481,6 +487,7 @@ impl NativeWgpuLiveSurfaceRenderer {
+             })
+             .await
+             .map_err(NativeWgpuRenderError::RequestDevice)?;
++        eprintln!("[w5-hang] stage=request_device_end");
+         install_uncaptured_error_logging(&device, "UXFD native wgpu live surface device");
+         let capabilities = surface.get_capabilities(&adapter);
+         let surface_format = choose_live_surface_format(&capabilities.formats);
+@@ -500,33 +507,48 @@ impl NativeWgpuLiveSurfaceRenderer {
+             view_formats: vec![],
+             desired_maximum_frame_latency: 2,
+         };
++        eprintln!("[w5-hang] stage=surface_configure_begin");
+         surface.configure(&device, &surface_config);
++        eprintln!("[w5-hang] stage=surface_configure_end");
+ 
+         let pipeline = create_pipeline_for_format(&device, surface_format);
++        eprintln!("[w5-hang] stage=pipeline_created");
+         let bind_group_layout = pipeline.get_bind_group_layout(0);
+         let (nv12_bind_group_layout, nv12_pipeline) =
+             nv12::create_nv12_pipeline_for_format(&device, surface_format);
++        eprintln!("[w5-hang] stage=nv12_pipeline_created");
+         let bgra_pipeline = create_pipeline_for_format_with_layout(
+             &device,
+             wgpu::TextureFormat::Bgra8UnormSrgb,
+             &bind_group_layout,
+         );
++        eprintln!("[w5-hang] stage=bgra_pipeline_created");
+         let nv12_bgra_pipeline = nv12::create_nv12_pipeline_for_format_with_layout(
+             &device,
+             wgpu::TextureFormat::Bgra8UnormSrgb,
+             &nv12_bind_group_layout,
+         );
++        eprintln!("[w5-hang] stage=nv12_bgra_pipeline_created");
+         let output_texture =
+             create_output_texture_for_format(&device, width, height, surface_format);
+         let readback_buffer = create_readback_buffer(&device, width, height);
++        eprintln!("[w5-hang] stage=textures_created");
+         let particle_renderer = particle::ParticleGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=particle_renderer_created");
+         let audio_reactive_renderer = audio_reactive::AudioReactiveGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=audio_reactive_renderer_created");
+         let getcolor_renderer = getcolor::GetColorGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=getcolor_renderer_created");
+         let hksy_renderer = hksy::HksyGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=hksy_renderer_created");
+         let simple_tube_renderer = simple_tube::SimpleTubeGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=simple_tube_renderer_created");
+         let focus_lines_renderer = focus_lines::FocusLinesGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=focus_lines_renderer_created");
+         let shaking_polygon_renderer = shaking_polygon::ShakingPolygonGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=shaking_polygon_renderer_created");
+         let shattered_sphere_renderer = shattered_sphere::ShatteredSphereGpuRenderer::new(&device);
++        eprintln!("[w5-hang] stage=shattered_sphere_renderer_created");
+         let core = NativeWgpuRenderer {
+             width,
+             height,

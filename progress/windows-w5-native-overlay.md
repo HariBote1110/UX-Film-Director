@@ -78,15 +78,18 @@ native-overlay の失敗 2 件（`getcolor_source_image_metadata_changes_native_
 `running 1 test` から 3 分以上進まずハングした。プロセスメモリは緩やかに
 減少しており完全なデッドロックというより低速なリークか GPU 待ちの可能性も
 あるが、60 秒のタイムアウト表示（Rust テストランナーの既定警告）を大幅に
-超えている時点で異常。原因の切り分けは行っていない。候補:
+超えている時点で異常。原因の切り分けは行っていない（当時）。候補:
 
-1. `DCompositionCreateDevice`/`CreateTargetForHwnd` 自体が、
+1. ~~`DCompositionCreateDevice`/`CreateTargetForHwnd` 自体が、
    メッセージポンプの無いプロセスでブロックしている
    （COM アパートメント初期化や `CreateTargetForHwnd` が内部で
-   ウィンドウメッセージのやり取りを要求する可能性）。
-2. `wgpu::Instance::request_adapter`/`request_device`
+   ウィンドウメッセージのやり取りを要求する可能性）。~~
+   **棄却済み**（`windows_port_research/notes/w5-attach-hang.md` 参照。
+   メッセージポンプ無しでも数秒で完了することを実機で確認した）。
+2. ~~`wgpu::Instance::request_adapter`/`request_device`
    （`pollster::block_on` 経由）が、DirectComposition visual を
-   target にした surface に対して普段と異なる待ち方をしている。
+   target にした surface に対して普段と異なる待ち方をしている。~~
+   **棄却済み**（同上ノート。両方とも数秒で完了することを確認した）。
 3. `schtasks /it` のログオン済みセッションが、このテスト実行専用の
    環境では probe-sustained のときと異なる状態
    （前回のスモークテストプロセスの残骸、GPU リソース枯渇等）にあった。
@@ -95,15 +98,27 @@ native-overlay の失敗 2 件（`getcolor_source_image_metadata_changes_native_
 （DCompositionCreateDevice → CreateTargetForHwnd → CreateVisual → SetRoot →
 SurfaceTargetUnsafe::CompositionVisual）を実 Electron ウィンドウに対して
 60 秒超・連続 present で成功させているため、設計自体（ADR-012）の妥当性は
-高いと考えられる。ただし probe は実 Electron ウィンドウをメッセージポンプ
-込みで走らせているのに対し、本スモークテストは自前で作った最小限の
-top-level window で、メッセージループを一切回していない。この差が
-ハングの原因である可能性が高く、**次に着手すべきはこの切り分け**
-（スモークテスト側にメッセージポンプを足す、または `probe-sustained` の
-コードとの差分を1行ずつ突き合わせる）。
+高いと考えられる。
 
-この理由により、`markdown/Windows_Port_Plan.md` の Phase 5 は「コード実装は
-完了・実機の attach/present 経路は未検証」として ★完了 にはしていない。
+**追記（原因切り分け結果、`windows_port_research/notes/w5-attach-hang.md` 参照）**:
+上記の「メッセージポンプ不在」仮説は、`attach_overlay_window`/`from_hwnd`/
+`from_surface` の各段階に `eprintln` を仕込んで実機再現した結果、**棄却**した。
+`DCompositionCreateDevice` → `CreateTargetForHwnd` → `CreateVisual` →
+`SetRoot` はメッセージポンプが一切無いプロセスでも数秒で正常完了し、
+`wgpu::Instance::request_adapter`/`request_device` も同様に問題なく通過する。
+実際に進行が止まる箇所は、attach 完了までに `from_surface` が作る
+9 本の描画パイプラインのうち 2 本目、`nv12::create_nv12_pipeline_for_format`
+（シェーダ `shared-renderer/shaders/nv12_composite.wgsl`、678行）。10 分間
+追跡しても完了ログが出ず、CPU 使用量は単調増加するが増加率は鈍化しており、
+1 本目のパイプライン（598行のシェーダ、1分未満で完了）との所要時間差が
+行数差に見合わないことから、単純な「シェーダが大きいから遅い」ではなく
+`nv12_composite.wgsl` 固有の構造が naga→HLSL 変換または DXC のコード生成を
+病的に遅くしている可能性が高いと判断した。
+
+この理由により、`markdown/Windows_Port_Plan.md` の Phase 5 は引き続き
+「コード実装は完了・実機の attach/present 経路は未検証」として ★完了 には
+していない。**次に着手すべきは message pump ではなく `nv12_composite.wgsl`
+のパイプライン生成の切り分け**（最小再現、macOS/Metal との比較）。
 
 ## Phase 6 への申し送り
 

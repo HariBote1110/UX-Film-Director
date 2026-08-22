@@ -299,19 +299,30 @@ parity ゲートも全通過）。詳細は
   スモークテスト（`native-overlay/tests/win32_overlay_smoke.rs`）を用意し
   mainpc でビルド・実行したが、`schtasks /it` 経由の実行が 3 分以上
   ハングし完走しなかった（プロセスは強制終了して後始末済み）。
-  ハング箇所は未特定 —
-  `DCompositionCreateDevice`/`CreateTargetForHwnd` 自体が原因か、
-  `wgpu::Instance::request_adapter`/`request_device` が
-  メッセージポンプの無い owner window 上でブロックしているのか、
-  それ以外かは切り分けられていない。つまり **DirectComposition +
-  wgpu composition surface の実機での実際の attach 成立は未確認**。
+  つまり **DirectComposition + wgpu composition surface の実機での
+  実際の attach 成立は未確認**。
   Phase 0（`sustained-present.md`）の probe は同じ構成要素
   （DCompositionCreateDevice → CreateTargetForHwnd → CreateVisual →
   SetRoot → SurfaceTargetUnsafe::CompositionVisual）を実機で 60 秒超
-  連続 present して成功しているため設計自体の妥当性は高いが、
-  probe とこの実装の間の差分（本実装は owner を通常の
-  top-level window にしている・メッセージループを回していない等）が
-  ハングの原因になっている可能性がある。次のセッションでの優先課題。
+  連続 present して成功しているため設計自体の妥当性は高い。
+  **原因切り分け完了（`windows_port_research/notes/w5-attach-hang.md`）**:
+  段階ログを仕込んで実機再現したところ、`DCompositionCreateDevice`/
+  `CreateTargetForHwnd`/`CreateVisual`/`SetRoot` と
+  `wgpu::Instance::request_adapter`/`request_device` はいずれも
+  メッセージポンプの無いプロセスでも数秒で正常完了しており、
+  「メッセージポンプ不在が原因」という仮説は**棄却**。実際に進行が
+  止まっていたのは attach 完了までに `NativeWgpuLiveSurfaceRenderer::
+  from_surface` が作る 9 本の描画パイプラインのうち 2 本目、
+  `nv12::create_nv12_pipeline_for_format`（シェーダ
+  `shared-renderer/shaders/nv12_composite.wgsl`、678行）で、
+  10 分間追跡しても完了しなかった。1 本目のパイプライン（598行の
+  シェーダ）は1分未満で完了しており、行数差（+13%）に見合わない
+  所要時間の差から `nv12_composite.wgsl` 固有の構造がコンパイル経路を
+  病的に遅くしている可能性が高い。DirectComposition/wgpu surface
+  attach 自体の設計は健全であることが実機で確認できたため、
+  残る未検証事項はこのシェーダのコンパイル時間問題のみに絞られた。
+  次のセッションでの優先課題は message pump ではなく
+  `nv12_composite.wgsl` の切り分け。
 
 コードの実装（cfg分岐・型・pure関数・Cargo依存）は完了し、pure関数と
 既存の周辺テストは実機で確認済みだが、**この機能の中核である

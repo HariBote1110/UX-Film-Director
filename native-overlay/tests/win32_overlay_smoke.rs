@@ -39,8 +39,11 @@ extern "system" fn owner_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: L
 
 #[test]
 fn attach_and_detach_native_overlay_round_trip_on_real_hwnd() {
+    eprintln!("[w5-hang] stage=test_begin");
     unsafe {
+        eprintln!("[w5-hang] stage=get_module_handle_begin");
         let hinstance = GetModuleHandleW(None).expect("GetModuleHandleW failed");
+        eprintln!("[w5-hang] stage=get_module_handle_end");
         let class_name = wide_null("UXFDW5SmokeOwnerWindow");
         let class = WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,
@@ -70,10 +73,12 @@ fn attach_and_detach_native_overlay_round_trip_on_real_hwnd() {
         )
         .expect("CreateWindowExW(owner) failed");
         assert!(!owner.0.is_null(), "owner HWND must be non-null");
+        eprintln!("[w5-hang] stage=owner_window_created hwnd={:?}", owner.0);
 
         let handle_bytes = (owner.0 as usize).to_ne_bytes().to_vec();
         let window_id: u32 = 424_242;
 
+        eprintln!("[w5-hang] stage=attach_call_begin");
         let attach_response = attach_native_overlay(NativeOverlayAttachPayload {
             window_id,
             native_window_handle: Some(Buffer::from(handle_bytes.clone())),
@@ -89,7 +94,9 @@ fn attach_and_detach_native_overlay_round_trip_on_real_hwnd() {
             attach_response.reason
         );
         assert!(attach_response.attached);
+        eprintln!("[w5-hang] stage=attach_call_end success={}", attach_response.success);
 
+        eprintln!("[w5-hang] stage=detach_call_begin");
         let detach_response = detach_native_overlay(NativeOverlayDetachPayload {
             window_id,
             native_window_handle: Some(Buffer::from(handle_bytes)),
