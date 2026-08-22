@@ -856,6 +856,16 @@ const Viewport: React.FC = () => {
         // attach 成功で addon 側の選択デコレーション state が失われている可能性が
         // あるため、tick を進めて同値 quad でも再送させる。
         setNativeOverlayAttachTick((tick) => tick + 1);
+        // stage6 — main process側の ipcMain 診断ログ（console.info、
+        // electron/nativeOverlayIpc.ts）は Node の stdio が Windows 実機の
+        // schtasks/リダイレクト経由だとフルバッファリングされ、プロセス
+        // 終了までファイルに反映されないことがある（stage6実機検証で発見、
+        // Chromiumの--enable-loggingのCONSOLE出力は同じ問題を踏まない）。
+        // renderer 側（Chromium 経由）で同じ形式の成功ログを1行残すことで、
+        // 実機診断スクリプト（windows_port_research/tools/w7-verify/
+        // run-stage5-attach-latency.ps1）がリアルタイムに attach 完了を
+        // 検出できるようにする。
+        console.info('[NativeOverlay] attach {"success":true}');
       },
       onAttachFailed: (reason) => {
         // Option B（非同期attach）: 失敗しても presenter が既に描画対象のため
