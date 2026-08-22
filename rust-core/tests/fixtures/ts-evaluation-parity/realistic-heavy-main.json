@@ -112,28 +112,28 @@
       {
         "id": "main-a-polish-hksy-measured-grid",
         "kind": "GeneratedHksyCheckerGrid",
-        "source": "{\"generator\":\"hksy-checker-grid\",\"pattern\":\"measured-grid\",\"cell_size\":40,\"line_width\":1,\"checker_enabled\":false,\"grid_enabled\":true,\"foreground_colour\":\"#d8f3ff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#08111f\",\"separate_interval\":4,\"separate_line_width\":4}",
+        "source": "{\"width\":720,\"height\":320,\"pattern\":\"measured-grid\",\"cellSize\":40,\"lineWidth\":1,\"checkerEnabled\":false,\"gridEnabled\":true,\"foregroundColour\":\"#d8f3ff\",\"secondaryColour\":\"#36c2ff\",\"backgroundColour\":\"#08111f\",\"separateInterval\":4,\"separateLineWidth\":4}",
         "width": 720,
         "height": 320
       },
       {
         "id": "main-a-polish-hksy-anchor-line",
         "kind": "GeneratedHksyCheckerGrid",
-        "source": "{\"generator\":\"hksy-checker-grid\",\"pattern\":\"anchor-line\",\"cell_size\":64,\"line_width\":18,\"checker_enabled\":false,\"grid_enabled\":false,\"foreground_colour\":\"#ffd166\",\"secondary_colour\":\"#ffffff\",\"background_colour\":\"#000000\",\"anchor_points\":[{\"x\":-140,\"y\":80},{\"x\":-20,\"y\":-120},{\"x\":140,\"y\":70}],\"round_caps\":true,\"max_join_distance\":80}",
+        "source": "{\"width\":380,\"height\":320,\"pattern\":\"anchor-line\",\"cellSize\":64,\"lineWidth\":18,\"checkerEnabled\":false,\"gridEnabled\":false,\"foregroundColour\":\"#ffd166\",\"secondaryColour\":\"#ffffff\",\"backgroundColour\":\"#000000\",\"anchorPoints\":[{\"x\":-140,\"y\":80},{\"x\":-20,\"y\":-120},{\"x\":140,\"y\":70}],\"roundCaps\":true,\"maxJoinDistance\":80}",
         "width": 380,
         "height": 320
       },
       {
         "id": "main-a-polish-93-region-frame",
         "kind": "GeneratedRegionFrame",
-        "source": "{\"generator\":\"region-frame-93\",\"line_width\":10,\"shape\":\"rectangle\",\"extra_width\":0,\"extra_height\":0,\"background_opacity\":0.28,\"frame_colour\":\"#ffffff\",\"background_colour\":\"#243b6b\"}",
+        "source": "{\"width\":460,\"height\":280,\"lineWidth\":10,\"shape\":\"rectangle\",\"extraWidth\":0,\"extraHeight\":0,\"backgroundOpacity\":0.28,\"frameColour\":\"#ffffff\",\"backgroundColour\":\"#243b6b\"}",
         "width": 460,
         "height": 280
       },
       {
         "id": "main-a-polish-93-simple-tube",
         "kind": "GeneratedSimpleTube",
-        "source": "{\"generator\":\"simple-tube-93\",\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twist_degrees\":80,\"random_amount\":0,\"stroke_width\":3,\"colour\":\"#36c2ff\",\"secondary_colour\":\"#ffffff\",\"colour_pattern\":\"ring\",\"fog_strength\":0,\"fog_colour\":\"#ffffff\",\"seed\":93,\"torus\":false}",
+        "source": "{\"width\":460,\"height\":280,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":80,\"randomAmount\":0,\"strokeWidth\":3,\"colour\":\"#36c2ff\",\"secondaryColour\":\"#ffffff\",\"colourPattern\":\"ring\",\"fogStrength\":0,\"fogColour\":\"#ffffff\",\"seed\":93,\"torus\":false}",
         "width": 460,
         "height": 280
       },
@@ -161,28 +161,28 @@
       {
         "id": "main-b-polish-hksy-measured-grid",
         "kind": "GeneratedHksyCheckerGrid",
-        "source": "{\"generator\":\"hksy-checker-grid\",\"pattern\":\"measured-grid\",\"cell_size\":40,\"line_width\":1,\"checker_enabled\":false,\"grid_enabled\":true,\"foreground_colour\":\"#d8f3ff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#08111f\",\"separate_interval\":4,\"separate_line_width\":4}",
+        "source": "{\"width\":720,\"height\":320,\"pattern\":\"measured-grid\",\"cellSize\":40,\"lineWidth\":1,\"checkerEnabled\":false,\"gridEnabled\":true,\"foregroundColour\":\"#d8f3ff\",\"secondaryColour\":\"#36c2ff\",\"backgroundColour\":\"#08111f\",\"separateInterval\":4,\"separateLineWidth\":4}",
         "width": 720,
         "height": 320
       },
       {
         "id": "main-b-polish-hksy-anchor-line",
         "kind": "GeneratedHksyCheckerGrid",
-        "source": "{\"generator\":\"hksy-checker-grid\",\"pattern\":\"anchor-line\",\"cell_size\":64,\"line_width\":18,\"checker_enabled\":false,\"grid_enabled\":false,\"foreground_colour\":\"#ffd166\",\"secondary_colour\":\"#ffffff\",\"background_colour\":\"#000000\",\"anchor_points\":[{\"x\":-140,\"y\":80},{\"x\":-20,\"y\":-120},{\"x\":140,\"y\":70}],\"round_caps\":true,\"max_join_distance\":80}",
+        "source": "{\"width\":380,\"height\":320,\"pattern\":\"anchor-line\",\"cellSize\":64,\"lineWidth\":18,\"checkerEnabled\":false,\"gridEnabled\":false,\"foregroundColour\":\"#ffd166\",\"secondaryColour\":\"#ffffff\",\"backgroundColour\":\"#000000\",\"anchorPoints\":[{\"x\":-140,\"y\":80},{\"x\":-20,\"y\":-120},{\"x\":140,\"y\":70}],\"roundCaps\":true,\"maxJoinDistance\":80}",
         "width": 380,
         "height": 320
       },
       {
         "id": "main-b-polish-93-region-frame",
         "kind": "GeneratedRegionFrame",
-        "source": "{\"generator\":\"region-frame-93\",\"line_width\":10,\"shape\":\"rectangle\",\"extra_width\":0,\"extra_height\":0,\"background_opacity\":0.28,\"frame_colour\":\"#ffffff\",\"background_colour\":\"#243b6b\"}",
+        "source": "{\"width\":460,\"height\":280,\"lineWidth\":10,\"shape\":\"rectangle\",\"extraWidth\":0,\"extraHeight\":0,\"backgroundOpacity\":0.28,\"frameColour\":\"#ffffff\",\"backgroundColour\":\"#243b6b\"}",
         "width": 460,
         "height": 280
       },
       {
         "id": "main-b-polish-93-simple-tube",
         "kind": "GeneratedSimpleTube",
-        "source": "{\"generator\":\"simple-tube-93\",\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twist_degrees\":80,\"random_amount\":0,\"stroke_width\":3,\"colour\":\"#36c2ff\",\"secondary_colour\":\"#ffffff\",\"colour_pattern\":\"ring\",\"fog_strength\":0,\"fog_colour\":\"#ffffff\",\"seed\":93,\"torus\":false}",
+        "source": "{\"width\":460,\"height\":280,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":80,\"randomAmount\":0,\"strokeWidth\":3,\"colour\":\"#36c2ff\",\"secondaryColour\":\"#ffffff\",\"colourPattern\":\"ring\",\"fogStrength\":0,\"fogColour\":\"#ffffff\",\"seed\":93,\"torus\":false}",
         "width": 460,
         "height": 280
       },
@@ -210,28 +210,28 @@
       {
         "id": "main-c-polish-hksy-measured-grid",
         "kind": "GeneratedHksyCheckerGrid",
-        "source": "{\"generator\":\"hksy-checker-grid\",\"pattern\":\"measured-grid\",\"cell_size\":40,\"line_width\":1,\"checker_enabled\":false,\"grid_enabled\":true,\"foreground_colour\":\"#d8f3ff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#08111f\",\"separate_interval\":4,\"separate_line_width\":4}",
+        "source": "{\"width\":720,\"height\":320,\"pattern\":\"measured-grid\",\"cellSize\":40,\"lineWidth\":1,\"checkerEnabled\":false,\"gridEnabled\":true,\"foregroundColour\":\"#d8f3ff\",\"secondaryColour\":\"#36c2ff\",\"backgroundColour\":\"#08111f\",\"separateInterval\":4,\"separateLineWidth\":4}",
         "width": 720,
         "height": 320
       },
       {
         "id": "main-c-polish-hksy-anchor-line",
         "kind": "GeneratedHksyCheckerGrid",
-        "source": "{\"generator\":\"hksy-checker-grid\",\"pattern\":\"anchor-line\",\"cell_size\":64,\"line_width\":18,\"checker_enabled\":false,\"grid_enabled\":false,\"foreground_colour\":\"#ffd166\",\"secondary_colour\":\"#ffffff\",\"background_colour\":\"#000000\",\"anchor_points\":[{\"x\":-140,\"y\":80},{\"x\":-20,\"y\":-120},{\"x\":140,\"y\":70}],\"round_caps\":true,\"max_join_distance\":80}",
+        "source": "{\"width\":380,\"height\":320,\"pattern\":\"anchor-line\",\"cellSize\":64,\"lineWidth\":18,\"checkerEnabled\":false,\"gridEnabled\":false,\"foregroundColour\":\"#ffd166\",\"secondaryColour\":\"#ffffff\",\"backgroundColour\":\"#000000\",\"anchorPoints\":[{\"x\":-140,\"y\":80},{\"x\":-20,\"y\":-120},{\"x\":140,\"y\":70}],\"roundCaps\":true,\"maxJoinDistance\":80}",
         "width": 380,
         "height": 320
       },
       {
         "id": "main-c-polish-93-region-frame",
         "kind": "GeneratedRegionFrame",
-        "source": "{\"generator\":\"region-frame-93\",\"line_width\":10,\"shape\":\"rectangle\",\"extra_width\":0,\"extra_height\":0,\"background_opacity\":0.28,\"frame_colour\":\"#ffffff\",\"background_colour\":\"#243b6b\"}",
+        "source": "{\"width\":460,\"height\":280,\"lineWidth\":10,\"shape\":\"rectangle\",\"extraWidth\":0,\"extraHeight\":0,\"backgroundOpacity\":0.28,\"frameColour\":\"#ffffff\",\"backgroundColour\":\"#243b6b\"}",
         "width": 460,
         "height": 280
       },
       {
         "id": "main-c-polish-93-simple-tube",
         "kind": "GeneratedSimpleTube",
-        "source": "{\"generator\":\"simple-tube-93\",\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twist_degrees\":80,\"random_amount\":0,\"stroke_width\":3,\"colour\":\"#36c2ff\",\"secondary_colour\":\"#ffffff\",\"colour_pattern\":\"ring\",\"fog_strength\":0,\"fog_colour\":\"#ffffff\",\"seed\":93,\"torus\":false}",
+        "source": "{\"width\":460,\"height\":280,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":80,\"randomAmount\":0,\"strokeWidth\":3,\"colour\":\"#36c2ff\",\"secondaryColour\":\"#ffffff\",\"colourPattern\":\"ring\",\"fogStrength\":0,\"fogColour\":\"#ffffff\",\"seed\":93,\"torus\":false}",
         "width": 460,
         "height": 280
       },
