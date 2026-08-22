@@ -798,22 +798,9 @@ const Viewport: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // TEMP DIAGNOSTIC（stage5ブロッカー切り分け、後で削除）— effectそのものが
-    // 実行されているか、その時点でのゲート判定値を無条件に記録する。
-    console.warn('[NativeOverlay] attach effect ran', {
-      nativeOverlayPreviewEnabled,
-      hasContainer: !!containerRef.current,
-      hasBridge: !!window.nativeOverlay?.attach,
-      platform: window.uxfdPlatform,
-    });
     if (!nativeOverlayPreviewEnabled) {
       // 設定値そのものがOFF（未対応OS/明示opt-out）——attachライフサイクル自体を
       // 起動しない。presenter が唯一の描画対象になる。
-      // TEMP DIAGNOSTIC（stage5ブロッカー切り分け、後で削除/1行warnへ格下げ）:
-      console.warn('[NativeOverlay] attach lifecycle disabled by gate', {
-        platform: window.uxfdPlatform,
-        VITE_UXFD_NATIVE_OVERLAY: import.meta.env.VITE_UXFD_NATIVE_OVERLAY,
-      });
       setNativeOverlayLifecycleState('presenter');
       return;
     }
@@ -838,6 +825,24 @@ const Viewport: React.FC = () => {
     const attachNativeOverlayMachinery = (previewElement: HTMLDivElement): (() => void) => {
     let lastNativeOverlayAttachKey: string | null = null;
     let pendingAttachRect: Parameters<NonNullable<typeof window.nativeOverlay.attach>>[0] | null = null;
+    // stage5根本原因の修正 — React StrictMode の mount→cleanup→mount
+    // （dev限定、本番でも nativeOverlayPreviewEnabled トグルの連打等で
+    // 起こりうる）で、直前のマウントの attach がまだ pending（Windows実機
+    // では DXC パイプラインコンパイルに数十秒かかる）のうちに cleanup が
+    // 走ると、Rust側の win32_overlay::attach_overlay_window が overlay
+    // HWND を libuv threadpool worker スレッド上で作成しているため、
+    // cleanup が無条件に呼んでいた同期 detach_native_overlay（Rust側は
+    // まだ非同期化されていない）内の DestroyWindow が「メッセージポンプの
+    // 無いスレッドが所有する HWND をクロススレッドで破棄しようとして
+    // 呼び出し元スレッド（Electron main/JSスレッド）を永久にブロックする」
+    // という Win32 の既知の落とし穴を踏み、attach の resolve
+    // （hook登録・レスポンス確定、同じJSスレッド上で実行される設計）が
+    // 永遠にスケジュールされなくなる——windows-w7-async-attach.md stage5
+    // ブロッカーの実機再現（mainpc、540秒待っても attach が一度も発火しない）
+    // と完全に整合する。attach が一度も成功していないインスタンスでは
+    // detach/clearSurface を呼ばないことで、この cross-thread
+    // DestroyWindow 自体を発生させない。
+    let hasEverAttached = false;
     const nativeOverlayLifecycle = createNativeOverlayAttachLifecycle({
       attach: () => {
         // runAttach() 呼び出し直前に computeAttachRect() が pendingAttachRect を
@@ -847,6 +852,7 @@ const Viewport: React.FC = () => {
       },
       onStateChange: setNativeOverlayLifecycleState,
       onAttached: () => {
+        hasEverAttached = true;
         // attach 成功で addon 側の選択デコレーション state が失われている可能性が
         // あるため、tick を進めて同値 quad でも再送させる。
         setNativeOverlayAttachTick((tick) => tick + 1);
@@ -928,12 +934,19 @@ const Viewport: React.FC = () => {
       window.removeEventListener('focus', attach);
       window.removeEventListener('pageshow', attach);
       nativeOverlayDrawableSizeRef.current = null;
-      // Bug D case (ii) — Viewport unmount 時、detach が AppKit view を破棄
-      // する前に transparent clear を発行して drawable を全 pixel alpha=0 に
-      // する。呼び順は clear -> detach 必須（detach 後だと registry lookup
-      // が失敗し drawable が古いまま残る）。
-      void window.nativeOverlay?.clearSurface({});
-      void window.nativeOverlay?.detach({});
+      if (hasEverAttached) {
+        // Bug D case (ii) — Viewport unmount 時、detach が AppKit view を破棄
+        // する前に transparent clear を発行して drawable を全 pixel alpha=0 に
+        // する。呼び順は clear -> detach 必須（detach 後だと registry lookup
+        // が失敗し drawable が古いまま残る）。
+        // hasEverAttached ガード（stage5根本原因の修正、上記コメント参照）—
+        // 一度も attach 成功していないインスタンスで detach/clearSurface を
+        // 呼ぶと、pending中のattachが実機Windowsで cross-thread DestroyWindow
+        // デッドロックを踏む。まだ何もaddon側にattachしていないため、
+        // そもそも呼ぶ必要がない。
+        void window.nativeOverlay?.clearSurface({});
+        void window.nativeOverlay?.detach({});
+      }
     };
     };
 
