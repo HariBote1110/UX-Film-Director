@@ -1509,6 +1509,7 @@ impl NativeOverlayLiveSurfaceRenderer {
 pub fn attach_native_overlay(
     payload: NativeOverlayAttachPayload,
 ) -> napi::Result<AsyncTask<AttachNativeOverlayTask>> {
+    eprintln!("[uxfd-diag] attach_native_overlay: entered (JS thread, before prepare_sync)");
     let state = match std::panic::catch_unwind(AssertUnwindSafe(|| {
         attach_native_overlay_prepare_sync(payload)
     })) {
@@ -1517,6 +1518,7 @@ pub fn attach_native_overlay(
             "Native overlay attach panicked.",
         )),
     };
+    eprintln!("[uxfd-diag] attach_native_overlay: prepare_sync returned, creating AsyncTask");
     Ok(AsyncTask::new(AttachNativeOverlayTask::new(state)))
 }
 
@@ -1551,24 +1553,28 @@ impl Task for AttachNativeOverlayTask {
     type JsValue = NativeOverlayResponse;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
+        eprintln!("[uxfd-diag] AttachNativeOverlayTask::compute: entered (worker thread)");
         let state = self
             .state
             .take()
             .expect("AttachNativeOverlayTask::compute must run exactly once");
-        Ok(
-            match std::panic::catch_unwind(AssertUnwindSafe(|| {
-                attach_native_overlay_compute_pipelines(state)
-            })) {
-                Ok(outcome) => outcome,
-                Err(_) => AttachNativeOverlayOutcome::Done(failure(
-                    "Native overlay attach panicked.",
-                )),
-            },
-        )
+        let result = match std::panic::catch_unwind(AssertUnwindSafe(|| {
+            attach_native_overlay_compute_pipelines(state)
+        })) {
+            Ok(outcome) => outcome,
+            Err(_) => AttachNativeOverlayOutcome::Done(failure(
+                "Native overlay attach panicked.",
+            )),
+        };
+        eprintln!("[uxfd-diag] AttachNativeOverlayTask::compute: returning");
+        Ok(result)
     }
 
     fn resolve(&mut self, _env: Env, outcome: Self::Output) -> napi::Result<Self::JsValue> {
-        Ok(finish_attach_native_overlay(outcome))
+        eprintln!("[uxfd-diag] AttachNativeOverlayTask::resolve: entered (JS thread)");
+        let response = finish_attach_native_overlay(outcome);
+        eprintln!("[uxfd-diag] AttachNativeOverlayTask::resolve: returning");
+        Ok(response)
     }
 }
 
@@ -1666,11 +1672,16 @@ fn attach_native_overlay_prepare_sync(
     }
     #[cfg(target_os = "windows")]
     {
+        eprintln!("[uxfd-diag] attach_native_overlay_prepare_sync: before attach_overlay_window");
         let (overlay_hwnd, dcomp_device, visual) =
             match win32_overlay::attach_overlay_window(&native_window_handle, &contract) {
                 Ok(result) => result,
-                Err(reason) => return AttachNativeOverlayPreparedState::Done(failure(&reason)),
+                Err(reason) => {
+                    eprintln!("[uxfd-diag] attach_overlay_window failed: {reason}");
+                    return AttachNativeOverlayPreparedState::Done(failure(&reason));
+                }
             };
+        eprintln!("[uxfd-diag] attach_overlay_window done, overlay_hwnd={overlay_hwnd:x}; before prepare_from_hwnd");
         let prepared = match pollster::block_on(NativeWgpuLiveSurfaceRenderer::prepare_from_hwnd(
             dcomp_device,
             visual,
@@ -1679,12 +1690,14 @@ fn attach_native_overlay_prepare_sync(
         )) {
             Ok(prepared) => prepared,
             Err(error) => {
+                eprintln!("[uxfd-diag] prepare_from_hwnd failed: {error:?}");
                 let _ = win32_overlay::detach_overlay_window(&native_window_handle);
                 return AttachNativeOverlayPreparedState::Done(failure(&format!(
                     "Native overlay live surface creation failed: {error:?}"
                 )));
             }
         };
+        eprintln!("[uxfd-diag] prepare_from_hwnd done; returning NeedsPipelines");
         return AttachNativeOverlayPreparedState::NeedsPipelines {
             prepared,
             native_window_handle,
