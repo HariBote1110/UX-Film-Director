@@ -265,3 +265,90 @@ undo/redo ステップとして扱う variant が存在しない
   を壊すリスクの方が「6/34 を進めた」という進捗より優先度が低いと判断)。
 - group c は本ブロッカーの発見と記録のみで区切り、`useStore.ts` の
   コード自体は無改修(tree は group b コミット時点のまま)。
+
+# R4-8 group c: `useStore.ts` の17箇所を`pushHistoryCommand`へ変換
+
+## Decision
+
+- ブロッカー(前バッチ記録)が `Command::Batch` の追加(R4-7b、9fce47d5..d7f3cddb)
+  により解消されたため着手。`useStore.ts` の 17 箇所すべてを
+  `pushHistory()` から `pushHistoryCommand(cmd)` へ変換した
+  (`grep -c "pushHistory()"` は 0、`pushHistoryCommand` は 17)。
+- 新規ヘルパー `src/store/commandBuilders.ts` を追加:
+  `buildAddObjectCommand`/`buildRemoveObjectCommand`/`buildAddFilterCommand`/
+  `buildRemoveFilterCommand`/`buildToggleFilterEnabledCommand`/
+  `buildMoveFilterCommand`/`buildBatchCommand`(空なら`null`、単一なら
+  `Batch`でラップせずそのまま返す)/`buildObjectFieldDiffCommands`
+  (2つのオブジェクトを丸ごと比較して差分キーぶん`setObjectField`を作る
+  汎用ヘルパー — 「ビジネスロジックが実際に何を変えたか」を手で追うより
+  安全)。ts-rs生成の`TimelineObject`/`ObjectFilter`(`groupId?: string|null`
+  等)とapp側型(`string|undefined`)の横断キャストはこのファイルに閉じ込めた。
+
+## 変換テーブル(17箇所)
+
+| action | Command kind | previous捕捉ポイント |
+|---|---|---|
+| `addObject` | `addObject` | `set()`直前、`state.objects.length`をindexに |
+| `addObjectFilter` | `addFilter` | `addFilterToObject`を`set()`外で先に実行し、末尾に積まれた filter を取得してから積む(1回しか実行しない、二重生成を回避) |
+| `toggleObjectFilter` | `toggleFilterEnabled` | filter実在チェック(見つからなければ積まない = guard) |
+| `moveObjectFilter` | `moveFilter` | `fromIndex`/`toIndex`を`set()`外で計算。端でのクランプは`fromIndex===toIndex`(rust-source-of-truth-r4-commandsのクランプ規約に合わせる) |
+| `removeObjectFilter` | `removeFilter` | filter実在チェック(guard)、`removed`は削除前のfilter実体 |
+| `deleteObject` | `removeObject` | 削除前の`objects.findIndex` |
+| `deleteSelectedObjects` | `batch`(`removeObject`×N、降順index) | 対象0件なら積まない(既存guard流用) |
+| `rippleDeleteObject` | `batch`(`removeObject`+`setObjectField(startTime)`×shift対象) | `computeRippledObjects`の前後比較を`buildObjectFieldDiffCommands`で差分化 |
+| `rippleDeleteSelectedObjects` | `batch`(`removeObject`×N降順index+`setObjectField`×shift対象) | 同上 |
+| `splitObject` | `batch`(`removeObject`+`addObject`×2) | `syncObjectKeyframes`適用**後**のfirstPart/secondPartを使う(実際にstateへ入る値とCommandを一致させる) |
+| `cutSelectedObjects` | `batch`(`removeObject`×N降順index) | 対象0件なら積まない(既存guard流用) |
+| `pasteClipboardObjects` | `batch`(`addObject`×N、`state.objects.length`から連番index) | 対象0件なら積まない |
+| `duplicateSelectedObjects` | `batch`(`addObject`×N) | 同上 |
+| `duplicateSelectedObjectsWithObjectCopyExt` | `batch`(`addObject`×N) | sync済みオブジェクトを`set()`外で先に計算し、Command・stateの両方に使う |
+| `applyAviUtlStoredCoordinatesToSelection` | `batch`(`setObjectField`×変更対象) | patch適用後のオブジェクトを`set()`外で先に計算し、`buildObjectFieldDiffCommands`で差分化 |
+| `groupSelectedObjects` | `batch`(`setObjectField(groupId/groupGradient)`×対象) | 同上 |
+| `ungroupSelectedObjects` | `batch`(`setObjectField(groupId/groupGradient)`×対象) | 同上 |
+
+いずれのサイトも**フレーム単位で発火する経路はない**(すべて確定的な
+1回のユーザー操作に対して1回だけ呼ばれる、ドラッグ中の連続呼び出しは
+`useStore.ts`には存在しない)。
+
+## zero-target guard
+
+`deleteSelectedObjects`/`rippleDeleteSelectedObjects`/`cutSelectedObjects`/
+`pasteClipboardObjects`/`duplicateSelectedObjects`/
+`duplicateSelectedObjectsWithObjectCopyExt`/
+`applyAviUtlStoredCoordinatesToSelection`/`groupSelectedObjects`/
+`ungroupSelectedObjects` はいずれも既存コードに「対象0件なら早期return」
+するguardが元々あった(`pushHistory`を呼ぶ前に該当箇所へ到達しない)ため、
+そのまま踏襲するだけで zero-target 時に `pushHistoryCommand` が呼ばれない
+ことを確認した。`toggleObjectFilter`/`removeObjectFilter`は元々ガードが
+無かった(filterId不在でも`pushHistory`していた)ため、今回新たに
+「filter実在チェック」guardを追加した(Rust側のCommandは`removed`実体や
+実在`filterId`を要求するため、無効なCommandを積めないという制約上必須)。
+
+## テスト
+
+`src/store/useStoreCommandConversion.test.ts` を新設(9件)。単一Command
+サイト(addObject/deleteObject/フィルタ3種)、guard(存在しないfilterId/
+対象0件)、Batchサイト(deleteSelectedObjects降順index、rippleDeleteObject
+のRemove+shift、splitObjectのRemove+Add×2、groupSelectedObjectsの
+setObjectField差分)を確認。IPC往復自体の正しさはgroup bの
+`historySlice.test.ts`で別途固定済みのため、ここでは「各アクションが
+`pastCommands`へ正しい形のCommandを積むか」に絞った。
+
+## 検証済み
+
+- `npx tsc --noEmit` クリーン。
+- `npx vitest run` フル実行、**256ファイル/1850テスト、全green**
+  (旧基準255/1841 + 新規1ファイル/9テスト)。
+- Rust/codegen変更なしのため`cargo test`・`codegen:types:check`・
+  fixture parityは意図的にスキップ。
+
+## group d 以降への引き継ぎ
+
+- `layerSlice.ts`(3箇所)/`TimelineItem.tsx`(1箇所)/
+  `OxidiseStageViewport.tsx`(1箇所)が次。`layerSlice.ts`の
+  `swapLayerTracks`/`insertLayerTrackAt`/`deleteLayerTrackAt`は
+  `reorderLayers` Command(layers+objects丸ごと差し替え、R4-7設計どおり)
+  へのマッピングが既に決まっている。
+- `旧pushHistory`/`pastStates`/`futureStates`/`undo`/`redo`は
+  `useStore.ts`からは呼ばれなくなったが、`historySlice.ts`自体からは
+  まだ削除していない(dual-API継続、他ファイルの17箇所がまだ未移行)。

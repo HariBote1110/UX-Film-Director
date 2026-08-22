@@ -18,6 +18,7 @@ import {
 } from '../utils/sceneState';
 import {
   addFilterToObject,
+  getObjectFiltersInOrder,
   moveFilterInObject,
   removeFilterFromObject,
   syncFiltersFromLegacyValues,
@@ -60,6 +61,17 @@ import { createSelectionSlice } from './slices/selectionSlice';
 import { createWorkspaceSlice } from './slices/workspaceSlice';
 import { createHistorySlice } from './slices/historySlice';
 import { createLayerSlice } from './slices/layerSlice';
+import type { Command } from '../generated/rustCore/Command';
+import {
+  buildAddFilterCommand,
+  buildAddObjectCommand,
+  buildBatchCommand,
+  buildMoveFilterCommand,
+  buildObjectFieldDiffCommands,
+  buildRemoveFilterCommand,
+  buildRemoveObjectCommand,
+  buildToggleFilterEnabledCommand,
+} from './commandBuilders';
 
 export type {
   ExportDiagnostics,
@@ -351,7 +363,7 @@ export const useStore = create<AppState>((set, get) => ({
     } as TimelineObject;
     const syncedObject = syncObjectKeyframes(syncLegacyEffectsWithFilters(objectWithDefaults));
 
-    get().pushHistory();
+    get().pushHistoryCommand(buildAddObjectCommand(syncedObject, state.objects.length));
     set((state) => {
       const newObjects = [...state.objects, syncedObject];
       return { 
@@ -506,12 +518,16 @@ export const useStore = create<AppState>((set, get) => ({
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
-    get().pushHistory();
+    const previousFilterCount = getObjectFiltersInOrder(targetObject).length;
+    const updatedObject = addFilterToObject(targetObject, filterType);
+    const addedFilter = getObjectFiltersInOrder(updatedObject)[previousFilterCount];
+    // 追加された filter は末尾に積まれる(`addFilterToObject`の実装どおり)。
+    get().pushHistoryCommand(buildAddFilterCommand(objectId, addedFilter, previousFilterCount));
     set((state) => {
       const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
       if (targetIndex < 0) return {};
       const nextObjects = state.objects.slice();
-      nextObjects[targetIndex] = addFilterToObject(nextObjects[targetIndex], filterType);
+      nextObjects[targetIndex] = updatedObject;
       return { objects: nextObjects };
     });
   },
@@ -521,7 +537,10 @@ export const useStore = create<AppState>((set, get) => ({
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
-    get().pushHistory();
+    const filterExists = getObjectFiltersInOrder(targetObject).some((filter) => filter.id === filterId);
+    if (filterExists) {
+      get().pushHistoryCommand(buildToggleFilterEnabledCommand(objectId, filterId));
+    }
     set((state) => {
       const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
       if (targetIndex < 0) return {};
@@ -536,7 +555,17 @@ export const useStore = create<AppState>((set, get) => ({
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
-    get().pushHistory();
+    const currentFilters = getObjectFiltersInOrder(targetObject);
+    const fromIndex = currentFilters.findIndex((filter) => filter.id === filterId);
+    if (fromIndex >= 0) {
+      const rawTargetIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+      // Rust 側と同じクランプ規約(rust-source-of-truth-r4-commands.md):
+      // 端で無操作になる場合は fromIndex===toIndex を明示的に渡す。
+      const toIndex = rawTargetIndex < 0 || rawTargetIndex >= currentFilters.length
+        ? fromIndex
+        : rawTargetIndex;
+      get().pushHistoryCommand(buildMoveFilterCommand(objectId, filterId, fromIndex, toIndex));
+    }
     set((state) => {
       const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
       if (targetIndex < 0) return {};
@@ -551,7 +580,11 @@ export const useStore = create<AppState>((set, get) => ({
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
-    get().pushHistory();
+    const currentFilters = getObjectFiltersInOrder(targetObject);
+    const removeIndex = currentFilters.findIndex((filter) => filter.id === filterId);
+    if (removeIndex >= 0) {
+      get().pushHistoryCommand(buildRemoveFilterCommand(objectId, currentFilters[removeIndex], removeIndex));
+    }
     set((state) => {
       const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
       if (targetIndex < 0) return {};
@@ -579,7 +612,8 @@ export const useStore = create<AppState>((set, get) => ({
     const layer = clampLayerIndex(currentObject.layer);
     if (isLayerLocked(get().layers, layer)) return;
 
-    get().pushHistory();
+    const currentIndex = get().objects.findIndex((obj) => obj.id === id);
+    get().pushHistoryCommand(buildRemoveObjectCommand(currentObject, currentIndex));
     set((state) => {
       const newObjects = state.objects.filter(obj => obj.id !== id);
       const nextSelectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
@@ -604,7 +638,19 @@ export const useStore = create<AppState>((set, get) => ({
     if (deletableIds.length === 0) return;
 
     const deletableSet = new Set(deletableIds);
-    get().pushHistory();
+    // 降順 index で RemoveObject を並べる(rust-source-of-truth-r4-7b-command-batch.md
+    // の batch_apply_and_undo_round_trip_removes_multiple_objects と同じ規約:
+    // Batch は逐次 apply されるため、後ろの index から消していけば手前の
+    // index が途中でずれない)。
+    const removeCommands = deletableIds
+      .map((objId) => ({ objId, index: state.objects.findIndex((obj) => obj.id === objId) }))
+      .sort((a, b) => b.index - a.index)
+      .map(({ objId, index }) => buildRemoveObjectCommand(
+        state.objects.find((obj) => obj.id === objId)!,
+        index
+      ));
+    const batch = buildBatchCommand(removeCommands);
+    if (batch) get().pushHistoryCommand(batch);
     set((currentState) => {
       const newObjects = currentState.objects.filter((obj) => !deletableSet.has(obj.id));
       return {
@@ -623,7 +669,21 @@ export const useStore = create<AppState>((set, get) => ({
     const layer = clampLayerIndex(currentObject.layer);
     if (isLayerLocked(get().layers, layer)) return;
 
-    get().pushHistory();
+    const state = get();
+    const currentIndex = state.objects.findIndex((obj) => obj.id === id);
+    const rippledObjects = computeRippledObjects(state.objects, new Set([id]));
+    // RemoveObject + リップルで startTime がずれたオブジェクトの
+    // SetObjectField を1つの Batch にまとめる(1回の undo で両方戻す)。
+    const shiftCommands = rippledObjects.flatMap((nextObject) => {
+      const previousObject = state.objects.find((obj) => obj.id === nextObject.id);
+      if (!previousObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand([
+      buildRemoveObjectCommand(currentObject, currentIndex),
+      ...shiftCommands,
+    ]);
+    if (batch) get().pushHistoryCommand(batch);
     set((state) => {
       const deletedSet = new Set([id]);
       const newObjects = computeRippledObjects(state.objects, deletedSet);
@@ -649,7 +709,21 @@ export const useStore = create<AppState>((set, get) => ({
     if (deletableIds.length === 0) return;
 
     const deletableSet = new Set(deletableIds);
-    get().pushHistory();
+    const removeCommands = deletableIds
+      .map((objId) => ({ objId, index: state.objects.findIndex((obj) => obj.id === objId) }))
+      .sort((a, b) => b.index - a.index)
+      .map(({ objId, index }) => buildRemoveObjectCommand(
+        state.objects.find((obj) => obj.id === objId)!,
+        index
+      ));
+    const rippledObjects = computeRippledObjects(state.objects, deletableSet);
+    const shiftCommands = rippledObjects.flatMap((nextObject) => {
+      const previousObject = state.objects.find((obj) => obj.id === nextObject.id);
+      if (!previousObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand([...removeCommands, ...shiftCommands]);
+    if (batch) get().pushHistoryCommand(batch);
     set((currentState) => {
       const newObjects = computeRippledObjects(currentState.objects, deletableSet);
       return {
@@ -673,7 +747,7 @@ export const useStore = create<AppState>((set, get) => ({
         return;
     }
 
-    get().pushHistory();
+    const targetIndex = objects.findIndex((o) => o.id === target.id);
 
     const splitPoint = currentTime - target.startTime;
     const splitTime = currentTime;
@@ -729,6 +803,17 @@ export const useStore = create<AppState>((set, get) => ({
     newObjects.push(secondPart);
 
     const syncedObjects = newObjects.map(syncObjectKeyframes);
+    // set() 後の実データ(syncObjectKeyframes 適用済み)から Command を組み立てる
+    // — firstPart/secondPart の pre-sync 値ではなく実際に state へ入る値を
+    // 使うことで Rust 側の undo 結果と乖離しないようにする。
+    const syncedFirstPart = syncedObjects.find((o) => o.id === firstPart.id)!;
+    const syncedSecondPart = syncedObjects.find((o) => o.id === secondPart.id)!;
+    const batch = buildBatchCommand([
+      buildRemoveObjectCommand(target, targetIndex),
+      buildAddObjectCommand(syncedFirstPart, targetIndex),
+      buildAddObjectCommand(syncedSecondPart, objects.length),
+    ]);
+    if (batch) get().pushHistoryCommand(batch);
 
     set({
         objects: syncedObjects,
@@ -758,7 +843,12 @@ export const useStore = create<AppState>((set, get) => ({
     const cutObjectIdSet = new Set(cutObjects.map((obj) => obj.id));
     const clipboard = buildClipboardState(cutObjects);
 
-    get().pushHistory();
+    const removeCommands = cutObjects
+      .map((obj) => ({ obj, index: state.objects.findIndex((o) => o.id === obj.id) }))
+      .sort((a, b) => b.index - a.index)
+      .map(({ obj, index }) => buildRemoveObjectCommand(obj, index));
+    const batch = buildBatchCommand(removeCommands);
+    if (batch) get().pushHistoryCommand(batch);
     set((currentState) => {
       const newObjects = currentState.objects.filter((obj) => !cutObjectIdSet.has(obj.id));
       return {
@@ -824,7 +914,11 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (pastedObjects.length === 0) return;
 
-    get().pushHistory();
+    const baseIndex = state.objects.length;
+    const batch = buildBatchCommand(
+      pastedObjects.map((obj, i) => buildAddObjectCommand(obj, baseIndex + i))
+    );
+    if (batch) get().pushHistoryCommand(batch);
     set((currentState) => {
       const newObjects = [...currentState.objects, ...pastedObjects];
       return {
@@ -889,7 +983,11 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (duplicatedObjects.length === 0) return;
 
-    get().pushHistory();
+    const baseIndex = state.objects.length;
+    const batch = buildBatchCommand(
+      duplicatedObjects.map((obj, i) => buildAddObjectCommand(obj, baseIndex + i))
+    );
+    if (batch) get().pushHistoryCommand(batch);
     set((currentState) => {
       const newObjects = [...currentState.objects, ...duplicatedObjects];
       return {
@@ -921,9 +1019,13 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (duplicatedObjects.length === 0) return;
 
-    get().pushHistory();
+    const syncedObjects = duplicatedObjects.map((object) => syncObjectKeyframes(syncLegacyEffectsWithFilters(object)));
+    const baseIndex = state.objects.length;
+    const batch = buildBatchCommand(
+      syncedObjects.map((obj, i) => buildAddObjectCommand(obj, baseIndex + i))
+    );
+    if (batch) get().pushHistoryCommand(batch);
     set((currentState) => {
-      const syncedObjects = duplicatedObjects.map((object) => syncObjectKeyframes(syncLegacyEffectsWithFilters(object)));
       const newObjects = [...currentState.objects, ...syncedObjects];
       return {
         objects: newObjects,
@@ -950,17 +1052,21 @@ export const useStore = create<AppState>((set, get) => ({
     const patches = buildAviUtlCoordinateRecallPatches(selectedObjects, state.aviUtlCoordinateStoreSnapshot);
     if (patches.length === 0) return;
 
-    get().pushHistory();
-    set((currentState) => {
-      const patchById = new Map(patches.map((entry) => [entry.id, entry.patch]));
-      const objects = currentState.objects.map((object) => {
-        const patch = patchById.get(object.id);
-        if (!patch) return object;
-        if (isLayerLocked(currentState.layers, clampLayerIndex(object.layer))) return object;
-        return syncObjectKeyframes(syncLegacyEffectsWithFilters({ ...object, ...patch } as TimelineObject));
-      });
-      return { objects };
+    const patchById = new Map(patches.map((entry) => [entry.id, entry.patch]));
+    const nextObjects = state.objects.map((object) => {
+      const patch = patchById.get(object.id);
+      if (!patch) return object;
+      if (isLayerLocked(state.layers, clampLayerIndex(object.layer))) return object;
+      return syncObjectKeyframes(syncLegacyEffectsWithFilters({ ...object, ...patch } as TimelineObject));
     });
+    const diffCommands = nextObjects.flatMap((nextObject, i) => {
+      const previousObject = state.objects[i];
+      if (previousObject === nextObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set({ objects: nextObjects });
   },
 
   groupSelectedObjects: () => {
@@ -975,14 +1081,18 @@ export const useStore = create<AppState>((set, get) => ({
 
     const editableSet = new Set(editableIds);
     const newGroupId = crypto.randomUUID();
-    get().pushHistory();
-    set((currentState) => {
-      const newObjects = currentState.objects.map((obj) => {
-        if (!editableSet.has(obj.id)) return obj;
-        return { ...obj, groupId: newGroupId, groupGradient: undefined };
-      });
-      return { objects: newObjects };
+    const newObjects = state.objects.map((obj) => {
+      if (!editableSet.has(obj.id)) return obj;
+      return { ...obj, groupId: newGroupId, groupGradient: undefined };
     });
+    const diffCommands = newObjects.flatMap((nextObject, i) => {
+      const previousObject = state.objects[i];
+      if (previousObject === nextObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set({ objects: newObjects });
   },
 
   ungroupSelectedObjects: () => {
@@ -997,14 +1107,20 @@ export const useStore = create<AppState>((set, get) => ({
     );
     if (groupIds.size === 0) return;
 
-    get().pushHistory();
-    set((currentState) => {
-      const newObjects = currentState.objects.map((obj) => {
-        if (!obj.groupId || !groupIds.has(obj.groupId)) return obj;
-        if (isLayerLocked(currentState.layers, clampLayerIndex(obj.layer))) return obj;
-        return { ...obj, groupId: undefined, groupGradient: undefined };
-      });
-      return { objects: newObjects };
+    const newObjects = state.objects.map((obj) => {
+      if (!obj.groupId || !groupIds.has(obj.groupId)) return obj;
+      if (isLayerLocked(state.layers, clampLayerIndex(obj.layer))) return obj;
+      return { ...obj, groupId: undefined, groupGradient: undefined };
+    });
+    const diffCommands = newObjects.flatMap((nextObject, i) => {
+      const previousObject = state.objects[i];
+      if (previousObject === nextObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set({
+      objects: newObjects
     });
   },
 
