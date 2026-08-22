@@ -308,7 +308,14 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   `gravityZ` の3フィールドに対し rust-backend/native-wgpu-renderer 双方が
   旧 `gravity: [f32; 3]` 表現を持っていたため、個別フィールドへ分解した。
   **これでR3の生成系 kind 移送は全件完了した**
-  （`psd`/`group_control`/3D 系は未着手で残っている）。
+  （`psd`/`group_control`/3D 系は未着手で残っている）。続けて
+  `group_control` kindも2026-08-22に型移送のみで完了した
+  （`progress/rust-source-of-truth-r3-group-control-kind.md`）。
+  `group_control` は `targetLayerCount` を用いて同一 layer 以下の
+  他オブジェクトを走査し評価用 `GroupControl.target_track_ids` や
+  transform 積算へ変換するクロスオブジェクト参照を内包するため、
+  `audio_visualization`/`getcolor_dot_field` と同じ理由で wire 統一
+  （stage 4）は見送った。残るは `psd`/3D 系のみ。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
