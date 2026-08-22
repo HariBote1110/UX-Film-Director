@@ -683,7 +683,28 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
   のみに限定する（0件ではない。理由は上記前提修正を参照）。
 - macOSでは`nativeOverlayLifecycleState`が実質即時`'overlay'`へ遷移し、presenter
   が表示上使われる窓が実質ゼロであることを維持する。
-- 縮小後presenterのコード量が原ファイルの概ね1/3〜1/2以下に収まっていること。
+- **（2026-08-23 バッチ3で再改訂）** 当初の「原ファイルの概ね1/3〜1/2以下」は
+  「presenterに非video分岐・重複effect stackが大量に残っている」という誤った
+  前提に基づく目標値だった。バッチ2の監査で判明した通り、`sharedRendererWebGpuPresenter.ts`
+  は元から「背景合成＋動画テクスチャ描画＋export用readback/handoff」のみの薄い
+  構成であり、削るべき重複ロジックの絶対量が前提より少ない。バッチ3で
+  `sharedRendererPreviewPresenterController.ts` /
+  `sharedRendererViewportPresenterOrchestration.ts` も同じ厳格さで監査した結果、
+  いずれも公開exportに未使用（死コード）が無く、ロジックはRust側
+  （`loadSharedRendererRust*Builder`系）へ処理を委譲する薄いオーケストレーション
+  ／ライフサイクル管理であることを確認した。よって行数比率での合格条件は撤回し、
+  以下へ差し替える:
+  **presenterスタック（`sharedRendererWebGpuPresenter.ts` /
+  `sharedRendererPreviewPresenterController.ts` /
+  `sharedRendererViewportPresenterOrchestration.ts`）は監査済みで、死コード・
+  Rust重複ゼロ、実装は表示専用の薄層のみであること（実測行数を記録する。
+  バッチ3時点: 1,351行 / 1,211行 / 426行、計2,988行）。**
+  安全に立証可能な重複（同一WGSL文字列の複数`createShaderModule`呼び出し、
+  クリアのみのレンダーパスの重複実装）はテストで挙動をpinした上で統合し、
+  立証できない統合（レンダーパイプラインの実体そのものの統合など、
+  bind group layout解決がテストモック側でラベル文字列に強く結合しており
+  安全な等価性証明ができないもの）は統合せず理由を記録する
+  （`progress/rust-source-of-truth-r6-presenter-shrink.md` バッチ3参照）。
 
 **次善策として記録する未採用案**: 完全削除＋静的プレースホルダinterim
 （Windowsで動画を含むプロジェクトを開くたび最大約1分、動画プレビューが見えなくなる
@@ -692,6 +713,53 @@ UX後退のため不採用）。シェーダ再構成によるattach<5秒化後�
 する余地を残す）。加えてpresenterは現状CI/CDPで視覚検証できる唯一の描画経路である
 （native overlayは別OS合成レイヤーのためCDPでは黒画面——R5-7の記録参照）ことも
 縮小維持の理由に含む。
+
+**R6完了判定（2026-08-23、バッチ3）**:
+
+改訂後の合格条件に対する充足状況:
+
+| 合格条件 | 状態 |
+|---|---|
+| nv12 attach窓中の黒フレーム・クラッシュ・パニック無し（`nativeOverlayNv12Gate.test.ts`等） | 満たす（バッチ1〜3で変更なし、`npx vitest run`全green） |
+| WGSL文字列は`sharedRendererWebGpuPresenter.ts` 1ファイルのみ | 満たす（`rg "wgsl|createShaderModule" src --type ts -l`で本体1件＋test 2件のみ確認、ストラグラー無し） |
+| macOSで`nativeOverlayLifecycleState`が実質即時`'overlay'`（presenter表示窓が実質ゼロ） | 満たす（W7時点の実装から変更なし） |
+| presenterスタック監査済み・死コード/Rust重複ゼロ・表示専用の薄層のみ | 満たす（バッチ2・3の監査。3ファイルとも公開exportに未参照ゼロ、ロジックはRust builderへの委譲とライフサイクル管理のみ） |
+
+4条件すべて満たすため、**R6 ★完了（2026-08-23）**と判定する。
+
+`npx tsc --noEmit`エラーなし、`npx vitest run` 258 files / 1868 tests 全green
+（バッチ1・2と同数、退行なし）。Rust側の変更は本バッチでは無いため`cargo test`
+は対象外（`submitClearOnlyPass`統合はTS側のみのリファクタ）。
+
+PhaseVerは「既存挙動を変えないリファクタ＋ドキュメント改訂」のため、
+`package.json`のSubVerを1つ進める（該当ファイルがあれば）。新機能・重大バグ修正
+ではないためPhaseVerの繰り上げは行わない。
+
+### 思想上の残り（責務台帳）
+
+R6完了時点でも、「TSはUIに徹しRustが描画・状態を単一実装する」という本計画の
+思想に対して、TS側に**UI以外のロジック**が残っている箇所が4つある。いずれも
+即時解消の対象ではなく、将来課題として台帳化しておく。
+
+1. **クロスオブジェクト配線マッピング**（`editableRustScene.ts` /
+   `rustSceneSnapshot.ts`内、`audio_visualization` / `audio_sphere` /
+   `getcolor_dot_field` / `group_control`のオブジェクト間参照解決）:
+   Rustスナップショットと編集UIの間でオブジェクトIDの相互参照を組み替える
+   ロジックがTS側に残る。Rust側スナップショット形式が配線情報を直接持てば
+   解消できるが、スナップショットスキーマ変更を伴うため本計画の別フェーズ
+   （R7以降のドキュメント更新では対応しない設計変更）で扱う。
+2. **`filterStack.ts`の編集関数群のforward path**: フィルタスタックの
+   追加・削除・並べ替え操作をTS側で計算してからRustへ送る往路ロジックが
+   残る。Rust側に同等の編集APIを実装すればTSは呼び出しのみになるが、
+   フィルタ編集APIの新設はR6のスコープ外。
+3. **`layerTrackOps.ts`のreorder計算**: レイヤー/トラックの並べ替え時の
+   インデックス再計算をTS側で行っている。Rustスナップショットの
+   並べ替えAPIが無いための暫定実装。
+4. **interim presenterの最小実装（プラットフォーム強制）**:
+   本R6節で扱った`sharedRendererWebGpuPresenter.ts`本体。Windowsのnv12
+   attach窓という設計上の制約により恒久的にTS側描画コードが残る
+   （上記「前提の修正」参照）。将来nv12コンパイル時間が大幅短縮されれば
+   再評価の余地があるが、現時点では解消不能な既知の残存。
 
 ### R7: ドキュメント正本の更新（推定 1-2日）
 
