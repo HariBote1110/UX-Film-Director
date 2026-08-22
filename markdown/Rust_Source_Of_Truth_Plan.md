@@ -482,6 +482,18 @@ codegen:types:check/fixture parity（差分ゼロ）/vitest 253 ファイル
 `filterStack.ts`/`useStore.ts` の書き換えは R4-8/R4-9 で行う。詳細は
 `progress/rust-source-of-truth-r4-commands.md` を参照。
 
+**進捗（R4-7b・2026-08-22）**: R4-8 のブロッカー記録（複数オブジェクトへ
+同時作用する 11 の UI 操作は単一 `Command` で表現できない）を受けて、
+`Command` enum へ `Batch { commands: Vec<Command> }` を追加。apply は
+all-or-nothing（途中失敗で元 scene は無変更）、invert は逆順 + 各要素
+invert、入れ子 Batch と空 Batch はいずれも `CommandError` で拒否。
+単体 2 件 + proptest 1 件を追加（rust-core 全 33 テスト green）。TS 側
+`invertCommand.ts` にも `batch` ケースを追加し、専用テストファイル
+（3 件）を新設。tsc/フル cargo test/codegen:types:check/fixture parity
+（差分ゼロ）/vitest 255 ファイル 1841 件、全て合格。詳細は
+`progress/rust-source-of-truth-r4-7b-command-batch.md` を参照。R4-8
+group c 以降で該当 11 箇所を `Batch` へ配線する作業が残る。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、
