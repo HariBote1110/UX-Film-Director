@@ -394,6 +394,12 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 **合格条件**: `load → save → load` の round-trip identity（`02-rust-core-spec.md` の既存要件）、
 既存 `.uxfd` ファイルの読込互換、`undo(do(state)) == state`。
 
+**進捗（R4-1a・2026-08-22）**: ファイル形式スキャフォールディングの第一歩として
+`BaseObject`/`TimelineObject`（42 kind 判別共用体）/`SceneData`/`ProjectSettings`/
+`CameraState`/`LayerState` を `rust-core/src/schema.rs` へ追加。詳細は
+`progress/rust-source-of-truth-r4-project-file.md` を参照。`ProjectFile` 型・
+マイグレーション・IPC・`projectFile.ts` の書き換えは未着手（R4-1b 以降）。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、

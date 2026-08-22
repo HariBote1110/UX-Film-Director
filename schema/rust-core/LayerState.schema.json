@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LayerState",
+  "description": "`src/types.ts` の `LayerState` と同形。",
+  "type": "object",
+  "properties": {
+    "locked": {
+      "type": "boolean"
+    },
+    "name": {
+      "type": "string"
+    },
+    "visible": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "name",
+    "visible",
+    "locked"
+  ]
+}
