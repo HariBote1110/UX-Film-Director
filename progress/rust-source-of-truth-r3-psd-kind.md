@@ -174,3 +174,94 @@ ts-rs/schemars 側の追加ワークアラウンドは不要と判断し、こ�
   （型参照は `PsdLayerNode` のままで shape 互換）。バッチCで
   `PsdObject` 自体の構造が変わる場合は、今回追加した
   `projectFile.test.ts` のラウンドトリップテストが回帰検知に使える。
+
+## バッチC: `PsdObject` 本体の Rust 正本移送（2026-08-22）
+
+R3の`psd` kind移送・生成系kind移送を含む「40+ kind移送」の最終スライス。
+
+### 型移送
+
+- `rust-core/src/schema.rs` に `PsdObjectFields`（`src`/`filePath`/`width`/
+  `height`/`scale`/`rootLayer: Option<PsdLayerNodeFields>`/
+  `activeLayerIds: Option<BTreeMap<String, bool>>`/
+  `lipSync: Option<LipSyncSetting>`/`worldPlacement: Option<PsdWorldPlacement>`）
+  を追加。`layerTree`（バッチBの結論どおり表示専用の派生ビュー）と
+  `file`（ブラウザ `File`、ランタイム専用）はこの型に**含めない**。
+- `activeLayerIds` は `HashMap` ではなく `BTreeMap<String, bool>` を採用
+  （バッチB申し送りどおり）。**根拠**: `projectFile.test.ts` の
+  `round-trips a PSD-bearing project` テストは保存後の JSON を
+  `JSON.parse(JSON.stringify(...))` してから `toEqual` で構造比較しており、
+  オブジェクトキーの列挙順には依存しない。`restorePsdObjectFromFile` /
+  `mergeRestoredPsdActiveLayerIds` も `Object.entries`/
+  `Object.prototype.hasOwnProperty` でアクセスするのみでキー順に依存する
+  ロジックは無い。よって `BTreeMap`（ソート順）と手書き `Record`
+  （挿入順が変わりうる）の間でJSONのキー並びがズレても、消費側の shape
+  互換は保たれる。バイト互換ではなく shape 互換が必要十分という設計判断を
+  ここで確定させ、`rust-core/tests/psd_object_schema.rs` の
+  `psd_object_fields_serialise_with_camel_case_field_names` で
+  ソート順シリアライズを固定テストにした。
+- `PsdObject` は「平坦な intersection ではなく明示的な合成」というバッチBの
+  例外パターンを踏襲し、
+  `BaseObject & Omit<PsdObjectFields, 'rootLayer'> & PsdRuntimeFields & { type: 'psd'; rootLayer?: PsdLayerNode; layerTree?: PsdLayerStruct[] }`
+  として組み立てた（`src/types.ts`）。`PsdRuntimeFields { file?: File }` を
+  新設し、`rootLayer` は生成型ベースの `PsdLayerNodeFields` ではなく
+  TS 側 `PsdLayerNode`（`textureSource` 込み）へ差し替え、`layerTree` は
+  Rust 型を持たないため素の追加フィールドとして残した。
+- Default は `image` kind と同じ「ファイル由来フィールドはニュートラルな
+  空値」パターンに従うが、`scale` だけは `src/utils/psdParser.ts` の
+  4つの構築箇所すべてで `scale: 1.0` の固定リテラル（ファイル由来ではない
+  真の既定値）であるため `Default` にもその値を反映した。psd は
+  toolbar からの新規追加が無く常に PSD ファイルの解析結果から構築される
+  （専用の `objectFactories/psdObjectFactory.ts` は存在しない）ため、
+  Default は主に schema 網羅性のテスト用途。
+
+### stage 3/4（wire統一）は対象外
+
+`rustSceneSnapshot.ts` の `mediaReferenceForObject` を確認したところ、
+`psd` は `image`/`video` と同じ media kind パターンで、`SceneMediaReference`
+の `active_layer_ids: Vec<String>`（`solid_colour_scene.rs` 既存）に
+直接詰めるのみで `serialisePsdSource` のような専用ワイヤー型は最初から
+存在しない。したがって `image`/`video` kind の precedent どおり、
+stage 3（rust-backend側デシリアライズ先の統一）・stage 4（wire統一）は
+「専用ワイヤーが無いことの確認」で完結する。
+
+### 永続化互換性の担保
+
+- 事前に確認した既存の
+  `round-trips a PSD-bearing project (rootLayer/layerTree/activeLayerIds) with an identical JSON shape`
+  テスト（バッチBで追加済み）は `scale`/`worldPlacement` を含む
+  `minimalPsdWithWorldPlacement()` ベースで、型移送前後とも green のまま。
+  `PsdObject` レベルのフィールド（`scale`/`worldPlacement`/`lipSync`）は
+  既存テスト・`round-trips PSD worldPlacement through JSON payload` テストで
+  カバー済みと確認したため、バッチCでの追加テストは不要と判断した。
+- `sanitiseObjectForSave`/`restorePsdObjectFromFile` のロジックは無変更
+  （型参照のみ `PsdObject` の新しい合成型に切り替わる）。
+
+### 合格条件（すべて green、2026-08-22）
+
+`npx tsc --noEmit` / フル `cargo test --manifest-path rust-core/Cargo.toml`
+/ フル `cargo test --manifest-path rust-backend/Cargo.toml` / フル
+`cargo test --manifest-path native-wgpu-renderer/Cargo.toml` / フル
+`cargo test --manifest-path native-overlay/Cargo.toml` /
+`npm run codegen:types:check`（差分は新規 `PsdObjectFields.ts` の追加のみ、
+コミット済み）/ `npm run fixture:evaluation-parity` +
+`cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity`
+（`KNOWN_DIFFERENCES.json` は差分ゼロのまま）/ `npx vitest run`
+（252ファイル / 1834件、既存件数のまま green）。
+
+### R3全体の完了判定
+
+これで `psd` kind（バッチA/B/Cすべて）を含む R3 の 40+ kind 編集モデル移送が
+全件完了した。`markdown/Rust_Source_Of_Truth_Plan.md` の R3 セクションを
+★完了として更新する。ただし以下は**意図的に未対応のまま**（R3の合格条件
+「R0ハーネス緑・保存済みプロジェクトの読込互換」自体には抵触しない、
+将来のwire統一/クロスオブジェクト参照解決タスクとして残置）:
+
+- `audio_visualization`/`audio_sphere`: 共有ワイヤー型の構造的複雑さにより
+  wire統一（stage4）を見送り、型移送のみで完了。
+- `getcolor_dot_field`: `sampleSourceObjectId`/`sampleSourceLayer` 経由の
+  クロスオブジェクト参照があり同様にwire統一を見送り。
+- `group_control`: `targetLayerCount` 経由のクロスオブジェクト参照
+  （同一layer以下の他オブジェクト走査）があり同様にwire統一を見送り。
+- 3D系（`EditorMode`/`ProjectSettings` そのもの）は `ProjectSettings` 自体が
+  未移送のためR3スコープ外のまま（`worldPlacement`/`lipSync` は移送済み）。

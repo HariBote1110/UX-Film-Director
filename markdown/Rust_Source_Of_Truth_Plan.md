@@ -261,7 +261,7 @@ wire format は不変で R0 の fixture は byte 一致。`npm run codegen:types
 「移管前の経路 B の記録済み出力」と「移管後の経路 A」の比較に切り替える）、
 golden-frame parity 維持、既存 E2E export の画素一致。
 
-### R3: 編集モデルの正本移管（推定 10-15日）
+### R3: 編集モデルの正本移管（推定 10-15日）★完了（2026-08-22）
 
 `src/types.ts` の 40+ object kind を `rust-core/src/schema.rs` へ移す。
 
@@ -331,8 +331,23 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   バッチAのスパイクどおり `Box<>` 不要）として移送し、`textureSource`
   （GPU 専用・非シリアライズ）は `PsdLayerNodeRuntimeFields` として TS 側
   だけに残す明示合成型（psd は平坦 intersection パターンの例外）で
-  組み立てた。残るは `PsdObject` 自体（バッチC）と 3D 系
-  （`worldPlacement`/`lipSync` 以外に `PsdObject` へ直接吊るす部分）のみ。
+  組み立てた。続けて `PsdObject` 本体（バッチC）も2026-08-22に移送完了
+  した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
+  `PsdObjectFields`（`src`/`filePath`/`width`/`height`/`scale`/
+  `rootLayer`/`activeLayerIds`/`lipSync`/`worldPlacement`）を
+  rust-core/schema.rs へ追加し、`layerTree`（表示専用の派生ビュー）と
+  `file`（ブラウザ `File`、ランタイム専用）は Rust 型に含めず TS 側だけの
+  合成フィールドとして残した。`activeLayerIds` はキー順が決定的な
+  `BTreeMap<String, bool>` を採用（消費側が構造比較のみでキー順に
+  依存しないことを確認済み）。`psd` は `image`/`video` と同じ media kind
+  パターンで専用ワイヤー型が無いため stage 3/4（wire統一）は対象外と確認。
+  **これで R3 の 40+ kind 編集モデル移送は全件完了した。**
+  ただし以下は意図的に未対応のまま次段階へ申し送り: `audio_visualization`/
+  `audio_sphere`/`getcolor_dot_field`/`group_control` の4 kindは
+  クロスオブジェクト参照・共有ワイヤー型の構造的複雑さにより wire統一
+  （stage4）を見送り型移送のみで完了させている。3D系のうち
+  `ProjectSettings` 自体（`EditorMode` を含む）は未移送のまま
+  （`worldPlacement`/`lipSync`/`Vec3`/`StageCamera3D` は移送済み）。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
