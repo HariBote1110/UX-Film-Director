@@ -280,7 +280,7 @@ parity ゲートも全通過）。詳細は
 - golden-frame parity（`architecture/04-render-parity.md`）を移行の合格条件にする。
   **macOS の parity が崩れたら移行を止める。**
 
-### Phase 5: Windows overlay 実装（推定 4-6日）— コード実装は完了、実機の attach/present 経路は未検証（★完了にはしない）
+### Phase 5: Windows overlay 実装（推定 4-6日）★完了 2026-08-22
 
 `native-overlay` に `win32_overlay.rs` を足す。`macos_overlay.rs`（1,172 行）の対応物。
 
@@ -342,15 +342,36 @@ parity ゲートも全通過）。詳細は
   （`DynamicDxc`: mainpc に dxcompiler.dll/dxil.dll 無く即失敗、
   `StaticDxc`: MSVC標準ライブラリのシンボル未解決でリンクエラー）は
   どちらも本ホストでは追加のダウンロード/ツールチェイン更新なしに
-  検証できなかった。次のセッションでの優先課題は DX12 シェーダ
-  コンパイラの切替（DXC の DLL 同梱を最優先、次点で `static-dxc` ビルド
-  環境の整備、shader 分割は最終手段）であり、`nv12_composite.wgsl` 固有の
-  調査ではない。
+  検証できなかった（当時）。
 
-コードの実装（cfg分岐・型・pure関数・Cargo依存）は完了し、pure関数と
-既存の周辺テストは実機で確認済みだが、**この機能の中核である
-「実際にoverlayウィンドウがDirectComposition経由で合成されるか」は
-実機で確認できていない**ため、Phase 5 全体を ★完了 とは書かない。
+  **★DXC導入・実機E2E検証完了（`windows_port_research/notes/nv12-pipeline-compile-time.md`
+  「追記2」、ユーザー承認のもとDXCをmainpcへ実際にダウンロード・導入）**:
+  DXC（github.com/microsoft/DirectXShaderCompiler v1.9.2607）を取得し
+  `nv12-pipeline-repro` で実測したところ、Fxc比で solid 約13.9倍・
+  nv12 約12.9倍高速化した（nv12: 676.9秒→中央値52.4秒）。これを受け
+  `native-wgpu-renderer/src/lib.rs` に
+  `NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir)` を実装
+  （実行ファイルと同じディレクトリに `dxcompiler.dll`/`dxil.dll` が
+  両方揃っていれば `DynamicDxc`、欠けていれば `Fxc` へ自動フォールバック。
+  TDDで4件のテストを追加、macOS・mainpc両方でgreen）。DLL配置後、
+  `native-overlay/tests/win32_overlay_smoke.rs` を mainpc で
+  `schtasks /it` 経由で再実行した結果 **`test result: ok. 1 passed;
+  0 failed; ... finished in 79.09s`** — attach/detach の実 HWND 往復が
+  実機で完走することを確認した。
+
+コードの実装（cfg分岐・型・pure関数・Cargo依存）に加え、**この機能の
+中核である「実際にoverlayウィンドウがDirectComposition経由で合成される
+か」も実機で確認できた**ため、Phase 5 全体を ★完了 とする。
+
+**残課題（Phase 6以降）**: (1) 79.09秒は初回attach呼び出し1回分の
+パイプライン生成コスト（以降のpresentでは再利用される）。この同期
+ブロックがUIスレッドに与える影響の検討は未着手。(2)
+`dxcompiler.dll`/`dxil.dll` をElectronビルド成果物へ実際に組み込む
+作業（`electron-builder` の `extraResources` 設定等）はW1側の
+フォローアップとして未着手（配置場所・サイズ・ライセンスの申し送りは
+`nv12-pipeline-compile-time.md`「W1/electron-builderへの申し送り」
+参照。DLL欠如時もFxcへ安全にフォールバックするため機能上の必須項目
+ではない）。
 
 - `attach_native_overlay_inner` の `#[cfg(target_os = "windows")]` 分岐を実装する。
   現状は `attach_live_overlay_surface_renderer` が `Err("...only available on macOS")` を返す stub。

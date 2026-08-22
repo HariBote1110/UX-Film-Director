@@ -135,23 +135,58 @@ SurfaceTargetUnsafe::CompositionVisual）を実 Electron ウィンドウに対�
 W5 のスモークテスト実行時に3分で強制終了した判断は、結果的に早すぎた
 （あと8分待てば正常完了していた）ことになる。
 
-代替コンパイラの実機試行はどちらも本ホストでは即座に失敗した:
+代替コンパイラの実機試行はどちらも当初は即座に失敗した:
 `DynamicDxc`（システムの`dxcompiler.dll`/`dxil.dll`）は両DLLが
 mainpcに存在せずDX12バックエンド自体が初期化できず失敗。`StaticDxc`
 （`mach-dxcompiler-rs`静的リンク、`static-dxc` cargo feature）は
 MSVC標準ライブラリの新しめのシンボル（`__std_find_trivial_8`等）が
-未解決でリンクエラー。どちらも追加のダウンロードやツールチェイン更新
-なしにはこのホストで検証できない。
+未解決でリンクエラー。
 
-この理由により、`markdown/Windows_Port_Plan.md` の Phase 5 は引き続き
-「コード実装は完了・実機の attach/present 経路は未検証」として ★完了 には
-していない。DirectComposition + wgpu composition surface という設計自体は
-健全（全段階が有限時間で成功する）ことは確定したので、**次に着手すべきは
-message pump でも nv12 固有調査でもなく、DX12 シェーダコンパイラ
-（Fxc→DXCへの切替を最優先、次点で static-dxc 用ツールチェイン更新、
-shader 分割は最終手段）の対応**（`nv12-pipeline-compile-time.md` の
-「次の一手」「W5/W6 を止めているものへの結論」参照）。attach 経路自体は
-このコンパイルコストを解消すれば実用的な時間で完走できる見込みが高い。
+## 追記3: DXC導入・本番実装・実機E2E検証完了（★完了）
+
+ユーザー承認のもと、DXC（github.com/microsoft/DirectXShaderCompiler
+v1.9.2607、`dxc_2026_07_29.zip`）をmainpcへダウンロード・展開し、
+`dxcompiler.dll`/`dxil.dll`（x64）を取得した。`nv12-pipeline-repro`で
+Fxc比の実測を取ったところ、solidは104.3秒→中央値7.5秒（約13.9倍）、
+nv12は676.9秒→中央値52.4秒（約12.9倍）と大幅に改善した
+（詳細は`windows_port_research/notes/nv12-pipeline-compile-time.md`
+「追記: DXC導入後の実測」）。
+
+これを受け、`native-wgpu-renderer/src/lib.rs`に
+`NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir)`を実装した。
+実行ファイルと同じディレクトリに両DLLが揃っていれば`DynamicDxc`を、
+どちらか一方でも欠けていればwgpu既定の`Fxc`へ自動フォールバックする
+（Fxcでも最終的には有限時間で成功することは確認済みなので、DLL未配置
+環境でも機能的には壊れず単に遅いだけになる）。`wgpu::Dx12Compiler`は
+プラットフォーム非依存のデータ型なのでこの判定ロジック自体はmacOSでも
+ユニットテストでき、TDDで4件のテスト（DLL不在→Fxc、片方のみ→Fxc、
+両方揃い→DynamicDxc）を追加、macOS・mainpc両方でgreenを確認した。
+`from_hwnd`（Windows専用のattachエントリポイント）のinstance作成直後に
+この判定を呼ぶ。macOS側（`from_appkit_view`）は無変更。
+
+DLLをテスト実行ファイルと同じディレクトリ
+（`native-overlay/target/release/deps/`）へ配置した上で、
+`native-overlay/tests/win32_overlay_smoke.rs`をmainpcで
+`schtasks /it`経由で再実行した結果:
+
+```
+test attach_and_detach_native_overlay_round_trip_on_real_hwnd ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 79.09s
+```
+
+**W5 attachスモークテストが実機で完走することを確認した。**
+Fxc時代の「10分待って強制終了」から、DXC導入後は**79.09秒で正常完了**
+へ改善した。DirectComposition + wgpu composition surfaceという設計、
+DXC自動選択・Fxcフォールバックの両方が実機で検証済みとなったため、
+`markdown/Windows_Port_Plan.md`のPhase 5を**★完了**とした。
+
+**未解決のまま残るもの**（Phase 6以降の検討課題）: 79.09秒は初回attach
+呼び出し1回分のコスト（9本のパイプライン生成はレンダラ生成時に1回のみ
+発生し、以降のpresentでは再利用される）。1分強の同期ブロックがUIスレッド
+に与える影響（非同期化・事前ウォームアップの要否）は未検討。また
+`dxcompiler.dll`/`dxil.dll`をElectronビルド成果物へ実際に組み込む作業
+（electron-builder設定）はW1側のフォローアップとして未着手
+（`nv12-pipeline-compile-time.md`「W1/electron-builderへの申し送り」参照）。
 
 ## Phase 6 への申し送り
 

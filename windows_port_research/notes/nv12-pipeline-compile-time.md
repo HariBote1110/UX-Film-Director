@@ -237,38 +237,113 @@ solid の104秒に対しnv12は10分超なので、少なくとも6倍以上—�
   使えるようになった時点で比較すれば、Fxc 固有のパス（レジスタ割付や
   最適化パスの計算量）が原因かどうかを追加で切り分けられる。
 
+## 追記2: 本番 attach 経路への実装と W5 スモークテスト完走（ユーザー承認済み、実装・実機検証まで完了）
+
+上記の推奨に基づき、`NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir)`
+（`native-wgpu-renderer/src/lib.rs`）を実装した。実行ファイルと同じ
+ディレクトリに `dxcompiler.dll`/`dxil.dll` が両方揃っていれば
+`Dx12Compiler::DynamicDxc` を、どちらか一方でも欠けていれば
+`Dx12Compiler::Fxc` へ自動フォールバックする純粋な判定関数（`wgpu::Dx12Compiler`
+はプラットフォーム非依存のデータ型なので macOS でもユニットテスト可能）。
+`from_hwnd`（Windows専用の attach エントリポイント）の instance 作成直後に
+呼び出す。macOS 側（`from_appkit_view`）は無変更。TDD で4件のテスト
+（DLL不在→Fxc、片方のみ→Fxc、両方揃い→DynamicDxc、をそれぞれ確認）を
+追加し、macOS・mainpc の両方で green を確認した。
+
+### DLL の配置（DXC v1.9.2607、`dxc_2026_07_29.zip`）
+
+- 配布元確認済み: <https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip>
+  （41,625,275 bytes）。`bin\x64\dxcompiler.dll`（28,079,968 bytes）と
+  `bin\x64\dxil.dll`（3,831,600 bytes）を使用。
+- 本タスクでの配置（研究・検証目的、mainpc 上）:
+  `native-overlay\target\release\deps\`（`win32_overlay_smoke-*.exe` と
+  同じディレクトリ）へ配置した。`resolve_dx12_compiler` が
+  `std::env::current_exe()` の親ディレクトリを見るため、テスト実行時は
+  ここが「実行ファイルと同じディレクトリ」になる。
+- **本番（Electron）でどこに置く必要があるかは、末尾の
+  「W1/electron-builder への申し送り」を参照。本タスクではアプリの
+  ビルド成果物への組み込みは行っていない（研究・検証の配置のみ）。**
+
+### W5 スモークテスト完走（実機、`schtasks /it`）
+
+`native-overlay/tests/win32_overlay_smoke.rs`
+（`attach_native_overlay` → `detach_native_overlay` の実 HWND 往復）を、
+DLL 配置後・DXC 対応ビルド後に mainpc で再実行した。
+
+```
+running 1 test
+test attach_and_detach_native_overlay_round_trip_on_real_hwnd ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 79.09s
+```
+
+**W5 attach スモークテストが実機で完走することを確認した。** Fxc 時代の
+「10分待って強制終了」から DXC 導入後の **79.09秒（1分19秒）で正常完了**
+へ改善。ステージログで attach 呼び出しは
+`attach_call_begin`→（window作成・DComp device/target/visual・9本の
+パイプライン生成含む `from_surface` の全処理）→`attach_call_end
+success=true`→`detach_call_begin`→`ok` まで一直線に進行し、
+[w5-attach-hang.md](w5-attach-hang.md) で確認した「メッセージポンプ不要」
+「DirectComposition/wgpu adapter/device取得は健全」の所見と矛盾しない。
+
+**環境**: mainpc（Windows 11 Pro、RTX 3070 Ti、rustc/cargo 1.98.0）、
+`schtasks /create ... /it` + `schtasks /run`（`probe-sustained`/W5当初と
+同じ手法。DirectComposition が SSH 直実行だと `E_ACCESSDENIED` になるため）。
+完了判定は bat の末尾に付けた `DONE_MARKER_REAL` の出現をポーリングで検出。
+
 ## W5/W6 を止めているものへの結論（コーディネーターからの追加依頼への回答）
 
 - **attach 経路の設計（DirectComposition + wgpu composition surface）
   自体は健全**。実機で確認できた全段階（window作成・DComp device/target/
   visual・wgpu adapter/device 取得・surface configure）は数秒以内に完了する。
 - **`attach_native_overlay` の初回呼び出しは、`from_surface` が9本の
-  パイプラインを作る間、最悪ケースで合計 十数分オーダーの同期ブロックに
-  なりうる**（nv12 だけで11分17秒。他の7本の実測はまだ無いが、
-  solid の104秒がベースラインなら数分単位の追加コストが乗る可能性が
-  高い）。これは Phase 0 の知見「`get_current_texture` は UI スレッドで
-  呼んではいけない」と同種だが、規模が全く違う制約であり、
-  **W5/W6 を実機で「完了」と呼べるようにするには、この初回コンパイル
-  コストを何らかの形で解消する必要がある**。
-- 推奨する解消順序（実装は本タスクのスコープ外、次セッションへ）:
-  1. **最優先: DXC への切替。** `dxcompiler.dll`/`dxil.dll` をアプリに
-     同梱して `Dx12Compiler::DynamicDxc` を使う（ユーザー承認を要する
-     ダウンロード作業なので次セッションで判断）。DXC は "new, fast and
-     maintained" と wgpu 自身が明記しており、Fxc の非線形な遅さが
-     解消される可能性が高い。まずは `nv12-pipeline-repro` で
-     DXC 使用時の実測を取り、実際に速くなるかを検証してから本実装へ
-     進めるべき（本ノートでは DLL 未配置のため未検証のまま）。
-  2. 次点: `static-dxc` を使うための mainpc の MSVC ビルドツール更新
-     （`mach-dxcompiler-rs` が要求するバージョンの特定から着手）。
-  3. 最終手段: shader 分割・軽量化（uber-shader をやめる）。設計変更を
-     伴うため他の2つが不可能だった場合のみ検討する。
-- **Phase 5 を ★完了 にするための条件**: 上記のいずれかでコンパイル時間を
-  実用的な水準（数秒〜数十秒オーダー）まで落とし、
-  `native-overlay/tests/win32_overlay_smoke.rs` が数十秒〜数分程度で
-  完走することを実機で確認すること。現状のままでも「有限時間で成功する」
-  ことは確定したため、DirectComposition 設計自体の再検討（代替案の
-  検討）は不要と判断してよい。
+  パイプラインを作る間、Fxc のままだと最悪ケースで合計 十数分オーダーの
+  同期ブロックになりうる**（nv12 だけで11分17秒）。これは Phase 0 の
+  知見「`get_current_texture` は UI スレッドで呼んではいけない」と
+  同種だが、規模が全く違う制約だった。
+- **解消済み（本セッションで実装・検証まで完了）**: `resolve_dx12_compiler`
+  による DXC 自動選択（DLL 不在時は Fxc へフォールバック）を実装し、
+  実機で `win32_overlay_smoke.rs` が **79.09秒で完走**することを確認した
+  （上の「追記2」参照）。次点だった `static-dxc` ツールチェイン更新・
+  shader 分割は不要になった。
+- **Phase 5 は ★完了 とした**（`markdown/Windows_Port_Plan.md` 参照）。
+  DirectComposition + wgpu composition surface の設計・DXC 切替の両方が
+  実機で検証済み。
+- **未解決のまま残るもの**: 79.09秒はスモークテスト1回の実行時間であり、
+  実運用（Electron の attach 呼び出し1回）でも同程度のコストが1回だけ
+  かかる（9本のパイプラインは `NativeWgpuLiveSurfaceRenderer` の
+  生成時に1回だけ作られ、以降の present では再利用されるため、
+  attach のたびに毎回79秒かかるわけではない——ただし「初回 attach が
+  1分強ブロックする」こと自体はUXへの影響として残る。UIスレッドを
+  ブロックしないための非同期化・事前ウォームアップ等の要否は Phase 6
+  以降の検討課題）。
 - Fxc がどのコード領域で病的に遅くなっているか（分岐数、定数畳み込み対象、
-  ローカル変数のスカラー化など）はプロファイルしていない。DXC/StaticDxc が
-  使えるようになった時点で比較すれば、Fxc 固有のパス（レジスタ割付や
-  最適化パスの計算量）が原因かどうかを追加で切り分けられる。
+  ローカル変数のスカラー化など）はプロファイルしていない。実用上は
+  DXC で解消したため優先度は下がったが、興味があれば追加で切り分け可能。
+
+## W1/electron-builder への申し送り（DLL 同梱）
+
+**本タスクでは `dxcompiler.dll`/`dxil.dll` を Electron ビルド成果物へ
+組み込む作業は行っていない。** 研究・検証では mainpc 上の
+`native-overlay/target/release/deps/`（テスト実行ファイルと同じ
+ディレクトリ）に手動配置しただけで、`electron-builder` のビルド設定
+（`extraResources`/`extraFiles` 等）への組み込みは未着手。
+
+- **配置すべき場所**: `resolve_dx12_compiler` は
+  `std::env::current_exe()` の親ディレクトリを見る。本番の napi addon
+  （`uxfd_native_overlay.node` 相当）は Electron の実行ファイル
+  （`UX Film Director.exe`）とは別プロセスではなく同一プロセス内の
+  ネイティブモジュールとして読み込まれるため、`current_exe()` は
+  Electron 本体の実行ファイルパスを返す。よって **DLL は Electron の
+  実行ファイルと同じディレクトリ**（`electron-builder` の既定出力構成
+  では `resources/` の親、つまりインストール先ルート）に配置する必要が
+  ある。
+- **配布サイズへの影響**: `dxcompiler.dll` 約26.8MB + `dxil.dll` 約3.7MB
+  ＝ 合計 約30.5MB の追加（x64 のみ。arm64/x86 は不要）。
+- **ライセンス**: DirectXShaderCompiler は MIT/University of Illinois
+  Open Source License（LLVM系）。再配布条件の確認は本タスクでは
+  行っていない — electron-builder への組み込み作業時に確認すること。
+- **フォールバックは既に安全**: DLL を同梱し忘れても `resolve_dx12_compiler`
+  が自動的に Fxc へ落ちるため、機能的に壊れることはない（起動が遅く
+  なるだけ）。同梱を W1 の必須項目にするか任意の最適化にするかは
+  プロダクトの起動時間要件次第で判断してよい。
