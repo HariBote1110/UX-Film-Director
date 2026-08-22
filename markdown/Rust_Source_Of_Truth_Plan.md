@@ -378,7 +378,7 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 **合格条件**: R0 ハーネス緑、保存済みプロジェクトの読込互換（R4 で正式化するまでは
 既存の `projectFile.ts` が生成型を読める状態を維持）。
 
-### R4: 保存形式・コマンド・レシピの移管（推定 8-12日）
+### R4: 保存形式・コマンド・レシピの移管（推定 8-12日）★完了 2026-08-22
 
 - `projectFile.ts` の読み書きを `rust-core` へ。TS 側はファイル選択ダイアログと
   IPC だけを持つ。バージョン移行（V1→V2 等）のロジックも Rust へ。
@@ -519,6 +519,31 @@ Rust 側フィルタコマンドとの厳密な legacy フィールド同期）�
 スコープ外のまま **R4-9 として独立に残っている**（R4-8 は「filter 系
 Command との配線」のみを行い、`filterStack.ts` の実装移送そのものは
 一切行っていない）。R4 全体の完了判定は R4-9 の着地を待つ。
+
+**進捗（R4-9・2026-08-22、R4 完了）**: R4-8 が残していた「フィルタ系
+Command は `filters` 配列のみ同期し legacy ミラーフィールド
+（`colorCorrection`/`customClipping`/`vibration`/`shadow`/`gradient`）を
+同期しない」忠実性ギャップを解消した。legacy フィールドの廃止予定が
+記録上どこにも見当たらないことを確認した上で、`materialiseSyncedObject`
+（`filterStack.ts`）相当のロジックを Rust 側 `apply_command` へ移植する
+方針（オプション a）を採用し、`rust-core/src/command.rs` に
+`sync_legacy_effects_with_filters` を新設して `AddFilter`/`RemoveFilter`/
+`ToggleFilterEnabled`/`MoveFilter`/`UpdateFilterParams` 全 5 コマンドの
+適用末尾で呼ぶようにした。`filterStack.ts` の 5 編集操作は forward 経路
+（UI からの同期的な state 更新）専用の実装として現状必要最小限のため
+無改修（行数差分ゼロ）。`command_undo.rs` にラウンドトリップ確認込みの
+テスト 3 件を追加し全 36 件 green。tsc/フル cargo test（rust-core・
+rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フレーム、
+`KNOWN_DIFFERENCES.json` `[]` 維持）/vitest 257 ファイル 1854 件（TS 側
+無改修のため R4-8 group f と同数）、全て合格。詳細は
+`progress/rust-source-of-truth-r4-filter-stack.md` を参照。
+**これで R4 の合格条件（load→save→load round-trip identity、`.uxfd`
+読込互換、`undo(do(state))==state`）を全て満たし、R4 全体（stream-1A/
+1B/1C）を完了と判定する。** 副次的に判明した既知のギャップ
+（`updateObjectFilterParams` アクションが `pushHistoryCommand` を
+一切呼んでおらず、フィルタパラメータのスライダー編集が undo/redo 対象外
+になっている可能性）は本バッチでは対応せず記録のみに留めた
+（次バッチ候補）。
 
 ### R5: PSD 単一実装化（推定 5-8日）
 
