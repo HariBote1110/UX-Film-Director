@@ -21,7 +21,7 @@ npm run agent:video -- public/agent-projects/ai-demo.json
 - 色は `#rrggbb`、オブジェクトIDは重複させない。
 - `to` を指定すると、開始位置から終了位置までの位置アニメーションになる。
 - 現在の `kind` は `shape`、`text`、`particle`、`dotField`、`shatteredSphere`、`image`、`video`、`audio`。
-- 参考スキーマ: `schema/agent-project.schema.json`(エディタ補完・自己検証用。実行時の唯一の正は `src/agentProject/agentProject.ts` の `parseAgentProjectSpec`)。
+- 参考スキーマ: `schema/agent-project.schema.json`(schemars生成物。エディタ補完・自己検証用。実行時の唯一の正は `rust-core/src/agent_project.rs` の `parse_agent_project_spec`/`build_agent_project_file` — `agent:validate` はこれを呼ぶ薄いRust CLI経由)。
 
 ### 画像・動画・音声を使う
 
@@ -44,7 +44,7 @@ npm run agent:video -- public/agent-projects/ai-demo.json
 
 これでも「文字列の実測幅に合わせて中央寄せ」はできない(`text` の実際の描画幅はビルド時点では未確定なため、`width` を指定しない場合は既定値320で計算される)。厳密に中央寄せしたい場合はテキストの想定幅を `width` に指定すること。
 
-表現を増やす場合は `src/agentProject/agentProject.ts`、そのテスト(`src/agentProject/agentProject.test.ts`)、このガイド、`schema/agent-project.schema.json` を同じ変更で更新します。JSONを正しく読めるかは `agent:validate`、実際の見た目とMP4化は `agent:video` で確認します。
+表現を増やす場合は `rust-core/src/agent_project.rs`、そのテスト(`rust-core/tests/agent_project_schema.rs`)、このガイド、`schema/agent-project.schema.json`(`npm run codegen:types` で再生成)を同じ変更で更新します。`src/agentProject/agentProject.ts` はRust IPCへの薄い委譲のみで、レシピの意味論はここには持ちません。JSONを正しく読めるかは `agent:validate`、実際の見た目とMP4化は `agent:video` で確認します。
 
 ## 既知の制約
 

@@ -430,6 +430,24 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 `agentProject.ts` のレシピ解析移管）は本バッチのスコープ外で未着手のまま。
 詳細は `progress/rust-source-of-truth-r4-project-file.md` を参照。
 
+**進捗（R4-4/R4-5・2026-08-22、stream-1C 完了）**: `agentProject.ts` の
+`parseAgentProjectSpec`/`buildAgentProjectFile` を `rust-core/src/agent_project.rs`
+（`AgentProjectSpec` 判別共用体・`parse_agent_project_spec`・
+`build_agent_project_file`）へ 1:1 移植。`schema/agent-project.schema.json`
+は `codegen_types` の `schemars` 生成物に置換（手書き版にあった
+`additionalProperties: false` 等の制約は生成物には出ないが、実際の TS/Rust
+パーサーはもともとそこまで厳格ではなかった既知の乖離）。
+`rust-core/src/bin/agent_validate.rs`（新設 CLI）が
+`scripts/validate-agent-project.mts`/`npm run agent:validate` の実体になり、
+`src/agentProject/agentProject.ts` の `AGENTS.md` の記述どおり「実行時の
+唯一の正は `parseAgentProjectSpec`」は Rust 側（`agent_project.rs`）に
+書き換えた。renderer（`src/main.tsx`）は実行時に `buildAgentProjectFile` を
+呼ぶため、`project.deserialize`/`serialize` と同じ IPC パターンで
+`agent.buildProjectFile` RPC を rust-backend に新設し、
+`src/agentProject/agentProject.ts` はその薄い非同期デリゲーションのみに
+縮小（566 行 → 79 行）。詳細は
+`progress/rust-source-of-truth-r4-agent-project.md` を参照。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、
