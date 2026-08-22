@@ -568,8 +568,20 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
   フォールバックしない設計に変更。R5-7 用パリティベースラインを
   `rust-backend/tests/fixtures/psd-parity/aoi-chan-agpsd-baseline.json` に追加。
   詳細は `progress/rust-source-of-truth-r5-psd-unification.md` の R5-3 節。
-  `psdWasm.ts`/`psdAgPsdWorker.ts` のファイル削除（R5-4）、`projectFile.ts` の
-  Rust 側移行（R5-5）、`package.json` の `ag-psd` 除去（R5-6）は未着手。
+- **R5-5（完了）**: `src/utils/projectFile.ts` の `restorePsdObjectFromFile`
+  （保存済みプロジェクトの PSD 復元経路、R5-3 完了時点で唯一残っていた
+  `parsePsdArrayBufferAsObject` 呼び出し元）を `psd.parseMeta` RPC
+  （`psdParser.ts` 新規 export `parsePsdMetaFromPath`）へ移行。TS 側で
+  PSD 全バイトを読んでいた `readFileBytes` は不要になり削除（Rust が
+  `fs::read` を自前で行うため）。失敗時 UX（ファイル欠落等で保存済み
+  静的ツリーを保持したまま `file` だけ外すフォールバック）は変更なし。
+  `parsePsdArrayBufferAsObject` はプロダクション呼び出し元が 0 件になり、
+  R5-4 で削除する方針にコメント更新。詳細は
+  `progress/rust-source-of-truth-r5-psd-unification.md` の R5-5 節。
+  `psdWasm.ts`/`psdAgPsdWorker.ts`/`parsePsdArrayBufferAsObject` のファイル・
+  関数削除（R5-4）、`package.json` の `ag-psd` 除去（R5-6）は未着手。
+  R5-4 は着手条件が揃った状態（本バッチで `parsePsdArrayBufferAsObject`
+  のプロダクション呼び出し元がゼロになった）。
 - `ag-psd` 経路（`psdWasm.ts` の Worker 実装と `psdParser.ts` の main thread fallback）を
   `psd.parse` / `psd.parseMeta` / `psd.renderComposite` RPC に置き換える。
 - 合格条件は借用 VM で進めている PSD parser 研究の結果を使う。

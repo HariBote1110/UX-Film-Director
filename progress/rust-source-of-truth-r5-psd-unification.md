@@ -1,4 +1,4 @@
-# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化
+# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化 / R5-5 復元経路の単一化
 
 ## Decision
 
@@ -46,6 +46,81 @@
   無かった（確認済み、変更なし）。root に workspace 用 `Cargo.toml` は
   存在しない（各 crate が独立 `Cargo.toml` を持つ構成）ため、workspace
   members の削除は不要だった。
+
+## R5-5: `src/utils/projectFile.ts` の PSD 復元経路を `psd.parseMeta` 単一経路化
+
+### Decision
+
+- `restorePsdObjectFromFile`（保存済みプロジェクトを開いたときの PSD 復元、
+  R5-3 完了時点で唯一残っていた `parsePsdArrayBufferAsObject`（ag-psd）
+  呼び出し元）を、import フローと同じ `psd.parseMeta` RPC 経路へ移行した。
+- `psdParser.ts` 側で `parsePsdViaRustMeta`（旧・`File` + `filePath` 引数）
+  を `parsePsdMetaViaRust`（`filePath` + `fileName` を直接受け取り、`File`
+  は `originalFile?: File` として分離、IPC 呼び出しは `PsdMetaRpcBridge`
+  経由）に一般化し、そこから2つの公開エントリを生やした:
+  - `parsePsdAsObject`（import フロー、既存、`file` を渡す）
+  - `parsePsdMetaFromPath`（新規 export、`projectFile.ts` 用、`file` は
+    常に `undefined`）
+  `PsdMetaRpcBridge` は `projectFile.ts` の `RustBackendProjectFileBridge`
+  と同じ注入パターン（デフォルト実装は `window.ipcRenderer` を直接呼ぶ、
+  テストは差し替える）。
+- `readFileBytes` の運命: **削除**。`restorePsdObjectFromFile` 内の唯一の
+  呼び出し元だった。Rust 側 (`psd.parseMeta` ハンドラ) が `filePath` から
+  `fs::read` を自前で行うため、TS 側で PSD の全バイト列を読む処理
+  （`window.ipcRenderer.invoke('read-file-bytes', ...)` → `ArrayBuffer`）
+  が丸ごと不要になった。付随して `ReadFileBytesResponse` 型・
+  `normaliseBinaryData`（`readFileBytes` の戻り値正規化専用ヘルパー、
+  他の呼び出し元なし）も削除。`src/utils/audioMixdown.ts` は
+  `read-file-bytes` IPC チャンネル自体を独立して呼び続けており
+  （別の型・別のバイト列消費経路）、そちらは無変更（スコープ外）。
+- 失敗時 UX（項目2）: 旧経路は `readFileBytes` が `null` を返す
+  （IPC 失敗・ファイル欠落）か `parsePsdArrayBufferAsObject` が例外を
+  投げるかのどちらでも `restorePsdObjectFromFile` は `null` を返し、
+  呼び出し元 `restoreObjectFromProject` が `{ ...obj, file: undefined }`
+  （保存済みの静的ツリーをそのまま保持し `file` だけ外す）にフォール
+  バックしていた。新経路も同じ粒度を維持: `parsePsdMetaFromPath` が
+  投げる例外（RPC `success:false`／IPC 自体の reject／ファイル欠落等）を
+  `restorePsdObjectFromFile` の `try/catch` 一箇所で受け、`null` を返す。
+  プロジェクト全体のロードを失敗させない設計は変更していない。
+  `projectFile.test.ts` に新規テスト
+  「keeps the saved PSD tree (file cleared, no throw) when psd.parseMeta
+  reports failure」を追加してこの経路を直接カバーした。
+- `parsePsdArrayBufferAsObject`（`psdParser.ts`）: `restorePsdObjectFromFile`
+  が最後のプロダクションコード呼び出し元だったため、本バッチ完了時点で
+  プロダクションからの呼び出しは **0 件**（`rg` で確認済み）。残る呼び出しは
+  テストのみ（`psdParserArrayBufferWasm.test.ts` /
+  `psdParser.perf.test.ts` / `src/remoteDeck/remoteDeckPsdLayers.e2e.test.ts`）。
+  関数は内部で `parsePsdWithWasm`（`psdWasm.ts`）を第一候補として呼んで
+  いるため単体では削除できず、R5-4（`psdWasm.ts`/`psdAgPsdWorker.ts` 削除）
+  と同じバッチでこの関数＋上記テストもまとめて削除する方針にコメントを
+  更新した（関数直上の doc comment 参照）。
+
+### Alternatives considered
+
+- **`parsePsdMetaFromPath` を作らず `parsePsdAsObject` に `File` を偽装して
+  渡す案**（例: `new File([], fileName)` に `path` プロパティだけ付ける）:
+  却下。`File` オブジェクトの `path` は Electron 拡張の非標準プロパティで
+  あり、`projectFile.ts` はそもそも `File` を持たない（`filePath` 文字列
+  のみ）。ダミー `File` を組み立てるより、`filePath`/`fileName` を直接
+  受け取る関数を用意する方が型として正直で、テストの注入パターンも
+  `RustBackendProjectFileBridge` と揃えられる。
+
+### Constraints / Gotchas
+
+- `npx tsc --noEmit` clean。`npx vitest run` は 257 files / 1857 tests
+  （ベースライン 1856 + 失敗時 UX の新規テスト1件の純増、全 green）。
+  `npm run codegen:types:check` diff ゼロ。`cargo test`
+  （rust-backend フル 64+2+3(ignored)+5 件・rust-core フル）全 green。
+  `npm run fixture:evaluation-parity`（447 フレーム）+
+  `cargo test --test ts_evaluation_parity`（`KNOWN_DIFFERENCES.json` は
+  `[]` のまま）を全て確認済み（2026-08-22）。
+- `psdWasm.ts`/`psdAgPsdWorker.ts`・`electron/main.ts`・`package.json`・
+  `rust-backend/src` には触れていない（R5-4 のスコープ、または対象外）。
+- R5-4 の着手条件が揃った: `parsePsdArrayBufferAsObject` のプロダクション
+  呼び出し元がゼロになったため、`psdWasm.ts`/`psdAgPsdWorker.ts` の削除に
+  着手できる。ただし `parsePsdArrayBufferAsObject` 自体（`psdParser.ts`）と
+  その専用テスト3ファイルも R5-4 の削除対象に含めること（本バッチでは
+  コメント更新のみで実削除はしていない）。
 
 ## Alternatives considered
 
