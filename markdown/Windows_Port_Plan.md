@@ -434,7 +434,7 @@ parity ゲートも全通過）。詳細は
   は本 Phase のスコープ外（計画書の指示どおり「trivially safe でない限り
   fix しない」）。W7 以降の課題として申し送る。
 
-### Phase 7: 段階導入と既定切替（推定 1日、STAGE1 実施済み・24時間ベンチ待ち）
+### Phase 7: 段階導入と既定切替（推定 1日、STAGE1・STAGE2 実施済み・stage-2 partial）
 
 詳細は `progress/windows-w7-staged-rollout.md` を参照。
 
@@ -465,8 +465,27 @@ parity ゲートも全通過）。詳細は
   Windows は in-process decode 未実装のため steady-playback の frame time
   予算を環境変数で緩めて（fps parity ゲートではなく安定性ソークとして）起動した。
   開始時刻・ログパス・結果の読み方は `progress/windows-w7-staged-rollout.md`
-  参照。**24 時間の結果を見てから既定 ON への切替と ★完了・PhaseVer +1 を行う
-  （本 STAGE1 の時点ではまだ行わない）。**
+  参照。
+- **STAGE2（実施済み、2026-08-22）**: 24 時間ベンチはユーザーが「応答なし」を
+  観測して約 10 時間（147サイクル、gate failed/panic/crash/OOM いずれも
+  0件）で早期停止したため、24時間ではなく約10時間のソークとして評価した。
+  mainpc をbundle転送で最新commitへ同期し、native-overlay
+  `cargo test --release` を実機再実行（95 passed / 0 failed、W5由来の
+  パスバグ2件・overflow修正の回帰テスト含む全green）。overflow修正
+  （bottom-left→top-left フリップ）はgeometry smoke testの実測値と
+  手計算による絶対座標整合性で実機検証できた。attach レイテンシは
+  通常アプリセッション3回計測で中央値 **≈88.77秒**（5秒ゲートを大幅に
+  超過）。**DEFAULT-ONゲート（10時間ソーク0件／overflow検証済み／
+  attach<5秒）のうち3つ目が不成立のため `WINDOWS_DEFAULT_ENABLED` は
+  `false` のまま据え置き、flipしない。** 併せて、wgpuのpipeline cache
+  機構（`Features::PIPELINE_CACHE`等）が未実装であることを確認し、
+  DXCシェーダコンパイルコストは初回起動限定ではなく**毎起動（毎attach）
+  ごとに発生する構造的コスト**であると特定した——ユーザーが観測した
+  「応答なし」の根本原因はこれと一致する。詳細は
+  `progress/windows-w7-staged-rollout.md` のSTAGE2節を参照。
+  **stage-2はpartial（★完了ではない）。残課題: attach呼び出しの非同期化、
+  またはwgpu pipeline cache／DXCコンパイル結果の永続キャッシュ導入の
+  いずれかが完了するまで、Windows既定ON化は見送る。**
 
 ## 4. 既存設計との整合
 
