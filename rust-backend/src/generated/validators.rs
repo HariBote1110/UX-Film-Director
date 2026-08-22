@@ -268,9 +268,6 @@ pub(crate) fn validate_generated_hologram_source(
 pub(crate) fn validate_generated_protractor_source(
     source: &GeneratedProtractorSource,
 ) -> Result<(), String> {
-    if source.generator != "protractor" {
-        return Err("generator must be protractor".to_string());
-    }
     if source.radius == 0 || source.radius > 2000 {
         return Err("radius must be 1..2000".to_string());
     }

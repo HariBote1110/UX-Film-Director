@@ -110,18 +110,9 @@ pub(crate) use uxfd_rust_core::PlainEffectorLineObjectFields as GeneratedPlainEf
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
 pub(crate) use uxfd_rust_core::HologramObjectFields as GeneratedHologramSource;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedProtractorSource {
-    pub(crate) generator: String,
-    pub(crate) radius: u32,
-    pub(crate) measured_angle_degrees: f32,
-    pub(crate) tick_step_degrees: u32,
-    pub(crate) major_tick_step_degrees: u32,
-    pub(crate) decimal_places: u32,
-    pub(crate) line_colour: String,
-    pub(crate) text_colour: String,
-    pub(crate) shadow_colour: String,
-}
+// `protractor` kind のワイヤーソースは rust-core の `ProtractorObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::ProtractorObjectFields as GeneratedProtractorSource;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedShakingPolygonSource {

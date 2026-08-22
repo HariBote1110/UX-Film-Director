@@ -1194,44 +1194,42 @@ const isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported = (source:
 const isSharedRendererNativeGeneratedProtractorSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
-      measured_angle_degrees?: unknown;
-      tick_step_degrees?: unknown;
-      major_tick_step_degrees?: unknown;
-      decimal_places?: unknown;
-      line_colour?: unknown;
-      text_colour?: unknown;
-      shadow_colour?: unknown;
+      measuredAngleDegrees?: unknown;
+      tickStepDegrees?: unknown;
+      majorTickStepDegrees?: unknown;
+      decimalPlaces?: unknown;
+      lineColour?: unknown;
+      textColour?: unknown;
+      shadowColour?: unknown;
     };
     return (
-      parsed.generator === 'protractor'
-      && typeof parsed.radius === 'number'
+      typeof parsed.radius === 'number'
       && Number.isInteger(parsed.radius)
       && parsed.radius >= 1
       && parsed.radius <= 2000
-      && typeof parsed.measured_angle_degrees === 'number'
-      && Number.isFinite(parsed.measured_angle_degrees)
-      && parsed.measured_angle_degrees >= 0
-      && parsed.measured_angle_degrees <= 180
-      && typeof parsed.tick_step_degrees === 'number'
-      && Number.isInteger(parsed.tick_step_degrees)
-      && parsed.tick_step_degrees >= 1
-      && parsed.tick_step_degrees <= 90
-      && typeof parsed.major_tick_step_degrees === 'number'
-      && Number.isInteger(parsed.major_tick_step_degrees)
-      && parsed.major_tick_step_degrees >= 1
-      && parsed.major_tick_step_degrees <= 180
-      && typeof parsed.decimal_places === 'number'
-      && Number.isInteger(parsed.decimal_places)
-      && parsed.decimal_places >= 0
-      && parsed.decimal_places <= 5
-      && typeof parsed.line_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
-      && typeof parsed.text_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.text_colour)
-      && typeof parsed.shadow_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.shadow_colour)
+      && typeof parsed.measuredAngleDegrees === 'number'
+      && Number.isFinite(parsed.measuredAngleDegrees)
+      && parsed.measuredAngleDegrees >= 0
+      && parsed.measuredAngleDegrees <= 180
+      && typeof parsed.tickStepDegrees === 'number'
+      && Number.isInteger(parsed.tickStepDegrees)
+      && parsed.tickStepDegrees >= 1
+      && parsed.tickStepDegrees <= 90
+      && typeof parsed.majorTickStepDegrees === 'number'
+      && Number.isInteger(parsed.majorTickStepDegrees)
+      && parsed.majorTickStepDegrees >= 1
+      && parsed.majorTickStepDegrees <= 180
+      && typeof parsed.decimalPlaces === 'number'
+      && Number.isInteger(parsed.decimalPlaces)
+      && parsed.decimalPlaces >= 0
+      && parsed.decimalPlaces <= 5
+      && typeof parsed.lineColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.lineColour)
+      && typeof parsed.textColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.textColour)
+      && typeof parsed.shadowColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.shadowColour)
     );
   } catch {
     return false;

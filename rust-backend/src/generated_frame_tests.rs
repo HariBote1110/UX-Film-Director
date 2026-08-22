@@ -775,7 +775,7 @@ fn generated_protractor_source_frame_contains_ticks_angle_line_and_transparency(
     let media = SceneMediaReference {
             id: "protractor-1".to_string(),
             kind: MediaKind::GeneratedProtractor,
-            source: r##"{"generator":"protractor","radius":180,"measured_angle_degrees":90,"tick_step_degrees":10,"major_tick_step_degrees":30,"decimal_places":1,"line_colour":"#ffffff","text_colour":"#ffffff","shadow_colour":"#000000"}"##.to_string(),
+            source: r##"{"width":420,"height":240,"radius":180,"measuredAngleDegrees":90,"tickStepDegrees":10,"majorTickStepDegrees":30,"decimalPlaces":1,"lineColour":"#ffffff","textColour":"#ffffff","shadowColour":"#000000"}"##.to_string(),
             width: 420,
             height: 240,
             source_rate: None,

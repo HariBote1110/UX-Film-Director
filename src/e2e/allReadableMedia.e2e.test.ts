@@ -857,15 +857,14 @@ describe('全読込可能メディア E2E', () => {
       tintColour: '#ffffff',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-protractor')?.source ?? '{}')).toMatchObject({
-      generator: 'protractor',
       radius: 180,
-      measured_angle_degrees: 90,
-      tick_step_degrees: 10,
-      major_tick_step_degrees: 30,
-      decimal_places: 1,
-      line_colour: '#ffffff',
-      text_colour: '#ffffff',
-      shadow_colour: '#000000',
+      measuredAngleDegrees: 90,
+      tickStepDegrees: 10,
+      majorTickStepDegrees: 30,
+      decimalPlaces: 1,
+      lineColour: '#ffffff',
+      textColour: '#ffffff',
+      shadowColour: '#000000',
     });
     expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-shaking-polygon')?.source ?? '{}')).toMatchObject({
       generator: 'shaking-polygon',

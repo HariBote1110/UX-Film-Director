@@ -1791,15 +1791,16 @@ const serialiseGeneratedHologramSource = (object: HologramObject): string =>
 
 const serialiseGeneratedProtractorSource = (object: ProtractorObject): string =>
   JSON.stringify({
-    generator: 'protractor',
+    width: object.width,
+    height: object.height,
     radius: Math.min(2000, Math.max(1, Math.trunc(finiteNumberOr(object.radius, 180)))),
-    measured_angle_degrees: Math.min(180, Math.max(0, finiteNumberOr(object.measuredAngleDegrees, 90))),
-    tick_step_degrees: Math.min(90, Math.max(1, Math.trunc(finiteNumberOr(object.tickStepDegrees, 10)))),
-    major_tick_step_degrees: Math.min(180, Math.max(1, Math.trunc(finiteNumberOr(object.majorTickStepDegrees, 30)))),
-    decimal_places: Math.min(5, Math.max(0, Math.trunc(finiteNumberOr(object.decimalPlaces, 1)))),
-    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
-    text_colour: /^#[0-9a-f]{6}$/i.test(object.textColour) ? object.textColour : '#ffffff',
-    shadow_colour: /^#[0-9a-f]{6}$/i.test(object.shadowColour) ? object.shadowColour : '#000000',
+    measuredAngleDegrees: Math.min(180, Math.max(0, finiteNumberOr(object.measuredAngleDegrees, 90))),
+    tickStepDegrees: Math.min(90, Math.max(1, Math.trunc(finiteNumberOr(object.tickStepDegrees, 10)))),
+    majorTickStepDegrees: Math.min(180, Math.max(1, Math.trunc(finiteNumberOr(object.majorTickStepDegrees, 30)))),
+    decimalPlaces: Math.min(5, Math.max(0, Math.trunc(finiteNumberOr(object.decimalPlaces, 1)))),
+    lineColour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+    textColour: /^#[0-9a-f]{6}$/i.test(object.textColour) ? object.textColour : '#ffffff',
+    shadowColour: /^#[0-9a-f]{6}$/i.test(object.shadowColour) ? object.shadowColour : '#000000',
   });
 
 const serialiseGeneratedShakingPolygonSource = (object: ShakingPolygonObject): string =>
