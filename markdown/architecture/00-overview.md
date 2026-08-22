@@ -31,28 +31,46 @@ Windows は初期段階では厳密な性能・画質 parity の対象にしな�
 
 ## 層構成
 
+`Rust_Source_Of_Truth_Plan.md` の R0-R6（★2026-08-23 全完了）を経た現状の層構成は以下のとおり。
+各層の詳細な設計判断は [01-decision-record.md](./01-decision-record.md) の ADR-011/013/014/015/016 を参照。
+
 ```text
-Electron / React
-  UI、プロパティパネル、ショートカット、ファイル選択、進捗表示
+Electron / React（縮小済み TS 層）
+  UI、プロパティパネル、ショートカット、ファイル選択ダイアログ、進捗表示、
+  IPC オーケストレーション（rust-backend RPC 呼び出しの薄い配線）、
+  Windows nv12 attach 窓中の interim presenter（下記 native overlay 参照）
+  編集モデルの型は rust-core からの ts-rs/schemars 生成物を import するだけ（手動ミラー廃止）
 
-rust-core
-  プロジェクトモデル、タイムライン評価、キーフレーム、
-  フィルタ仕様、コマンド/undo、検証、音声時間モデル、色空間メタ
+rust-core  ★編集モデル・評価・保存形式・コマンドの唯一の正本
+  project model（42 kind TimelineObject を含む全 object kind、ProjectFile/バージョニング）
+  timeline / keyframe / easing / visibility / group transform の評価
+  command / undo（二層構成: SetObjectField 等の汎用フィールドコマンド + AddObject/
+    RemoveObject/SetLayerState 等の構造コマンド + Batch）
+  agent_project（レシピ解析 `parse_agent_project_spec`/`build_agent_project_file`）
+  ts-rs による TS 型 + schemars による JSON Schema 生成
 
-shared renderer
-  wgpu + WGSL
-  wasm/WebGPU = プレビュー
-  native/wgpu = 書き出しフレーム生成
-  合成、エフェクト、色変換の正本
+rust-backend  ★RPC サーフェス（project.*/command.*/agent.*/psd.parseMeta 等）
+  PSD 解析（`psd_fast.rs`、ag-psd 依存は撤去済み）、decode/encode/mux、音声、
+  project.serialize/deserialize、command.apply、agent.buildProjectFile
 
-sidecar native
-  ffmpeg/ffprobe、decode/encode/mux、PSD 解析、
-  プロキシ/中間素材生成、サムネイル生成
+native-wgpu-renderer / native overlay  ★プレビュー描画の既定経路（両プラットフォーム既定 ON）
+  macOS: napi-rs addon から CAMetalLayer へ直接描画（ADR-011）
+  Windows: child window 経由の native overlay（ADR-013 系）
+  wgpu + WGSL の合成・エフェクト・色変換はここに一本化
+
+sharedRendererWebGpuPresenter.ts（TS 内蔵 WGSL、interim presenter として縮小維持）
+  Windows の nv12 パイプライン attach 完了までの動画クリップシーン表示に限り必要
+  （設計上恒久的なコンポーネント。ADR-016/ADR-011 改訂を参照）。
+  macOS では nativeOverlayLifecycleState が実質即時 'overlay' に遷移し表示上使われる窓が実質ゼロ。
 
 bridge
   小さい制御プレーン: IPC または napi-rs
   大きいデータプレーン: 共有メモリまたは mmap
 ```
+
+上記は R0-R6 が実測で確定させた**現状**であり、以下の「基本方針」との差分（TS 側に残る
+UI 以外のロジック）は `Rust_Source_Of_Truth_Plan.md` の「思想上の残り（責務台帳）」に
+台帳化されている。
 
 ## 基本方針
 

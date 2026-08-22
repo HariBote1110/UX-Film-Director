@@ -10,7 +10,11 @@
 > 2. React/Zustand は UI 状態を持つが、編集モデルの正本にはしない。
 > 8. JavaScript が独自に WGSL や scene logic を持つ構成にはしない。
 
-— は現時点で **満たされていない**。本計画はその差分を埋めるまでの道筋を定める。
+— は R0-R7 完了時点（2026-08-23）で **満たされている**（提案時点は満たされていなかった。
+本計画はその差分を埋めるまでの道筋を定めたものであり、全フェーズ完了により当初ゴールへ
+到達した）。ただし「思想上の残り（責務台帳）」に記載の 4 項目は TS 側に意図的に残る
+既知の残存であり、これらは基本方針の逸脱ではなく別フェーズ扱いの将来課題として
+台帳化されている。
 
 `Windows_Port_Plan.md` と同時期に走る計画であり、両者の順序関係は §3 で定める。
 
@@ -157,6 +161,11 @@ W4  wgpu 0.20 → 25（5-10日）★単独レーン  上げ先は 25 で確定�
               W7 完了が前提。両プラットフォームで native overlay が
               既定になるまで TS presenter は消せない。
 ```
+
+**★2026-08-23 時点、上記の R0-R7・W0-W7 は全フェーズ完了している。** R6 は当初案の
+「presenter 全面削除」ではなく「interim 専用への縮小」へ改訂の上で完了し（Windows W7
+の nv12 attach 窓という設計上の制約による）、R7（本節）でその実装結果をドキュメント
+正本へ反映した。
 
 **R0 を W4 の前に置く理由**: R0 が作る差分ハーネスは「同じ project・同じ frame index に対する
 評価結果の一致」を見るもので、GPU に依存しない。これは W4 の wgpu 昇格で
@@ -761,12 +770,39 @@ R6完了時点でも、「TSはUIに徹しRustが描画・状態を単一実装�
    （上記「前提の修正」参照）。将来nv12コンパイル時間が大幅短縮されれば
    再評価の余地があるが、現時点では解消不能な既知の残存。
 
-### R7: ドキュメント正本の更新（推定 1-2日）
+### R7: ドキュメント正本の更新（推定 1-2日）★完了 2026-08-23
 
 - `architecture/00-overview.md` の層構成を実態に合わせる。
 - ADR-014 / 015 / 016（§5）を `01-decision-record.md` へ転記。
 - `AGENTS.md` のレシピ正本の記述を Rust 側へ。
 - `02-rust-core-spec.md` を「MVP 仕様」から「実装済み全体仕様」へ更新。
+
+**進捗（R7・2026-08-23、完了）**: `architecture/00-overview.md` の層構成を、
+rust-core を編集モデル/評価/保存形式/コマンド/レシピの正本、rust-backend を
+`project.*`/`command.*`/`agent.*`/`psd.parseMeta` を含む RPC サーフェス、
+native overlay を両プラットフォーム既定 ON の描画経路、TS 層を UI・ダイアログ・
+IPC オーケストレーション・（Windows nv12 窓限定の）interim presenter へ縮小、
+という実態に更新した。ADR-014/015/016 を `01-decision-record.md` へ提案文そのまま
+ではなく「決定」「理由」に加えて「実装結果」「実装からの逸脱」を追記する形で転記し、
+ADR-011 の 2026-08-23 改訂（presenter を interim 専用へ位置づけ変更）と整合させた。
+`AGENTS.md` のレシピ正本記述は R4-5 で既に更新済みであることを確認し、修正不要と
+判定した。`02-rust-core-spec.md` は「MVP 仕様」の節を歴史的記述として明示しつつ、
+「モデル概要」「Timeline Evaluation（実装）」「Command / Undo（実装、二層構成）」
+「Project File API（実装）」「Agent Project API（実装）」「PSD Meta Parsing（実装）」
+の各節を新設し、42 kind schema・二層 Command + Batch・`project_file.rs`・
+`agent_project.rs`・`psd_fast.rs` の実装済み範囲を仕様レベルで記述した（網羅的な
+API ダンプは避け、ソースへのポインタに留めた）。`rg` によるスイープで
+`ag-psd`/`psd-wasm`/`parse-psd` IPC/`parseAgentProjectSpec`/`pushHistory` スナップショット
+undo への現在形の言及が生きた設計文書に残っていないことを確認した（`Implementation_Plan.md`/
+`Walk_Through.md`/`PSD_WASM_Challenge.md`/`Task.md`/`progress.md` にある言及はすべて
+日付付き変更履歴または削除済みモジュールの記録として妥当な歴史的記述であり、
+修正対象ではないと判定）。`Windows_Port_Plan.md` の `Rust_Source_Of_Truth_Plan.md` への
+相互参照、および Windows native overlay 既定 ON 化（Phase 7 STAGE 群）の記述は
+現状と整合していることを確認した（修正不要）。ゲート: 変更対象がすべて markdown の
+ため `npx tsc --noEmit` はコード非依存だが実行して既存 clean を確認、コード変更が
+無いため `npx vitest run` の対象範囲は無し（AGENTS.md はコードではないため対象外と判断）。
+これで **R0-R7 の全フェーズが完了**し、`Rust_Source_Of_Truth_Plan.md` の当初ゴール
+（`00-overview.md` 基本方針 1・2・8 の充足）を実装とドキュメントの両面で達成した。
 
 ## 5. 提案 ADR
 
@@ -839,6 +875,9 @@ ADR-012 は `Windows_Port_Plan.md` が予約済みのため、014 から採番�
 `Windows_Port_Plan.md` の 17-27 日と合わせると、両計画の合計は **58-90 営業日**。
 ただし §3 のとおり W4 以降は並行できるため、直列合計にはならない。
 R5 までで区切る場合（R6 / R7 を後続扱い）は本計画 35-53 日。
+
+**★2026-08-23、R0-R7 全フェーズ完了。** 実際の所要は本文書の各フェーズ節・
+`progress/rust-source-of-truth-*.md` の記録を参照。
 
 ## 8. 着手前に確定したい設計判断
 

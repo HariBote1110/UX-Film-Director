@@ -200,3 +200,148 @@ Native Overlay を main BrowserWindow の contentView subview ではなく、独
 - (A) modal open 時に overlay を `setHidden:YES` — 動画再生中の一瞬の黒画面が編集ソフトとして許容しがたい。
 - (B) NSMenu / NSPanel への部分置換 — tooltip / popover / color picker 等に適用できず二重実装になる。
 - (C) HTML 全廃 — ADR-002 で既に却下済み。
+
+## ADR-014: `rust-core` を編集モデル・保存形式・評価の唯一の正本とし、TS 型を生成物にする
+
+**状態**: 確定・実装完了（R0-R4、★2026-08-22）
+
+### 決定
+
+project model（42 kind `TimelineObject` を含む全 object kind）、`.uxfd` 保存形式
+（`ProjectFile`/バージョニング）、timeline / keyframe / easing / visibility /
+group transform / filter stack の評価、command / undo、validation の正本を
+`rust-core` に置く。TypeScript の対応する型は `ts-rs` による生成物とし、手書きしない。
+
+### 理由
+
+現在（提案時点）easing とキーフレーム評価は TS と Rust に同じものが 2 実装あり、
+評価経路も 2 本走っている。preview と export の差異は動画編集アプリで最も避けるべき
+不具合であり（ADR-003 の理由と同じ）、評価が二重にある限り構造的に防げない。
+
+### 実装結果（`Rust_Source_Of_Truth_Plan.md` R0-R4 完了時点）
+
+- **R0**（差分ハーネス）: 経路 A（`scene.evaluate`）と経路 B（`rustSceneSnapshot.ts`）の
+  評価結果差分を機械比較する `ts_evaluation_parity` を常設。当初 447 フレーム 5,099 件
+  あった差分は R2 で全クラス解消し `KNOWN_DIFFERENCES.json` は `[]`。
+- **R1**（型 codegen）: `ts-rs`/`schemars` で TS 型・JSON Schema を生成し、手書きミラーを全廃。
+- **R2**（評価一本化）: `source_frame` 規約差・keyframe clamp 規約差・Clipping アニメーション差の
+  3 クラスをすべて Rust 側評価へ統一。経路 B（`rustSceneSnapshot.ts` の評価部分）は撤去。
+- **R3**（編集モデル移管）: 40+ object kind すべてを `rust-core/src/schema.rs` へ移送完了。
+  ただし `audio_visualization`/`audio_sphere`/`getcolor_dot_field`/`group_control` の
+  4 kind はクロスオブジェクト参照の構造的複雑さにより wire 統一（stage4）を見送り、
+  型移送のみで完了とした（下記「実装からの逸脱」参照）。
+- **R4**（保存形式・コマンド・レシピ）: `projectFile.ts` の読み書き・`historySlice.ts` の
+  undo/redo・`agentProject.ts` のレシピ解析をすべて `rust-core` へ移管完了。
+
+### 実装からの逸脱（正直な記録）
+
+- 提案時点では想定していなかった `Command::Batch`（複数オブジェクトへ同時作用する
+  UI 操作を単一コマンドで表現できないため R4-7b で追加）が正本の一部になった。
+- クロスオブジェクト配線（4 kind）・`filterStack.ts` の編集 forward path・
+  `layerTrackOps.ts` の reorder 計算は、TS 側に**意図的に**残っている
+  （即時解消の対象外、`Rust_Source_Of_Truth_Plan.md` の「思想上の残り（責務台帳）」参照）。
+  これは ADR-014 の決定を覆すものではなく、スナップショットスキーマ変更を伴う
+  別フェーズの課題として切り出したもの。
+
+### 却下案 (A)
+
+TS を正本にして Rust を従属させる。export / native overlay / sidecar のすべてが
+Rust 側にあり、正本を TS に置くと毎フレーム TS の評価結果を Rust へ送り続けることになる。
+
+### 却下案 (B)
+
+手動ミラーのまま境界テストで担保する。object kind が 40 を超えた時点でテストの
+網羅コストが実装コストを上回っている。
+
+## ADR-015: PSD 解析を自前 Rust 実装に一本化し `ag-psd` を落とす
+
+**状態**: 確定・実装完了（R5、★2026-08-22）
+
+### 決定
+
+PSD 解析は `rust-backend/src/psd_fast.rs` を唯一の実装とし、`ag-psd` 依存と
+`psdWasm.ts` の Worker 実装を削除する。
+
+### 理由
+
+解析実装が 3 つ（ag-psd / デッドコードの `psd-wasm` / `psd_fast.rs`）あり、
+レイヤー名の文字化けのような互換性バグを直すたびに複数箇所を触る必要がある。
+
+### 前提条件の充足
+
+借用 VM の PSD parser 研究（`vm_tuning_research/notes/tachie-corpus-parity.md`）で
+33/33 ファイル完全一致を確認し、前提条件を満たした。
+
+### 実装結果
+
+`psd-wasm` クレート・`psdWasm.ts`・`psdAgPsdWorker.ts`・`parsePsdArrayBufferAsObject`
+を削除し、`package.json` から `ag-psd` を除去済み。PSD インポートは `psd.parseMeta` RPC
+（meta-only、実デコードはスコープ外）1 本に統一し、CI 用 e2e パリティゲート
+（`npm run test:psd-import:e2e`）を新設した。
+
+### 記録されているギャップ
+
+R5-7 で「native overlay の内容を CI（CDP screenshot）で目視確認する手段が無い」
+ことが判明し、厳密な意味での目視ピクセル一致検証は達成できていない。
+display 経路が R5 を通じて無改修であることの確認と VM 研究のパリティ結果を
+根拠に完了判定した（詳細は `progress/rust-source-of-truth-r5-psd-unification.md` R5-7 節）。
+
+### 却下案
+
+ag-psd を残し Rust をエクスポート専用にする。preview と export で PSD の解釈が
+割れる余地が残る。
+
+## ADR-016: preview 描画を native overlay 単一経路にし TS WebGPU presenter を縮小する
+
+**状態**: 確定・実装完了（改訂版、R6、★2026-08-23）
+
+### 決定（提案時点）
+
+`sharedRendererWebGpuPresenter.ts` の内蔵 WGSL と描画経路を削除し、preview 描画を
+native overlay（ADR-011 / ADR-013 / ADR-012）のみにする。
+
+### 理由
+
+`architecture/00-overview.md` 基本方針 8 の実装。提案時点では WGSL が TS 側と
+`native-wgpu-renderer` の 2 箇所にあった。
+
+### 前提条件
+
+macOS / Windows の両方で native overlay が既定 ON（`Windows_Port_Plan.md` W7）。
+
+### 実装結果（R6 完了時点の決定 = 提案からの改訂）
+
+`Windows_Port_Plan.md` W7 の最終設計により、Windows の動画クリップを含むシーンは
+nv12 パイプライン完成まで（実測で launch 起点の中央値約 43 秒、cold cache 時最大
+約 58 秒の可能性）WebGPU presenter による interim 表示を継続する設計が**恒久的に**
+採用された。これは fallback ではなく設計上必須のコンポーネントであり、
+提案時点の前提「両プラットフォームで fallback 不要」は成立しないと判明した。
+
+したがって ADR-016 の決定を次のとおり改訂して実装した（`sharedRendererWebGpuPresenter.ts`
+の**全面削除は行わない**）:
+
+- preview 描画は native overlay を既定・唯一の常用経路にする（この部分は提案どおり実装）。
+- `sharedRendererWebGpuPresenter.ts` は「Windows の nv12 attach 窓中の動画クリップシーン
+  interim 表示」に必要な最小限（背景合成＋動画テクスチャ描画＋export 用 readback/handoff）
+  へ縮小し、削除はしない。バッチ3時点の実測行数は presenter 本体 1,351 行 /
+  presenter controller 1,211 行 / orchestration 426 行、計 2,988 行。
+  非 video-scene の表示分岐・重複エフェクトスタックは削除済み（native overlay が
+  essential ready の時点でそれらを担うため）。
+- macOS では `nativeOverlayLifecycleState` が実質即時 `'overlay'` へ遷移し、presenter が
+  表示上使われる窓は実質ゼロのまま。
+- `src/` 配下の WGSL 文字列は縮小後の `sharedRendererWebGpuPresenter.ts` 1 ファイルのみに
+  限定される（0 件ではない。理由は上記）。
+
+ADR-011 の「presenter をparity比較用に残す」という位置づけも、この改訂に合わせて
+ADR-011 本体に改訂節（2026-08-23）を追記済み。
+
+### 却下した代替案（次善策として記録）
+
+- 完全削除＋静的プレースホルダ interim: Windows で動画を含むプロジェクトを開くたび
+  最大約 1 分、動画プレビューが見えなくなる UX 後退のため不採用。
+- シェーダ再構成による attach 時間短縮後の完全削除: nv12 コンパイル時間短縮の見込みが
+  未確立のため着手不可。将来短縮されたら本 ADR を再評価し原案（全面削除）へ回帰する余地を残す。
+- presenter を parity 比較用にのみ残す（提案時点の却下案）: 比較用に残すなら「使われない
+  経路を保守し続ける」ことになり、実際には parity 検証は golden-frame harness が担っている。
+  ただし実装結果として presenter は CI/CDP で視覚検証できる唯一の描画経路である
+  （native overlay は別 OS 合成レイヤーのため CDP では黒画面）ことも縮小維持の理由に含めた。
