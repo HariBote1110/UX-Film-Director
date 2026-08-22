@@ -1010,6 +1010,24 @@ impl NativeOverlayLiveSurfaceRenderer {
         }
     }
 
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: nv12パイプラインの
+    /// staging状態を`uxfd_native_wgpu_renderer::NativeWgpuLiveSurfaceRenderer`
+    /// へ委譲する薄いアクセサ群。
+    #[cfg(target_os = "windows")]
+    fn nv12_pipeline_ready(&self) -> bool {
+        self.renderer.nv12_pipeline_ready()
+    }
+
+    #[cfg(target_os = "windows")]
+    fn nv12_pipeline_build_inputs(&self) -> (wgpu::Device, wgpu::BindGroupLayout, wgpu::TextureFormat) {
+        self.renderer.nv12_pipeline_build_inputs()
+    }
+
+    #[cfg(target_os = "windows")]
+    fn install_nv12_pipeline(&mut self, pipeline: wgpu::RenderPipeline) {
+        self.renderer.install_nv12_pipeline(pipeline);
+    }
+
     #[cfg(target_os = "macos")]
     fn from_appkit_view(
         window_id: u32,
@@ -1739,11 +1757,23 @@ fn attach_native_overlay_compute_pipelines(
             // グローバルロックにより直列化してもcross-thread
             // DestroyWindowのようなWin32スレッド親和性の問題は起きない
             // （`wgpu::Device`/`Queue`のみのSend+Safe区間）。
+            // Phase 7 (W7) 需要駆動staged attach（Phase 2）:
+            // `windows_port_research/notes/w7-attach-cost-mitigation.md`の
+            // Phase 1実測（mainpc、RTX 3070 Ti、DXC）により
+            // nv12_compositeパイプラインが中央値57.585秒(全体の86.6%)を
+            // 占める支配的コストであることが確定した。ここでは
+            // essential集合（solid_composite + 8種の小型シェーダ、
+            // 実測合計約8.9秒）だけを構築してattachを解決し、nv12は
+            // `finish_attach_native_overlay`（JSスレッド側、レジストリ
+            // 登録直後）が別スレッドへ切り出す形でバックグラウンド
+            // コンパイルする——「初回動画使用まで待たず、attach直後に
+            // 自動的にキックオフする」設計（57.6秒のクロックはattach
+            // 時点から起算される）。
             let _serialize_guard = ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK
                 .get_or_init(|| Mutex::new(()))
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let renderer = prepared.finish_pipelines();
+            let renderer = prepared.finish_essential_pipelines();
             drop(_serialize_guard);
             let overlay_renderer =
                 NativeOverlayLiveSurfaceRenderer::finish_from_hwnd(window_id, overlay_hwnd, &contract, renderer);
@@ -1793,8 +1823,96 @@ fn finish_attach_native_overlay(outcome: AttachNativeOverlayOutcome) -> NativeOv
                 overlay_hwnd,
                 contract,
             );
+            // Phase 7 (W7) 需要駆動staged attach（Phase 2）: essentialの
+            // 登録が終わった直後、nv12の初回動画使用を待たずに自動で
+            // バックグラウンドコンパイルをキックオフする。JSスレッドは
+            // `std::thread::spawn`を呼ぶだけ（OSスレッド生成は軽量）で
+            // 即座にresponseを返せるため、attach自体のレイテンシには
+            // 影響しない。
+            spawn_nv12_pipeline_background_build(window_id);
             response
         }
+    }
+}
+
+/// Phase 7 (W7) 需要駆動staged attach（Phase 2）: attach解決直後に
+/// nv12パイプラインのコンパイル（DXC本体、実測中央値57.585秒）を
+/// バックグラウンドスレッドでキックオフする。
+///
+/// `LIVE_OVERLAY_RENDERERS`のMutexをコンパイル中ずっと握ったままにすると
+/// 他のoverlay操作（render_frame/detach/resize等）が57秒間ブロックされ
+/// UIスレッド応答性を損なう（Phase 3の検証基準そのもの）ため、
+/// 「ロックを短時間だけ取ってdevice/layoutを安価にcloneし、ロック外で
+/// コンパイルし、再度ロックを短時間だけ取って結果を書き戻す」という
+/// 2段ロック構成にしてある（`wgpu::Device`/`wgpu::BindGroupLayout`は
+/// いずれも内部でArc参照カウントされる軽量ハンドルなので`clone()`自体は
+/// 安価、DXCコンパイルの重さとは無関係）。attach後にdetachされていた
+/// 場合（レジストリから消えている）は静かに何もしない。
+#[cfg(target_os = "windows")]
+fn spawn_nv12_pipeline_background_build(window_id: u32) {
+    std::thread::spawn(move || {
+        let Some((device, bind_group_layout, format)) =
+            lookup_nv12_pipeline_build_inputs(window_id)
+        else {
+            return;
+        };
+        let _serialize_guard = ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let pipeline =
+            uxfd_native_wgpu_renderer::compile_nv12_pipeline(&device, &bind_group_layout, format);
+        drop(_serialize_guard);
+        install_nv12_pipeline_into_registry(window_id, pipeline);
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn lookup_nv12_pipeline_build_inputs(
+    window_id: u32,
+) -> Option<(wgpu::Device, wgpu::BindGroupLayout, wgpu::TextureFormat)> {
+    let renderers = LIVE_OVERLAY_RENDERERS.get()?.lock().ok()?;
+    let renderer = renderers.get(&window_id)?;
+    Some(renderer.nv12_pipeline_build_inputs())
+}
+
+#[cfg(target_os = "windows")]
+fn install_nv12_pipeline_into_registry(window_id: u32, pipeline: wgpu::RenderPipeline) {
+    if let Some(lock) = LIVE_OVERLAY_RENDERERS.get() {
+        if let Ok(mut renderers) = lock.lock() {
+            if let Some(renderer) = renderers.get_mut(&window_id) {
+                renderer.install_nv12_pipeline(pipeline);
+            }
+        }
+    }
+}
+
+/// Phase 7 (W7) 需要駆動staged attach（Phase 2）: TS側（Viewport.tsx）が
+/// 動画を含むシーンをoverlayへ流してよいかを判断するための、単純な
+/// ポーリング用getter。イベント/threadsafe functionではなくポーリングを
+/// 選んだ理由: nv12準備状態は「attach後に1回だけfalse→trueへ遷移する」
+/// 単調な性質であり、既存のフレームpresentループ（`presentNativeOverlaySharedFrame`
+/// 等、毎フレーム呼ばれる）から同じ頻度で読めば十分な即応性が得られる。
+/// 該当windowIdが未登録（detach済み・未attach）の場合は`false`を返す
+/// （「まだoverlayへ送ってはいけない」の安全側デフォルト）。
+#[napi(js_name = "isNv12PipelineReady")]
+pub fn is_nv12_pipeline_ready(window_id: u32) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        LIVE_OVERLAY_RENDERERS
+            .get()
+            .and_then(|lock| lock.lock().ok())
+            .and_then(|renderers| renderers.get(&window_id).map(|r| r.nv12_pipeline_ready()))
+            .unwrap_or(false)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // macOSは単段構成（finish_pipelines）のまま、attach完了時点で
+        // 常にnv12も構築済み——windowIdの存在に関わらずtrueを返してよい
+        // （Viewport.tsx側のゲーティングロジックをプラットフォーム分岐
+        // 無しで共通化するため、この関数自体は両OSに存在させる）。
+        let _ = window_id;
+        true
     }
 }
 
@@ -4163,6 +4281,32 @@ mod tests {
                 panic!("Done state must never turn into NeedsWindowsGeometryHook");
             }
         }
+    }
+
+    /// Phase 7 (W7) 需要駆動staged attach（Phase 2）: `isNv12PipelineReady`は
+    /// 未登録のwindowId（detach済み・未attach）に対して安全側デフォルトの
+    /// `false`を返す——「まだoverlayへ動画を送ってはいけない」という
+    /// TS側ゲーティングの安全側を、napi境界のRust実装レベルで固定する。
+    /// Windows実機（実HWND attach）を経由しないため、CI/開発機いずれでも
+    /// 実行できる（`LIVE_OVERLAY_RENDERERS`が未初期化 or window_idが
+    /// 存在しない、両方のケースを一度にカバーする）。
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn is_nv12_pipeline_ready_returns_false_for_unknown_window_id() {
+        let unknown_window_id = u32::MAX;
+        assert!(!is_nv12_pipeline_ready(unknown_window_id));
+    }
+
+    /// macOSは単段構成（`finish_pipelines`、DXCコンパイル自体が無く
+    /// attach完了時点で常にnv12も構築済み）のままなので、
+    /// `isNv12PipelineReady`はwindowIdの存在に関わらず常に`true`を返す
+    /// ——Viewport.tsx側のゲーティングロジックをプラットフォーム分岐
+    /// 無しで共通化できることの根拠を固定する。
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn is_nv12_pipeline_ready_returns_true_unconditionally_on_non_windows() {
+        assert!(is_nv12_pipeline_ready(u32::MAX));
+        assert!(is_nv12_pipeline_ready(0));
     }
 
     #[test]
