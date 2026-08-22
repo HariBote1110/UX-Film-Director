@@ -69,3 +69,108 @@ ts-rs/schemars 側の追加ワークアラウンドは不要と判断し、こ�
   （`Vec3`/`StageCamera3D`/`PsdWorldPlacement`/`LipSyncSetting`）には含めずリスクを避けて見送った。
   Rust 側の enum 定義自体は用意しても `ProjectSettings` を跨がないと意味が薄いため、
   `ProjectSettings` 移送のタイミングで再検討する。
+
+## バッチB: `PsdLayerNode` の Rust 正本移送（2026-08-22）
+
+### `PsdLayerStruct` vs `PsdLayerNode` の重複調査と判断
+
+着手前に `PsdLayerStruct`（`seq`/`checked`/`isRadio`/`blobUrl`、
+`PropertyPanel.tsx` の `renderPsdTree` が表示に使う）が `PsdLayerNode` の
+兄弟型として重複していないかを調査した。
+
+**証拠**:
+- `src/utils/psdParser.ts` の `buildPsdLayerTree(rootNode, activeLayerIds)` /
+  `toLayerStruct` は `PsdLayerNode` ツリーと `activeLayerIds` から
+  `PsdLayerStruct[]` を**都度再構築**する純粋関数。`seq` は `isGroup` なら
+  `null`、そうでなければ `node.id`。`checked` は `isGroup` なら常に
+  `true`、そうでなければ `activeLayerIds[node.id]`。どちらも `PsdLayerNode`
+  側の値から導出でき、`PsdLayerStruct` 独自の状態は持たない。
+- `src/utils/projectFile.ts` の `restorePsdObjectFromFile` は
+  プロジェクトロード時に `nextLayerTree = buildPsdLayerTree(...)` を
+  **必ず呼び直して**保存済み `layerTree` を上書きする（保存済みの値を
+  信頼しない）。`sanitiseObjectForSave` も `rootLayer` だけを
+  `stripPsdLayerNodeForPersistence` で剥がし、`layerTree` はそのまま
+  JSON 化するだけで独自の正規化ロジックを持たない。
+- 結論として `PsdLayerStruct` は「編集可能な永続状態」ではなく、
+  `PsdLayerNode`（+ `activeLayerIds`）から都度導出される**表示専用の
+  派生ビュー**。二重の正本を作らないため、`PsdLayerStruct` は TS 側の
+  手書き型のまま残し、`PsdLayerNode` のみを rust-core 側の正本
+  （`PsdLayerNodeFields`）へ移送した。
+
+### 型移送
+
+- `rust-core/src/schema.rs` に自己参照構造体 `PsdLayerNodeFields`
+  （`children: Vec<PsdLayerNodeFields>`、バッチAのスパイクどおり
+  `Box<>` 不要）を追加。`id`/`name`/`children`/`width`/`height`/`left`/
+  `top` は素の camelCase 名でリネーム不要、`isGroup`/`isRadio`/
+  `defaultVisible` のみ `#[serde(rename = ...)]` + `#[ts(rename = ...)]`
+  が必要（既存の `ImageObjectFields` 等と同じ命名規約）。
+- `src?: string` は `Option<String>` + `#[serde(default,
+  skip_serializing_if = "Option::is_none")]`（`missing key` と
+  `null`/`undefined` の区別を維持）。
+- `textureSource?: ImageBitmap`（GPU 専用・非シリアライズ）は Rust 側に
+  含めない。TS 側は psd を「平坦な intersection ではなく明示的な合成」の
+  唯一の例外として扱う設計を踏襲し、
+  `PsdLayerNodeRuntimeFields { textureSource?: ImageBitmap }` を別レイヤーに
+  分離、
+  `PsdLayerNode = Omit<PsdLayerNodeFields, 'children'> & PsdLayerNodeRuntimeFields & { children: PsdLayerNode[] }`
+  として組み立てる（`children` は自己参照のため `Omit` してから
+  `PsdLayerNode[]` として付け替える必要がある）。
+- `rust-core/src/bin/codegen_types.rs` に `PsdLayerNodeFields` の TS
+  export と JSON Schema 書き出しを登録し `npm run codegen:types` で再生成。
+- **健全性の実地確認**: 生成済み `src/generated/rustCore/PsdLayerNodeFields.ts`
+  にフィールドを1個手動追加した状態で `npx tsc --noEmit` を実行し、
+  `PsdLayerNode` を使う全消費者（`psdParser.ts` / `projectFile.ts` /
+  `projectFile.test.ts` / `remoteDeckSelectionContext.ts` /
+  `remoteDeckSelectionContext.test.ts`）で
+  `Property 'extraField' is missing in type ... 'Omit<PsdLayerNodeFields, "children">'`
+  エラーが出ることを確認してから元に戻した。合成型がフィールド増減を
+  正しく tsc エラーとして伝播することを裏付けた。
+
+### 永続化互換性（最大リスク）の担保
+
+- 型移送の前に `src/utils/projectFile.test.ts` へ
+  「PSD-bearing project の `rootLayer`/`layerTree`/`activeLayerIds` が
+  保存 → JSON 往復 → 復元まで完全に一致する」テストを追加（Red 相当の
+  安全網、追加前後で常に green）。`textureSource` を含むノードを保存し、
+  `stripPsdLayerNodeForPersistence` 後の JSON に `textureSource` という
+  文字列が一切含まれないこと、`src` は明示的に保持されること、
+  `rootLayer` 全体が期待する厳密な key 集合と一致すること
+  （`toEqual` による missing-key vs null の区別込みの厳密比較）、
+  `haveMatchingPsdLayerShape` 経由の `activeLayerIds` 復元が
+  `psd.activeLayerIds` と一致することを確認した。
+- 型移送後も同テストおよび既存の
+  `maps saved PSD active layer state from legacy ids onto restored stable ids`
+  テストが green のまま。
+
+### 合格条件
+
+`npx tsc --noEmit` / `cargo test --manifest-path rust-backend/Cargo.toml`
+（フィルタなしフル実行、64+2+3(ignored)+5 件すべて green）/
+`cargo test --manifest-path rust-core/Cargo.toml`（既存件数のまま green）/
+`npm run codegen:types:check`（差分は新規 `PsdLayerNodeFields.ts` の
+追加のみ、コミット済み）/ `npm run fixture:evaluation-parity` +
+`cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity`
+（`KNOWN_DIFFERENCES.json` は差分ゼロのまま）/ `npx vitest run`
+（252ファイル / 1834件 = 既存1833件 + 追加1件、すべて green）。
+
+### バッチC（`PsdObjectFields`）への申し送り
+
+- `PsdObject` 自体（`file`/`filePath`/`src`/`width`/`height`/`scale`/
+  `layerTree`/`rootLayer`/`activeLayerIds`/`lipSync`/`worldPlacement`）は
+  未着手。`rootLayer?: PsdLayerNode` と `layerTree?: PsdLayerStruct[]` は
+  今回の移送でそれぞれ生成型ベースの `PsdLayerNode` / 手書きの
+  `PsdLayerStruct[]` を指す形のまま変化していないため、バッチCでは
+  `PsdObjectFields` に両方をそのままフィールドとして持たせればよい
+  （`layerTree` は表示専用ビューだが `PsdObject` 上のフィールドとしては
+  引き続き JSON に載る点に注意）。
+- `activeLayerIds?: Record<string, boolean>` はクロスオブジェクト参照は
+  無いが、キー集合が動的（レイヤーIDに依存）なので `HashMap<String, bool>`
+  として移送すれば足りる。
+- `lipSync?: LipSyncSetting` / `worldPlacement?: PsdWorldPlacement` は
+  バッチAで既に移送済みの型をそのまま `Option` で参照すればよい。
+- `stripPsdLayerNodeForPersistence` / `haveMatchingPsdLayerShape` /
+  `restorePsdObjectFromFile` は今回のバッチBの範囲では変更していない
+  （型参照は `PsdLayerNode` のままで shape 互換）。バッチCで
+  `PsdObject` 自体の構造が変わる場合は、今回追加した
+  `projectFile.test.ts` のラウンドトリップテストが回帰検知に使える。

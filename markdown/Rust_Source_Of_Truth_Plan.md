@@ -322,8 +322,17 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   2026-08-22に型移送した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
   oxidise-engine 統合（`OxidiseStageViewport.tsx`）は3D型を wire ではなく
   TS オブジェクトとして消費していることを確認済み。`EditorMode` は
-  `ProjectSettings` 自体が未移送のため見送った。残るは `psd`（バッチB以降、
-  `PsdLayerNode` の自己参照構造を含む）のみ。
+  `ProjectSettings` 自体が未移送のため見送った。続けて `PsdLayerNode`
+  （バッチB）も2026-08-22に移送完了した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
+  `PsdLayerStruct` は `buildPsdLayerTree` が `PsdLayerNode` + `activeLayerIds`
+  から都度再構築する表示専用の派生ビューであり独立した永続状態ではないと
+  判断し、二重の正本を避けるため TS 側の手書き型のまま残した。
+  `PsdLayerNode` は再帰構造 `PsdLayerNodeFields`（`children: Vec<Self>`、
+  バッチAのスパイクどおり `Box<>` 不要）として移送し、`textureSource`
+  （GPU 専用・非シリアライズ）は `PsdLayerNodeRuntimeFields` として TS 側
+  だけに残す明示合成型（psd は平坦 intersection パターンの例外）で
+  組み立てた。残るは `PsdObject` 自体（バッチC）と 3D 系
+  （`worldPlacement`/`lipSync` 以外に `PsdObject` へ直接吊るす部分）のみ。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
