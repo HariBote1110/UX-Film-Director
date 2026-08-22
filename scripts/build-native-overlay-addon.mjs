@@ -19,7 +19,17 @@ const cargo = spawnSync('cargo', cargoArgs, {
   stdio: 'inherit',
 })
 
+if (cargo.error) {
+  console.error(
+    `[build-native-overlay-addon] failed to start "cargo ${cargoArgs.join(' ')}" (cwd: ${repoRoot}): ${cargo.error.message}`
+  )
+  process.exit(1)
+}
+
 if (cargo.status !== 0) {
+  console.error(
+    `[build-native-overlay-addon] "cargo ${cargoArgs.join(' ')}" exited with code ${cargo.status}`
+  )
   process.exit(cargo.status ?? 1)
 }
 
@@ -39,11 +49,21 @@ mkdirSync(path.dirname(outputPath), { recursive: true })
 copyFileSync(sourcePath, outputPath)
 
 if (process.platform === 'darwin') {
-  const codesign = spawnSync('codesign', ['--force', '--sign', '-', sourcePath, outputPath], {
+  const codesignArgs = ['--force', '--sign', '-', sourcePath, outputPath]
+  const codesign = spawnSync('codesign', codesignArgs, {
     cwd: repoRoot,
     stdio: 'inherit',
   })
+  if (codesign.error) {
+    console.error(
+      `[build-native-overlay-addon] failed to start "codesign ${codesignArgs.join(' ')}" (cwd: ${repoRoot}): ${codesign.error.message}`
+    )
+    process.exit(1)
+  }
   if (codesign.status !== 0) {
+    console.error(
+      `[build-native-overlay-addon] "codesign ${codesignArgs.join(' ')}" exited with code ${codesign.status}`
+    )
     process.exit(codesign.status ?? 1)
   }
 }

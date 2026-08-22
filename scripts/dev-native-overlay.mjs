@@ -14,6 +14,8 @@ const rustBackendReleaseBin = fileURLToPath(
   )
 );
 
+console.error(`[dev] node ${process.version} platform=${process.platform} cwd=${process.cwd()}`);
+
 const finishFromChild = (code, signal) => {
   if (signal) {
     process.kill(process.pid, signal);
@@ -22,14 +24,27 @@ const finishFromChild = (code, signal) => {
   process.exit(code ?? 0);
 };
 
-const runCommand = (command, args, onDone) => {
+const describeCommand = (command, args) => [command, ...args].join(' ');
+
+const runCommand = (label, command, args, onDone) => {
   const child = spawn(command, args, { stdio: 'inherit' });
+
+  child.on('error', (err) => {
+    console.error(
+      `[dev] failed to start step "${label}" (${describeCommand(command, args)}) in cwd=${process.cwd()}: ${err.message}`
+    );
+    process.exit(1);
+  });
+
   child.on('exit', (code, signal) => {
     if (signal) {
       finishFromChild(code, signal);
       return;
     }
     if (code && code !== 0) {
+      console.error(
+        `[dev] step "${label}" (${describeCommand(command, args)}) failed with exit code ${code}`
+      );
       process.exit(code);
       return;
     }
@@ -38,6 +53,7 @@ const runCommand = (command, args, onDone) => {
 };
 
 const startVite = () => {
+  console.error('[dev] starting vite...');
   const child = spawn(process.execPath, [viteBin, ...process.argv.slice(2)], {
     stdio: 'inherit',
     env: {
@@ -53,15 +69,25 @@ const startVite = () => {
     },
   });
 
+  child.on('error', (err) => {
+    console.error(
+      `[dev] failed to start step "vite" (${describeCommand(process.execPath, [viteBin])}) in cwd=${process.cwd()}: ${err.message}`
+    );
+    process.exit(1);
+  });
+
   child.on('exit', finishFromChild);
 };
 
 const buildRustBackendRelease = (onDone) => {
-  runCommand('cargo', ['build', '--release', '--manifest-path', rustBackendManifest], onDone);
+  console.error('[dev] building rust-backend (release)...');
+  runCommand('rust-backend build', 'cargo', ['build', '--release', '--manifest-path', rustBackendManifest], onDone);
 };
 
-runCommand(process.execPath, [nativeOverlayBuildScript, '--release'], () => {
-  runCommand(process.execPath, [bridgeBuildScript, '--release'], () => {
+console.error('[dev] building native-overlay addon...');
+runCommand('native-overlay addon build', process.execPath, [nativeOverlayBuildScript, '--release'], () => {
+  console.error('[dev] building shared-video-frame-bridge addon...');
+  runCommand('shared-video-frame-bridge addon build', process.execPath, [bridgeBuildScript, '--release'], () => {
     buildRustBackendRelease(startVite);
   });
 });

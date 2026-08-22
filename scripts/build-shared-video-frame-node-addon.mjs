@@ -19,7 +19,17 @@ const cargo = spawnSync('cargo', cargoArgs, {
   stdio: 'inherit',
 })
 
+if (cargo.error) {
+  console.error(
+    `[build-shared-video-frame-node-addon] failed to start "cargo ${cargoArgs.join(' ')}" (cwd: ${repoRoot}): ${cargo.error.message}`
+  )
+  process.exit(1)
+}
+
 if (cargo.status !== 0) {
+  console.error(
+    `[build-shared-video-frame-node-addon] "cargo ${cargoArgs.join(' ')}" exited with code ${cargo.status}`
+  )
   process.exit(cargo.status ?? 1)
 }
 
