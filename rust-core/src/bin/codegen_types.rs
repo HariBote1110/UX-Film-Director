@@ -29,7 +29,8 @@ use uxfd_rust_core::schema::{
     SamplingMode,
     ScalarKeyframe, ShakingPolygonObjectFields, ShapeGradientFill, ShapeGradientKind,
     ShapeGradientScope, ShapeObjectFields,
-    CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, SimpleTubeObjectFields,
+    CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, ShatteredSphereObjectFields,
+    SimpleTubeObjectFields,
     SphereDotsObjectFields, SphericalFieldObjectFields, SubjectCropAnimation, SubjectCropKeyframe,
     SubjectCropNormKeyframe, SunburstObjectFields, TartanCheckObjectFields, TextAlignment,
     TextObjectFields, TextShadow, TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields,
@@ -136,6 +137,8 @@ fn write_ts_bindings() {
         .expect("ProtractorObjectFields の TS export に失敗しました");
     ShakingPolygonObjectFields::export_all(&cfg)
         .expect("ShakingPolygonObjectFields の TS export に失敗しました");
+    ShatteredSphereObjectFields::export_all(&cfg)
+        .expect("ShatteredSphereObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -256,6 +259,7 @@ fn write_json_schemas() {
     write_schema::<HologramObjectFields>(&dir, "HologramObjectFields");
     write_schema::<ProtractorObjectFields>(&dir, "ProtractorObjectFields");
     write_schema::<ShakingPolygonObjectFields>(&dir, "ShakingPolygonObjectFields");
+    write_schema::<ShatteredSphereObjectFields>(&dir, "ShatteredSphereObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

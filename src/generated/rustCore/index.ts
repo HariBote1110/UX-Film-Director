@@ -53,6 +53,7 @@ export * from './ShapeGradientKind';
 export * from './ShapeGradientScope';
 export * from './ShapeObjectFields';
 export * from './ShapeType';
+export * from './ShatteredSphereObjectFields';
 export * from './SimpleTubeObjectFields';
 export * from './SphereDotsObjectFields';
 export * from './SphericalFieldObjectFields';
