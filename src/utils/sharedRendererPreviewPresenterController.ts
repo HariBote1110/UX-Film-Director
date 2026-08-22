@@ -146,7 +146,6 @@ export interface StartSharedRendererPreviewPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
-  bufferUsageMapRead?: number;
   diagnosticSwatchEnabled?: boolean;
   rustSolidColourWasmEnabled?: boolean;
   rustSolidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
@@ -200,7 +199,6 @@ export const startSharedRendererPreviewPresenter = async ({
   textureUsageRenderAttachment,
   bufferUsageVertex,
   bufferUsageCopyDst,
-  bufferUsageMapRead,
   diagnosticSwatchEnabled = true,
   rustSolidColourWasmEnabled = defaultRustSolidColourWasmEnabled(),
   rustSolidColourVertexSceneBuilder,
@@ -369,7 +367,6 @@ export const startSharedRendererPreviewPresenter = async ({
     textureUsageRenderAttachment,
     bufferUsageVertex,
     bufferUsageCopyDst,
-    bufferUsageMapRead,
     solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
     presentedFrameSharedFrameTaker,
     writeTextureNoOpEnabled: sharedRendererWriteTextureNoOpEnabled,

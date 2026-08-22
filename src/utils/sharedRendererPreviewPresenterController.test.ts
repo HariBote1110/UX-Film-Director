@@ -613,7 +613,6 @@ describe('startSharedRendererPreviewPresenter', () => {
       }),
       textureUsageRenderAttachment: 16,
       bufferUsageCopyDst: 8,
-      bufferUsageMapRead: 1,
     });
 
     expect(control.ok).toBe(true);
@@ -633,7 +632,6 @@ describe('startSharedRendererPreviewPresenter', () => {
       }),
       textureUsageRenderAttachment: 16,
       bufferUsageCopyDst: 8,
-      bufferUsageMapRead: 1,
     });
 
     expect(control.ok).toBe(true);
@@ -661,7 +659,6 @@ describe('startSharedRendererPreviewPresenter', () => {
       }),
       textureUsageRenderAttachment: 16,
       bufferUsageCopyDst: 8,
-      bufferUsageMapRead: 1,
     });
 
     expect(control.ok).toBe(true);
@@ -724,7 +721,6 @@ describe('startSharedRendererPreviewPresenter', () => {
       textureUsageRenderAttachment: 16,
       textureUsageCopySrc: 1,
       bufferUsageCopyDst: 8,
-      bufferUsageMapRead: 1,
       presentedFrameSharedFrameTaker: async (input) => {
         handoffCalls.push({
           encodeSessionId: input.encodeSessionId,

@@ -155,7 +155,6 @@ export type SharedRendererWebGpuPresenterResult =
       presentNativeRenderFrame: (frame: SharedRendererNativeRenderFrameInput) => SharedRendererNativeRenderFramePresentationResult;
       presentVideoFrameScene: (scene: SharedRendererVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
       presentExternalVideoFrameScene: (scene: SharedRendererExternalVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
-      readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       takePresentedFrameSharedFrame: (input: SharedRendererPresentedFrameSharedFrameInput) => Promise<RustBackendVideoEncodeWriteFramePayload>;
     }
   | {
@@ -210,7 +209,6 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
-  bufferUsageMapRead?: number;
   textureUsageCopySrc?: number;
   textureUsageTextureBinding?: number;
   textureUsageTextureCopyDst?: number;
@@ -220,19 +218,6 @@ export interface SharedRendererWebGpuPresenterInput {
   writeTextureNoOpEnabled?: boolean;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
   isStartCurrent?: () => boolean;
-}
-
-export interface SharedRendererPresentedFrameReadbackInput {
-  width: number;
-  height: number;
-}
-
-export interface SharedRendererPresentedFrameReadbackResult {
-  rgbaBytes: Uint8Array;
-  strideBytes: number;
-  byteLen: number;
-  width: number;
-  height: number;
 }
 
 export interface SharedRendererVideoFrameTextureUploadInput {
@@ -343,7 +328,6 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageRenderAttachment = defaultRenderAttachmentUsage(),
   bufferUsageVertex = defaultVertexBufferUsage(),
   bufferUsageCopyDst = defaultCopyDstBufferUsage(),
-  bufferUsageMapRead = defaultMapReadBufferUsage(),
   textureUsageCopySrc = defaultTextureCopySrcUsage(),
   textureUsageTextureBinding = defaultTextureBindingUsage(),
   textureUsageTextureCopyDst = defaultTextureCopyDstUsage(),
@@ -1139,67 +1123,6 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
-  const readPresentedFrameRgbaBytes = async ({
-    width,
-    height,
-  }: SharedRendererPresentedFrameReadbackInput): Promise<SharedRendererPresentedFrameReadbackResult> => {
-    if (!canUsePresenter()) {
-      throw new Error('Shared renderer frame readback was skipped because the presenter is no longer current.');
-    }
-    if (!lastPresentedTexture) {
-      throw new Error('No shared renderer frame has been presented for WebGPU readback.');
-    }
-    if (!device.createBuffer || !device.createCommandEncoder || !device.queue) {
-      throw new Error('WebGPU device does not expose the buffer copy APIs needed for presented frame readback.');
-    }
-    const encoder = device.createCommandEncoder();
-    if (!encoder.copyTextureToBuffer) {
-      throw new Error('WebGPU command encoder does not expose copyTextureToBuffer for presented frame readback.');
-    }
-
-    const rowBytes = width * 4;
-    const strideBytes = alignTo(rowBytes, 256);
-    const byteLen = strideBytes * height;
-    const readbackBuffer = device.createBuffer({
-      label: 'shared-renderer-presented-frame-readback',
-      size: byteLen,
-      usage: bufferUsageMapRead | bufferUsageCopyDst,
-    });
-    encoder.copyTextureToBuffer(
-      { texture: lastPresentedTexture },
-      {
-        buffer: readbackBuffer,
-        bytesPerRow: strideBytes,
-        rowsPerImage: height,
-      },
-      {
-        width,
-        height,
-        depthOrArrayLayers: 1,
-      }
-    );
-    device.queue.submit([encoder.finish()]);
-    await device.queue.onSubmittedWorkDone?.();
-
-    const readableBuffer = asReadableGpuBuffer(readbackBuffer);
-    if (!readableBuffer) {
-      throw new Error('WebGPU readback buffer does not expose mapAsync/getMappedRange.');
-    }
-    await readableBuffer.mapAsync(defaultMapReadMode());
-    const mappedRange = readableBuffer.getMappedRange();
-    const rgbaBytes = new Uint8Array(mappedRange.slice(0));
-    readableBuffer.unmap();
-    readableBuffer.destroy?.();
-
-    return {
-      rgbaBytes,
-      strideBytes,
-      byteLen,
-      width,
-      height,
-    };
-  };
-
   const takePresentedFrameSharedFrame = async (
     input: SharedRendererPresentedFrameSharedFrameInput
   ): Promise<RustBackendVideoEncodeWriteFramePayload> => {
@@ -1245,7 +1168,6 @@ export const createSharedRendererWebGpuPresenter = async ({
     presentNativeRenderFrame,
     presentVideoFrameScene,
     presentExternalVideoFrameScene,
-    readPresentedFrameRgbaBytes,
     takePresentedFrameSharedFrame,
   };
 };
@@ -1401,11 +1323,6 @@ const defaultCopyDstBufferUsage = (): number => {
   return bufferUsage?.COPY_DST ?? 0x8;
 };
 
-const defaultMapReadBufferUsage = (): number => {
-  const bufferUsage = (globalThis as unknown as { GPUBufferUsage?: { MAP_READ?: number } }).GPUBufferUsage;
-  return bufferUsage?.MAP_READ ?? 0x1;
-};
-
 const defaultTextureCopySrcUsage = (): number => {
   const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { COPY_SRC?: number } }).GPUTextureUsage;
   return textureUsage?.COPY_SRC ?? 0x1;
@@ -1421,11 +1338,6 @@ const defaultTextureCopyDstUsage = (): number => {
   return textureUsage?.COPY_DST ?? 0x2;
 };
 
-const defaultMapReadMode = (): number => {
-  const mapMode = (globalThis as unknown as { GPUMapMode?: { READ?: number } }).GPUMapMode;
-  return mapMode?.READ ?? 0x1;
-};
-
 const isPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): boolean =>
   isStartCurrent ? isStartCurrent() : true;
 
@@ -1433,33 +1345,6 @@ const assertPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined
   if (!isPresenterStartCurrent(isStartCurrent)) {
     throw new Error('Shared renderer presenter start was cancelled.');
   }
-};
-
-const alignTo = (value: number, alignment: number): number =>
-  Math.ceil(value / alignment) * alignment;
-
-interface ReadableGpuBuffer {
-  mapAsync: (mode: number) => Promise<void>;
-  getMappedRange: () => ArrayBuffer;
-  unmap: () => void;
-  destroy?: () => void;
-}
-
-const asReadableGpuBuffer = (buffer: unknown): ReadableGpuBuffer | null => {
-  if (
-    typeof buffer === 'object'
-    && buffer !== null
-    && 'mapAsync' in buffer
-    && typeof buffer.mapAsync === 'function'
-    && 'getMappedRange' in buffer
-    && typeof buffer.getMappedRange === 'function'
-    && 'unmap' in buffer
-    && typeof buffer.unmap === 'function'
-  ) {
-    return buffer as ReadableGpuBuffer;
-  }
-
-  return null;
 };
 
 const deviceLostMessage = (info: unknown): string => {
