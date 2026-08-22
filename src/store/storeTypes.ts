@@ -15,6 +15,7 @@ import type { AviUtlCoordinateStoreSnapshot } from '../utils/aviutl/aviutlCoordi
 import type { ProjectExportFrameSourcePlanResult } from '../utils/projectExportFrameCanvas';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
+import type { Command } from '../generated/rustCore/Command';
 
 export interface ClipboardState {
   objects: TimelineObject[];
@@ -142,6 +143,17 @@ export interface AppState {
   pastStates: HistorySnapshot[];
   futureStates: HistorySnapshot[];
 
+  /**
+   * R4-8 group b: command stack（新 API）。旧スナップショット API
+   * （`pastStates`/`futureStates`/`pushHistory`/`undo`/`redo`）と並存する
+   * dual-API 期間の新側。呼び出し箇所の移行（group c 以降）が終わるまで
+   * 両方が有効な状態を保つ。
+   */
+  pastCommands: Command[];
+  futureCommands: Command[];
+  /** undo/redo の IPC 往復中は true。ignore-while-pending の判定に使う。 */
+  isCommandHistoryPending: boolean;
+
   setLanguage: (lang: 'ja' | 'en') => void;
   initializeProject: (settings: ProjectSettings) => void;
   loadProject: (settings: ProjectSettings, scenes: SceneData[], activeSceneId: string) => void;
@@ -200,6 +212,22 @@ export interface AppState {
   pushHistory: () => void;
   undo: () => void;
   redo: () => void;
+
+  /**
+   * R4-8 group b: command stack へ `Command` を積む新 API。呼び出し側が
+   * コミット時点で `previous`/`next` を確定させた `Command` を渡す
+   * （フィールド単位は `setObjectField` 等）。
+   */
+  pushHistoryCommand: (command: Command) => void;
+  /**
+   * command stack を使う非同期 undo。`getCommandBridge()` が `null`
+   * （IPC bridge 不在環境）なら no-op。IPC 往復中の多重発火は
+   * ignore-while-pending（同時実行中は新しい呼び出しを黙って無視する）。
+   * apply がエラーを返した場合は状態を変更せず `console.error` のみ行う。
+   */
+  undoCommand: () => Promise<void>;
+  /** `undoCommand` と対称の redo。 */
+  redoCommand: () => Promise<void>;
 
   addObject: (obj: TimelineObject) => void;
   updateObject: (id: string, newProps: Partial<TimelineObject>) => void;

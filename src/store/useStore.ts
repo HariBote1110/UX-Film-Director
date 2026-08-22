@@ -85,7 +85,7 @@ export const useStore = create<AppState>((set, get) => ({
   clipboard: null,
   aviUtlCoordinateStoreSnapshot: null,
 
-  ...createHistorySlice(set),
+  ...createHistorySlice(set, get),
 
   initializeProject: (settings) => {
     const sceneId = crypto.randomUUID();
