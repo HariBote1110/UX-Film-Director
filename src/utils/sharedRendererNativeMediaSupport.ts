@@ -643,45 +643,43 @@ const isSharedRendererNativeGeneratedHistogramSourceSupported = (source: string)
 const isSharedRendererNativeGeneratedSunburstSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      ray_count?: unknown;
-      ray_coverage_percent?: unknown;
-      rotation_offset_degrees?: unknown;
-      centre_x_percent?: unknown;
-      centre_y_percent?: unknown;
-      motif_size?: unknown;
-      motif_shape?: unknown;
-      ray_colour?: unknown;
-      background_colour?: unknown;
+      rayCount?: unknown;
+      rayCoveragePercent?: unknown;
+      rotationOffsetDegrees?: unknown;
+      centreXPercent?: unknown;
+      centreYPercent?: unknown;
+      motifSize?: unknown;
+      motifShape?: unknown;
+      rayColour?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'sunrise'
-      && typeof parsed.ray_count === 'number'
-      && Number.isInteger(parsed.ray_count)
-      && parsed.ray_count >= 1
-      && parsed.ray_count <= 360
-      && typeof parsed.ray_coverage_percent === 'number'
-      && Number.isFinite(parsed.ray_coverage_percent)
-      && parsed.ray_coverage_percent >= 0
-      && parsed.ray_coverage_percent <= 100
-      && typeof parsed.rotation_offset_degrees === 'number'
-      && Number.isFinite(parsed.rotation_offset_degrees)
-      && typeof parsed.centre_x_percent === 'number'
-      && Number.isFinite(parsed.centre_x_percent)
-      && parsed.centre_x_percent >= -100
-      && parsed.centre_x_percent <= 200
-      && typeof parsed.centre_y_percent === 'number'
-      && Number.isFinite(parsed.centre_y_percent)
-      && parsed.centre_y_percent >= -100
-      && parsed.centre_y_percent <= 200
-      && typeof parsed.motif_size === 'number'
-      && Number.isFinite(parsed.motif_size)
-      && parsed.motif_size >= 0
-      && (parsed.motif_shape === 'circle' || parsed.motif_shape === 'rect')
-      && typeof parsed.ray_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.ray_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      typeof parsed.rayCount === 'number'
+      && Number.isInteger(parsed.rayCount)
+      && parsed.rayCount >= 1
+      && parsed.rayCount <= 360
+      && typeof parsed.rayCoveragePercent === 'number'
+      && Number.isFinite(parsed.rayCoveragePercent)
+      && parsed.rayCoveragePercent >= 0
+      && parsed.rayCoveragePercent <= 100
+      && typeof parsed.rotationOffsetDegrees === 'number'
+      && Number.isFinite(parsed.rotationOffsetDegrees)
+      && typeof parsed.centreXPercent === 'number'
+      && Number.isFinite(parsed.centreXPercent)
+      && parsed.centreXPercent >= -100
+      && parsed.centreXPercent <= 200
+      && typeof parsed.centreYPercent === 'number'
+      && Number.isFinite(parsed.centreYPercent)
+      && parsed.centreYPercent >= -100
+      && parsed.centreYPercent <= 200
+      && typeof parsed.motifSize === 'number'
+      && Number.isFinite(parsed.motifSize)
+      && parsed.motifSize >= 0
+      && (parsed.motifShape === 'circle' || parsed.motifShape === 'rect')
+      && typeof parsed.rayColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.rayColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;
@@ -691,44 +689,42 @@ const isSharedRendererNativeGeneratedSunburstSourceSupported = (source: string):
 const isSharedRendererNativeGeneratedCircularArrowSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
-      line_width?: unknown;
-      head_size?: unknown;
-      angle_degrees?: unknown;
-      centre_angle_degrees?: unknown;
-      head_shape?: unknown;
-      show_tail_head?: unknown;
-      flip_vertical?: unknown;
-      flip_horizontal?: unknown;
-      arrow_colour?: unknown;
+      lineWidth?: unknown;
+      headSize?: unknown;
+      angleDegrees?: unknown;
+      centreAngleDegrees?: unknown;
+      headShape?: unknown;
+      showTailHead?: unknown;
+      flipVertical?: unknown;
+      flipHorizontal?: unknown;
+      arrowColour?: unknown;
     };
     return (
-      parsed.generator === 'circular-arrow'
-      && typeof parsed.radius === 'number'
-      && Number.isInteger(parsed.radius)
+      typeof parsed.radius === 'number'
+      && Number.isFinite(parsed.radius)
       && parsed.radius > 0
       && parsed.radius <= 2000
-      && typeof parsed.line_width === 'number'
-      && Number.isInteger(parsed.line_width)
-      && parsed.line_width > 0
-      && parsed.line_width <= 1000
-      && typeof parsed.head_size === 'number'
-      && Number.isInteger(parsed.head_size)
-      && parsed.head_size >= 0
-      && parsed.head_size <= 1000
-      && typeof parsed.angle_degrees === 'number'
-      && Number.isFinite(parsed.angle_degrees)
-      && parsed.angle_degrees >= 0
-      && parsed.angle_degrees <= 360
-      && typeof parsed.centre_angle_degrees === 'number'
-      && Number.isFinite(parsed.centre_angle_degrees)
-      && (parsed.head_shape === 'triangle' || parsed.head_shape === 'circle')
-      && typeof parsed.show_tail_head === 'boolean'
-      && typeof parsed.flip_vertical === 'boolean'
-      && typeof parsed.flip_horizontal === 'boolean'
-      && typeof parsed.arrow_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.arrow_colour)
+      && typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth > 0
+      && parsed.lineWidth <= 1000
+      && typeof parsed.headSize === 'number'
+      && Number.isFinite(parsed.headSize)
+      && parsed.headSize >= 0
+      && parsed.headSize <= 1000
+      && typeof parsed.angleDegrees === 'number'
+      && Number.isFinite(parsed.angleDegrees)
+      && parsed.angleDegrees >= 0
+      && parsed.angleDegrees <= 360
+      && typeof parsed.centreAngleDegrees === 'number'
+      && Number.isFinite(parsed.centreAngleDegrees)
+      && (parsed.headShape === 'triangle' || parsed.headShape === 'circle')
+      && typeof parsed.showTailHead === 'boolean'
+      && typeof parsed.flipVertical === 'boolean'
+      && typeof parsed.flipHorizontal === 'boolean'
+      && typeof parsed.arrowColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.arrowColour)
     );
   } catch {
     return false;
@@ -738,33 +734,31 @@ const isSharedRendererNativeGeneratedCircularArrowSourceSupported = (source: str
 const isSharedRendererNativeGeneratedTriangleBracketSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      bracket_width?: unknown;
-      angle_degrees?: unknown;
-      arm_length?: unknown;
-      offset_distance?: unknown;
-      bracket_colour?: unknown;
+      bracketWidth?: unknown;
+      angleDegrees?: unknown;
+      armLength?: unknown;
+      offsetDistance?: unknown;
+      bracketColour?: unknown;
     };
     return (
-      parsed.generator === 'triangle-bracket'
-      && typeof parsed.bracket_width === 'number'
-      && Number.isInteger(parsed.bracket_width)
-      && parsed.bracket_width > 0
-      && parsed.bracket_width <= 2000
-      && typeof parsed.angle_degrees === 'number'
-      && Number.isFinite(parsed.angle_degrees)
-      && parsed.angle_degrees >= 1
-      && parsed.angle_degrees <= 180
-      && typeof parsed.arm_length === 'number'
-      && Number.isInteger(parsed.arm_length)
-      && parsed.arm_length >= 0
-      && parsed.arm_length <= 2000
-      && typeof parsed.offset_distance === 'number'
-      && Number.isInteger(parsed.offset_distance)
-      && parsed.offset_distance >= -10000
-      && parsed.offset_distance <= 10000
-      && typeof parsed.bracket_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.bracket_colour)
+      typeof parsed.bracketWidth === 'number'
+      && Number.isFinite(parsed.bracketWidth)
+      && parsed.bracketWidth > 0
+      && parsed.bracketWidth <= 2000
+      && typeof parsed.angleDegrees === 'number'
+      && Number.isFinite(parsed.angleDegrees)
+      && parsed.angleDegrees >= 1
+      && parsed.angleDegrees <= 180
+      && typeof parsed.armLength === 'number'
+      && Number.isFinite(parsed.armLength)
+      && parsed.armLength >= 0
+      && parsed.armLength <= 2000
+      && typeof parsed.offsetDistance === 'number'
+      && Number.isFinite(parsed.offsetDistance)
+      && parsed.offsetDistance >= -10000
+      && parsed.offsetDistance <= 10000
+      && typeof parsed.bracketColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.bracketColour)
     );
   } catch {
     return false;
@@ -774,32 +768,30 @@ const isSharedRendererNativeGeneratedTriangleBracketSourceSupported = (source: s
 const isSharedRendererNativeGeneratedTartanCheckSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      tile_size?: unknown;
-      blur_radius?: unknown;
-      base_colour?: unknown;
-      stripe_colour_a?: unknown;
-      stripe_colour_b?: unknown;
-      line_colour?: unknown;
+      tileSize?: unknown;
+      blurRadius?: unknown;
+      baseColour?: unknown;
+      stripeColourA?: unknown;
+      stripeColourB?: unknown;
+      lineColour?: unknown;
     };
     return (
-      parsed.generator === 'tartan-check'
-      && typeof parsed.tile_size === 'number'
-      && Number.isInteger(parsed.tile_size)
-      && parsed.tile_size >= 10
-      && parsed.tile_size <= 800
-      && typeof parsed.blur_radius === 'number'
-      && Number.isInteger(parsed.blur_radius)
-      && parsed.blur_radius >= 0
-      && parsed.blur_radius <= 300
-      && typeof parsed.base_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.base_colour)
-      && typeof parsed.stripe_colour_a === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.stripe_colour_a)
-      && typeof parsed.stripe_colour_b === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.stripe_colour_b)
-      && typeof parsed.line_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+      typeof parsed.tileSize === 'number'
+      && Number.isFinite(parsed.tileSize)
+      && parsed.tileSize >= 10
+      && parsed.tileSize <= 800
+      && typeof parsed.blurRadius === 'number'
+      && Number.isFinite(parsed.blurRadius)
+      && parsed.blurRadius >= 0
+      && parsed.blurRadius <= 300
+      && typeof parsed.baseColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.baseColour)
+      && typeof parsed.stripeColourA === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.stripeColourA)
+      && typeof parsed.stripeColourB === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.stripeColourB)
+      && typeof parsed.lineColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.lineColour)
     );
   } catch {
     return false;
@@ -809,21 +801,19 @@ const isSharedRendererNativeGeneratedTartanCheckSourceSupported = (source: strin
 const isSharedRendererNativeGeneratedHoundstoothSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      pattern_size?: unknown;
-      foreground_colour?: unknown;
-      background_colour?: unknown;
+      patternSize?: unknown;
+      foregroundColour?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'houndstooth'
-      && typeof parsed.pattern_size === 'number'
-      && Number.isInteger(parsed.pattern_size)
-      && parsed.pattern_size >= 10
-      && parsed.pattern_size <= 200
-      && typeof parsed.foreground_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      typeof parsed.patternSize === 'number'
+      && Number.isFinite(parsed.patternSize)
+      && parsed.patternSize >= 10
+      && parsed.patternSize <= 200
+      && typeof parsed.foregroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foregroundColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;
@@ -833,33 +823,31 @@ const isSharedRendererNativeGeneratedHoundstoothSourceSupported = (source: strin
 const isSharedRendererNativeGeneratedYagasuriSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      arrow_width?: unknown;
-      arrow_height?: unknown;
-      line_width?: unknown;
+      arrowWidth?: unknown;
+      arrowHeight?: unknown;
+      lineWidth?: unknown;
       staggered?: unknown;
-      foreground_colour?: unknown;
-      background_colour?: unknown;
+      foregroundColour?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'yagasuri'
-      && Number.isInteger(parsed.arrow_width)
-      && typeof parsed.arrow_width === 'number'
-      && parsed.arrow_width >= 1
-      && parsed.arrow_width <= 500
-      && Number.isInteger(parsed.arrow_height)
-      && typeof parsed.arrow_height === 'number'
-      && parsed.arrow_height >= 1
-      && parsed.arrow_height <= 500
-      && Number.isInteger(parsed.line_width)
-      && typeof parsed.line_width === 'number'
-      && parsed.line_width >= 0
-      && parsed.line_width <= 100
+      typeof parsed.arrowWidth === 'number'
+      && Number.isFinite(parsed.arrowWidth)
+      && parsed.arrowWidth >= 1
+      && parsed.arrowWidth <= 500
+      && typeof parsed.arrowHeight === 'number'
+      && Number.isFinite(parsed.arrowHeight)
+      && parsed.arrowHeight >= 1
+      && parsed.arrowHeight <= 500
+      && typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth >= 0
+      && parsed.lineWidth <= 100
       && typeof parsed.staggered === 'boolean'
-      && typeof parsed.foreground_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      && typeof parsed.foregroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foregroundColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;

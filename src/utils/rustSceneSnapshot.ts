@@ -1610,71 +1610,77 @@ const serialiseGeneratedHistogramSource = (object: HistogramObject): string =>
 
 const serialiseGeneratedSunburstSource = (object: SunburstObject): string =>
   JSON.stringify({
-    generator: 'sunrise',
-    ray_count: Math.min(360, Math.max(1, Math.trunc(finiteNumberOr(object.rayCount, 10)))),
-    ray_coverage_percent: Math.min(100, Math.max(0, finiteNumberOr(object.rayCoveragePercent, 50))),
-    rotation_offset_degrees: finiteNumberOr(object.rotationOffsetDegrees, 0),
-    centre_x_percent: Math.min(200, Math.max(-100, finiteNumberOr(object.centreXPercent, 50))),
-    centre_y_percent: Math.min(200, Math.max(-100, finiteNumberOr(object.centreYPercent, 50))),
-    motif_size: Math.max(0, Math.trunc(finiteNumberOr(object.motifSize, 200))),
-    motif_shape: object.motifShape === 'rect' ? 'rect' : 'circle',
-    ray_colour: /^#[0-9a-f]{6}$/i.test(object.rayColour) ? object.rayColour : '#ff0000',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffff00',
+    width: object.width,
+    height: object.height,
+    rayCount: object.rayCount,
+    rayCoveragePercent: object.rayCoveragePercent,
+    rotationOffsetDegrees: object.rotationOffsetDegrees,
+    centreXPercent: object.centreXPercent,
+    centreYPercent: object.centreYPercent,
+    motifSize: object.motifSize,
+    motifShape: object.motifShape,
+    rayColour: object.rayColour,
+    backgroundColour: object.backgroundColour,
   });
 
 const serialiseGeneratedCircularArrowSource = (object: CircularArrowObject): string =>
   JSON.stringify({
-    generator: 'circular-arrow',
-    radius: Math.max(1, Math.trunc(finiteNumberOr(object.radius, Math.min(object.width, object.height) / 2))),
-    line_width: Math.max(1, Math.trunc(finiteNumberOr(object.lineWidth, 20))),
-    head_size: Math.max(0, Math.trunc(finiteNumberOr(object.headSize, 50))),
-    angle_degrees: Math.min(360, Math.max(0, finiteNumberOr(object.angleDegrees, 260))),
-    centre_angle_degrees: finiteNumberOr(object.centreAngleDegrees, 0),
-    head_shape: object.headShape === 'circle' ? 'circle' : 'triangle',
-    show_tail_head: object.showTailHead === true,
-    flip_vertical: object.flipVertical === true,
-    flip_horizontal: object.flipHorizontal === true,
-    arrow_colour: /^#[0-9a-f]{6}$/i.test(object.arrowColour) ? object.arrowColour : '#ffff00',
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    lineWidth: object.lineWidth,
+    headSize: object.headSize,
+    angleDegrees: object.angleDegrees,
+    centreAngleDegrees: object.centreAngleDegrees,
+    headShape: object.headShape,
+    showTailHead: object.showTailHead,
+    flipVertical: object.flipVertical,
+    flipHorizontal: object.flipHorizontal,
+    arrowColour: object.arrowColour,
   });
 
 const serialiseGeneratedTriangleBracketSource = (object: TriangleBracketObject): string =>
   JSON.stringify({
-    generator: 'triangle-bracket',
-    bracket_width: Math.max(1, Math.trunc(finiteNumberOr(object.bracketWidth, 100))),
-    angle_degrees: Math.min(180, Math.max(1, finiteNumberOr(object.angleDegrees, 120))),
-    arm_length: Math.max(0, Math.trunc(finiteNumberOr(object.armLength, 50))),
-    offset_distance: Math.trunc(finiteNumberOr(object.offsetDistance, 0)),
-    bracket_colour: /^#[0-9a-f]{6}$/i.test(object.bracketColour) ? object.bracketColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    bracketWidth: object.bracketWidth,
+    angleDegrees: object.angleDegrees,
+    armLength: object.armLength,
+    offsetDistance: object.offsetDistance,
+    bracketColour: object.bracketColour,
   });
 
 const serialiseGeneratedTartanCheckSource = (object: TartanCheckObject): string =>
   JSON.stringify({
-    generator: 'tartan-check',
-    tile_size: Math.min(800, Math.max(10, Math.trunc(finiteNumberOr(object.tileSize, 100)))),
-    blur_radius: Math.min(300, Math.max(0, Math.trunc(finiteNumberOr(object.blurRadius, 1)))),
-    base_colour: /^#[0-9a-f]{6}$/i.test(object.baseColour) ? object.baseColour : '#143e10',
-    stripe_colour_a: /^#[0-9a-f]{6}$/i.test(object.stripeColourA) ? object.stripeColourA : '#a81616',
-    stripe_colour_b: /^#[0-9a-f]{6}$/i.test(object.stripeColourB) ? object.stripeColourB : '#c9c526',
-    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#000000',
+    width: object.width,
+    height: object.height,
+    tileSize: object.tileSize,
+    blurRadius: object.blurRadius,
+    baseColour: object.baseColour,
+    stripeColourA: object.stripeColourA,
+    stripeColourB: object.stripeColourB,
+    lineColour: object.lineColour,
   });
 
 const serialiseGeneratedHoundstoothSource = (object: HoundstoothObject): string =>
   JSON.stringify({
-    generator: 'houndstooth',
-    pattern_size: Math.min(200, Math.max(10, Math.trunc(finiteNumberOr(object.patternSize, 50)))),
-    foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#000000',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    patternSize: object.patternSize,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
   });
 
 const serialiseGeneratedYagasuriSource = (object: YagasuriObject): string =>
   JSON.stringify({
-    generator: 'yagasuri',
-    arrow_width: Math.min(500, Math.max(1, Math.trunc(finiteNumberOr(object.arrowWidth, 15)))),
-    arrow_height: Math.min(500, Math.max(1, Math.trunc(finiteNumberOr(object.arrowHeight, 65)))),
-    line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.lineWidth, 2)))),
-    staggered: object.staggered === true,
-    foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#000000',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    arrowWidth: object.arrowWidth,
+    arrowHeight: object.arrowHeight,
+    lineWidth: object.lineWidth,
+    staggered: object.staggered,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
   });
 
 const serialiseGeneratedPaperAirplaneSource = (object: PaperAirplaneObject): string =>

@@ -326,7 +326,7 @@ fn generated_sunburst_source_frame_contains_rays_background_and_motif() {
     let media = SceneMediaReference {
             id: "sunburst-1".to_string(),
             kind: MediaKind::GeneratedSunburst,
-            source: r##"{"generator":"sunrise","ray_count":10,"ray_coverage_percent":50,"rotation_offset_degrees":0,"centre_x_percent":50,"centre_y_percent":50,"motif_size":200,"motif_shape":"circle","ray_colour":"#ff0000","background_colour":"#ffff00"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"rayCount":10,"rayCoveragePercent":50,"rotationOffsetDegrees":0,"centreXPercent":50,"centreYPercent":50,"motifSize":200,"motifShape":"circle","rayColour":"#ff0000","backgroundColour":"#ffff00"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -356,7 +356,7 @@ fn generated_circular_arrow_source_frame_contains_arc_head_and_transparency() {
     let media = SceneMediaReference {
             id: "circular-arrow-1".to_string(),
             kind: MediaKind::GeneratedCircularArrow,
-            source: r##"{"generator":"circular-arrow","radius":80,"line_width":16,"head_size":40,"angle_degrees":260,"centre_angle_degrees":0,"head_shape":"triangle","show_tail_head":false,"flip_vertical":false,"flip_horizontal":false,"arrow_colour":"#ffff00"}"##.to_string(),
+            source: r##"{"width":200,"height":200,"radius":80,"lineWidth":16,"headSize":40,"angleDegrees":260,"centreAngleDegrees":0,"headShape":"triangle","showTailHead":false,"flipVertical":false,"flipHorizontal":false,"arrowColour":"#ffff00"}"##.to_string(),
             width: 200,
             height: 200,
             source_rate: None,
@@ -385,7 +385,7 @@ fn generated_triangle_bracket_source_frame_contains_arms_and_transparency() {
     let media = SceneMediaReference {
             id: "triangle-bracket-1".to_string(),
             kind: MediaKind::GeneratedTriangleBracket,
-            source: r##"{"generator":"triangle-bracket","bracket_width":100,"angle_degrees":120,"arm_length":50,"offset_distance":0,"bracket_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":160,"height":100,"bracketWidth":100,"angleDegrees":120,"armLength":50,"offsetDistance":0,"bracketColour":"#ffffff"}"##.to_string(),
             width: 160,
             height: 100,
             source_rate: None,
@@ -414,7 +414,7 @@ fn generated_tartan_check_source_frame_contains_all_pattern_colours() {
     let media = SceneMediaReference {
             id: "tartan-check-1".to_string(),
             kind: MediaKind::GeneratedTartanCheck,
-            source: r##"{"generator":"tartan-check","tile_size":100,"blur_radius":1,"base_colour":"#143e10","stripe_colour_a":"#a81616","stripe_colour_b":"#c9c526","line_colour":"#000000"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"tileSize":100,"blurRadius":1,"baseColour":"#143e10","stripeColourA":"#a81616","stripeColourB":"#c9c526","lineColour":"#000000"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -448,7 +448,7 @@ fn generated_houndstooth_source_frame_contains_foreground_background_and_opacity
     let media = SceneMediaReference {
             id: "houndstooth-1".to_string(),
             kind: MediaKind::GeneratedHoundstooth,
-            source: r##"{"generator":"houndstooth","pattern_size":50,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"patternSize":50,"foregroundColour":"#000000","backgroundColour":"#ffffff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -479,7 +479,7 @@ fn generated_yagasuri_source_frame_contains_arrow_pattern_and_opacity() {
     let media = SceneMediaReference {
             id: "yagasuri-1".to_string(),
             kind: MediaKind::GeneratedYagasuri,
-            source: r##"{"generator":"yagasuri","arrow_width":15,"arrow_height":65,"line_width":2,"staggered":true,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"arrowWidth":15,"arrowHeight":65,"lineWidth":2,"staggered":true,"foregroundColour":"#000000","backgroundColour":"#ffffff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,

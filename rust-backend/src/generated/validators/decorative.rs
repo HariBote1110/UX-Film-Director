@@ -1,11 +1,8 @@
 use super::*;
 
 pub(crate) fn validate_generated_sunburst_source(
-    source: &GeneratedSunburstSource,
+    source: &SunburstObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "sunrise" {
-        return Err("generator must be sunrise".to_string());
-    }
     if source.ray_count == 0 || source.ray_count > 360 {
         return Err("ray_count must be 1..360".to_string());
     }
@@ -36,18 +33,15 @@ pub(crate) fn validate_generated_sunburst_source(
 }
 
 pub(crate) fn validate_generated_circular_arrow_source(
-    source: &GeneratedCircularArrowSource,
+    source: &CircularArrowObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "circular-arrow" {
-        return Err("generator must be circular-arrow".to_string());
-    }
-    if source.radius == 0 || source.radius > 2000 {
+    if source.radius <= 0.0 || source.radius > 2000.0 {
         return Err("radius must be 1..2000".to_string());
     }
-    if source.line_width == 0 || source.line_width > 1000 {
+    if source.line_width <= 0.0 || source.line_width > 1000.0 {
         return Err("line_width must be 1..1000".to_string());
     }
-    if source.head_size > 1000 {
+    if source.head_size > 1000.0 {
         return Err("head_size must be 0..1000".to_string());
     }
     if !source.angle_degrees.is_finite()
@@ -67,12 +61,9 @@ pub(crate) fn validate_generated_circular_arrow_source(
 }
 
 pub(crate) fn validate_generated_triangle_bracket_source(
-    source: &GeneratedTriangleBracketSource,
+    source: &TriangleBracketObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "triangle-bracket" {
-        return Err("generator must be triangle-bracket".to_string());
-    }
-    if source.bracket_width == 0 || source.bracket_width > 2000 {
+    if source.bracket_width <= 0.0 || source.bracket_width > 2000.0 {
         return Err("bracket_width must be 1..2000".to_string());
     }
     if !source.angle_degrees.is_finite()
@@ -81,10 +72,10 @@ pub(crate) fn validate_generated_triangle_bracket_source(
     {
         return Err("angle_degrees must be 1..180".to_string());
     }
-    if source.arm_length > 2000 {
+    if source.arm_length > 2000.0 {
         return Err("arm_length must be 0..2000".to_string());
     }
-    if source.offset_distance < -10000 || source.offset_distance > 10000 {
+    if source.offset_distance < -10000.0 || source.offset_distance > 10000.0 {
         return Err("offset_distance must be -10000..10000".to_string());
     }
     parse_hex_colour_source(&source.bracket_colour)?;

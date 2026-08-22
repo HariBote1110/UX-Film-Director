@@ -12,7 +12,7 @@ pub(crate) fn build_generated_sunburst_source_frame(
             media.width, media.height
         ));
     }
-    let sunburst: GeneratedSunburstSource = serde_json::from_str(&media.source)
+    let sunburst: SunburstObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedSunburst media '{}': {error}", media.id))?;
     validate_generated_sunburst_source(&sunburst)
         .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
@@ -93,7 +93,7 @@ pub(crate) fn build_generated_circular_arrow_source_frame(
             media.width, media.height
         ));
     }
-    let arrow: GeneratedCircularArrowSource =
+    let arrow: CircularArrowObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedCircularArrow media '{}': {error}",
@@ -201,7 +201,7 @@ pub(crate) fn build_generated_triangle_bracket_source_frame(
             media.width, media.height
         ));
     }
-    let bracket: GeneratedTriangleBracketSource =
+    let bracket: TriangleBracketObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedTriangleBracket media '{}': {error}",

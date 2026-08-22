@@ -12,7 +12,7 @@ pub(crate) fn build_generated_tartan_check_source_frame(
             media.width, media.height
         ));
     }
-    let tartan: GeneratedTartanCheckSource = serde_json::from_str(&media.source)
+    let tartan: TartanCheckObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedTartanCheck media '{}': {error}", media.id))?;
     validate_generated_tartan_check_source(&tartan).map_err(|message| {
         format!(
@@ -57,10 +57,12 @@ pub(crate) fn build_generated_tartan_check_source_frame(
         .checked_mul(4)
         .ok_or_else(|| "GeneratedTartanCheck media byte length overflows".to_string())?;
     let mut pixels = vec![0_u8; byte_len];
-    let tile = tartan.tile_size.max(10);
+    let tile_size = tartan.tile_size.round().max(10.0) as u32;
+    let blur_radius = tartan.blur_radius.round().max(0.0) as u32;
+    let tile = tile_size.max(10);
     let red_band = (tile / 4).max(2);
     let yellow_band = (tile / 5).max(2);
-    let line_width = (tartan.blur_radius + 1).min(tile / 8).max(1);
+    let line_width = (blur_radius + 1).min(tile / 8).max(1);
 
     for y in 0..media.height {
         for x in 0..media.width {
@@ -100,7 +102,7 @@ pub(crate) fn build_generated_houndstooth_source_frame(
             media.width, media.height
         ));
     }
-    let houndstooth: GeneratedHoundstoothSource = serde_json::from_str(&media.source)
+    let houndstooth: HoundstoothObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedHoundstooth media '{}': {error}", media.id))?;
     validate_generated_houndstooth_source(&houndstooth).map_err(|message| {
         format!(
@@ -135,7 +137,8 @@ pub(crate) fn build_generated_houndstooth_source_frame(
         .checked_mul(4)
         .ok_or_else(|| "GeneratedHoundstooth media byte length overflows".to_string())?;
     let mut pixels = vec![0_u8; byte_len];
-    let tooth = houndstooth.pattern_size.max(10);
+    let pattern_size = houndstooth.pattern_size.round().max(10.0) as u32;
+    let tooth = pattern_size.max(10);
     let tile = tooth * 2;
     let half = tooth as f32;
 
@@ -171,7 +174,7 @@ pub(crate) fn build_generated_yagasuri_source_frame(
             media.width, media.height
         ));
     }
-    let yagasuri: GeneratedYagasuriSource = serde_json::from_str(&media.source)
+    let yagasuri: YagasuriObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedYagasuri media '{}': {error}", media.id))?;
     validate_generated_yagasuri_source(&yagasuri)
         .map_err(|message| format!("Invalid GeneratedYagasuri media '{}': {message}", media.id))?;
@@ -192,9 +195,9 @@ pub(crate) fn build_generated_yagasuri_source_frame(
         .checked_mul(4)
         .ok_or_else(|| "GeneratedYagasuri media byte length overflows".to_string())?;
     let mut pixels = vec![0_u8; byte_len];
-    let arrow_width = yagasuri.arrow_width.max(1) as f32;
-    let arrow_height = yagasuri.arrow_height.max(1) as f32;
-    let line_width = yagasuri.line_width as f32;
+    let arrow_width = yagasuri.arrow_width.max(1.0);
+    let arrow_height = yagasuri.arrow_height.max(1.0);
+    let line_width = yagasuri.line_width;
     let period = (arrow_width * 4.0 + line_width * 2.0).max(1.0);
     let row_height = arrow_height.max(1.0);
 

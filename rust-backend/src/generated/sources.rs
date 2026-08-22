@@ -43,74 +43,33 @@ pub(crate) use uxfd_rust_core::{PieChartLabelMode, PieChartObjectFields, PieChar
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
 pub(crate) use uxfd_rust_core::HistogramObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedSunburstSource {
-    pub(crate) generator: String,
-    pub(crate) ray_count: u32,
-    pub(crate) ray_coverage_percent: f32,
-    pub(crate) rotation_offset_degrees: f32,
-    pub(crate) centre_x_percent: f32,
-    pub(crate) centre_y_percent: f32,
-    pub(crate) motif_size: u32,
-    pub(crate) motif_shape: String,
-    pub(crate) ray_colour: String,
-    pub(crate) background_colour: String,
-}
+// `sunburst` kind のワイヤーソースは rust-core の `SunburstObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::SunburstObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedCircularArrowSource {
-    pub(crate) generator: String,
-    pub(crate) radius: u32,
-    pub(crate) line_width: u32,
-    pub(crate) head_size: u32,
-    pub(crate) angle_degrees: f32,
-    pub(crate) centre_angle_degrees: f32,
-    pub(crate) head_shape: String,
-    pub(crate) show_tail_head: bool,
-    pub(crate) flip_vertical: bool,
-    pub(crate) flip_horizontal: bool,
-    pub(crate) arrow_colour: String,
-}
+// `circular_arrow` kind のワイヤーソースは rust-core の
+// `CircularArrowObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::CircularArrowObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedTriangleBracketSource {
-    pub(crate) generator: String,
-    pub(crate) bracket_width: u32,
-    pub(crate) angle_degrees: f32,
-    pub(crate) arm_length: u32,
-    pub(crate) offset_distance: i32,
-    pub(crate) bracket_colour: String,
-}
+// `triangle_bracket` kind のワイヤーソースは rust-core の
+// `TriangleBracketObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::TriangleBracketObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedTartanCheckSource {
-    pub(crate) generator: String,
-    pub(crate) tile_size: u32,
-    pub(crate) blur_radius: u32,
-    pub(crate) base_colour: String,
-    pub(crate) stripe_colour_a: String,
-    pub(crate) stripe_colour_b: String,
-    pub(crate) line_colour: String,
-}
+// `tartan_check` kind のワイヤーソースは rust-core の
+// `TartanCheckObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::TartanCheckObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedHoundstoothSource {
-    pub(crate) generator: String,
-    pub(crate) pattern_size: u32,
-    pub(crate) foreground_colour: String,
-    pub(crate) background_colour: String,
-}
+// `houndstooth` kind のワイヤーソースは rust-core の
+// `HoundstoothObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::HoundstoothObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedYagasuriSource {
-    pub(crate) generator: String,
-    pub(crate) arrow_width: u32,
-    pub(crate) arrow_height: u32,
-    pub(crate) line_width: u32,
-    pub(crate) staggered: bool,
-    pub(crate) foreground_colour: String,
-    pub(crate) background_colour: String,
-}
+// `yagasuri` kind のワイヤーソースは rust-core の `YagasuriObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::YagasuriObjectFields;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedPaperAirplaneSource {

@@ -1,15 +1,12 @@
 use super::*;
 
 pub(crate) fn validate_generated_tartan_check_source(
-    source: &GeneratedTartanCheckSource,
+    source: &TartanCheckObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "tartan-check" {
-        return Err("generator must be tartan-check".to_string());
-    }
-    if source.tile_size < 10 || source.tile_size > 800 {
+    if source.tile_size < 10.0 || source.tile_size > 800.0 {
         return Err("tile_size must be 10..800".to_string());
     }
-    if source.blur_radius > 300 {
+    if source.blur_radius > 300.0 {
         return Err("blur_radius must be 0..300".to_string());
     }
     parse_hex_colour_source(&source.base_colour)?;
@@ -20,12 +17,9 @@ pub(crate) fn validate_generated_tartan_check_source(
 }
 
 pub(crate) fn validate_generated_houndstooth_source(
-    source: &GeneratedHoundstoothSource,
+    source: &HoundstoothObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "houndstooth" {
-        return Err("generator must be houndstooth".to_string());
-    }
-    if source.pattern_size < 10 || source.pattern_size > 200 {
+    if source.pattern_size < 10.0 || source.pattern_size > 200.0 {
         return Err("pattern_size must be 10..200".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;
@@ -34,18 +28,15 @@ pub(crate) fn validate_generated_houndstooth_source(
 }
 
 pub(crate) fn validate_generated_yagasuri_source(
-    source: &GeneratedYagasuriSource,
+    source: &YagasuriObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "yagasuri" {
-        return Err("generator must be yagasuri".to_string());
-    }
-    if source.arrow_width == 0 || source.arrow_width > 500 {
+    if source.arrow_width <= 0.0 || source.arrow_width > 500.0 {
         return Err("arrow_width must be 1..500".to_string());
     }
-    if source.arrow_height == 0 || source.arrow_height > 500 {
+    if source.arrow_height <= 0.0 || source.arrow_height > 500.0 {
         return Err("arrow_height must be 1..500".to_string());
     }
-    if source.line_width > 100 {
+    if source.line_width > 100.0 {
         return Err("line_width must be 0..100".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;
