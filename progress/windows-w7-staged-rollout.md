@@ -142,7 +142,7 @@
   `shell: true` が無いとコンソール非継承の起動元（`schtasks /it` 経由）で
   `spawn EINVAL` になる。macOS 側（`caffeinate` 経由）は元々問題なし。
 
-## Stage 2 への申し送り
+## Stage 2 への申し送り（STAGE1 時点の記述、STAGE2 結果は下記参照）
 
 - 24 時間ベンチの結果を収集し、`gate failed`/クラッシュ/メモリ増加傾向が
   無いことを確認してから、`nativeOverlayPlatformGate.ts` の
@@ -160,3 +160,160 @@
   `native_overlay_steady_playback` の frame time に直接影響する既知の
   ギャップ。W7 のスコープ外だが、Windows でも mac 相当の fps 予算を
   ゲートとして使いたい場合はこちらの解消が前提になる。
+
+## STAGE2（本セクション、2026-08-22 実施）
+
+### 24 時間ベンチの結果（実際は約 10 時間でユーザーが早期停止）
+
+- ユーザーが `C:\Users\gzabu\UXFD\bench-w7\bench-24h.log` の実行中、
+  アプリが断続的に「応答なし」になるのを確認し、24 時間の満了を待たず
+  約 10 時間で早期停止した。開始 `2026-08-22T02:30:08Z`、停止
+  `2026-08-22T12:37:04.9128741Z`（ログ末尾の `BENCH_STOPPED_EARLY_BY_USER`
+  実測、JST `21:37:04`）——**約 10 時間7分の安定性ソークとして評価する
+  （24 時間ではない）**。`schtasks` タスク `uxfdw7bench24h` は無効化
+  済みで、本 STAGE2 では再有効化していない。
+- ログ全体（251,599 行、8.98MB）を走査した結果:
+  - `[native-overlay-bench] run N 完了` = **147 回**（サイクルが最後まで
+    連続しており、途中で頭打ちになっていない）。
+  - `gate failed` = **0 件**。
+  - `panic` = **0 件**。
+  - `crash`/`Crash` = **0 件**。
+  - `out of memory`/`OOM` = **0 件**。
+  - `Uncaught`/`unhandledRejection`/`EACCES`/`EINVAL`/`memory`/`rss`/
+    `heapUsed`/`attach.*false`/`failed:` = **0 件**（メモリ使用量自体は
+    本ベンチが記録しない項目のため、メモリ増加傾向は本ログからは
+    判定不能——測定項目として未整備であることを正直に記録する）。
+  - `error`/`Error`/`ERROR` の 592 件はすべて `cargo build` の warning
+    出力中の識別子名（`HandleError` 等）・unused import 警告であり、
+    実行時エラーではないことをサンプル確認済み。
+  - `[NativeOverlay] attach ... "success":true` = **442 件**、すべて成功。
+- **結論**: 約 10 時間の範囲では、クラッシュ・gate failed・パニック・
+  OOM のいずれも 0 件で安定していた。ただし「応答なし」というユーザー
+  観測はログの完了行数やエラー件数には現れない種類の不具合（UI スレッド
+  ブロック）であり、ログベースの安定性評価だけでは検出できない既知の
+  ギャップとして扱う（後述の attach レイテンシ実測が直接の原因調査）。
+
+### 実機検証1: native-overlay `cargo test --release`（両フィックス込み）
+
+- mainpc の作業コピーが古い commit（`5f078554`）のままだったため、
+  bundle 転送（`git bundle create ... HEAD ^5f078554` → scp → mainpc 側
+  `git fetch <bundle> HEAD:refs/heads/w7stage2` → `git reset --hard`）で
+  `aa6945d0`（パスバグ2件修正＋overflow修正の統合コミット）まで同期した。
+- `cargo test --release`（native-overlay、`schtasks /it` 経由で DComp
+  アクセス権のあるセッションから実行）:
+  - lib unittests: **93 passed / 0 failed**
+  - `tests/win32_overlay_smoke.rs`: **2 passed / 0 failed**
+    （`attach_and_detach_native_overlay_round_trip_on_real_hwnd`、
+    `native_overlay_follows_owner_window_move_via_geometry_resync_hook`
+    含む）
+  - doctest: 0 passed / 0 failed（対象なし）
+  - **合計 95 passed / 0 failed**。W5 時点の見出し数「84 passed / 2
+    failed → 86 passed / 0 failed」から見ると合計数が増えているのは、
+    その後の R5/W6 等で正当にテストが追加され続けているため
+    （`progress/windows-native-overlay-test-path-bugs.md` が言及していた
+    2 件の修正対象自体は上記の smoke テスト2件に含まれ、いずれも
+    green）。**path バグ修正の実機検証は完了、0 failed。**
+
+### 実機検証2: overflow 修正（bottom-left→top-left フリップ）の実機幾何検証
+
+- `win32_overlay_smoke.rs` を `--nocapture` で再実行し、
+  `native_overlay_follows_owner_window_move_via_geometry_resync_hook` が
+  出力する実測値を採取した:
+  - attach payload（contract 座標）: `x=10, y=20, width=320, height=240`
+  - 実測 initial overlay rect（screen 座標）: `(18, 212, 338, 452)`
+    （幅 320・高さ 240 で payload と完全一致、引き伸ばしなし）
+  - 逆算: `screen_x - contract_x = 18 - 10 = 8`（owner の左境界オフセット）、
+    `owner_client_height ≈ 472 - screen_y_origin` として整合性を確認した
+    結果、`owner_client_height ≈ 433px`（`WS_OVERLAPPEDWINDOW` の標準
+    タイトルバー/枠幅として妥当な値）で `resolve_overlay_screen_rect` の
+    `owner_client_height_px - scaled_view_y - height` 式と矛盾なく
+    説明できた。修正前の「常に bottom-left のまま加算」する式であれば
+    screen_y は大きく異なる値（この例では約 59 相当）になり、canvas
+    領域からのはみ出しが再現する計算になる。
+  - `followed overlay rect = (318, 362, 638, 602)`（owner を
+    `+300, +150` 移動させた後）も width/height 不変のまま追従しており、
+    幅・高さの破綻は無い。
+  - **canvas（owner のクライアント領域）を大きくはみ出す「えげつない」
+    ずれは実機で再現しなかった。overflow 修正は実機幾何検証で確認できた
+    と判断する。**
+- 制約として正直に記録: 既存の `native_overlay_follows_owner_window_move_via_geometry_resync_hook`
+  は「相対移動量が一致するか」のみを assert しており、上記の絶対座標
+  一致（owner_client_height からの逆算）はテストコードの assertion では
+  なく、本 STAGE2 セッションでの手計算による事後検証である。将来
+  「canvas rect に厳密一致する」ことを自動でゲートしたい場合は、
+  `GetClientRect`/`GetWindowRect` から独立して期待値を計算する専用の
+  assertion をテストに追加する必要がある（未実装、次段階へ申し送り）。
+  RDP 経由の目視確認（Bug E・devtools 開閉挙動含む）は、本 STAGE2 でも
+  対話操作を送る手段が無かったため引き続き未実施。
+
+### 実機検証3: attach レイテンシ実測（DXC あり、通常アプリセッション）
+
+- `schtasks /it` 経由で `VITE_UXFD_NATIVE_OVERLAY=1` +
+  `VITE_PERF_AGENT_MODE=1` で `npm run dev:native-overlay` を3回連続
+  起動し、プロセス起動時刻から `[NativeOverlay] attach
+  {"success":true,...}` ログ出現までの経過時間を計測した
+  （24時間ベンチのループとは別の、単発の通常アプリセッションとして）。
+  - run1: **89.77 秒**
+  - run2: **88.77 秒**
+  - run3: **88.20 秒**
+  - **中央値 ≈ 88.77 秒**。3回とも rust-backend の `cargo build` は
+    既にビルド済みキャッシュがヒットしており（run2 のログに
+    `Finished .release. profile` 行が出ない＝再ビルド無し、`vite ready in
+    351ms`）、cargo 再ビルドのノイズではなく、Electron 起動〜overlay
+    attach 成功までの実態としての約 88 秒である。
+  - `VITE_UXFD_NATIVE_OVERLAY=1` のみ（`VITE_PERF_AGENT_MODE` 無し）で
+    起動した1回目の予備実験では、60 秒待っても attach が一度も発火
+    しなかった（`ATTACH_TIMEOUT_60S`）。**overlay attach はビューポートが
+    実際にネイティブ描画対象シーンを評価するまで発火せず、アプリを
+    起動しただけ・ユーザー操作を待つだけの状態では自動的には attach
+    されない**。今回は STAGE1 と同じ perf harness（`VITE_PERF_AGENT_MODE=1`）
+    でシナリオを自動駆動させて発火させた。
+  - **attach は同期 napi 呼び出しであり（`native-overlay/src/lib.rs` の
+    `attach_native_overlay`）、この間 Electron メインプロセスの UI
+    スレッドは応答しなくなる。ユーザーが観測した「応答なし」は、
+    24時間ベンチのループの各サイクルで発生していた実行時間90秒近い
+    attach 呼び出しと一致する挙動であり、初回だけでなく毎サイクル
+    （＝毎起動）発生するコストであることが下記の pipeline cache 調査
+    と合わせて裏付けられる。**
+
+### 実機検証4（廉価調査）: pipeline compile コストは毎起動 or 初回限定か
+
+- `native-wgpu-renderer`/`native-overlay`/`rust-backend` の各 crate を
+  `wgpu::Features::PIPELINE_CACHE`・`create_pipeline_cache`・
+  `get_pipeline_cache_data` で検索したが **0 件**。`wgpu::DeviceDescriptor`
+  の `request_device` 呼び出し（3箇所）はいずれも
+  `required_features: wgpu::Features::empty()` で、pipeline cache
+  feature を要求していない。
+- ディスク上のシェーダキャッシュ機構（`shader_cache`、
+  `%LOCALAPPDATA%` へのDXC出力キャッシュ等）も見当たらない。
+- **結論: wgpu のパイプラインキャッシュは一切実装・有効化されておらず、
+  DXC によるシェーダコンパイルは毎回のアプリ起動（毎回の native overlay
+  attach）ごとに再実行される設計になっている。** ユーザーが観測した
+  「応答なし」は初回起動だけの一過性コストではなく、**アプリを起動する
+  たび（24時間ベンチの各サイクルを含む）に毎回発生する構造的コスト**
+  であると判断できる。
+
+### DEFAULT-ON 判定ゲート（親エージェントのルールを機械的に適用）
+
+判定条件（すべて満たす場合のみ flip）:
+
+1. 約10時間のソークで crash/gate failed が 0 件 — **✅ 満たす**
+   （147サイクル完走、gate failed 0、panic/crash/OOM 0）。
+2. overflow 修正が実機検証済み — **✅ 満たす**
+   （geometry smoke test 2/2 pass、絶対座標の手計算検証も整合）。
+3. DXC ありでの attach レイテンシ中央値が 5 秒未満 — **❌ 満たさない**
+   （実測中央値 ≈ **88.77 秒**、5秒の要求を大幅に超過）。
+
+**3 が不成立のため、`WINDOWS_DEFAULT_ENABLED` は `false` のまま据え置く
+（flip しない）。** default-ON は「attach を非同期化する」または
+「wgpu pipeline cache／DXC コンパイル結果の永続キャッシュを導入して
+毎起動コストを削る」のいずれかが前提条件となる、W7 の具体的な残課題として
+記録する。
+
+- `package.json` の PhaseVer は「flip しない」判定であっても、本 STAGE2
+  で実施した実機検証・不具合特定（応答なしの根本原因特定を含む）は
+  意味のある進捗のため +1 する（バージョニング規約どおり、コード変更を
+  伴わない検証セッションでも重要な決定ログとして扱う）。
+- STAGE2 は★完了ではなく **部分完了（stage-2 partial）** として記録する。
+  Blocker: 「attach 呼び出しの非同期化」または「pipeline cache 導入」
+  いずれかが完了するまで、Windows の既定 ON 化は見送る。
