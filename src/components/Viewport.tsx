@@ -78,6 +78,7 @@ import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRen
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import { resolveNativeOverlayEnabled } from '../utils/nativeOverlayPlatformGate';
 import { createNativeOverlayAttachLifecycle } from '../utils/nativeOverlayAttachLifecycle';
+import { waitForNativeOverlayAttachGate } from '../utils/nativeOverlayAttachGateWait';
 import { psdImportTraceCollector } from '../perf/psdImportTrace';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
 import {
@@ -757,6 +758,11 @@ const Viewport: React.FC = () => {
   // 1セッション中に false → true（attach成功）→ false（トグルOFF/失敗）と
   // 遷移しうる。
   const nativeOverlayReady = nativeOverlayLifecycleState === 'overlay';
+  // stage5ブロッカー修正 — container/bridge ゲート待ちのポーリング間隔。
+  // 通常は起動直後の数百ms以内に両方揃うはずのため、既存の
+  // NATIVE_OVERLAY_ATTACH_POLL_INTERVAL_MS（rect再計算用、500ms）より
+  // 短い間隔で確認する。
+  const NATIVE_OVERLAY_ATTACH_GATE_POLL_INTERVAL_MS = 200;
   // 選択デコレーション（送信ロジック・SVG 透明化 state）は
   // SceneSelectionDecorationLayer.tsx へ移設済み。attach 成功 tick の bump
   // だけは Viewport 側に残す（attach 自体は Viewport が行うため）。
@@ -798,13 +804,25 @@ const Viewport: React.FC = () => {
       setNativeOverlayLifecycleState('presenter');
       return;
     }
-    const previewElement = containerRef.current;
-    if (!previewElement || !window.nativeOverlay?.attach) {
-      setNativeOverlayLifecycleState('presenter');
-      return;
-    }
 
+    // stage5ブロッカー修正 — container のマウントと window.nativeOverlay
+    // ブリッジの注入は、この effect の初回実行タイミングと必ずしも揃って
+    // いない（mainpc実機で attach が一度も発火しなかった regression の
+    // 最有力原因、windows-w7-async-attach.md stage5ブロッカー参照）。
+    // 従来はここで黙って 'presenter' 固定・二度と再試行しない実装だった。
+    // ゲートが揃うまで waitForNativeOverlayAttachGate でポーリングし、
+    // 揃った時点で attach machinery を起動する。
     let disposed = false;
+    let teardownMachinery: (() => void) | null = null;
+
+    const startMachinery = () => {
+      if (disposed || teardownMachinery) return;
+      const previewElement = containerRef.current;
+      if (!previewElement || !window.nativeOverlay?.attach) return;
+      teardownMachinery = attachNativeOverlayMachinery(previewElement);
+    };
+
+    const attachNativeOverlayMachinery = (previewElement: HTMLDivElement): (() => void) => {
     let lastNativeOverlayAttachKey: string | null = null;
     let pendingAttachRect: Parameters<NonNullable<typeof window.nativeOverlay.attach>>[0] | null = null;
     const nativeOverlayLifecycle = createNativeOverlayAttachLifecycle({
@@ -903,6 +921,30 @@ const Viewport: React.FC = () => {
       // が失敗し drawable が古いまま残る）。
       void window.nativeOverlay?.clearSurface({});
       void window.nativeOverlay?.detach({});
+    };
+    };
+
+    startMachinery();
+    let gateWait: ReturnType<typeof waitForNativeOverlayAttachGate> | null = null;
+    if (!teardownMachinery) {
+      // ゲートがまだ揃っていない — 黙って諦めず、揃うまでポーリングして
+      // startMachinery() を再試行する。silent failure がデバッグ不能の
+      // 根本原因だったため、スキップした理由を必ず1回だけログに残す。
+      console.warn('[NativeOverlay] attach gate not ready yet, waiting for container/bridge', {
+        hasContainer: !!containerRef.current,
+        hasBridge: !!window.nativeOverlay?.attach,
+      });
+      gateWait = waitForNativeOverlayAttachGate({
+        isReady: () => !!containerRef.current && !!window.nativeOverlay?.attach,
+        onReady: startMachinery,
+        intervalMs: NATIVE_OVERLAY_ATTACH_GATE_POLL_INTERVAL_MS,
+      });
+    }
+
+    return () => {
+      disposed = true;
+      gateWait?.cancel();
+      teardownMachinery?.();
     };
   }, [nativeOverlayPreviewEnabled]);
 
