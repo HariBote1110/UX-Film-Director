@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LipSyncSetting",
+  "description": "リップシンク設定。`src/types.ts` の `LipSyncSetting` と同形。`audioId` は\nクロスオブジェクト参照（他オブジェクトの id）で `string | null`\n（missing keyではなく明示的な null が「未設定」を表す）。",
+  "type": "object",
+  "properties": {
+    "audioId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "mapping": {
+      "$ref": "#/$defs/LipSyncMapping"
+    },
+    "sourceMode": {
+      "$ref": "#/$defs/LipSyncSourceMode"
+    },
+    "targetLayer": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "enabled",
+    "sourceMode",
+    "targetLayer",
+    "mapping"
+  ],
+  "$defs": {
+    "LipSyncMapping": {
+      "description": "リップシンク用の母音/子音マッピング。`src/types.ts` の\n`LipSyncSetting.mapping` と同形の固定フィールド構造体。",
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string"
+        },
+        "e": {
+          "type": "string"
+        },
+        "i": {
+          "type": "string"
+        },
+        "n": {
+          "type": "string"
+        },
+        "o": {
+          "type": "string"
+        },
+        "u": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "a",
+        "i",
+        "u",
+        "e",
+        "o",
+        "n"
+      ]
+    },
+    "LipSyncSourceMode": {
+      "description": "`src/types.ts` の `LipSyncSetting.sourceMode: 'layer' | 'object'` と同形。",
+      "type": "string",
+      "enum": [
+        "layer",
+        "object"
+      ]
+    }
+  }
+}

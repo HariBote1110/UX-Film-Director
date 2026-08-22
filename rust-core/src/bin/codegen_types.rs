@@ -20,13 +20,14 @@ use uxfd_rust_core::schema::{
     FocusLinesPlusObjectFields, Fps, GearObjectFields, GetColorDotFieldObjectFields,
     GourdObjectFields, GroupControl, GroupControlObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields,
     HistogramObjectFields, HologramObjectFields, ImageObjectFields,
+    LipSyncMapping, LipSyncSetting, LipSyncSourceMode,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
-    Project, ProjectSize, ProtractorObjectFields,
+    Project, ProjectSize, ProtractorObjectFields, PsdWorldPlacement,
     PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields,
-    SamplingMode,
+    SamplingMode, StageCamera3D,
     ScalarKeyframe, ShakingPolygonObjectFields, ShapeGradientFill, ShapeGradientKind,
     ShapeGradientScope, ShapeObjectFields,
     CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, ShatteredSphereObjectFields,
@@ -34,7 +35,7 @@ use uxfd_rust_core::schema::{
     SphereDotsObjectFields, SphericalFieldObjectFields, SubjectCropAnimation, SubjectCropKeyframe,
     SubjectCropNormKeyframe, SunburstObjectFields, TartanCheckObjectFields, TextAlignment,
     TextObjectFields, TextShadow, TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields,
-    TriangleBracketObjectFields, Transform, VideoObjectFields, WipeAnimation, WipeEdge,
+    TriangleBracketObjectFields, Transform, Vec3, VideoObjectFields, WipeAnimation, WipeEdge,
     YagasuriObjectFields,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
@@ -141,6 +142,12 @@ fn write_ts_bindings() {
         .expect("ShatteredSphereObjectFields の TS export に失敗しました");
     GroupControlObjectFields::export_all(&cfg)
         .expect("GroupControlObjectFields の TS export に失敗しました");
+    Vec3::export_all(&cfg).expect("Vec3 の TS export に失敗しました");
+    StageCamera3D::export_all(&cfg).expect("StageCamera3D の TS export に失敗しました");
+    PsdWorldPlacement::export_all(&cfg).expect("PsdWorldPlacement の TS export に失敗しました");
+    LipSyncSourceMode::export_all(&cfg).expect("LipSyncSourceMode の TS export に失敗しました");
+    LipSyncMapping::export_all(&cfg).expect("LipSyncMapping の TS export に失敗しました");
+    LipSyncSetting::export_all(&cfg).expect("LipSyncSetting の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -265,6 +272,12 @@ fn write_json_schemas() {
     write_schema::<GroupControlObjectFields>(&dir, "GroupControlObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
+    write_schema::<Vec3>(&dir, "Vec3");
+    write_schema::<StageCamera3D>(&dir, "StageCamera3D");
+    write_schema::<PsdWorldPlacement>(&dir, "PsdWorldPlacement");
+    write_schema::<LipSyncSourceMode>(&dir, "LipSyncSourceMode");
+    write_schema::<LipSyncMapping>(&dir, "LipSyncMapping");
+    write_schema::<LipSyncSetting>(&dir, "LipSyncSetting");
 
     println!("codegen:types (JSON Schema) 完了 -> {}", dir.display());
 }

@@ -1,5 +1,7 @@
 import { EasingType } from './utils/easings';
 import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields, ShakingPolygonObjectFields, ShatteredSphereObjectFields, GroupControlObjectFields } from './generated/rustCore';
+import type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting } from './generated/rustCore';
+export type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting };
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -11,29 +13,6 @@ export interface ProjectSettings {
   sampleRate: number;
   /** 既定は 2d（後方互換） */
   editorMode?: EditorMode;
-}
-
-/** 3D ステージ用ワールド座標 */
-export interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-/** 透視カメラ（lookAt target） */
-export interface StageCamera3D {
-  position: Vec3;
-  target: Vec3;
-}
-
-/** PSD を 3D 空間に配置するときのパラメータ */
-export interface PsdWorldPlacement {
-  enabled: boolean;
-  position: Vec3;
-  rotationYDeg: number;
-  scale: number;
-  /** true のときカメラ方向へ Y 回転を合わせる（立ち絵向け） */
-  billboard: boolean;
 }
 
 /** Preview: fit to the panel vs one project pixel per CSS pixel (scroll when larger than the panel). */
@@ -79,23 +58,6 @@ export interface PositionKeyframe {
   x: number;
   y: number;
   easing?: EasingType;
-}
-
-// リップシンク設定
-export interface LipSyncSetting {
-  enabled: boolean;
-  sourceMode: 'layer' | 'object';
-  targetLayer: number;
-  audioId: string | null;
-
-  mapping: {
-      a: string;
-      i: string;
-      u: string;
-      e: string;
-      o: string;
-      n: string;
-  };
 }
 
 // --- エフェクト定義 ---

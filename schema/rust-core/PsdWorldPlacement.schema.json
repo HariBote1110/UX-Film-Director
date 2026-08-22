@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PsdWorldPlacement",
+  "description": "PSD を 3D 空間に配置するときのパラメータ。`src/types.ts` の\n`PsdWorldPlacement` と同形（`billboard` は true のときカメラ方向へ\nY 回転を合わせる、立ち絵向けのフラグ）。",
+  "type": "object",
+  "properties": {
+    "billboard": {
+      "type": "boolean"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "position": {
+      "$ref": "#/$defs/Vec3"
+    },
+    "rotationYDeg": {
+      "type": "number",
+      "format": "float"
+    },
+    "scale": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "enabled",
+    "position",
+    "rotationYDeg",
+    "scale",
+    "billboard"
+  ],
+  "$defs": {
+    "Vec3": {
+      "description": "3D ステージ用ワールド座標。`src/types.ts` の `Vec3` と同形。",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    }
+  }
+}
