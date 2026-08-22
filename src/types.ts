@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -471,72 +471,19 @@ export type PuzzlePieceObject = BaseObject & PuzzlePieceObjectFields & { type: '
 export type ColourWheelObject = BaseObject & ColourWheelObjectFields & { type: 'colour_wheel' };
 
 // AviUtlPackV4 ひょうたんTM互換の生成オブジェクト
-export interface GourdObject extends BaseObject {
-  type: 'gourd';
-  width: number;
-  height: number;
-  bodyRadius: number;
-  bodyWidth: number;
-  waistRadius: number;
-  squashPercent: number;
-  repeatCount: number;
-  fillColour: string;
-}
+export type GourdObject = BaseObject & GourdObjectFields & { type: 'gourd' };
 
 // AviUtlPackV4 歯車互換の生成オブジェクト
-export interface GearObject extends BaseObject {
-  type: 'gear';
-  width: number;
-  height: number;
-  outerRadius: number;
-  innerRadiusPercent: number;
-  toothCount: number;
-  toothDepthPercent: number;
-  toothSkewPercent: number;
-  fillColour: string;
-}
+export type GearObject = BaseObject & GearObjectFields & { type: 'gear' };
 
 // AviUtlPackV4 カスタムトラックバー互換の生成オブジェクト
-export interface TrackBarObject extends BaseObject {
-  type: 'track_bar';
-  width: number;
-  height: number;
-  trackValues: number[];
-  trackRanges: [number, number][];
-  labels: string[];
-  barColour: string;
-  backgroundOpacity: number;
-}
+export type TrackBarObject = BaseObject & TrackBarObjectFields & { type: 'track_bar' };
 
 // AviUtlPackV4 パイシートグラフ互換の生成オブジェクト
-export interface PieChartObject extends BaseObject {
-  type: 'pie_chart';
-  width: number;
-  height: number;
-  values: number[];
-  sortMode: 'none' | 'descending' | 'ascending';
-  normaliseToHundred: boolean;
-  labelMode: 'none' | 'percentage' | 'input';
-  progressPercent: number;
-  strokeWidth: number;
-  sliceColours: string[];
-}
+export type PieChartObject = BaseObject & PieChartObjectFields & { type: 'pie_chart' };
 
 // AviUtlPackV4 簡易ヒストグラム互換の生成オブジェクト
-export interface HistogramObject extends BaseObject {
-  type: 'histogram';
-  width: number;
-  height: number;
-  binValues: number[];
-  heightScalePercent: number;
-  lineWidth: number;
-  showLuminance: boolean;
-  showRed: boolean;
-  showGreen: boolean;
-  showBlue: boolean;
-  channelColours: string[];
-  backgroundColour: string;
-}
+export type HistogramObject = BaseObject & HistogramObjectFields & { type: 'histogram' };
 
 // AviUtlPackV4 日の出互換の生成オブジェクト
 export interface SunburstObject extends BaseObject {
@@ -791,17 +738,7 @@ export interface ShatteredSphereObject extends BaseObject {
 }
 
 // AviUtlPackV4 簡易トーンカーブ互換の生成オブジェクト
-export interface ToneCurveObject extends BaseObject {
-  type: 'tone_curve';
-  width: number;
-  height: number;
-  gridDivisions: number;
-  lineWidth: number;
-  curvePoints: number[];
-  curveColour: string;
-  gridColour: string;
-  backgroundColour: string;
-}
+export type ToneCurveObject = BaseObject & ToneCurveObjectFields & { type: 'tone_curve' };
 
 // hksy チェッカー/グリッド互換の生成オブジェクト
 export interface HksyCheckerGridObject extends BaseObject {

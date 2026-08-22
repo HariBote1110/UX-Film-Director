@@ -16,12 +16,15 @@ use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
     AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
     AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect,
-    Fps, GroupControl, ImageObjectFields,
-    ColourWheelObjectFields, MediaKind, MediaReference, ParticleObjectFields, PositionKeyframe,
+    Fps, GearObjectFields, GourdObjectFields, GroupControl, HistogramObjectFields,
+    ImageObjectFields,
+    ColourWheelObjectFields, MediaKind, MediaReference, ParticleObjectFields, PieChartLabelMode,
+    PieChartObjectFields, PieChartSortMode, PositionKeyframe,
     Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
     ShapeType, SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
-    TextObjectFields, TextShadow, TextStroke, Track, Transform, VideoObjectFields, WipeAnimation,
+    TextObjectFields, TextShadow, TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields,
+    Transform, VideoObjectFields, WipeAnimation,
     WipeEdge,
 };
 use uxfd_rust_core::timeline::{EvaluatedClip, SceneSnapshot};
@@ -67,6 +70,18 @@ fn write_ts_bindings() {
         .expect("PuzzlePieceObjectFields の TS export に失敗しました");
     ColourWheelObjectFields::export_all(&cfg)
         .expect("ColourWheelObjectFields の TS export に失敗しました");
+    GourdObjectFields::export_all(&cfg).expect("GourdObjectFields の TS export に失敗しました");
+    GearObjectFields::export_all(&cfg).expect("GearObjectFields の TS export に失敗しました");
+    TrackBarObjectFields::export_all(&cfg)
+        .expect("TrackBarObjectFields の TS export に失敗しました");
+    PieChartSortMode::export_all(&cfg).expect("PieChartSortMode の TS export に失敗しました");
+    PieChartLabelMode::export_all(&cfg).expect("PieChartLabelMode の TS export に失敗しました");
+    PieChartObjectFields::export_all(&cfg)
+        .expect("PieChartObjectFields の TS export に失敗しました");
+    HistogramObjectFields::export_all(&cfg)
+        .expect("HistogramObjectFields の TS export に失敗しました");
+    ToneCurveObjectFields::export_all(&cfg)
+        .expect("ToneCurveObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -156,6 +171,14 @@ fn write_json_schemas() {
     write_schema::<PuzzleConnectorMode>(&dir, "PuzzleConnectorMode");
     write_schema::<PuzzlePieceObjectFields>(&dir, "PuzzlePieceObjectFields");
     write_schema::<ColourWheelObjectFields>(&dir, "ColourWheelObjectFields");
+    write_schema::<GourdObjectFields>(&dir, "GourdObjectFields");
+    write_schema::<GearObjectFields>(&dir, "GearObjectFields");
+    write_schema::<TrackBarObjectFields>(&dir, "TrackBarObjectFields");
+    write_schema::<PieChartSortMode>(&dir, "PieChartSortMode");
+    write_schema::<PieChartLabelMode>(&dir, "PieChartLabelMode");
+    write_schema::<PieChartObjectFields>(&dir, "PieChartObjectFields");
+    write_schema::<HistogramObjectFields>(&dir, "HistogramObjectFields");
+    write_schema::<ToneCurveObjectFields>(&dir, "ToneCurveObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

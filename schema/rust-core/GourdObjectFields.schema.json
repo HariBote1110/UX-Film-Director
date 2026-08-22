@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GourdObjectFields",
+  "description": "`GourdObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、gourd 固有部分。TS 側は\n`BaseObject & GourdObjectFields & { type: 'gourd' }` として組み立てる。\n\n`width`/`height` は `gourdObjectFactory.ts` の `buildAviUtlGourdObject` が\nプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな\n`0.0` にする。他のフィールドは同ファイルの固定リテラル（bodyRadius: 80,\nbodyWidth: 250, waistRadius: 10, squashPercent: 40, repeatCount: 1,\nfillColour: '#ffffff'）をそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "bodyRadius": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "bodyWidth": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "fillColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "repeatCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "squashPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "waistRadius": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "bodyRadius",
+    "bodyWidth",
+    "waistRadius",
+    "squashPercent",
+    "repeatCount",
+    "fillColour"
+  ]
+}

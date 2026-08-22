@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ToneCurveObjectFields",
+  "description": "`ToneCurveObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、tone_curve 固有部分。TS 側は\n`BaseObject & ToneCurveObjectFields & { type: 'tone_curve' }` として組み立てる。\n\n`width`/`height` は `toneCurveObjectFactory.ts` の\n`buildAviUtlToneCurveObject` の固定リテラル（360, 360）をそのまま採用する\n（プロジェクトサイズに依存しない固定値のため、ニュートラル化はしない）。\n他のフィールドも同ファイルの固定リテラル（gridDivisions: 4, lineWidth: 3,\ncurvePoints: [0,0.16,0.42,0.7,1], curveColour: '#ffffff',\ngridColour: '#333333', backgroundColour: '#000000'）をそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "curveColour": {
+      "type": "string"
+    },
+    "curvePoints": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "format": "float"
+      }
+    },
+    "gridColour": {
+      "type": "string"
+    },
+    "gridDivisions": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "gridDivisions",
+    "lineWidth",
+    "curvePoints",
+    "curveColour",
+    "gridColour",
+    "backgroundColour"
+  ]
+}
