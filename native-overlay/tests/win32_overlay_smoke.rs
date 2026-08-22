@@ -23,13 +23,13 @@ use uxfd_native_overlay::{
     NativeOverlayDetachPayload,
 };
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowExW,
-    GetWindowRect, PeekMessageW, RegisterClassW, SetWindowPos, TranslateMessage, CS_HREDRAW,
-    CS_VREDRAW, MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WNDCLASSW, WS_EX_LEFT,
-    WS_OVERLAPPEDWINDOW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EnumWindows,
+    GetClassNameW, GetWindow, GetWindowRect, PeekMessageW, RegisterClassW, SetWindowPos,
+    TranslateMessage, CS_HREDRAW, CS_VREDRAW, GW_OWNER, MSG, PM_REMOVE, SWP_NOACTIVATE,
+    SWP_NOSIZE, SWP_NOZORDER, WNDCLASSW, WS_EX_LEFT, WS_OVERLAPPEDWINDOW,
 };
 
 /// `win32_overlay.rs` の `NATIVE_OVERLAY_WINDOW_CLASS` と同じ値
@@ -56,9 +56,41 @@ fn pump_messages_briefly(duration: Duration) {
     }
 }
 
-unsafe fn find_overlay_window() -> Option<HWND> {
-    let class_name = wide_null(NATIVE_OVERLAY_WINDOW_CLASS);
-    FindWindowExW(None, None, PCWSTR(class_name.as_ptr()), None).ok()
+/// `cargo test` は既定でテスト関数を並行実行するため、複数テストが同時に
+/// overlay window（class 名は全テスト共通の `UXFDNativeOverlayWindow`）を
+/// 作ることがある。`FindWindowExW` を class 名だけで引くと他テストの
+/// overlay を誤って掴む可能性があるため、`GetWindow(GW_OWNER)` が求める
+/// `owner` と一致するものだけを `EnumWindows` で絞り込む。
+unsafe extern "system" fn find_overlay_window_enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let search = &mut *(lparam.0 as *mut OverlaySearch);
+    if GetWindow(hwnd, GW_OWNER).unwrap_or_default() != search.owner {
+        return true.into();
+    }
+    let mut class_buffer = [0_u16; 256];
+    let length = GetClassNameW(hwnd, &mut class_buffer);
+    if length == 0 {
+        return true.into();
+    }
+    let class_name = String::from_utf16_lossy(&class_buffer[..length as usize]);
+    if class_name == NATIVE_OVERLAY_WINDOW_CLASS {
+        search.found = Some(hwnd);
+        return false.into();
+    }
+    true.into()
+}
+
+struct OverlaySearch {
+    owner: HWND,
+    found: Option<HWND>,
+}
+
+unsafe fn find_overlay_window(owner: HWND) -> Option<HWND> {
+    let mut search = OverlaySearch { owner, found: None };
+    let _ = EnumWindows(
+        Some(find_overlay_window_enum_proc),
+        LPARAM(&mut search as *mut OverlaySearch as isize),
+    );
+    search.found
 }
 
 unsafe fn window_rect(hwnd: HWND) -> RECT {
@@ -209,8 +241,8 @@ fn native_overlay_follows_owner_window_move_via_geometry_resync_hook() {
             attach_response.reason
         );
 
-        let overlay = find_overlay_window().expect(
-            "overlay window with class UXFDNativeOverlayWindow must exist after a successful attach",
+        let overlay = find_overlay_window(owner).expect(
+            "overlay window with class UXFDNativeOverlayWindow owned by our owner HWND must exist after a successful attach",
         );
         let initial_rect = window_rect(overlay);
         eprintln!(
