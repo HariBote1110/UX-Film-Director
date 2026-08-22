@@ -237,25 +237,7 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
-  it('reads the last presented frame through a WebGPU copy buffer with aligned row pitch', async () => {
-    const copyOperations: unknown[] = [];
-    const bufferDescriptors: unknown[] = [];
-    const bufferBytes = Uint8Array.from([
-      1, 2, 3, 4, 5, 6, 7, 8,
-      ...Array.from({ length: 248 }, () => 0),
-      9, 10, 11, 12, 13, 14, 15, 16,
-      ...Array.from({ length: 248 }, () => 0),
-    ]);
-    const device = fakeDevice({
-      onCreateBuffer: (descriptor) => {
-        bufferDescriptors.push(descriptor);
-      },
-      onCopyTextureToBuffer: (...args) => {
-        copyOperations.push(args);
-      },
-      readbackBytes: bufferBytes,
-    });
-
+  it('does not expose a WebGPU copy-buffer readback API (R6: superseded by takePresentedFrameSharedFrame native handoff, never wired to any caller)', async () => {
     const result = await createSharedRendererWebGpuPresenter({
       canvas: fakeCanvas(() => fakeContext()),
       surfaceGate: {
@@ -264,46 +246,14 @@ describe('createSharedRendererWebGpuPresenter', () => {
       },
       presentationContract: buildSharedRendererPresentationContract(),
       gpu: fakeGpu({
-        onRequestAdapter: () => fakeAdapter({ device }),
+        onRequestAdapter: () => fakeAdapter({ device: fakeDevice({}) }),
       }),
-      textureUsageRenderAttachment: 16,
-      textureUsageCopySrc: 1,
-      bufferUsageCopyDst: 8,
-      bufferUsageMapRead: 1,
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected presenter creation to pass');
 
-    result.presentSolidSrgbSwatch({
-      red: 0,
-      green: 0,
-      blue: 0,
-      alpha: 1,
-    });
-
-    await expect(result.readPresentedFrameRgbaBytes({
-      width: 2,
-      height: 2,
-    })).resolves.toEqual({
-      rgbaBytes: bufferBytes,
-      strideBytes: 256,
-      byteLen: 512,
-      width: 2,
-      height: 2,
-    });
-    expect(bufferDescriptors).toContainEqual({
-      label: 'shared-renderer-presented-frame-readback',
-      size: 512,
-      usage: 9,
-    });
-    expect(copyOperations).toEqual([
-      [
-        { texture: 'current-texture' },
-        { buffer: 'readback-buffer', bytesPerRow: 256, rowsPerImage: 2 },
-        { width: 2, height: 2, depthOrArrayLayers: 1 },
-      ],
-    ]);
+    expect('readPresentedFrameRgbaBytes' in result).toBe(false);
   });
 
   it('requires a native presented-frame handoff instead of falling back to WebGPU readback writing', async () => {
