@@ -286,7 +286,16 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   `tartan_check`/`houndstooth`/`yagasuri` の6 kindも2026-08-22に wire 統一
   まで完了した（`progress/rust-source-of-truth-r3-generated-batch4.md`）。
   6 kind ともクロスオブジェクト参照・optional フィールドが無いことを
-  確認済み。
+  確認済み。続けて `paper_airplane`/`asanoha_pattern`/`focus_lines_plus`/
+  `random_line_ex`/`contour_trace`/`displacement_poly` の6 kindも
+  2026-08-22に wire 統一まで完了した
+  （`progress/rust-source-of-truth-r3-generated-batch5.md`）。6 kind とも
+  クロスオブジェクト参照・optional フィールドが無いことを確認済み。
+  `focus_lines_plus` は `rust-core/src/focus_lines.rs` の
+  `focus_lines_frame_bucket_from_source`（wire 文字列を直接パースする
+  独立ヘルパー）とフィールド名を共有しており、wire 統一時に追随修正が
+  必要だった。残る生成系 kind は `plain_effector_line`/`hologram`/
+  `protractor`/`shaking_polygon`/`shattered_sphere` の5 kind。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
