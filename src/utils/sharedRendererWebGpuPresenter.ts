@@ -436,30 +436,39 @@ export const createSharedRendererWebGpuPresenter = async ({
   }
 
   let lastPresentedTexture: unknown | null = null;
-  const presentSolidSrgbSwatch = (swatch: SharedRendererSolidSrgbSwatch) => {
-    if (!canUsePresenter()) return;
-    if (!context.getCurrentTexture || !device.createCommandEncoder || !device.queue) return;
-
-    const encoder = device.createCommandEncoder();
-    const targetTexture = context.getCurrentTexture();
+  // Shared clear-only render pass: both the diagnostic solid-srgb swatch and
+  // the zero-rect SolidColour scene branch submit an identical
+  // clear-and-present pass and differ only in the clear colour and the
+  // caller's return shape, so the GPU submission itself is factored out here
+  // (batch 3 audit, progress/rust-source-of-truth-r6-presenter-shrink.md).
+  const submitClearOnlyPass = (clearValue: { r: number; g: number; b: number; a: number }): void => {
+    const encoder = device.createCommandEncoder!();
+    const targetTexture = context.getCurrentTexture!();
     lastPresentedTexture = targetTexture;
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
           view: targetTexture.createView(),
-          clearValue: {
-            r: swatch.red,
-            g: swatch.green,
-            b: swatch.blue,
-            a: swatch.alpha,
-          },
+          clearValue,
           loadOp: 'clear',
           storeOp: 'store',
         },
       ],
     });
     pass.end();
-    device.queue.submit([encoder.finish()]);
+    device.queue!.submit([encoder.finish()]);
+  };
+
+  const presentSolidSrgbSwatch = (swatch: SharedRendererSolidSrgbSwatch) => {
+    if (!canUsePresenter()) return;
+    if (!context.getCurrentTexture || !device.createCommandEncoder || !device.queue) return;
+
+    submitClearOnlyPass({
+      r: swatch.red,
+      g: swatch.green,
+      b: swatch.blue,
+      a: swatch.alpha,
+    });
   };
 
   let solidColourPipeline: unknown | null = null;
@@ -500,21 +509,7 @@ export const createSharedRendererWebGpuPresenter = async ({
     }
 
     if (vertexScene.rectCount === 0) {
-      const encoder = device.createCommandEncoder();
-      const targetTexture = context.getCurrentTexture();
-      lastPresentedTexture = targetTexture;
-      const pass = encoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: targetTexture.createView(),
-            clearValue: { r: 0, g: 0, b: 0, a: 0 },
-            loadOp: 'clear',
-            storeOp: 'store',
-          },
-        ],
-      });
-      pass.end();
-      device.queue.submit([encoder.finish()]);
+      submitClearOnlyPass({ r: 0, g: 0, b: 0, a: 0 });
       return {
         ok: true,
         rectCount: 0,
