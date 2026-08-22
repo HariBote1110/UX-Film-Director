@@ -809,6 +809,16 @@ app.whenReady().then(() => {
     });
     console.log(`UXFD_PERF_RESULT_JSON:${marker}`);
 
+    // Phase 7 (W7) Phase 3実機検証: 需要駆動staged attachのnv12バック
+    // グラウンド構築完了（最大約60秒）はperfハーネスの完了（数秒〜十数秒）
+    // より後に起こるため、既定のperfハーネス完了後の自動終了だと
+    // nv12Readyログを観測する前にアプリごと終了してしまう。
+    // `UXFD_PERF_KEEP_ALIVE=1` を明示的に指定したときだけ自動終了を
+    // スキップする（既定挙動は変更しない、既存のperfハーネス自動化を
+    // 壊さないための opt-in）。
+    if (process.env.UXFD_PERF_KEEP_ALIVE === '1') {
+      return { success: true, jsonFilePath: outputPath };
+    }
     const exitCode = agentPayload.success ? 0 : 1;
     setTimeout(() => {
       app.exit(exitCode);
