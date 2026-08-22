@@ -420,6 +420,16 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 実際の置き換え（renderer 側消費）は未着手のまま R4-3 へ持ち越し。詳細は
 `progress/rust-source-of-truth-r4-project-file.md` を参照。
 
+**進捗（R4-3・2026-08-22）**: `src/utils/projectFile.ts` を上記 IPC 経由の
+薄いオーケストレーション層へ縮小（1021 行 → 318 行）。手書き
+`parseProjectPayloadV2` 本体・`migrateV1ToV2`・約 40 個のバリデータを
+削除し、load/save とも `window.rustBackend.deserializeProjectFile`/
+`serializeProjectFile` に一本化（並行 TS 実装は残していない）。
+**これで「保存形式（`.uxfd.json` の読み書き）の Rust 移管」（stream-1A）
+は完了**。R4 の残り 2 ストリーム（`historySlice` の undo/redo コマンド化、
+`agentProject.ts` のレシピ解析移管）は本バッチのスコープ外で未着手のまま。
+詳細は `progress/rust-source-of-truth-r4-project-file.md` を参照。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、

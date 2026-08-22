@@ -277,3 +277,114 @@ particle の 7 kind のラウンドトリップ）が green。`codegen_types` �
   `projectFile.ts`置き換え作業でも同様に残るため、R4-3でも
   「rust-backend側ユニットテストで担保し、vitestは配線一貫性のみ」
   という同じ方針を踏襲するのが妥当と考えられる。
+
+---
+
+# R4-3: `src/utils/projectFile.ts` の薄型化・Rust IPC 一本化（2026-08-22）
+
+## 決定
+- ルーティング方針は親の決定どおり **load/save の両方を Rust IPC
+  （`window.rustBackend.deserializeProjectFile`/`serializeProjectFile`）に
+  一本化**した。TS 側の並行実装は残していない。
+- `src/utils/projectFile.ts` は 1021 行 → 318 行（約 69% 削減）。削除した
+  もの: `parseProjectPayloadV2`/`migrateV1ToV2` の手書きロジック本体、
+  `isTimelineObject`（42 kind 分の per-kind ブロック込み）・
+  `isProjectSettings`・`isLayerState`・`isCameraState`・
+  `isPositionKeyframe`・`isVec3`・`isStageCamera3D`・
+  `isPsdWorldPlacement`・`isTrackRangeTuple`・`parseLayers`・
+  `parseSceneEntry` ほか全 ~40 個のバリデータ。
+- **fallback ポリシー**: `src/utils/rustBackendSceneControl.ts` の既存
+  パターンをそのまま踏襲した。`window.rustBackend` の存在チェックは
+  行わず（Electron renderer コンテキストであることを前提とする）、
+  `RustBackendProjectFileBridge`（`deserializeProjectFile`/
+  `serializeProjectFile` の2メソッド）を関数の第2引数としてデフォルト
+  実装（`window.rustBackend` を直接叩くだけ）付きで注入可能にした。
+  テストはこの bridge を差し替えてモックする。**サイレントな TS
+  フォールバックは実装していない** — `window.rustBackend` が無い環境
+  （素の browser context 等）では呼び出しがそのまま例外になる。これは
+  scene control 等の既存 IPC 消費者と同じ挙動であり、本タスクの意図
+  （並行実装を復活させない）とも一致する。
+- **load**: `parseProjectPayloadV2(json: string, bridge?)` が
+  `bridge.deserializeProjectFile({ json })` を呼び、`response.result.project`
+  の最上位 shape（`format`/`version`/`savedAt`/`projectSettings`/
+  `activeSceneId`/`scenes` の型と存在）だけを確認して返す
+  （`isProjectFileShape`）。フィールド単位の詳細検証は二重実装しない
+  （rust-core の `serde::Deserialize` に一本化済み）。エラーメッセージは
+  `response.error`（rust-backend が返す 32610 系ドメインエラーメッセージ、
+  または `-32602` invalid params メッセージ）をそのまま `Error` として
+  throw する。呼び出し元（`App.tsx`）は元々
+  `error instanceof Error ? error.message : String(error)` を alert する
+  だけで個別メッセージに依存していなかったため、この単純化で表示上の
+  後退はない。
+- **save**: `saveProjectFileWithDialog` は `buildProjectFileData`（従来
+  どおり TS 側、`sanitiseObjectForSave` の PSD strip を含む）で作った
+  `ProjectFileV2` を `bridge.serializeProjectFile({ project })` に渡し、
+  返ってきた pretty JSON 文字列（rust-core
+  `project_file_to_json_pretty`、2 スペースインデント、f32 最短表現）を
+  そのまま `save-project-file` IPC に渡す。旧
+  `JSON.stringify(projectFile, null, 2)` は削除。
+- **TS 側に残したもの**（設計どおり）: `saveProjectFileWithDialog`/
+  `openProjectFileWithDialog` の dialog IPC 呼び出し、`readFileBytes`、
+  `toFileProtocolUrl`、`restorePsdObjectFromFile`/
+  `restoreObjectFromProject`/`restoreProjectObjects`（PSD 実ファイル
+  再読込・レイヤー ID 再マッピングのオーケストレーション）、
+  `sanitiseObjectForSave` の PSD strip（`psdParser` 依存、R5 スコープ）、
+  `buildProjectFileData`（アクティブシーンのフラッシュ・複製）。
+
+## テストの扱いと Rust 側等価テストへのマッピング
+- `src/utils/projectFile.test.ts`: `parseProjectPayloadV2` を使う
+  round-trip テスト群（PSD worldPlacement・particle 一式・GetColor
+  variants・hksy variants・PSD full round-trip）は **削除せず**、
+  `echoProjectFileBridge`（`JSON.stringify`/`JSON.parse` を素通しするだけ
+  のモック bridge、Rust 側の検証を代替しない）を注入する形に adapt した。
+  理由: これらのテストの本質的価値は「TS オブジェクトが
+  `JSON.stringify`/`JSON.parse` を経由しても shape が壊れないか」
+  （`undefined` フィールドの扱い・キー順・配列長など）であり、
+  Rust 側の `serde::Deserialize` バリデーションとは独立した懸念。
+  特に exotic な kind（gear/gourd/hksy 等）は
+  `rust-core/tests/timeline_object_schema.rs` の `round_trips_*_kind`
+  が shape/text/image/video/audio/psd/particle の 7 kind しかカバー
+  しておらず、削除すると純粋にカバレッジが失われるため残した。
+- **削除した唯一のテスト**: 「rejects invalid worldPlacement on psd
+  objects」（`worldPlacement.enabled` に文字列を渡すと拒否される、を
+  確認する否定テスト）。これは手書き `isPsdWorldPlacement` バリデータの
+  ための否定テストであり、バリデータ自体を削除したため対応する実装が
+  存在しない。等価カバレッジ: フィールド型の強制は
+  `#[derive(Deserialize)]` が構造的に持つ性質であり個別の否定テストを
+  要しない。境界層（JSON 自体が壊れている・format/version 不正）の
+  拒否経路は `rust-core/tests/project_file_boundary.rs` の
+  `rejects_malformed_json`/`rejects_wrong_format_string`/
+  `rejects_unsupported_version`/`rejects_missing_format_field` が、
+  肯定的な PSD 構造の固定は
+  `rust-core/tests/timeline_object_schema.rs` の `round_trips_psd_kind`
+  がそれぞれカバーする。
+- 他ファイルへの波及（scope 外だが signature 変更で必須）:
+  `src/e2e/realisticHeavyEditHarness.ts`（`parseProjectPayloadV2` を
+  await 付き・デフォルト bridge（実 `window.rustBackend`）で呼ぶよう
+  変更 — 実 Electron 環境で動く harness なので実 IPC 経路を通ることに
+  なり、むしろ従来より実体に近いテストになった）、
+  `src/utils/aviutl/aviutlPolishRepresentativeScene.test.ts`（同じ
+  `echoProjectFileBridge` パターンで adapt）。
+
+## ゲート結果（2026-08-22）
+- `npx tsc --noEmit`: green。
+- `cargo test --manifest-path rust-core/Cargo.toml`: 全 green（フル）。
+- `cargo test --manifest-path rust-backend/Cargo.toml`: 全 green（フル）。
+- `npm run codegen:types:check`: exit 0（差分なし）。
+- `npm run fixture:evaluation-parity` + `cargo test --test
+  ts_evaluation_parity`: 447 フレーム比較、`KNOWN_DIFFERENCES.json` は
+  `[]` のまま green。
+- `npx vitest run`: 254 files / 1842 tests（ベースライン 254/1843 から
+  意図的削除 1 件のみ、他は adapt で維持）、全 green。
+- `src/e2e` 配下の save/project 関連は `realisticHeavyEditHarness.ts`
+  のみ（実 Electron 上で動く round-trip harness、vitest 経由では実行
+  されない）。差分は上記のとおり最小限の signature 追随のみ。
+
+## stream-1A（R4: save フォーマットのRust移送）完了判定
+**完了と判断する。** R4-1a（型スキャフォールド）→R4-1b（ProjectFile型・
+V1→V2移行・fixture）→R4-2（IPC境界公開・精度検証）→R4-3（renderer側
+consumer をその IPC へ実配線）で、`.uxfd.json` の読み込み・書き込みの
+スキーマ検証・移行・直列化はすべて rust-core が正本となり、TS 側の
+並行実装（バリデータ・migrateV1ToV2）は削除済み。TS に残るのは
+IPC 呼び出しの薄いオーケストレーションと、PSD 実ファイル再読込のような
+明確に TS 側責務（`psdParser` 依存、R5 スコープ）のみ。
