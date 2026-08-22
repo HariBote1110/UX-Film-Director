@@ -560,6 +560,16 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
   を削除した。`perf/bench-psd.mjs` は `vm_tuning_research/tools/bench-wasm.mjs`
   と同じ計測（wasm-node package 前提）を重複して持っていたベンチであり、
   wasm 成果物が無いと動かない点も同じだったため、移送ではなく削除とした。
+- **R5-3（完了）**: `src/utils/psdParser.ts` の `parsePsdAsObject`（import 経路）を
+  `parsePsdViaRustMeta`（`psd.parseMeta` RPC、meta-only）1 本に畳んだ。
+  `?psdRustImport=1` フラグゲート・`parsePsdViaWasm`・`parsePsdViaRust` は削除。
+  `parsePsdArrayBufferAsObject` は `projectFile.ts` の復元経路（R5-5 まで）用に
+  関数のみ残置（移行中コメント付き）。RPC 失敗時は日本語エラーを投げ、
+  フォールバックしない設計に変更。R5-7 用パリティベースラインを
+  `rust-backend/tests/fixtures/psd-parity/aoi-chan-agpsd-baseline.json` に追加。
+  詳細は `progress/rust-source-of-truth-r5-psd-unification.md` の R5-3 節。
+  `psdWasm.ts`/`psdAgPsdWorker.ts` のファイル削除（R5-4）、`projectFile.ts` の
+  Rust 側移行（R5-5）、`package.json` の `ag-psd` 除去（R5-6）は未着手。
 - `ag-psd` 経路（`psdWasm.ts` の Worker 実装と `psdParser.ts` の main thread fallback）を
   `psd.parse` / `psd.parseMeta` / `psd.renderComposite` RPC に置き換える。
 - 合格条件は借用 VM で進めている PSD parser 研究の結果を使う。

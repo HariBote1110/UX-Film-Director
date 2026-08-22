@@ -1,4 +1,4 @@
-# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除
+# R5 PSD 単一実装化: R5-1 depth guard / R5-2 psd-wasm 削除 / R5-3 import経路の単一化
 
 ## Decision
 
@@ -68,3 +68,88 @@
   組み立てている箇所（フル parse / meta-only / display 系 4 関数の実ヘッダ
   読み取り + テストフィクスチャ）を全て更新した。テストフィクスチャ側は
   実ファイルヘッダを読まないため `depth: 8` で固定している。
+
+## R5-3: `src/utils/psdParser.ts` の import 経路を `psd.parseMeta` 単一経路化
+
+### Decision
+
+- `parsePsdAsObject`（PSD ドロップ/ファイル選択インポートの唯一の入口）が
+  持っていた 4 段フォールバック
+  （① `parsePsdViaRustMeta`（`?psdRustImport=1` 限定・研究フラグ）→
+  ② `parsePsdViaWasm`（既定・実体は ag-psd を Web Worker で回す
+  `psdWasm.ts`/`psdAgPsdWorker.ts`）→
+  ③ `parsePsdViaRust`（Electron 限定・フル pixel decode + tmpfile の
+  アンチパターン）→
+  ④ `parsePsdArrayBufferAsObject`（ag-psd メインスレッド）) を、
+  `parsePsdViaRustMeta`（IPC `parse-psd-meta` → Rust `psd.parseMeta`、
+  meta-only）1 本に畳んだ。`?psdRustImport=1` の URL フラグゲート
+  （`isPsdRustImportEnabled`）は恒久化に伴い削除。
+- `parsePsdViaWasm` と `parsePsdViaRust` は import フロー以外から呼ばれて
+  いなかった（`rg` で確認済み）ため、関数ごと削除した。
+- `parsePsdArrayBufferAsObject`（export 関数）は import フローの呼び出しを
+  削除しつつ、関数自体は残した。`src/utils/projectFile.ts` の
+  `restorePsdObjectFromFile`（保存済みプロジェクトの復元経路）が
+  R5-5 まで引き続き必要とするため。削除するとその経路が壊れる。
+  関数直上に「移行中（R5-5 で削除予定）」の注記コメントを追加した。
+  `psdWasm.ts`/`psdAgPsdWorker.ts` のファイル削除は R5-4 のスコープであり
+  本バッチでは触っていない（`parsePsdArrayBufferAsObject` が内部で
+  `parsePsdWithWasm`（`psdWasm.ts`）を第一候補として呼び続けているため、
+  まだ削除できない）。
+- 失敗時 UX: 旧経路は 4 段フォールバックがあり、末尾の ag-psd まで全滅した
+  場合のみ例外が呼び出し元へ伝播していた（`useTimelineDrop.ts` は
+  `console.error` のみで無言、`Timeline.tsx` の `handlePsdChange` は
+  `alert('Failed to parse PSD file.')` を出していた）。単一経路化後は
+  フォールバックが無いため、(a) `file.path` が無い、または
+  `window.ipcRenderer.invoke` が無い（非 Electron 環境）、(b) RPC が
+  `success: false` を返す、のいずれの場合も `parsePsdAsObject` が
+  日本語メッセージ付きの `Error` を必ず投げるようにした
+  （「PSDファイルの読み込みには Rust バックエンドへの接続が必要です
+  （Electron 環境でのみ利用できます）。」/
+  「PSDファイルの解析に失敗しました: <detail>」）。呼び出し元
+  （`useTimelineDrop.ts`・`Timeline.tsx`）のキャッチ処理は無改修
+  （スコープ外、`useTimelineDrop.ts` は元々無言失敗だったため後退なし、
+  `Timeline.tsx` は既存の `alert` がそのまま新しいメッセージの例外にも
+  効く）。
+- `textureSource` は meta-only 経路のまま常に `undefined`。
+  UI 側の読み手が無いこと（display は rust-backend の native-overlay が
+  ファイルパスから独立に再デコードする、double-decode-discovery.md の
+  知見どおり）は `rg 'textureSource'` で確認済みで、`buildPsdLayerTree`
+  消費・`activeLayerIds` 初期化・ラジオグループ（`*` 接頭辞）/
+  強制表示（`!` 接頭辞）ロジックは meta 経路（`parsePsdViaRustMeta`）に
+  既に実装済み（R5-1 以前から存在、変更なし）で R4 世代のテストが緑のまま。
+- パリティベースライン（R5-7 が使う予定）: `parsePsdViaWasm`（削除前の
+  既定 import 経路の実体）と同じ抽出ロジック（ag-psd の pre-order DFS、
+  `ownGroupId`/`parentGroupId`/`order` の採番方式は `psdAgPsdWorker.ts`
+  の `walkLayers` と同一）で 葵ちゃん.psd（171 ノード、2700×3700）を
+  meta-only dump した JSON を
+  `rust-backend/tests/fixtures/psd-parity/aoi-chan-agpsd-baseline.json`
+  に置いた。生成スクリプトは同ディレクトリの
+  `dump-agpsd-parity-baseline.mjs`（一度だけ手動実行する one-off、
+  テストスイートには組み込まない）。R5-7 はこのファイルを
+  `psd.parseMeta` の出力と diff するベースラインとして使う想定。
+
+### Alternatives considered
+
+- **`parsePsdArrayBufferAsObject` も削除する案**: 却下。R5-5
+  （`projectFile.ts` の Rust 側移行）より前に消すと、保存済みプロジェクトの
+  復元が壊れる。スコープ外ファイルへの影響を避けるため、R5-5 まで
+  残置する設計判断を維持。
+- **失敗時に旧 `parsePsdViaWasm` へフォールバックする案**: 却下。
+  タスクの意図（ag-psd を import フローから完全に外す）に反する。
+  単一実装化の価値は「解析経路が 1 本しかない」ことそのものにあるため、
+  RPC 失敗時に ag-psd へ静かに退避すると経路が実質 2 本のまま残る。
+
+### Constraints / Gotchas
+
+- `RustPsdNode`（旧 `parsePsdViaRust` 用の型）は `parsePsdViaRustMeta` の
+  `RustPsdMetaNode`（`Omit<RustPsdNode, 'pixelOffset' | 'pixelByteLen' |
+  'pixelData'>`）が依然として参照しているため、型定義自体は残している。
+- `npx tsc --noEmit` / `npx vitest run`（257 files / 1856 tests、
+  ベースライン 1854 + `psdParserRustMeta.test.ts` の新規テスト2件の純増）/
+  `npm run codegen:types:check`（diff ゼロ）/ `cargo test`
+  （rust-backend・rust-core フル）/ `npm run fixture:evaluation-parity`
+  （447 フレーム）/ `cargo test --test ts_evaluation_parity`
+  （`KNOWN_DIFFERENCES.json` は `[]` のまま）を全て確認済み（2026-08-22）。
+- Rust 側（`rust-backend/src`）・`electron/main.ts`・`projectFile.ts`・
+  `package.json` の ag-psd 依存・`psdWasm.ts`/`psdAgPsdWorker.ts` の
+  ファイル削除には触れていない（それぞれ R5-4/R5-5/R5-6 のスコープ）。

@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parsePsdAsObject } from './psdParser';
 
-// path B prototype: `?psdRustImport=1` should route parsePsdAsObject straight
-// to the 'parse-psd-meta' IPC channel, bypassing ag-psd (parsePsdWithWasm)
-// entirely. See vm_tuning_research/notes/e2e-path-b-rust-metadata-import.md.
+// R5-3: `parsePsdAsObject` routes unconditionally to the 'parse-psd-meta' IPC
+// channel — no ag-psd, no URL flag gate. See
+// progress/rust-source-of-truth-r5-psd-unification.md.
 // Test environment is 'node' (see vite.config.ts), so `window` is stubbed
 // manually the same way mediaMetadata.test.ts does it.
 
 vi.mock('./psdWasm', () => ({
-  parsePsdWithWasm: vi.fn().mockRejectedValue(new Error('should not be called in path B')),
+  parsePsdWithWasm: vi.fn().mockRejectedValue(new Error('ag-psd must not be reachable from the import flow')),
 }));
 
 const makeElectronFile = (path: string): File => {
@@ -19,17 +19,17 @@ const makeElectronFile = (path: string): File => {
   return file;
 };
 
-const stubWindow = (search: string, invoke: (channel: string, payload: { filePath?: string }) => unknown) => {
+const stubWindow = (invoke: (channel: string, payload: { filePath?: string }) => unknown) => {
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
-      location: { search },
+      location: { search: '' },
       ipcRenderer: { invoke },
     },
   });
 };
 
-describe('parsePsdAsObject (psdRustImport flag)', () => {
+describe('parsePsdAsObject (single psd.parseMeta RPC path)', () => {
   const previousWindow = globalThis.window;
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe('parsePsdAsObject (psdRustImport flag)', () => {
     });
   });
 
-  it('routes to parse-psd-meta and skips ag-psd when the flag is set', async () => {
+  it('routes straight to parse-psd-meta and skips ag-psd', async () => {
     const invoke = vi.fn(async (channel: string, payload: { filePath?: string }) => {
       expect(channel).toBe('parse-psd-meta');
       expect(payload.filePath).toBe('/tmp/sample.psd');
@@ -75,7 +75,7 @@ describe('parsePsdAsObject (psdRustImport flag)', () => {
         ],
       };
     });
-    stubWindow('?psdRustImport=1', invoke);
+    stubWindow(invoke);
 
     const file = makeElectronFile('/tmp/sample.psd');
     const result = await parsePsdAsObject(file, 3, 1920, 1080);
@@ -85,21 +85,40 @@ describe('parsePsdAsObject (psdRustImport flag)', () => {
     // Stable Rust-issued ids, same scheme as the pixel-carrying Rust path.
     expect(result.psdObject.rootLayer?.children[0].id).toBe('psd-group-42');
     expect(result.psdObject.rootLayer?.children[0].children[0].id).toBe('psd-layer-1');
-    // path B never receives pixels: no ImageBitmap textureSource.
+    // Meta-only path never receives pixels: no ImageBitmap textureSource.
     expect(result.psdObject.rootLayer?.children[0].children[0].textureSource).toBeUndefined();
   });
 
-  it('does not touch parse-psd-meta when the flag is absent', async () => {
-    // No flag in the URL: falls through to the normal paths (WASM mocked to
-    // reject above, Rust 'parse-psd' fallback, then ag-psd on this invalid
-    // fixture) and eventually rejects — the point of this test is only that
-    // 'parse-psd-meta' is never dialled.
-    const invoke = vi.fn();
-    stubWindow('', invoke);
+  it('throws a clear Japanese error when the RPC reports failure, without falling back to ag-psd', async () => {
+    const invoke = vi.fn(async () => ({
+      success: false,
+      error: 'malformed PSD header',
+    }));
+    stubWindow(invoke);
+
+    const file = makeElectronFile('/tmp/broken.psd');
+    await expect(parsePsdAsObject(file, 0, 1920, 1080)).rejects.toThrow('PSDファイルの解析に失敗しました');
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('parse-psd-meta', { filePath: '/tmp/broken.psd' });
+  });
+
+  it('throws a clear Japanese error when window.ipcRenderer is unavailable (non-Electron)', async () => {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { location: { search: '' } },
+    });
 
     const file = makeElectronFile('/tmp/sample.psd');
-    await expect(parsePsdAsObject(file, 0, 1920, 1080)).rejects.toThrow();
+    await expect(parsePsdAsObject(file, 0, 1920, 1080)).rejects.toThrow('Electron 環境でのみ利用できます');
+  });
 
-    expect(invoke).not.toHaveBeenCalledWith('parse-psd-meta', expect.anything());
+  it('throws a clear Japanese error when the file has no filesystem path', async () => {
+    const invoke = vi.fn();
+    stubWindow(invoke);
+
+    const file = new File([new Uint8Array(4)], 'sample.psd', { type: 'image/vnd.adobe.photoshop' });
+    await expect(parsePsdAsObject(file, 0, 1920, 1080)).rejects.toThrow('Electron 環境でのみ利用できます');
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
