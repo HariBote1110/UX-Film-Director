@@ -4561,13 +4561,28 @@ mod tests {
     }
 
     #[test]
+    fn path_to_percent_encoded_file_url_handles_windows_drive_paths() {
+        // Windows-shaped input (backslash separators, drive letter, embedded space),
+        // exercised cross-platform since this is pure string manipulation.
+        let windows_path = std::path::PathBuf::from(r"C:\Users\Some User\overlay jpeg image.jpg");
+        let url = path_to_percent_encoded_file_url(&windows_path);
+        assert_eq!(url, "file:///C:/Users/Some%20User/overlay%20jpeg%20image.jpg");
+
+        // The URL must round-trip back through the production decoder
+        // (`local_media_source_path`) to the original filesystem path.
+        let decoded =
+            local_media_source_path(&url, "test").expect("well-formed file URL must decode");
+        assert_eq!(decoded, r"C:/Users/Some User/overlay jpeg image.jpg");
+    }
+
+    #[test]
     fn overlay_image_source_loaders_accept_percent_encoded_jpeg_file_urls() {
         let fixture_path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../public/icon.jpg");
         let image_path = unique_temp_path("overlay jpeg image", "jpg");
         std::fs::copy(&fixture_path, &image_path).expect("copy JPEG fixture");
-        let encoded_path = image_path.to_string_lossy().replace(' ', "%20");
-        let source = format!("file://{encoded_path}?revision=1#preview");
+        let encoded_path = path_to_percent_encoded_file_url(&image_path);
+        let source = format!("{encoded_path}?revision=1#preview");
         let scene = NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
                 frame_index: 0,
@@ -5419,6 +5434,25 @@ mod tests {
     }
 
     #[test]
+    fn getcolor_source_json_embeds_windows_paths_as_valid_json() {
+        // Windows-shaped input (drive letter, backslash separators), exercised
+        // cross-platform since this is pure JSON serialisation. A raw
+        // `format!("...\"{}\"...", path.display())` interpolation is invalid JSON for
+        // such paths (unescaped `\U`, `\S`, ... are not legal JSON escapes), which is
+        // exactly the class of "unescaped Windows path in a JSON literal" bug recorded
+        // in progress/windows-cfg-unix-gaps.md.
+        let windows_path = std::path::PathBuf::from(r"C:\Users\Some User\marker.bin");
+        let literal = path_to_json_string_literal(&windows_path);
+        let source = format!(r##"{{"source_image":{literal}}}"##,);
+        let parsed: serde_json::Value =
+            serde_json::from_str(&source).expect("embedded Windows path must remain valid JSON");
+        assert_eq!(
+            parsed.get("source_image").and_then(|value| value.as_str()),
+            Some(r"C:\Users\Some User\marker.bin"),
+        );
+    }
+
+    #[test]
     fn getcolor_source_image_metadata_changes_native_overlay_media_revision() {
         let unique = format!(
             "uxfd-getcolor-cache-revision-{}-{}",
@@ -5427,12 +5461,12 @@ mod tests {
         );
         let source_image = std::env::temp_dir().join(unique);
         std::fs::write(&source_image, [1_u8, 2, 3]).expect("write initial source image marker");
+        let source_image_json = path_to_json_string_literal(&source_image);
         let media = NativeOverlaySceneMedia {
             id: "getcolor-media".to_string(),
             kind: "GeneratedGetColorDots".to_string(),
             source: format!(
-                r##"{{"generator":"getcolor-v2r-dot-field","columns":2,"rows":2,"dot_size":4,"size_influence":0.5,"luminance_influence":0.5,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#000000","background_colour":"#000000","seed":1,"source_image":"{}"}}"##,
-                source_image.display(),
+                r##"{{"generator":"getcolor-v2r-dot-field","columns":2,"rows":2,"dot_size":4,"size_influence":0.5,"luminance_influence":0.5,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#000000","background_colour":"#000000","seed":1,"source_image":{source_image_json}}}"##,
             ),
             width: 16,
             height: 16,
@@ -6666,6 +6700,42 @@ mod tests {
             "uxfd-{label}-{}-{nanos}.{extension}",
             std::process::id()
         ))
+    }
+
+    /// Builds a well-formed, percent-encoded `file://` URL from a filesystem path,
+    /// mirroring `local_media_source_path`'s decoding contract in reverse.
+    ///
+    /// A previous version of the JPEG file-URL test built this string by hand
+    /// (`format!("file://{}", path.to_string_lossy().replace(' ', "%20"))`), which is
+    /// correct only on POSIX (an absolute path already starts with `/`). On Windows the
+    /// path is `C:\Users\...` — no leading `/`, and backslash separators — so the
+    /// resulting URL was rejected by `local_media_source_path`'s "must start with `/`
+    /// after the scheme" check. This is a test-infrastructure bug, not a production bug:
+    /// production correctly decodes real `file:///C:/...`-shaped URLs already (see
+    /// `strip_windows_drive_root_slash`). This helper builds the URL the way a real
+    /// caller (e.g. Electron's `pathToFileURL`) would on either platform, so the test
+    /// exercises the real decoding contract instead of a malformed input.
+    fn path_to_percent_encoded_file_url(path: &std::path::Path) -> String {
+        let mut normalised = path.to_string_lossy().replace('\\', "/");
+        if !normalised.starts_with('/') {
+            normalised = format!("/{normalised}");
+        }
+        let encoded = normalised.replace(' ', "%20");
+        format!("file://{encoded}")
+    }
+
+    /// Serialises a filesystem path as a JSON string value, escaping it the way
+    /// `serde_json` would (in particular, backslashes as `\\`). Windows paths embedded
+    /// via raw `{}` interpolation into a hand-written JSON literal (as the GetColor
+    /// revision test previously did with `source_image.display()`) are not valid JSON:
+    /// `C:\Users\name\file` contains escape sequences like `\U`/`\n`/`\f` that either
+    /// fail to parse or silently corrupt the path. This is the same class of bug as
+    /// `path_to_percent_encoded_file_url` above — test infrastructure assuming POSIX
+    /// path shapes — not a production bug, since production already parses the
+    /// resulting JSON with `serde_json::from_str`.
+    fn path_to_json_string_literal(path: &std::path::Path) -> String {
+        serde_json::to_string(&path.to_string_lossy().into_owned())
+            .expect("path must serialise as a JSON string")
     }
 
     fn minimal_single_layer_psd_bytes() -> Vec<u8> {
