@@ -207,3 +207,129 @@
 - macOS `cargo test --lib`（native-overlay）: **101 passed / 0 failed**
   （ベースライン維持、上記1行修正を含めた状態で再確認）。
 - mainpc実機検証は本stageでも未実施（stage 4以降で計画）。
+
+## Stage 4: Option C — native-wgpu-renderer の format-aware 遅延パイプライン構築
+
+### Decision
+
+- `native-wgpu-renderer/src/lib.rs`を読み、`bgra_pipeline`/`nv12_bgra_pipeline`
+  （Bgra8UnormSrgb版のuber-shaderパイプライン2本）の実際の使用箇所を
+  `grep`で洗い出した結果、**w7-attach-cost-mitigation.mdのOption C節が
+  想定していた前提（「live surfaceの構成フォーマット次第でRgba/Bgra
+  どちらかが本当に使われる」）とは異なる構造**であることが判明した:
+  - `bgra_pipeline`/`nv12_bgra_pipeline`を実際に参照する唯一のメソッドは
+    `render_frame_to_bgra_iosurface_with_audio_reactive_sources`
+    （`NativeWgpuRenderer`にのみ生えている、BGRA IOSurface export専用
+    ——macOSのAVFoundation連携動画exportが呼ぶ、IOSurfaceはmacOS限定機能）。
+  - `NativeWgpuLiveSurfaceRenderer::from_surface`（native-overlayのlive
+    attach経路が呼ぶ、Windows/macOS共通のコンストラクタ）は内部で
+    `core: NativeWgpuRenderer`を構築するが、`core`は**privateフィールド**
+    であり、`NativeWgpuLiveSurfaceRenderer`自体はBGRA IOSurface exportの
+    メソッドを一切公開していない。したがって**live attach経路で構築された
+    レンダラのbgra_pipeline/nv12_bgra_pipelineは、live surfaceが選んだ
+    フォーマット（`choose_live_surface_format`の戻り値、`pipeline`/
+    `nv12_pipeline`が使う）が何であれ、セッション中一度も到達し得ない
+    完全な死重**（研究ノートの想定と異なり「フォーマット次第でどちらかが
+    ホット」という二者択一の構図自体が live 経路には存在しない）。
+  - `NativeWgpuRenderer::new`（`rust-backend/src/native_render.rs`が呼ぶ
+    オフスクリーンexport/サムネイル生成経路、`native-wgpu-renderer`内の
+    テストでも54箇所以上で使われる汎用コンストラクタ）についても、
+    BGRA IOSurface exportを実際に使う呼び出しはごく一部（動画export時の
+    特定経路のみ）で、大多数の呼び出しはRGBA経路しか使わない。
+  - この発見により、「format-aware」な遅延化は実質的に
+    **「live surfaceのフォーマットに関わらず常にBgra版2本を遅延する」**
+    という単純な形に帰着した（研究ノートが想定した「configuredでない方の
+    フォーマットを遅延する」判定ロジック自体が不要——Bgra版はどちらの
+    コンストラクタでも「configuredでない方」に常に該当する）。
+- `bgra_pipeline`/`nv12_bgra_pipeline`フィールドを`wgpu::RenderPipeline`から
+  `std::sync::OnceLock<wgpu::RenderPipeline>`へ変更し、`from_surface`・
+  `NativeWgpuRenderer::new`の両コンストラクタで即時構築せず`OnceLock::new()`
+  のまま残すようにした。専用アクセサ`bgra_pipeline(&self)`/
+  `nv12_bgra_pipeline(&self)`（`OnceLock::get_or_init`）を新設し、唯一の
+  呼び出し元`render_frame_to_bgra_iosurface_with_audio_reactive_sources`
+  内の`&self.bgra_pipeline`/`&self.nv12_bgra_pipeline`をこのアクセサ経由に
+  差し替えた。
+- **スレッド安全性**: 呼び出し元メソッドは`&self`（`&mut self`ではない、
+  `render_frame_to_bgra_iosurface_with_audio_reactive_sources`のシグネチャ
+  参照）のため、単純な`Option<wgpu::RenderPipeline>`＋`&mut self`ラッパーは
+  使えない。`OnceLock`は`&self`のみで内部可変性による遅延初期化ができ、
+  複数スレッドから同時に`get_or_init`が呼ばれても初期化処理は1回しか
+  実行されない（std保証）契約を素直に使える。`wgpu::RenderPipeline`は
+  `Send + Sync`（wgpu全体がそう設計されている）なので`OnceLock<T: Send + Sync>`も
+  問題なく`Sync`になり、既存の呼び出し規約（`NativeWgpuLiveSurfaceRenderer`は
+  `LIVE_OVERLAY_RENDERERS`のMutex越しにアクセスされる契約、`NativeWgpuRenderer`
+  は主に単一スレッドから呼ばれる）を変える必要はなかった。
+- **who-uses-which-format finding（上記Decisionの要約）**: live surfaceの
+  attach経路にとってBgra版2本は「configuredでない方」ではなく「そもそも
+  到達不能」。offscreen export経路にとっては「ほとんどの呼び出しで未使用、
+  BGRA IOSurface export呼び出し時にのみ必要」。いずれの場合も遅延構築で
+  安全かつ有効。
+
+### 期待されるattach時間短縮（見積り、stage5実測まで正式値ではない）
+
+`windows_port_research/notes/nv12-pipeline-compile-time.md`（DXC導入後、mainpc実測）:
+
+| 項目 | 中央値 |
+|---|---|
+| nv12単体パイプライン | 52.42秒 |
+| solid単体パイプライン | 7.51秒 |
+
+`w7-attach-cost-mitigation.md`が記録した「4本のuber-shader版（solid×2,
+nv12×2）を単純合算すると2×7.51+2×52.42=119.9秒になり実測79.09秒（stage2実測は
+88.77秒）と矛盾する」逆算不一致は未解決のまま（同一device内の複数pipeline
+連続生成で何らかの再利用が効いている可能性、"次の一手"として記録済み）
+——したがって**この見積りは上限側の粗い概算であり、正確な短縮量はmainpc実測
+（stage5）でしか確定できないことを正直に記録する**。
+
+- 単純合算ベースの上限見積り: Bgra版2本（solid Bgra + nv12 Bgra）を除外
+  すると、理論上の最大短縮は `7.51 + 52.42 = 59.93秒`（4本合算119.9秒中
+  ちょうど半分）。
+- 実測ベース（stage2の88.77秒中央値、bgra版込みの実測値）から逆算する
+  保守的な見積り: 4本合算が実測79.09〜88.77秒の範囲に収まっている
+  （何らかの再利用効果を含む）とすれば、Bgra版2本の除外による短縮は
+  この範囲の**半分未満**（uber-shader分の合算比率がRgba版2本:Bgra版2本で
+  概ね対称と仮定した場合、25〜44秒程度）に留まる可能性が高い。
+- **正式な数値はstage5でmainpc実測（DXCあり、Bgra版除外後の実際のattach
+  レイテンシを3回計測し中央値を取る）によって確定する。** 本ノートの
+  見積り（25〜60秒程度の短縮）はあくまで既知の単体実測値からの機械的な
+  上限/下限計算であり、実測ではない。
+
+### Alternatives considered
+
+- **surface_formatを見て動的にRgba/Bgraのどちらを遅延するか切り替える
+  判定ロジック**: 見送った。上記Decisionの調査で、live attach経路に
+  とってBgra版2本は常に到達不能（surface_formatが何であれ関係ない）
+  ことが判明したため、条件分岐を導入する意味がない。もし将来
+  `NativeWgpuLiveSurfaceRenderer`がBGRA IOSurface exportへの参照経路を
+  獲得した場合（現状は無い）、その時点で本当に動的判定が必要になるかを
+  再評価すればよい。
+- **`Mutex<Option<wgpu::RenderPipeline>>`での遅延化**: 見送った。
+  `OnceLock`の方が「一度構築されたら二度と書き換わらない」契約を型で
+  表現でき、`&self`のみで完結し、呼び出しごとにロックを取る
+  オーバーヘッドも無い（`OnceLock::get_or_init`は初期化後は単なる
+  atomic load 相当）。
+
+### 検証結果
+
+- macOS `cargo test`（native-wgpu-renderer、lib + 全integration test）:
+  **lib 54 passed / 0 failed**（新規4件——`bgra_pipelines_are_not_built_at_construction`、
+  `bgra_pipelines_build_lazily_on_first_use_and_are_reused`、
+  `first_bgra_iosurface_export_call_builds_pipelines_once_and_renders_correctly`、
+  既存の`steady_state_export_frame_does_not_take_the_upload_fence`は無改修で
+  green）含む、ベースラインから純増）。
+  `native_reference_parity.rs`: **37 passed / 0 failed**（無改修、退行なし）。
+  `bgra_iosurface_target.rs`（実IOSurfaceへの実ピクセル色検証、
+  `renders_scene_directly_into_bgra_iosurface_without_readback`他）:
+  **2 passed / 0 failed**（Option C適用後もBgra版パイプラインが正しく
+  レンダリングすることを実ピクセル比較で確認——「初回使用時に正しく
+  レンダリングされる」要件の実質的な担保）。他の全integration test
+  （`overlay_surface_parity`・`shared_frame_output`・`shm_decoded_frame_render`・
+  `export_round_trip`等）も無改修で green。
+- macOS `cargo test`（native-overlay）: **101 passed / 0 failed**
+  （stage1-3から無変化、native-wgpu-renderer変更の影響なし）。
+- `cargo check --target x86_64-pc-windows-msvc --tests`
+  （native-wgpu-renderer・native-overlay両方）: エラーなし
+  （既存の未使用関数警告のみ、本変更由来ではない）。
+- `npx tsc --noEmit`: エラーなし（TS側は無改修）。
+- `npx vitest run`: **256 files / 1856 tests、全green**
+  （stage3終了時点のベースラインから無変化、TS側は無改修のため）。

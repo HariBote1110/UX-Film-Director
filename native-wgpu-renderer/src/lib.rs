@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
 use uxfd_rust_core::{
@@ -263,8 +263,21 @@ pub struct NativeWgpuRenderer {
     /// `set_pipeline` して合成できる）。
     nv12_pipeline: wgpu::RenderPipeline,
     nv12_bind_group_layout: wgpu::BindGroupLayout,
-    bgra_pipeline: wgpu::RenderPipeline,
-    nv12_bgra_pipeline: wgpu::RenderPipeline,
+    // Phase 7 (W7) Option C: Bgra8UnormSrgb版のuber-shaderパイプライン2本は
+    // BGRA IOSurface export専用（`render_frame_to_bgra_iosurface_with_audio_waveforms`
+    // からのみ到達可能、macOSの動画export/AVFoundation連携限定機能）。
+    // `NativeWgpuLiveSurfaceRenderer::from_surface`（native-overlayのlive
+    // attach経路）が内部で埋め込む`core: NativeWgpuRenderer`からはこの
+    // exportメソッド自体が生えていない（`core`はprivateフィールド）ため
+    // 一切到達できず、`NativeWgpuRenderer::new`（rust-backendのオフスクリーン
+    // export/サムネイル生成経路）で構築されたインスタンスも大多数の呼び出しは
+    // 通常のRGBA経路のみを使いBGRA exportには触れない
+    // （windows-w7-async-attach.md stage4 参照）。両コンストラクタとも
+    // 即時コンパイルせずOnceLockで遅延構築し、`bgra_pipeline()`/
+    // `nv12_bgra_pipeline()`アクセサが実際にBGRA IOSurface exportを
+    // 使う呼び出しに初めて出会ったときだけコンパイルする。
+    bgra_pipeline: OnceLock<wgpu::RenderPipeline>,
+    nv12_bgra_pipeline: OnceLock<wgpu::RenderPipeline>,
     /// media_id ＋ (surface_id, revision) でキー付けした NV12 Y/CbCr
     /// プレーンテクスチャキャッシュ。`media_texture_cache` と同じ設計。
     nv12_texture_cache: Mutex<nv12::Nv12MediaTextureCache>,
@@ -275,6 +288,12 @@ pub struct NativeWgpuRenderer {
     /// `wait_for_upload=true` で呼ばれ、実際に `queue.submit(empty)` +
     /// `wait_for_submitted_work` を踏んだ回数を数える。本番挙動には影響しない。
     upload_fence_wait_count: AtomicU64,
+    /// テスト計測用フック。Phase 7 (W7) Option C の遅延構築（`bgra_pipeline()`/
+    /// `nv12_bgra_pipeline()`）が実際にパイプラインをコンパイルした回数を
+    /// 数える（`OnceLock::get_or_init`のクロージャが実行された回数、
+    /// つまりキャッシュhitでは増えない）。本番挙動には影響しない。
+    bgra_pipeline_build_count: AtomicU64,
+    nv12_bgra_pipeline_build_count: AtomicU64,
     particle_renderer: particle::ParticleGpuRenderer,
     audio_reactive_renderer: audio_reactive::AudioReactiveGpuRenderer,
     getcolor_renderer: getcolor::GetColorGpuRenderer,
@@ -549,16 +568,9 @@ impl NativeWgpuLiveSurfaceRenderer {
         let bind_group_layout = pipeline.get_bind_group_layout(0);
         let (nv12_bind_group_layout, nv12_pipeline) =
             nv12::create_nv12_pipeline_for_format(&device, surface_format);
-        let bgra_pipeline = create_pipeline_for_format_with_layout(
-            &device,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            &bind_group_layout,
-        );
-        let nv12_bgra_pipeline = nv12::create_nv12_pipeline_for_format_with_layout(
-            &device,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            &nv12_bind_group_layout,
-        );
+        // Phase 7 (W7) Option C: Bgra8UnormSrgb版の2本は BGRA IOSurface export
+        // 専用で、live surface renderer からは到達できない（上のフィールド
+        // コメント参照）。attach時点ではコンパイルせず OnceLock のまま残す。
         let output_texture =
             create_output_texture_for_format(&device, width, height, surface_format);
         let readback_buffer = create_readback_buffer(&device, width, height);
@@ -587,12 +599,14 @@ impl NativeWgpuLiveSurfaceRenderer {
             media_texture_cache_misses: AtomicU64::new(0),
             nv12_pipeline,
             nv12_bind_group_layout,
-            bgra_pipeline,
-            nv12_bgra_pipeline,
+            bgra_pipeline: OnceLock::new(),
+            nv12_bgra_pipeline: OnceLock::new(),
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
             upload_fence_wait_count: AtomicU64::new(0),
+            bgra_pipeline_build_count: AtomicU64::new(0),
+            nv12_bgra_pipeline_build_count: AtomicU64::new(0),
             particle_renderer,
             audio_reactive_renderer,
             getcolor_renderer,
@@ -1239,16 +1253,14 @@ impl NativeWgpuRenderer {
         let bind_group_layout = pipeline.get_bind_group_layout(0);
         let (nv12_bind_group_layout, nv12_pipeline) =
             nv12::create_nv12_pipeline_for_format(&device, OUTPUT_FORMAT);
-        let bgra_pipeline = create_pipeline_for_format_with_layout(
-            &device,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            &bind_group_layout,
-        );
-        let nv12_bgra_pipeline = nv12::create_nv12_pipeline_for_format_with_layout(
-            &device,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            &nv12_bind_group_layout,
-        );
+        // Phase 7 (W7) Option C: `NativeWgpuRenderer::new` は
+        // `render_frame_to_bgra_iosurface_with_audio_waveforms`（BGRA
+        // IOSurface export、macOS限定機能）以外の大多数の呼び出し
+        // （通常のRGBAオフスクリーンrender/readback、export/サムネイル生成）
+        // ではBgra版パイプラインを一切使わない。ここでも即時構築をやめ、
+        // `bgra_pipeline()`/`nv12_bgra_pipeline()`アクセサ（下記）が
+        // 初回のBGRA IOSurface export呼び出し時にだけ構築する
+        // （`bgra_pipeline`フィールドのコメント参照）。
         let output_texture = create_output_texture(&device, width, height);
         let readback_buffer = create_readback_buffer(&device, width, height);
         let particle_renderer = particle::ParticleGpuRenderer::new(&device);
@@ -1277,12 +1289,14 @@ impl NativeWgpuRenderer {
             media_texture_cache_misses: AtomicU64::new(0),
             nv12_pipeline,
             nv12_bind_group_layout,
-            bgra_pipeline,
-            nv12_bgra_pipeline,
+            bgra_pipeline: OnceLock::new(),
+            nv12_bgra_pipeline: OnceLock::new(),
             nv12_texture_cache: Mutex::new(nv12::Nv12MediaTextureCache::default()),
             nv12_texture_cache_hits: AtomicU64::new(0),
             nv12_texture_cache_misses: AtomicU64::new(0),
             upload_fence_wait_count: AtomicU64::new(0),
+            bgra_pipeline_build_count: AtomicU64::new(0),
+            nv12_bgra_pipeline_build_count: AtomicU64::new(0),
             particle_renderer,
             audio_reactive_renderer,
             getcolor_renderer,
@@ -1300,6 +1314,57 @@ impl NativeWgpuRenderer {
 
     pub fn height(&self) -> u32 {
         self.height
+    }
+
+    /// Phase 7 (W7) Option C: Bgra8UnormSrgb版 solid_composite パイプラインの
+    /// 遅延構築アクセサ。初回呼び出しでコンパイルし、以降は
+    /// `OnceLock::get_or_init` が既存インスタンスを返すだけで再コンパイルは
+    /// 発生しない（`bgra_pipeline`フィールドのコメント参照）。`&self`のみで
+    /// 呼べる（BGRA IOSurface export経路は`&self`前提のため、フィールドを
+    /// `OnceLock`にして内部可変性で遅延構築を実現している）。
+    fn bgra_pipeline(&self) -> &wgpu::RenderPipeline {
+        self.bgra_pipeline.get_or_init(|| {
+            self.bgra_pipeline_build_count
+                .fetch_add(1, Ordering::Relaxed);
+            create_pipeline_for_format_with_layout(
+                &self.device,
+                wgpu::TextureFormat::Bgra8UnormSrgb,
+                &self.bind_group_layout,
+            )
+        })
+    }
+
+    /// [`Self::bgra_pipeline`] のNV12版。
+    fn nv12_bgra_pipeline(&self) -> &wgpu::RenderPipeline {
+        self.nv12_bgra_pipeline.get_or_init(|| {
+            self.nv12_bgra_pipeline_build_count
+                .fetch_add(1, Ordering::Relaxed);
+            nv12::create_nv12_pipeline_for_format_with_layout(
+                &self.device,
+                wgpu::TextureFormat::Bgra8UnormSrgb,
+                &self.nv12_bind_group_layout,
+            )
+        })
+    }
+
+    /// テスト計測用: [`Self::bgra_pipeline`]/[`Self::nv12_bgra_pipeline`]が
+    /// 実際にコンパイルを実行した回数。本番コードパスからは参照されない。
+    #[cfg(test)]
+    fn bgra_pipeline_build_count(&self) -> u64 {
+        self.bgra_pipeline_build_count.load(Ordering::Relaxed)
+    }
+
+    #[cfg(test)]
+    fn nv12_bgra_pipeline_build_count(&self) -> u64 {
+        self.nv12_bgra_pipeline_build_count.load(Ordering::Relaxed)
+    }
+
+    /// テスト計測用: 構築直後（`from_surface`/`new`いずれの経路でも）
+    /// Bgra版パイプラインがまだ一度もコンパイルされていないことを確認する
+    /// ためのヘルパー。本番コードパスからは参照されない。
+    #[cfg(test)]
+    fn bgra_pipelines_are_deferred(&self) -> bool {
+        self.bgra_pipeline.get().is_none() && self.nv12_bgra_pipeline.get().is_none()
     }
 
     /// 出力サイズ依存リソース（`output_texture`／`readback_buffer`）だけを
@@ -1424,8 +1489,8 @@ impl NativeWgpuRenderer {
             &mut encoder,
             &target_view,
             &prepared_clips,
-            &self.bgra_pipeline,
-            &self.nv12_bgra_pipeline,
+            self.bgra_pipeline(),
+            self.nv12_bgra_pipeline(),
         );
 
         let render_start = Instant::now();
@@ -5866,6 +5931,86 @@ mod tests {
         );
     }
 
+    /// Phase 7 (W7) Option C: 構築直後（`NativeWgpuRenderer::new`、
+    /// `NativeWgpuLiveSurfaceRenderer::from_surface`が内部で使うのと同一の
+    /// フィールド初期化）はBgra8UnormSrgb版のuber-shaderパイプライン2本
+    /// （BGRA IOSurface export専用、live surfaceのattach経路からは到達
+    /// できない——`bgra_pipeline`フィールドのコメント参照）をまだ一切
+    /// コンパイルしていないこと。attach時点の待ち時間からこの2本分の
+    /// コンパイルコストを除外できているかを直接固定する。
+    #[test]
+    fn bgra_pipelines_are_not_built_at_construction() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!(
+                    "skipping deferred Bgra pipeline construction test: no GPU adapter available"
+                );
+                return;
+            }
+            Err(error) => panic!("native renderer setup failed: {error:?}"),
+        };
+        assert!(
+            renderer.bgra_pipelines_are_deferred(),
+            "attach-time construction must not compile the Bgra uber-shader pipelines"
+        );
+        assert_eq!(renderer.bgra_pipeline_build_count(), 0);
+        assert_eq!(renderer.nv12_bgra_pipeline_build_count(), 0);
+    }
+
+    /// 遅延構築された Bgra 版パイプラインが、初回アクセスでちょうど1回だけ
+    /// コンパイルされ、以降の繰り返しアクセスでは同じインスタンスが再利用され
+    /// 再コンパイルされないこと（`OnceLock::get_or_init`の契約そのもの）を、
+    /// 実際にこのcrateが使うアクセサ（`bgra_pipeline()`/`nv12_bgra_pipeline()`）
+    /// 越しに固定する。IOSurface統合の有無に依存しないよう、プラットフォーム
+    /// 非依存の直接アクセサ呼び出しで検証する（macOS限定の実IOSurface経由の
+    /// 等価な検証は`bgra_iosurface_upload_fence`モジュール内の
+    /// `first_bgra_iosurface_export_call_builds_pipelines_once_and_renders_correctly`
+    /// を参照）。
+    #[test]
+    fn bgra_pipelines_build_lazily_on_first_use_and_are_reused() {
+        let renderer = match pollster::block_on(NativeWgpuRenderer::new(4, 4)) {
+            Ok(renderer) => renderer,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping deferred Bgra pipeline reuse test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("native renderer setup failed: {error:?}"),
+        };
+        assert!(renderer.bgra_pipelines_are_deferred());
+
+        let _first_bgra = renderer.bgra_pipeline();
+        let _first_nv12_bgra = renderer.nv12_bgra_pipeline();
+        assert_eq!(
+            renderer.bgra_pipeline_build_count(),
+            1,
+            "first access must compile the Bgra pipeline exactly once"
+        );
+        assert_eq!(
+            renderer.nv12_bgra_pipeline_build_count(),
+            1,
+            "first access must compile the NV12 Bgra pipeline exactly once"
+        );
+        assert!(!renderer.bgra_pipelines_are_deferred());
+
+        // 繰り返しアクセス（毎フレームpresent相当）は既存インスタンスを
+        // 再利用するだけで、再コンパイルは発生しない。
+        for _ in 0..5 {
+            let _reused_bgra = renderer.bgra_pipeline();
+            let _reused_nv12_bgra = renderer.nv12_bgra_pipeline();
+        }
+        assert_eq!(
+            renderer.bgra_pipeline_build_count(),
+            1,
+            "repeated access must reuse the already-built Bgra pipeline"
+        );
+        assert_eq!(
+            renderer.nv12_bgra_pipeline_build_count(),
+            1,
+            "repeated access must reuse the already-built NV12 Bgra pipeline"
+        );
+    }
+
     // IOSurface エクスポート経路（render_frame_to_bgra_iosurface）が毎フレーム
     // upload フェンス（queue.submit(empty) + wait_for_submitted_work）を踏まない
     // ことの検証。実 IOSurface を使うため macOS(Metal) 限定。
@@ -6034,6 +6179,123 @@ mod tests {
                 waits_after, waits_before,
                 "steady-state IOSurface export frames must not take the per-frame \
                  upload fence (queue.submit(empty) + wait_for_submitted_work)"
+            );
+        }
+
+        /// Phase 7 (W7) Option C: 遅延構築したBgra版パイプラインが、実際の
+        /// BGRA IOSurface export呼び出し経路（`render_frame_to_bgra_iosurface`、
+        /// 実IOSurfaceを使う統合テスト相当）を通しても正しくレンダリングでき、
+        /// かつ2回目以降の呼び出しでは再コンパイルされないことを確認する。
+        /// 単体の`bgra_pipeline()`/`nv12_bgra_pipeline()`アクセサ呼び出しだけの
+        /// 検証（`bgra_pipelines_build_lazily_on_first_use_and_are_reused`、
+        /// クロスプラットフォーム）と違い、こちらは実際の公開APIの呼び出し
+        /// 経路（`import_bgra_iosurface_render_target`込み）で同じ契約が
+        /// 成り立つことまで固定する。
+        #[test]
+        fn first_bgra_iosurface_export_call_builds_pipelines_once_and_renders_correctly() {
+            let width = 4;
+            let height = 4;
+            let target = SyntheticBgraBuffer::new(width, height);
+            let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
+                Ok(renderer) => renderer,
+                Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                    eprintln!(
+                        "skipping BGRA IOSurface lazy pipeline test: no GPU adapter available"
+                    );
+                    return;
+                }
+                Err(error) => panic!("native renderer setup failed: {error:?}"),
+            };
+            assert!(
+                renderer.bgra_pipelines_are_deferred(),
+                "attach-time construction must not have compiled the Bgra uber-shader \
+                 pipelines yet"
+            );
+
+            let snapshot = SceneSnapshot {
+                frame_index: 0,
+                colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-blue".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "solid-blue".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: uxfd_rust_core::Transform::identity(),
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            };
+            let sources: HashMap<String, Arc<RgbaFrame>> = HashMap::from([(
+                "solid-blue".to_string(),
+                Arc::new(
+                    RgbaFrame::from_rgba8(
+                        width,
+                        height,
+                        [0, 0, 255, 255].repeat((width * height) as usize),
+                    )
+                    .expect("valid solid frame"),
+                ),
+            )]);
+            let content_revisions = HashMap::from([("solid-blue".to_string(), 1u64)]);
+            let bgra_target = BgraIoSurfaceTarget {
+                surface_id: target.surface_id,
+                width,
+                height,
+            };
+
+            pollster::block_on(renderer.render_frame_to_bgra_iosurface(
+                &snapshot,
+                &sources,
+                &content_revisions,
+                &HashMap::new(),
+                bgra_target,
+            ))
+            .expect("first IOSurface export render must succeed and lazily build the pipelines");
+
+            assert_eq!(
+                renderer.bgra_pipeline_build_count(),
+                1,
+                "first real export call must compile the Bgra uber-shader pipeline exactly once"
+            );
+            assert_eq!(
+                renderer.nv12_bgra_pipeline_build_count(),
+                1,
+                "first real export call must compile the NV12 Bgra uber-shader pipeline exactly once"
+            );
+            assert!(
+                !renderer.bgra_pipelines_are_deferred(),
+                "after the first real use both deferred pipelines must be built"
+            );
+            // 実ピクセル色の一致検証（BGRA byte順の読み戻し）は
+            // native-wgpu-renderer/tests/bgra_iosurface_target.rs の
+            // `renders_scene_directly_into_bgra_iosurface_without_readback`
+            // （`SyntheticBgraTarget::centre_bgra`）が既に担当しており、この
+            // 変更（Option Cの遅延構築）後もそちらがgreenのままであることで
+            // 「初回使用時に正しくレンダリングされる」ことを担保する。ここでは
+            // render呼び出し自体がOkで完走すること（≒遅延構築したパイプラインが
+            // 機能的に有効であること）とビルド回数の契約を固定する。
+
+            // 2回目の呼び出しは同じレンダラで既に構築済みのパイプラインを
+            // 再利用するだけで、再コンパイルは発生しない。
+            pollster::block_on(renderer.render_frame_to_bgra_iosurface(
+                &snapshot,
+                &sources,
+                &content_revisions,
+                &HashMap::new(),
+                bgra_target,
+            ))
+            .expect("second IOSurface export render must succeed and reuse the built pipelines");
+
+            assert_eq!(
+                renderer.bgra_pipeline_build_count(),
+                1,
+                "repeated export calls must reuse the already-built Bgra pipeline"
+            );
+            assert_eq!(
+                renderer.nv12_bgra_pipeline_build_count(),
+                1,
+                "repeated export calls must reuse the already-built NV12 Bgra pipeline"
             );
         }
     }
