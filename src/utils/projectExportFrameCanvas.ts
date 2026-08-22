@@ -2,7 +2,7 @@ import type { TimelineObject } from '../types';
 import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
 import { isSupportedSceneObject } from './rustSceneSnapshot';
-import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
 
 export type ProjectExportFrameCanvasSource =
   | 'explicitExportCanvas'

@@ -39,7 +39,7 @@ import type {
   RustBackendVideoEncodeSharedFramePayloadFrame,
 } from './rustBackendVideoEncodeExport';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
-import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
 import {
   canRenderSharedRendererNativeMediaOnlyFrame,
 } from './sharedRendererNativeMediaSupport';

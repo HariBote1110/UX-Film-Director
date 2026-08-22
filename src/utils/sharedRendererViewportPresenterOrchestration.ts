@@ -3,7 +3,7 @@ import {
   type SharedRendererPreviewPresenterControl,
   type StartSharedRendererPreviewPresenterInput,
 } from './sharedRendererPreviewPresenterController';
-import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
 import {
   prepareSharedRendererViewportNativeRenderUpload,
   type PrepareSharedRendererViewportNativeRenderUploadInput,

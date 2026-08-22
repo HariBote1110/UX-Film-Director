@@ -17,6 +17,17 @@ import type {
   SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
+import type {
+  SharedRendererPresentedFrameSharedFrameInput,
+  SharedRendererPresentedFrameNativeHandoffInput,
+  SharedRendererPresentedFrameSharedFrameTaker,
+} from './sharedRendererPresentedFrameTypes';
+
+export type {
+  SharedRendererPresentedFrameSharedFrameInput,
+  SharedRendererPresentedFrameNativeHandoffInput,
+  SharedRendererPresentedFrameSharedFrameTaker,
+} from './sharedRendererPresentedFrameTypes';
 import { markSharedUploadWriteTextureRejected } from './sharedVideoFrameUploadBridge';
 
 export interface SharedRendererWebGpuLike {
@@ -211,10 +222,6 @@ export interface SharedRendererWebGpuPresenterInput {
   isStartCurrent?: () => boolean;
 }
 
-export type SharedRendererPresentedFrameSharedFrameTaker = (
-  input: SharedRendererPresentedFrameNativeHandoffInput
-) => Promise<RustBackendVideoEncodeWriteFramePayload | null>;
-
 export interface SharedRendererPresentedFrameReadbackInput {
   width: number;
   height: number;
@@ -226,26 +233,6 @@ export interface SharedRendererPresentedFrameReadbackResult {
   byteLen: number;
   width: number;
   height: number;
-}
-
-export interface SharedRendererPresentedFrameSharedFrameInput {
-  encodeSessionId: string;
-  memoryId: string;
-  frameIndex: number;
-  timestampUs: number;
-  width: number;
-  height: number;
-  fps: number;
-}
-
-export interface SharedRendererPresentedFrameNativeHandoffInput extends SharedRendererPresentedFrameSharedFrameInput {
-  device: unknown;
-  texture: unknown;
-  format: string;
-  canvasSize: {
-    width: number;
-    height: number;
-  };
 }
 
 export interface SharedRendererVideoFrameTextureUploadInput {

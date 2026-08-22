@@ -1,5 +1,5 @@
 import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
-import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
 import {
   createSharedRendererExportFrameSource,
   type CreateSharedRendererExportFrameSourceInput,
