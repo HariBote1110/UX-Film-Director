@@ -798,6 +798,14 @@ const Viewport: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // TEMP DIAGNOSTIC（stage5ブロッカー切り分け、後で削除）— effectそのものが
+    // 実行されているか、その時点でのゲート判定値を無条件に記録する。
+    console.warn('[NativeOverlay] attach effect ran', {
+      nativeOverlayPreviewEnabled,
+      hasContainer: !!containerRef.current,
+      hasBridge: !!window.nativeOverlay?.attach,
+      platform: window.uxfdPlatform,
+    });
     if (!nativeOverlayPreviewEnabled) {
       // 設定値そのものがOFF（未対応OS/明示opt-out）——attachライフサイクル自体を
       // 起動しない。presenter が唯一の描画対象になる。
