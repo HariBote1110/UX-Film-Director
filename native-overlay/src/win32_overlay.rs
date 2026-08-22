@@ -223,6 +223,31 @@ unsafe fn register_geometry_resync_hook(
     Ok(())
 }
 
+/// Phase 7 (W7 Option B) 用の公開ラッパー。`attach_overlay_window` が
+/// 非同期タスクの worker スレッドで実行された後、呼び出し元
+/// （`AttachNativeOverlayTask::resolve`、必ず JS/main スレッド上）から
+/// この関数を呼んで hook を登録する。失敗しても attach 自体は継続する
+/// （追従できないだけで overlay 自体は初期位置に表示される、従来どおり）。
+pub fn register_overlay_geometry_hook(
+    native_window_handle: &[u8],
+    overlay_hwnd: usize,
+    contract: OverlayLayerContract,
+) {
+    let owner = match native_window_handle_to_owner_hwnd(native_window_handle) {
+        Ok(owner) => owner,
+        Err(reason) => {
+            eprintln!("[uxfd-native-overlay] geometry resync hook owner resolve failed: {reason}");
+            return;
+        }
+    };
+    let overlay = HWND(overlay_hwnd as *mut c_void);
+    unsafe {
+        if let Err(reason) = register_geometry_resync_hook(owner, overlay, contract) {
+            eprintln!("[uxfd-native-overlay] geometry resync hook registration failed: {reason}");
+        }
+    }
+}
+
 /// `detach_overlay_window` から呼ばれ、登録済みの resync hook を解除する。
 unsafe fn unregister_geometry_resync_hook(owner: HWND) {
     let Ok(mut registry) = geometry_resync_hooks().lock() else {
@@ -405,7 +430,7 @@ unsafe fn owner_client_height(owner: HWND) -> Result<i32, String> {
     Ok(rect.bottom - rect.top)
 }
 
-/// `attach_native_overlay_inner` の Windows 分岐から呼ばれる。
+/// `attach_native_overlay_compute`（`lib.rs`）の Windows 分岐から呼ばれる。
 /// overlay window を作成し、DirectComposition device/target/visual を
 /// セットアップして root visual まで `SetRoot` する。戻り値は overlay HWND
 /// を `usize` 化したもの（`NativeWgpuLiveSurfaceRenderer::from_hwnd` と
@@ -480,12 +505,18 @@ pub fn attach_overlay_window(
         drop(registry);
 
         // Phase 6: 親ウィンドウの move/resize/最小化/復元/DPI 変更に overlay
-        // を追従させる resync hook を登録する。失敗しても attach 自体は
-        // 継続する（追従できないだけで overlay 自体は初期位置に表示される）。
-        if let Err(reason) = register_geometry_resync_hook(owner, overlay, contract.clone()) {
-            eprintln!("[uxfd-native-overlay] geometry resync hook registration failed: {reason}");
-        }
-
+        // を追従させる resync hook を登録する。
+        //
+        // Phase 7 (W7 Option B、非同期 attach 化): この登録は
+        // `attach_overlay_window` の呼び出し元がここで直接行っていたが、
+        // 非同期化後は `attach_overlay_window` 自体が napi の libuv
+        // threadpool worker スレッド（AsyncTask::compute）から呼ばれる
+        // ようになる。`SetWinEventHook(WINEVENT_OUTOFCONTEXT)` は
+        // コールバックを受け取るために「登録したスレッドがメッセージポンプを
+        // 持つこと」を要求するが、threadpool worker にはポンプが無い
+        // （Electron main / JS スレッドにはある）。よってここでは
+        // 登録しない。呼び出し元（`register_overlay_geometry_hook`、
+        // AsyncTask::resolve から JS スレッド上で呼ばれる）に委譲する。
         Ok((overlay_hwnd, dcomp_device, visual))
     }
 }

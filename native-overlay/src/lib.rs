@@ -1439,11 +1439,205 @@ impl NativeOverlayLiveSurfaceRenderer {
     }
 }
 
+/// Phase 7 (W7 Option B、非同期 attach 化)。
+///
+/// `windows_port_research/notes/w7-attach-cost-mitigation.md` で確定した
+/// とおり、Windows の初回 attach は DX12/DXC のパイプライン生成
+/// （実測中央値 ≈88.77秒、`progress/windows-w7-staged-rollout.md` STAGE2）が
+/// 支配的コストで、これが同期 napi 呼び出しとして Electron main
+/// process（＝JS スレッド）を丸ごとブロックしていた。
+///
+/// ここでは既存の `prepareNativeOverlaySources`（beachball 対策 Fix 2）と
+/// 同じ `AsyncTask<T: Task>` パターンを使い、`attach_native_overlay_inner`
+/// 相当の重い処理を napi の libuv threadpool worker スレッドへ逃がす。
+/// `Task::compute` は worker スレッドで実行され、`Task::resolve` は
+/// JS スレッドへ戻ってから呼ばれる——この2段構成が、後述の
+/// SetWinEventHook のスレッド制約と整合する。
+///
+/// **スレッド/メッセージポンプ契約（設計判断）**:
+/// `windows-w5-attach-hang.md`（H-1 棄却）で確認済みのとおり、
+/// DirectComposition の呼び出し自体（デバイス/ターゲット/visual 作成、
+/// ウィンドウ作成含む）はメッセージポンプの無いスレッドでも動作する。
+/// 一方 `SetWinEventHook(WINEVENT_OUTOFCONTEXT)`（W6 geometry resync）は
+/// **登録したスレッドがメッセージポンプを持つこと**を要求する
+/// （`win32_overlay.rs::register_geometry_resync_hook` のコールバックは
+/// ポンプ経由で配送される）。worker スレッドにはポンプが無いため、
+/// hook 登録だけは `compute`（worker）から `resolve`（JS スレッド、
+/// Electron main のメッセージポンプ上）へ切り出す。DComp
+/// ウィンドウ作成＋wgpu レンダラ構築（重い部分）は `compute` 側に残す。
 #[napi(js_name = "attachNativeOverlay")]
-pub fn attach_native_overlay(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
-    match std::panic::catch_unwind(AssertUnwindSafe(|| attach_native_overlay_inner(payload))) {
-        Ok(response) => response,
-        Err(_) => failure("Native overlay attach panicked."),
+pub fn attach_native_overlay(
+    payload: NativeOverlayAttachPayload,
+) -> napi::Result<AsyncTask<AttachNativeOverlayTask>> {
+    Ok(AsyncTask::new(AttachNativeOverlayTask::new(payload)))
+}
+
+/// [`attach_native_overlay`] の同期版。napi/JS ランタイムの外
+/// （`tests/win32_overlay_smoke.rs` のような素の Rust テストバイナリ）から
+/// 従来どおり同期的に attach を検証するために公開する。`compute` と
+/// `resolve` を同一スレッドで直列に呼ぶだけで、非同期化前の
+/// `attach_native_overlay_inner` と挙動は完全に同一（hook 登録スレッドも
+/// 呼び出しスレッドのまま——テストは元々シングルスレッドで
+/// メッセージポンプの有無を検証していないため、この差は無害）。
+pub fn attach_native_overlay_sync_for_test(
+    payload: NativeOverlayAttachPayload,
+) -> NativeOverlayResponse {
+    finish_attach_native_overlay(attach_native_overlay_compute(payload))
+}
+
+pub struct AttachNativeOverlayTask {
+    payload: Option<NativeOverlayAttachPayload>,
+}
+
+impl AttachNativeOverlayTask {
+    fn new(payload: NativeOverlayAttachPayload) -> Self {
+        Self {
+            payload: Some(payload),
+        }
+    }
+}
+
+impl Task for AttachNativeOverlayTask {
+    type Output = AttachNativeOverlayOutcome;
+    type JsValue = NativeOverlayResponse;
+
+    fn compute(&mut self) -> napi::Result<Self::Output> {
+        let payload = self
+            .payload
+            .take()
+            .expect("AttachNativeOverlayTask::compute must run exactly once");
+        Ok(
+            match catch_unwind(AssertUnwindSafe(|| attach_native_overlay_compute(payload))) {
+                Ok(outcome) => outcome,
+                Err(_) => AttachNativeOverlayOutcome::Done(failure(
+                    "Native overlay attach panicked.",
+                )),
+            },
+        )
+    }
+
+    fn resolve(&mut self, _env: Env, outcome: Self::Output) -> napi::Result<Self::JsValue> {
+        Ok(finish_attach_native_overlay(outcome))
+    }
+}
+
+/// `compute`（worker スレッド）が返す中間結果。Windows で attach が
+/// 成功した場合は、SetWinEventHook 登録に必要な情報（owner の native
+/// window handle・overlay HWND・contract）を JS スレッド側へ持ち越す
+/// ために `NeedsWindowsGeometryHook` を使う。それ以外（macOS・失敗）は
+/// 最終レスポンスがこの時点で確定しているため `Done` に包む。
+pub enum AttachNativeOverlayOutcome {
+    Done(NativeOverlayResponse),
+    #[cfg(target_os = "windows")]
+    NeedsWindowsGeometryHook {
+        native_window_handle: Vec<u8>,
+        overlay_hwnd: usize,
+        contract: OverlayLayerContract,
+        response: NativeOverlayResponse,
+    },
+}
+
+/// worker スレッドで実行してよい部分（native window handle 解決、
+/// contract 構築、macOS/Windows それぞれの overlay window + wgpu
+/// レンダラ構築）。Windows の SetWinEventHook 登録だけは含まない
+/// （[`finish_attach_native_overlay`] へ委譲する）。
+fn attach_native_overlay_compute(payload: NativeOverlayAttachPayload) -> AttachNativeOverlayOutcome {
+    let window_id = payload.window_id;
+    let native_window_handle = match native_window_handle_bytes(&payload) {
+        Ok(bytes) => bytes,
+        Err(reason) => return AttachNativeOverlayOutcome::Done(failure(reason)),
+    };
+    let contract = match build_overlay_layer_contract(&payload) {
+        Ok(contract) => contract,
+        Err(reason) => return AttachNativeOverlayOutcome::Done(failure(reason)),
+    };
+    #[cfg(target_os = "macos")]
+    {
+        let view_handle = match macos_overlay::attach_overlay_view(&native_window_handle, &contract)
+        {
+            Ok(view_handle) => view_handle,
+            Err(reason) => return AttachNativeOverlayOutcome::Done(failure(reason)),
+        };
+        if let Err(reason) = attach_live_overlay_surface_renderer(window_id, view_handle, &contract)
+        {
+            return AttachNativeOverlayOutcome::Done(failure(&reason));
+        }
+        // `wgpu::create_surface_unsafe` は NSView の layer を CAMetalLayer に差し替えるため、
+        // surface 構築前に設定した `contentsScale` は失われている。HiDPI 環境では
+        // ここで再度反映しないと drawable の左下 1/4 しか画面に貼り出されない（Bug B）。
+        macos_overlay::set_overlay_view_contents_scale(view_handle, contract.contents_scale);
+        // contentsScale と同じ理由で `opaque` も layer 差し替えにより既定値 YES へ戻る。
+        // 再適用しないと `LoadOp::Clear(TRANSPARENT)` が compositor 上で不透明扱いされ、
+        // 編集画面の preview が真っ黒になる（Bug E — Bug D 直後の実機リグレッション）。
+        macos_overlay::set_overlay_view_opaque(view_handle, false);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let (overlay_hwnd, dcomp_device, visual) =
+            match win32_overlay::attach_overlay_window(&native_window_handle, &contract) {
+                Ok(result) => result,
+                Err(reason) => return AttachNativeOverlayOutcome::Done(failure(&reason)),
+            };
+        if let Err(reason) = attach_live_overlay_surface_renderer(
+            window_id,
+            overlay_hwnd,
+            dcomp_device,
+            visual,
+            &contract,
+        ) {
+            let _ = win32_overlay::detach_overlay_window(&native_window_handle);
+            return AttachNativeOverlayOutcome::Done(failure(&reason));
+        }
+        return AttachNativeOverlayOutcome::NeedsWindowsGeometryHook {
+            native_window_handle,
+            overlay_hwnd,
+            contract,
+            response: NativeOverlayResponse {
+                success: true,
+                attached: true,
+                reason: None,
+                release_frame: None,
+                live_prepared_clip_count: None,
+                live_readback_non_transparent_pixels: None,
+                live_readback_checksum: None,
+                live_readback_export_max_channel_delta: None,
+            },
+        };
+    }
+
+    #[allow(unreachable_code)]
+    AttachNativeOverlayOutcome::Done(NativeOverlayResponse {
+        success: true,
+        attached: true,
+        reason: None,
+        release_frame: None,
+        live_prepared_clip_count: None,
+        live_readback_non_transparent_pixels: None,
+        live_readback_checksum: None,
+        live_readback_export_max_channel_delta: None,
+    })
+}
+
+/// JS スレッド（`AsyncTask::resolve`、または同期テストヘルパー）で
+/// 実行しなければならない部分。Windows の場合のみ、ここで
+/// SetWinEventHook を登録する（メッセージポンプの契約を満たすため）。
+fn finish_attach_native_overlay(outcome: AttachNativeOverlayOutcome) -> NativeOverlayResponse {
+    match outcome {
+        AttachNativeOverlayOutcome::Done(response) => response,
+        #[cfg(target_os = "windows")]
+        AttachNativeOverlayOutcome::NeedsWindowsGeometryHook {
+            native_window_handle,
+            overlay_hwnd,
+            contract,
+            response,
+        } => {
+            win32_overlay::register_overlay_geometry_hook(
+                &native_window_handle,
+                overlay_hwnd,
+                contract,
+            );
+            response
+        }
     }
 }
 
@@ -1703,67 +1897,6 @@ fn set_native_overlay_selection_decoration_inner(
             live_readback_export_max_channel_delta: None,
         },
         Err(reason) => failure(&reason),
-    }
-}
-
-fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
-    let window_id = payload.window_id;
-    let native_window_handle = match native_window_handle_bytes(&payload) {
-        Ok(bytes) => bytes,
-        Err(reason) => return failure(reason),
-    };
-    let contract = match build_overlay_layer_contract(&payload) {
-        Ok(contract) => contract,
-        Err(reason) => return failure(reason),
-    };
-    #[cfg(target_os = "macos")]
-    {
-        let view_handle = match macos_overlay::attach_overlay_view(&native_window_handle, &contract)
-        {
-            Ok(view_handle) => view_handle,
-            Err(reason) => return failure(reason),
-        };
-        if let Err(reason) = attach_live_overlay_surface_renderer(window_id, view_handle, &contract)
-        {
-            return failure(&reason);
-        }
-        // `wgpu::create_surface_unsafe` は NSView の layer を CAMetalLayer に差し替えるため、
-        // surface 構築前に設定した `contentsScale` は失われている。HiDPI 環境では
-        // ここで再度反映しないと drawable の左下 1/4 しか画面に貼り出されない（Bug B）。
-        macos_overlay::set_overlay_view_contents_scale(view_handle, contract.contents_scale);
-        // contentsScale と同じ理由で `opaque` も layer 差し替えにより既定値 YES へ戻る。
-        // 再適用しないと `LoadOp::Clear(TRANSPARENT)` が compositor 上で不透明扱いされ、
-        // 編集画面の preview が真っ黒になる（Bug E — Bug D 直後の実機リグレッション）。
-        macos_overlay::set_overlay_view_opaque(view_handle, false);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let (overlay_hwnd, dcomp_device, visual) =
-            match win32_overlay::attach_overlay_window(&native_window_handle, &contract) {
-                Ok(result) => result,
-                Err(reason) => return failure(&reason),
-            };
-        if let Err(reason) = attach_live_overlay_surface_renderer(
-            window_id,
-            overlay_hwnd,
-            dcomp_device,
-            visual,
-            &contract,
-        ) {
-            let _ = win32_overlay::detach_overlay_window(&native_window_handle);
-            return failure(&reason);
-        }
-    }
-
-    NativeOverlayResponse {
-        success: true,
-        attached: true,
-        reason: None,
-        release_frame: None,
-        live_prepared_clip_count: None,
-        live_readback_non_transparent_pixels: None,
-        live_readback_checksum: None,
-        live_readback_export_max_channel_delta: None,
     }
 }
 

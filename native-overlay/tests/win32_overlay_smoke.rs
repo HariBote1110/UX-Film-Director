@@ -19,7 +19,7 @@ use napi::bindgen_prelude::Buffer;
 use std::ffi::c_void;
 use std::time::{Duration, Instant};
 use uxfd_native_overlay::{
-    attach_native_overlay, detach_native_overlay, NativeOverlayAttachPayload,
+    attach_native_overlay_sync_for_test, detach_native_overlay, NativeOverlayAttachPayload,
     NativeOverlayDetachPayload,
 };
 use windows::core::PCWSTR;
@@ -149,7 +149,7 @@ fn attach_and_detach_native_overlay_round_trip_on_real_hwnd() {
         let window_id: u32 = 424_242;
 
         eprintln!("[w5-hang] stage=attach_call_begin");
-        let attach_response = attach_native_overlay(NativeOverlayAttachPayload {
+        let attach_response = attach_native_overlay_sync_for_test(NativeOverlayAttachPayload {
             window_id,
             native_window_handle: Some(Buffer::from(handle_bytes.clone())),
             x: 10.0,
@@ -226,7 +226,7 @@ fn native_overlay_follows_owner_window_move_via_geometry_resync_hook() {
         let handle_bytes = (owner.0 as usize).to_ne_bytes().to_vec();
         let window_id: u32 = 424_243;
 
-        let attach_response = attach_native_overlay(NativeOverlayAttachPayload {
+        let attach_response = attach_native_overlay_sync_for_test(NativeOverlayAttachPayload {
             window_id,
             native_window_handle: Some(Buffer::from(handle_bytes.clone())),
             x: 10.0,
