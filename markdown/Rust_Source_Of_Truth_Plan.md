@@ -448,6 +448,21 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 縮小（566 行 → 79 行）。詳細は
 `progress/rust-source-of-truth-r4-agent-project.md` を参照。
 
+**進捗（R4-6・2026-08-22、stream-1B の第一歩）**: `rust-core/src/command.rs`
+を MVP（`SetClipOpacity` のみ、R0 由来の `Project`/`Clip` モデル対象）から
+二層構成へ拡張。`historySlice.ts` が実際にスナップショットする状態
+（`objects`/`layers`/`camera`/`stageCamera3D`、すなわち `SceneData`）を
+対象に、42 kind 共通の汎用フィールド編集
+`Command::SetObjectField { object_id, field, next, previous }` を実装。
+`SetClipOpacity` は外部からの参照がないことを確認の上、
+`SetObjectField` へ fold して廃止した。構造コマンド（AddObject/
+RemoveObject/ReorderLayer/Filter 系/SetCamera/SetStageCamera3D）は
+R4-7 で追加する。`undo(do(state)) == state` を実フィクスチャ由来の
+`SceneData` と実在する (object, field) ペアの網羅で proptest 検証。
+`Command` を `codegen_types` に登録し TS 型をロック（IPC 配線・
+`historySlice.ts` の書き換えは R4-8 で行う）。詳細は
+`progress/rust-source-of-truth-r4-commands.md` を参照。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、

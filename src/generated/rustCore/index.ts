@@ -32,6 +32,7 @@ export * from './ColorCorrectionParams';
 export * from './ColourAberrationFilterParams';
 export * from './ColourPipeline';
 export * from './ColourWheelObjectFields';
+export * from './Command';
 export * from './ContourTraceObjectFields';
 export * from './DisplacementMapFilterParams';
 export * from './DisplacementPolyObjectFields';

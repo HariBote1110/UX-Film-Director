@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::agent_project::AgentProjectSpec;
+use uxfd_rust_core::command::Command;
 use uxfd_rust_core::schema::{
     AsanohaPatternObjectFields, AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields,
     AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, BaseObject,
@@ -176,6 +177,10 @@ fn write_ts_bindings() {
 
     // R4-4: エージェント用プロジェクトレシピ。
     AgentProjectSpec::export_all(&cfg).expect("AgentProjectSpec の TS export に失敗しました");
+
+    // R4-6: コマンド層。R4-8 で historySlice の undo/redo を IPC 配線する際に
+    // TS 側が Command の判別共用体を必要とするため、ここでロックしておく。
+    Command::export_all(&cfg).expect("Command の TS export に失敗しました");
 
     write_index(&out_dir);
 
