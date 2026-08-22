@@ -2934,3 +2934,841 @@ impl Default for PsdObjectFields {
         }
     }
 }
+
+// --- 編集モデル（R4-1a）: `BaseObject` / `TimelineObject` / シーン構造 ---
+//
+// `src/types.ts` の `BaseObject` はすべての TimelineObject kind に共通する
+// フィールド集合。ここでも wire 互換のため TS 側の camelCase 命名を踏襲し、
+// `?:` はすべて `Option<...>` + `#[serde(default, skip_serializing_if = "Option::is_none")]`
+// で表現する。
+
+/// `BaseObject.motionPath` の要素。`src/types.ts` の `PathPoint` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PathPoint {
+    pub time: f32,
+    pub x: f32,
+    pub y: f32,
+}
+
+/// `BaseObject.keyframes` の要素。`src/types.ts` の `PositionKeyframe` と同形。
+/// 評価用ワイヤーフォーマットの既存 `PositionKeyframe`（`frame_offset` ベース、
+/// 本ファイル上部）とは別ドメインのため、名前衝突を避けて
+/// `TimelinePositionKeyframe` と命名する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TimelinePositionKeyframe {
+    pub id: String,
+    pub time: f32,
+    pub x: f32,
+    pub y: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub easing: Option<Easing>,
+}
+
+/// `src/types.ts` の `ShadowEffect` と同形。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ShadowEffect {
+    pub enabled: bool,
+    pub colour: String,
+    pub blur: f32,
+    #[serde(rename = "offsetX")]
+    #[ts(rename = "offsetX")]
+    pub offset_x: f32,
+    #[serde(rename = "offsetY")]
+    #[ts(rename = "offsetY")]
+    pub offset_y: f32,
+    pub opacity: f32,
+}
+
+/// `src/types.ts` の `GradientFill`（`BaseObject.groupGradient`）と同形。
+/// `ShapeObjectFields.gradient`（`ShapeGradientFill`）と構造的には同じ形だが、
+/// TS 側で別名として手書きされているため、ここでも独立した型として持つ。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct GradientFill {
+    pub enabled: bool,
+    #[serde(rename = "type")]
+    #[ts(rename = "type")]
+    pub kind: ShapeGradientKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<ShapeGradientScope>,
+    pub colours: Vec<String>,
+    pub stops: Vec<f32>,
+    pub direction: f32,
+}
+
+/// `src/types.ts` の `ClippingParams` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ClippingParams {
+    pub enabled: bool,
+    pub top: f32,
+    pub bottom: f32,
+    pub left: f32,
+    pub right: f32,
+    pub angle: f32,
+    pub radius: f32,
+}
+
+/// `src/types.ts` の `ColorCorrection` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ColorCorrection {
+    pub enabled: bool,
+    pub brightness: f32,
+    pub contrast: f32,
+    pub saturation: f32,
+    pub hue: f32,
+}
+
+/// `src/types.ts` の `Vibration` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct Vibration {
+    pub enabled: bool,
+    pub strength: f32,
+    pub speed: f32,
+}
+
+// --- `ObjectFilter`（`BaseObject.filters`）: 14 種のフィルタ ---
+//
+// TS 側は `BaseFilter { id, type, enabled } & { params: ... }` の判別共用体。
+// `enabled` を含む形（`ColorCorrection`/`ClippingParams`/`Vibration`/
+// `ShadowEffect`/`GradientFill`、上で定義済み）から `enabled` を除いた
+// `Omit<X, 'enabled'>` が params になる 5 種は、専用の `*Params` 型として
+// 個別に定義する（Rust に `Omit` 相当がないため）。
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ColorCorrectionParams {
+    pub brightness: f32,
+    pub contrast: f32,
+    pub saturation: f32,
+    pub hue: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ColourAberrationFilterParams {
+    #[serde(rename = "offsetX")]
+    #[ts(rename = "offsetX")]
+    pub offset_x: f32,
+    #[serde(rename = "offsetY")]
+    #[ts(rename = "offsetY")]
+    pub offset_y: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct OutlineFilterParams {
+    pub colour: String,
+    pub thickness: f32,
+    pub opacity: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ClippingFilterParams {
+    pub top: f32,
+    pub bottom: f32,
+    pub left: f32,
+    pub right: f32,
+    pub angle: f32,
+    pub radius: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct VibrationParams {
+    pub strength: f32,
+    pub speed: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ShadowFilterParams {
+    pub colour: String,
+    pub blur: f32,
+    #[serde(rename = "offsetX")]
+    #[ts(rename = "offsetX")]
+    pub offset_x: f32,
+    #[serde(rename = "offsetY")]
+    #[ts(rename = "offsetY")]
+    pub offset_y: f32,
+    pub opacity: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct GradientFilterParams {
+    #[serde(rename = "type")]
+    #[ts(rename = "type")]
+    pub kind: ShapeGradientKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<ShapeGradientScope>,
+    pub colours: Vec<String>,
+    pub stops: Vec<f32>,
+    pub direction: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct BlurFilterParams {
+    pub strength: f32,
+    pub quality: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct FadeFilterParams {
+    pub opacity: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct WipeFilterParams {
+    pub edge: WipeEdge,
+    pub reverse: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SpotLightFilterParams {
+    #[serde(rename = "centreX")]
+    #[ts(rename = "centreX")]
+    pub centre_x: f32,
+    #[serde(rename = "centreY")]
+    #[ts(rename = "centreY")]
+    pub centre_y: f32,
+    pub radius: f32,
+    pub intensity: f32,
+    pub colour: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct DisplacementMapFilterParams {
+    #[serde(rename = "amountX")]
+    #[ts(rename = "amountX")]
+    pub amount_x: f32,
+    #[serde(rename = "amountY")]
+    #[ts(rename = "amountY")]
+    pub amount_y: f32,
+    pub size: f32,
+    pub strength: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct FakeDofFilterParams {
+    #[serde(rename = "focusX")]
+    #[ts(rename = "focusX")]
+    pub focus_x: f32,
+    #[serde(rename = "focusY")]
+    #[ts(rename = "focusY")]
+    pub focus_y: f32,
+    #[serde(rename = "focusRadius")]
+    #[ts(rename = "focusRadius")]
+    pub focus_radius: f32,
+    pub blur: f32,
+    pub strength: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AutoBlurFilterParams {
+    pub blur: f32,
+    pub speed: f32,
+    pub strength: f32,
+    #[serde(rename = "colourShift")]
+    #[ts(rename = "colourShift")]
+    pub colour_shift: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct StretchFilterParams {
+    pub angle: f32,
+    pub amount: f32,
+    pub strength: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct MultiSlicerFilterParams {
+    pub angle: f32,
+    pub offset: f32,
+    pub slices: f32,
+    pub expansion: f32,
+    pub strength: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct OctTransformFilterParams {
+    pub scale: f32,
+    pub rotation: f32,
+    #[serde(rename = "vertexCount")]
+    #[ts(rename = "vertexCount")]
+    pub vertex_count: f32,
+    pub warp: f32,
+    pub strength: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct AreaExpandFilterParams {
+    pub top: f32,
+    pub bottom: f32,
+    pub left: f32,
+    pub right: f32,
+    pub fill: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SmartClippingFilterParams {
+    pub top: f32,
+    pub bottom: f32,
+    pub left: f32,
+    pub right: f32,
+    #[serde(rename = "linkAxes")]
+    #[ts(rename = "linkAxes")]
+    pub link_axes: bool,
+    pub mode: f32,
+    pub amount: f32,
+    pub seed: f32,
+    pub reverse: bool,
+}
+
+/// `src/types.ts` の `ObjectFilter` 判別共用体と同形（tag は `type`）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(tag = "type")]
+pub enum ObjectFilter {
+    #[serde(rename = "color_correction")]
+    ColorCorrection {
+        id: String,
+        enabled: bool,
+        params: ColorCorrectionParams,
+    },
+    #[serde(rename = "colour_aberration")]
+    ColourAberration {
+        id: String,
+        enabled: bool,
+        params: ColourAberrationFilterParams,
+    },
+    #[serde(rename = "outline")]
+    Outline {
+        id: String,
+        enabled: bool,
+        params: OutlineFilterParams,
+    },
+    #[serde(rename = "clipping")]
+    Clipping {
+        id: String,
+        enabled: bool,
+        params: ClippingFilterParams,
+    },
+    #[serde(rename = "vibration")]
+    Vibration {
+        id: String,
+        enabled: bool,
+        params: VibrationParams,
+    },
+    #[serde(rename = "shadow")]
+    Shadow {
+        id: String,
+        enabled: bool,
+        params: ShadowFilterParams,
+    },
+    #[serde(rename = "gradient")]
+    Gradient {
+        id: String,
+        enabled: bool,
+        params: GradientFilterParams,
+    },
+    #[serde(rename = "blur")]
+    Blur {
+        id: String,
+        enabled: bool,
+        params: BlurFilterParams,
+    },
+    #[serde(rename = "fade")]
+    Fade {
+        id: String,
+        enabled: bool,
+        params: FadeFilterParams,
+    },
+    #[serde(rename = "wipe")]
+    Wipe {
+        id: String,
+        enabled: bool,
+        params: WipeFilterParams,
+    },
+    #[serde(rename = "spot_light")]
+    SpotLight {
+        id: String,
+        enabled: bool,
+        params: SpotLightFilterParams,
+    },
+    #[serde(rename = "displacement_map")]
+    DisplacementMap {
+        id: String,
+        enabled: bool,
+        params: DisplacementMapFilterParams,
+    },
+    #[serde(rename = "fake_dof")]
+    FakeDof {
+        id: String,
+        enabled: bool,
+        params: FakeDofFilterParams,
+    },
+    #[serde(rename = "auto_blur")]
+    AutoBlur {
+        id: String,
+        enabled: bool,
+        params: AutoBlurFilterParams,
+    },
+    #[serde(rename = "stretch")]
+    Stretch {
+        id: String,
+        enabled: bool,
+        params: StretchFilterParams,
+    },
+    #[serde(rename = "multi_slicer")]
+    MultiSlicer {
+        id: String,
+        enabled: bool,
+        params: MultiSlicerFilterParams,
+    },
+    #[serde(rename = "oct_transform")]
+    OctTransform {
+        id: String,
+        enabled: bool,
+        params: OctTransformFilterParams,
+    },
+    #[serde(rename = "area_expand")]
+    AreaExpand {
+        id: String,
+        enabled: bool,
+        params: AreaExpandFilterParams,
+    },
+    #[serde(rename = "smart_clipping")]
+    SmartClipping {
+        id: String,
+        enabled: bool,
+        params: SmartClippingFilterParams,
+    },
+}
+
+/// `src/types.ts` の `BaseObject` と同形。**例外**: TS 側の `type: ObjectType`
+/// フィールドはここには含めない — `TimelineObject`（下）の
+/// `#[serde(tag = "type")]` が同じ JSON キー `type` を判別タグとして専有する
+/// ため、内部タグ付き enum に `#[serde(flatten)]` する構造体が同名フィールドを
+/// 持つと判別と衝突する。各 `TimelineObject` variant は自分の kind をタグ自体
+/// として保持しているため、`BaseObject.type` を複製する意味がなく、これは
+/// 情報を失わない意図的な省略（ts-rs 側の制約に対する回避策）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct BaseObject {
+    pub id: String,
+    #[serde(rename = "groupId", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "groupId")]
+    pub group_id: Option<String>,
+    pub name: String,
+    pub layer: f32,
+    #[serde(rename = "startTime")]
+    #[ts(rename = "startTime")]
+    pub start_time: f32,
+    pub duration: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<f32>,
+    pub x: f32,
+    pub y: f32,
+    pub rotation: f32,
+    #[serde(rename = "scaleX")]
+    #[ts(rename = "scaleX")]
+    pub scale_x: f32,
+    #[serde(rename = "scaleY")]
+    #[ts(rename = "scaleY")]
+    pub scale_y: f32,
+    pub opacity: f32,
+    #[serde(rename = "enableAnimation")]
+    #[ts(rename = "enableAnimation")]
+    pub enable_animation: bool,
+    #[serde(rename = "endX")]
+    #[ts(rename = "endX")]
+    pub end_x: f32,
+    #[serde(rename = "endY")]
+    #[ts(rename = "endY")]
+    pub end_y: f32,
+    pub easing: Easing,
+    #[serde(rename = "motionPath", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "motionPath")]
+    pub motion_path: Option<Vec<PathPoint>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keyframes: Option<Vec<TimelinePositionKeyframe>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<ShadowEffect>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filters: Option<Vec<ObjectFilter>>,
+    #[serde(rename = "groupGradient", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "groupGradient")]
+    pub group_gradient: Option<GradientFill>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clipping: Option<bool>,
+    #[serde(rename = "customClipping", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "customClipping")]
+    pub custom_clipping: Option<ClippingParams>,
+    #[serde(rename = "colorCorrection", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "colorCorrection")]
+    pub color_correction: Option<ColorCorrection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vibration: Option<Vibration>,
+}
+
+/// `src/types.ts` の `TimelineObject` 判別共用体（42 kind）と同形。各 variant は
+/// `BaseObject`（共通フィールド）と kind 固有の `*ObjectFields` を
+/// `#[serde(flatten)]` で合成する — TS 側の
+/// `BaseObject & XxxObjectFields & { type: 'xxx' }` パターンをそのまま Rust の
+/// 内部タグ付き enum + flatten で表現したもの。
+///
+/// `psd` kind は `PsdObjectFields` をそのまま使う。TS 側の `PsdObject` は
+/// `rootLayer`/`file`/`layerTree` を独自に組み立てる特別な合成（R3バッチC）
+/// のため、この enum の `Psd` variant は R4-1a のスキーマ固定用であり、
+/// `src/types.ts` の `PsdObject` 型そのものと 1 対 1 のバイト互換ではない。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(tag = "type")]
+pub enum TimelineObject {
+    #[serde(rename = "text")]
+    Text {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: TextObjectFields,
+    },
+    #[serde(rename = "shape")]
+    Shape {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ShapeObjectFields,
+    },
+    #[serde(rename = "image")]
+    Image {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ImageObjectFields,
+    },
+    #[serde(rename = "video")]
+    Video {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: VideoObjectFields,
+    },
+    #[serde(rename = "audio")]
+    Audio {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: AudioObjectFields,
+    },
+    #[serde(rename = "psd")]
+    Psd {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: PsdObjectFields,
+    },
+    #[serde(rename = "group_control")]
+    GroupControl {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: GroupControlObjectFields,
+    },
+    #[serde(rename = "audio_visualization")]
+    AudioVisualization {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: AudioVisualizationObjectFields,
+    },
+    #[serde(rename = "audio_sphere")]
+    AudioSphere {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: AudioSphereObjectFields,
+    },
+    #[serde(rename = "particle")]
+    Particle {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ParticleObjectFields,
+    },
+    #[serde(rename = "barcode")]
+    Barcode {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: BarcodeObjectFields,
+    },
+    #[serde(rename = "puzzle_piece")]
+    PuzzlePiece {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: PuzzlePieceObjectFields,
+    },
+    #[serde(rename = "colour_wheel")]
+    ColourWheel {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ColourWheelObjectFields,
+    },
+    #[serde(rename = "gourd")]
+    Gourd {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: GourdObjectFields,
+    },
+    #[serde(rename = "gear")]
+    Gear {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: GearObjectFields,
+    },
+    #[serde(rename = "track_bar")]
+    TrackBar {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: TrackBarObjectFields,
+    },
+    #[serde(rename = "pie_chart")]
+    PieChart {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: PieChartObjectFields,
+    },
+    #[serde(rename = "histogram")]
+    Histogram {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: HistogramObjectFields,
+    },
+    #[serde(rename = "tone_curve")]
+    ToneCurve {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ToneCurveObjectFields,
+    },
+    #[serde(rename = "hksy_checker_grid")]
+    HksyCheckerGrid {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: HksyCheckerGridObjectFields,
+    },
+    #[serde(rename = "getcolor_dot_field")]
+    GetColorDotField {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: GetColorDotFieldObjectFields,
+    },
+    #[serde(rename = "region_frame")]
+    RegionFrame {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: RegionFrameObjectFields,
+    },
+    #[serde(rename = "simple_tube")]
+    SimpleTube {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: SimpleTubeObjectFields,
+    },
+    #[serde(rename = "sphere_dots")]
+    SphereDots {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: SphereDotsObjectFields,
+    },
+    #[serde(rename = "spherical_field")]
+    SphericalField {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: SphericalFieldObjectFields,
+    },
+    #[serde(rename = "sunburst")]
+    Sunburst {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: SunburstObjectFields,
+    },
+    #[serde(rename = "circular_arrow")]
+    CircularArrow {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: CircularArrowObjectFields,
+    },
+    #[serde(rename = "triangle_bracket")]
+    TriangleBracket {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: TriangleBracketObjectFields,
+    },
+    #[serde(rename = "tartan_check")]
+    TartanCheck {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: TartanCheckObjectFields,
+    },
+    #[serde(rename = "houndstooth")]
+    Houndstooth {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: HoundstoothObjectFields,
+    },
+    #[serde(rename = "yagasuri")]
+    Yagasuri {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: YagasuriObjectFields,
+    },
+    #[serde(rename = "paper_airplane")]
+    PaperAirplane {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: PaperAirplaneObjectFields,
+    },
+    #[serde(rename = "asanoha_pattern")]
+    AsanohaPattern {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: AsanohaPatternObjectFields,
+    },
+    #[serde(rename = "focus_lines_plus")]
+    FocusLinesPlus {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: FocusLinesPlusObjectFields,
+    },
+    #[serde(rename = "random_line_ex")]
+    RandomLineEx {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: RandomLineExObjectFields,
+    },
+    #[serde(rename = "contour_trace")]
+    ContourTrace {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ContourTraceObjectFields,
+    },
+    #[serde(rename = "displacement_poly")]
+    DisplacementPoly {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: DisplacementPolyObjectFields,
+    },
+    #[serde(rename = "plain_effector_line")]
+    PlainEffectorLine {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: PlainEffectorLineObjectFields,
+    },
+    #[serde(rename = "hologram")]
+    Hologram {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: HologramObjectFields,
+    },
+    #[serde(rename = "protractor")]
+    Protractor {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ProtractorObjectFields,
+    },
+    #[serde(rename = "shaking_polygon")]
+    ShakingPolygon {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ShakingPolygonObjectFields,
+    },
+    #[serde(rename = "shattered_sphere")]
+    ShatteredSphere {
+        #[serde(flatten)]
+        base: BaseObject,
+        #[serde(flatten)]
+        fields: ShatteredSphereObjectFields,
+    },
+}
+
+/// `src/types.ts` の `EditorMode`（`'2d' | '3d_stage'`）と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub enum EditorMode {
+    #[serde(rename = "2d")]
+    #[ts(rename = "2d")]
+    Mode2d,
+    #[serde(rename = "3d_stage")]
+    #[ts(rename = "3d_stage")]
+    Mode3dStage,
+}
+
+/// `src/types.ts` の `ProjectSettings` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ProjectSettings {
+    pub width: f32,
+    pub height: f32,
+    pub fps: f32,
+    #[serde(rename = "sampleRate")]
+    #[ts(rename = "sampleRate")]
+    pub sample_rate: f32,
+    #[serde(rename = "editorMode", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "editorMode")]
+    pub editor_mode: Option<EditorMode>,
+}
+
+/// `src/types.ts` の `LayerState` と同形。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct LayerState {
+    pub name: String,
+    pub visible: bool,
+    pub locked: bool,
+}
+
+/// `src/types.ts` の `CameraState` と同形。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct CameraState {
+    #[serde(rename = "centreOffsetX")]
+    #[ts(rename = "centreOffsetX")]
+    pub centre_offset_x: f32,
+    #[serde(rename = "centreOffsetY")]
+    #[ts(rename = "centreOffsetY")]
+    pub centre_offset_y: f32,
+    pub zoom: f32,
+    #[serde(rename = "rotationDeg")]
+    #[ts(rename = "rotationDeg")]
+    pub rotation_deg: f32,
+}
+
+/// `src/types.ts` の `SceneData` と同形。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SceneData {
+    pub id: String,
+    pub name: String,
+    pub duration: f32,
+    pub layers: Vec<LayerState>,
+    pub objects: Vec<TimelineObject>,
+    pub camera: CameraState,
+    #[serde(rename = "stageCamera3D")]
+    #[ts(rename = "stageCamera3D")]
+    pub stage_camera_3d: StageCamera3D,
+}
