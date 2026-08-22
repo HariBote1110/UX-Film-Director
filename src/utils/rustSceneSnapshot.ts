@@ -1515,14 +1515,19 @@ const serialiseGeneratedPuzzlePieceSource = (object: PuzzlePieceObject): string 
     fillColour: object.fillColour,
   });
 
+// `colour_wheel` kind のワイヤーソースは rust-core の
+// `ColourWheelObjectFields`（正本）を camelCase のまま直接デシリアライズする。
+// フォールバック/クランプは rust-backend の
+// `validate_generated_colour_wheel_source` 側で行う。
 const serialiseGeneratedColourWheelSource = (object: ColourWheelObject): string =>
   JSON.stringify({
-    generator: 'colour-wheel',
-    radius: Math.max(1, Math.trunc(finiteNumberOr(object.radius, Math.min(object.width, object.height) / 2))),
-    saturation: Math.min(100, Math.max(0, finiteNumberOr(object.saturation, 100))),
-    brightness: Math.min(100, Math.max(0, finiteNumberOr(object.brightness, 100))),
-    ring_width_percent: Math.min(100, Math.max(1, finiteNumberOr(object.ringWidthPercent, 25))),
-    segment_count: Math.min(360, Math.max(3, Math.trunc(finiteNumberOr(object.segmentCount, 24)))),
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    saturation: object.saturation,
+    brightness: object.brightness,
+    ringWidthPercent: object.ringWidthPercent,
+    segmentCount: object.segmentCount,
   });
 
 const serialiseGeneratedGourdSource = (object: GourdObject): string =>

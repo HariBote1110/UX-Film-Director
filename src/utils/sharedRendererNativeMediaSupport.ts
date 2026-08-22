@@ -426,18 +426,16 @@ const isSharedRendererNativeGeneratedPuzzlePieceSourceSupported = (source: strin
 const isSharedRendererNativeGeneratedColourWheelSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
       saturation?: unknown;
       brightness?: unknown;
-      ring_width_percent?: unknown;
-      segment_count?: unknown;
+      ringWidthPercent?: unknown;
+      segmentCount?: unknown;
     };
     return (
-      parsed.generator === 'colour-wheel'
-      && typeof parsed.radius === 'number'
-      && Number.isInteger(parsed.radius)
-      && parsed.radius > 0
+      typeof parsed.radius === 'number'
+      && Number.isFinite(parsed.radius)
+      && parsed.radius >= 1
       && parsed.radius <= 2000
       && typeof parsed.saturation === 'number'
       && Number.isFinite(parsed.saturation)
@@ -447,14 +445,14 @@ const isSharedRendererNativeGeneratedColourWheelSourceSupported = (source: strin
       && Number.isFinite(parsed.brightness)
       && parsed.brightness >= 0
       && parsed.brightness <= 100
-      && typeof parsed.ring_width_percent === 'number'
-      && Number.isFinite(parsed.ring_width_percent)
-      && parsed.ring_width_percent > 0
-      && parsed.ring_width_percent <= 100
-      && typeof parsed.segment_count === 'number'
-      && Number.isInteger(parsed.segment_count)
-      && parsed.segment_count >= 3
-      && parsed.segment_count <= 360
+      && typeof parsed.ringWidthPercent === 'number'
+      && Number.isFinite(parsed.ringWidthPercent)
+      && parsed.ringWidthPercent > 0
+      && parsed.ringWidthPercent <= 100
+      && typeof parsed.segmentCount === 'number'
+      && Number.isInteger(parsed.segmentCount)
+      && parsed.segmentCount >= 3
+      && parsed.segmentCount <= 360
     );
   } catch {
     return false;
