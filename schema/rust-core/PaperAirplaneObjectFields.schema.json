@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperAirplaneObjectFields",
+  "description": "`paper_airplane` kind (`src/types.ts` の `PaperAirplaneObject`) の kind\n固有フィールド。編集モデル型は\n`BaseObject & PaperAirplaneObjectFields & { type: 'paper_airplane' }`\nとして組み立てる。\n\n`width`/`height` は `paperAirplaneObjectFactory.ts` の\n`buildAviUtlPaperAirplaneObject` の固定リテラル (320x240) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "axisMode": {
+      "type": "number",
+      "format": "float"
+    },
+    "bodyLength": {
+      "type": "number",
+      "format": "float"
+    },
+    "fillColour": {
+      "type": "string"
+    },
+    "foldHeight": {
+      "type": "number",
+      "format": "float"
+    },
+    "followMotionDirection": {
+      "type": "boolean"
+    },
+    "gap": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    },
+    "wingWidth": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "bodyLength",
+    "wingWidth",
+    "foldHeight",
+    "gap",
+    "followMotionDirection",
+    "axisMode",
+    "fillColour"
+  ]
+}

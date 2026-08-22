@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FocusLinesPlusObjectFields",
+  "description": "`focus_lines_plus` kind (`src/types.ts` の `FocusLinesPlusObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & FocusLinesPlusObjectFields & { type: 'focus_lines_plus' }`\nとして組み立てる。\n\n`width`/`height` は `focusLinesPlusObjectFactory.ts` の\n`buildAviUtlFocusLinesPlusObject` の固定リテラル (800x450) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。`rust-core/src/\nfocus_lines.rs` の `focus_lines_frame_bucket` はこの構造体と独立した\nバケット計算関数であり、クロスオブジェクト参照は持たない。",
+  "type": "object",
+  "properties": {
+    "centreJitterPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "centreRadius": {
+      "type": "number",
+      "format": "float"
+    },
+    "centreX": {
+      "type": "number",
+      "format": "float"
+    },
+    "centreY": {
+      "type": "number",
+      "format": "float"
+    },
+    "gap": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "keyframeInterval": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineColour": {
+      "type": "string"
+    },
+    "rayWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "rotationDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "rayWidth",
+    "gap",
+    "centreRadius",
+    "rotationDegrees",
+    "centreX",
+    "centreY",
+    "centreJitterPercent",
+    "seed",
+    "keyframeInterval",
+    "lineColour"
+  ]
+}

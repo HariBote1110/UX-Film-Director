@@ -14,14 +14,17 @@ use std::path::{Path, PathBuf};
 use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
-    AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
-    AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect,
-    Fps, GearObjectFields, GetColorDotFieldObjectFields, GourdObjectFields, GroupControl,
-    HksyAnchorPoint, HksyCheckerGridObjectFields, HistogramObjectFields,
-    ImageObjectFields,
-    ColourWheelObjectFields, MediaKind, MediaReference, ParticleObjectFields, PieChartLabelMode,
+    AsanohaPatternObjectFields, AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields,
+    AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind,
+    ColourPipeline, ContourTraceObjectFields, DisplacementPolyObjectFields, Easing, Effect,
+    FocusLinesPlusObjectFields, Fps, GearObjectFields, GetColorDotFieldObjectFields,
+    GourdObjectFields, GroupControl, HksyAnchorPoint, HksyCheckerGridObjectFields,
+    HistogramObjectFields, ImageObjectFields,
+    ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
+    ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PositionKeyframe,
-    Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RegionFrameObjectFields,
+    Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
+    RegionFrameObjectFields,
     SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
     CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, SimpleTubeObjectFields,
@@ -111,6 +114,18 @@ fn write_ts_bindings() {
         .expect("HoundstoothObjectFields の TS export に失敗しました");
     YagasuriObjectFields::export_all(&cfg)
         .expect("YagasuriObjectFields の TS export に失敗しました");
+    PaperAirplaneObjectFields::export_all(&cfg)
+        .expect("PaperAirplaneObjectFields の TS export に失敗しました");
+    AsanohaPatternObjectFields::export_all(&cfg)
+        .expect("AsanohaPatternObjectFields の TS export に失敗しました");
+    FocusLinesPlusObjectFields::export_all(&cfg)
+        .expect("FocusLinesPlusObjectFields の TS export に失敗しました");
+    RandomLineExObjectFields::export_all(&cfg)
+        .expect("RandomLineExObjectFields の TS export に失敗しました");
+    ContourTraceObjectFields::export_all(&cfg)
+        .expect("ContourTraceObjectFields の TS export に失敗しました");
+    DisplacementPolyObjectFields::export_all(&cfg)
+        .expect("DisplacementPolyObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -221,6 +236,12 @@ fn write_json_schemas() {
     write_schema::<TartanCheckObjectFields>(&dir, "TartanCheckObjectFields");
     write_schema::<HoundstoothObjectFields>(&dir, "HoundstoothObjectFields");
     write_schema::<YagasuriObjectFields>(&dir, "YagasuriObjectFields");
+    write_schema::<PaperAirplaneObjectFields>(&dir, "PaperAirplaneObjectFields");
+    write_schema::<AsanohaPatternObjectFields>(&dir, "AsanohaPatternObjectFields");
+    write_schema::<FocusLinesPlusObjectFields>(&dir, "FocusLinesPlusObjectFields");
+    write_schema::<RandomLineExObjectFields>(&dir, "RandomLineExObjectFields");
+    write_schema::<ContourTraceObjectFields>(&dir, "ContourTraceObjectFields");
+    write_schema::<DisplacementPolyObjectFields>(&dir, "DisplacementPolyObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

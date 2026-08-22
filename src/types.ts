@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -504,89 +504,22 @@ export type HoundstoothObject = BaseObject & HoundstoothObjectFields & { type: '
 export type YagasuriObject = BaseObject & YagasuriObjectFields & { type: 'yagasuri' };
 
 // AviUtlPackV4 紙飛行機互換の生成オブジェクト
-export interface PaperAirplaneObject extends BaseObject {
-  type: 'paper_airplane';
-  width: number;
-  height: number;
-  bodyLength: number;
-  wingWidth: number;
-  foldHeight: number;
-  gap: number;
-  followMotionDirection: boolean;
-  axisMode: number;
-  fillColour: string;
-}
+export type PaperAirplaneObject = BaseObject & PaperAirplaneObjectFields & { type: 'paper_airplane' };
 
 // AviUtlPackV4 麻の葉模様互換の生成オブジェクト
-export interface AsanohaPatternObject extends BaseObject {
-  type: 'asanoha_pattern';
-  width: number;
-  height: number;
-  patternSize: number;
-  lineWidth: number;
-  foregroundColour: string;
-  backgroundColour: string;
-}
+export type AsanohaPatternObject = BaseObject & AsanohaPatternObjectFields & { type: 'asanoha_pattern' };
 
 // AviUtlPackV4 集中線plus互換の生成オブジェクト
-export interface FocusLinesPlusObject extends BaseObject {
-  type: 'focus_lines_plus';
-  width: number;
-  height: number;
-  rayWidth: number;
-  gap: number;
-  centreRadius: number;
-  rotationDegrees: number;
-  centreX: number;
-  centreY: number;
-  centreJitterPercent: number;
-  seed: number;
-  keyframeInterval: number;
-  lineColour: string;
-}
+export type FocusLinesPlusObject = BaseObject & FocusLinesPlusObjectFields & { type: 'focus_lines_plus' };
 
 // AviUtlPackV4 ランダムラインEX互換の生成オブジェクト
-export interface RandomLineExObject extends BaseObject {
-  type: 'random_line_ex';
-  width: number;
-  height: number;
-  lineCount: number;
-  lineWidth: number;
-  threshold: number;
-  noiseCellSize: number;
-  widthVariance: number;
-  seed: number;
-  lineColour: string;
-}
+export type RandomLineExObject = BaseObject & RandomLineExObjectFields & { type: 'random_line_ex' };
 
 // 93 Contour / 輪郭トレス互換の生成オブジェクト
-export interface ContourTraceObject extends BaseObject {
-  type: 'contour_trace';
-  width: number;
-  height: number;
-  lineWidth: number;
-  contourCount: number;
-  jitterAmount: number;
-  traceColour: string;
-  backgroundOpacity: number;
-  seed: number;
-}
+export type ContourTraceObject = BaseObject & ContourTraceObjectFields & { type: 'contour_trace' };
 
 // 93 DisplacementPoly互換の生成オブジェクト
-export interface DisplacementPolyObject extends BaseObject {
-  type: 'displacement_poly';
-  width: number;
-  height: number;
-  columns: number;
-  rows: number;
-  displacementScale: number;
-  depthScale: number;
-  meshOpacity: number;
-  fillOpacity: number;
-  lineColour: string;
-  fillColour: string;
-  seed: number;
-}
+export type DisplacementPolyObject = BaseObject & DisplacementPolyObjectFields & { type: 'displacement_poly' };
 
 // 93 PlainEffector(Line)互換の生成オブジェクト
 export interface PlainEffectorLineObject extends BaseObject {
