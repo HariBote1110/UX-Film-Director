@@ -34,6 +34,7 @@ export * from './ParticleObjectFields';
 export * from './PieChartLabelMode';
 export * from './PieChartObjectFields';
 export * from './PieChartSortMode';
+export * from './PlainEffectorLineObjectFields';
 export * from './PositionKeyframe';
 export * from './Project';
 export * from './ProjectSize';
