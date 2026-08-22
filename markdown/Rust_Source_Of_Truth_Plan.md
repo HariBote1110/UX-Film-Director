@@ -315,7 +315,15 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   他オブジェクトを走査し評価用 `GroupControl.target_track_ids` や
   transform 積算へ変換するクロスオブジェクト参照を内包するため、
   `audio_visualization`/`getcolor_dot_field` と同じ理由で wire 統一
-  （stage 4）は見送った。残るは `psd`/3D 系のみ。
+  （stage 4）は見送った。続けて `psd`/3D 系着手前のバッチAとして
+  自己参照型（`SpikeNode`、使い捨て検証後に削除）で ts-rs/schemars が
+  追加対処なしに自己参照型を生成できることを確認し、3D 共有値型
+  `Vec3`/`StageCamera3D`/`PsdWorldPlacement`/`LipSyncSetting` を
+  2026-08-22に型移送した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
+  oxidise-engine 統合（`OxidiseStageViewport.tsx`）は3D型を wire ではなく
+  TS オブジェクトとして消費していることを確認済み。`EditorMode` は
+  `ProjectSettings` 自体が未移送のため見送った。残るは `psd`（バッチB以降、
+  `PsdLayerNode` の自己参照構造を含む）のみ。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
