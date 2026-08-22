@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShakingPolygonObjectFields",
+  "description": "`shaking_polygon` kind (`src/types.ts` の `ShakingPolygonObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & ShakingPolygonObjectFields & { type: 'shaking_polygon' }`\nとして組み立てる。\n\n`width`/`height` は `shakingPolygonObjectFactory.ts` の\n`buildAviUtlShakingPolygonObject` の固定リテラル (360x360) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "fill": {
+      "type": "boolean"
+    },
+    "fixedDiameter": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "jitterInterval": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "jitterRange": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "repeatCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "repeatFrequency": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "stepped": {
+      "type": "boolean"
+    },
+    "vertexCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "verticalDistortionPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "lineWidth",
+    "vertexCount",
+    "fixedDiameter",
+    "verticalDistortionPercent",
+    "repeatCount",
+    "repeatFrequency",
+    "fill",
+    "jitterRange",
+    "jitterInterval",
+    "stepped",
+    "colour",
+    "seed"
+  ]
+}

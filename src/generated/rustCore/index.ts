@@ -47,6 +47,7 @@ export * from './RegionFrameObjectFields';
 export * from './SamplingMode';
 export * from './ScalarKeyframe';
 export * from './SceneSnapshot';
+export * from './ShakingPolygonObjectFields';
 export * from './ShapeGradientFill';
 export * from './ShapeGradientKind';
 export * from './ShapeGradientScope';

@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields, ShakingPolygonObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -531,23 +531,7 @@ export type HologramObject = BaseObject & HologramObjectFields & { type: 'hologr
 export type ProtractorObject = BaseObject & ProtractorObjectFields & { type: 'protractor' };
 
 // AviUtlPackV4 多角形_震える互換の生成オブジェクト
-export interface ShakingPolygonObject extends BaseObject {
-  type: 'shaking_polygon';
-  width: number;
-  height: number;
-  lineWidth: number;
-  vertexCount: number;
-  fixedDiameter: number;
-  verticalDistortionPercent: number;
-  repeatCount: number;
-  repeatFrequency: number;
-  fill: boolean;
-  jitterRange: number;
-  jitterInterval: number;
-  stepped: boolean;
-  colour: string;
-  seed: number;
-}
+export type ShakingPolygonObject = BaseObject & ShakingPolygonObjectFields & { type: 'shaking_polygon' };
 
 // AviUtlPackV4 砕け散る球互換の生成オブジェクト
 export interface ShatteredSphereObject extends BaseObject {

@@ -27,7 +27,8 @@ use uxfd_rust_core::schema::{
     PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields,
     SamplingMode,
-    ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
+    ScalarKeyframe, ShakingPolygonObjectFields, ShapeGradientFill, ShapeGradientKind,
+    ShapeGradientScope, ShapeObjectFields,
     CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, SimpleTubeObjectFields,
     SphereDotsObjectFields, SphericalFieldObjectFields, SubjectCropAnimation, SubjectCropKeyframe,
     SubjectCropNormKeyframe, SunburstObjectFields, TartanCheckObjectFields, TextAlignment,
@@ -133,6 +134,8 @@ fn write_ts_bindings() {
         .expect("HologramObjectFields の TS export に失敗しました");
     ProtractorObjectFields::export_all(&cfg)
         .expect("ProtractorObjectFields の TS export に失敗しました");
+    ShakingPolygonObjectFields::export_all(&cfg)
+        .expect("ShakingPolygonObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -252,6 +255,7 @@ fn write_json_schemas() {
     write_schema::<PlainEffectorLineObjectFields>(&dir, "PlainEffectorLineObjectFields");
     write_schema::<HologramObjectFields>(&dir, "HologramObjectFields");
     write_schema::<ProtractorObjectFields>(&dir, "ProtractorObjectFields");
+    write_schema::<ShakingPolygonObjectFields>(&dir, "ShakingPolygonObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 
