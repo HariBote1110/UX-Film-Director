@@ -134,6 +134,16 @@ interface Window {
       error?: string;
       errorCode?: number;
     }>;
+    // R4-8: rust-core の command 境界（`Command` を `SceneData` に適用し、
+    // 新しい `SceneData` を返す）を rust-backend RPC 経由で公開するIPC。
+    // renderer 側の消費は src/store/slices/historySlice.ts（undo/redo の
+    // command stack 化）。
+    applyCommand: (payload: { scene: unknown; command: unknown }) => Promise<{
+      success: boolean;
+      result?: { scene: unknown };
+      error?: string;
+      errorCode?: number;
+    }>;
     requestAudioWaveformSamples: (payload: {
       source: string;
       sampleRate: number;

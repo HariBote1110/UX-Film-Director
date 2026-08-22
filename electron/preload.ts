@@ -202,6 +202,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   buildAgentProjectFile(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-agent-build-project-file', payload)
   },
+  applyCommand(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-command-apply', payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {

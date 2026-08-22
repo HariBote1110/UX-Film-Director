@@ -1511,6 +1511,15 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('rust-backend-command-apply', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('command.apply', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return sceneRpcFailure(error);
+    }
+  });
+
   ipcMain.handle('coreml-track-object-supported', () => ({
     supported: process.platform === 'darwin',
   }));

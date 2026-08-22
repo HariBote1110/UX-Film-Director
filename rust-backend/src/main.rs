@@ -1,4 +1,5 @@
 mod agent_project;
+mod command;
 mod cpu_simple_video;
 pub(crate) mod decode;
 mod encode;
