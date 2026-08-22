@@ -3,6 +3,7 @@ import { TimelineObject } from '../types';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { MAX_LAYERS } from './timelineConstants';
+import { buildBatchCommand, buildObjectFieldDiffCommands } from '../store/commandBuilders';
 
 interface TimelineItemProps {
   object: TimelineObject;
@@ -20,13 +21,13 @@ interface DragTargetState {
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
-  const { updateObject, selectObject, toggleObjectSelection, selectObjects, objects, pushHistory, selectedIds, layers } = useStore((state) => ({
+  const { updateObject, selectObject, toggleObjectSelection, selectObjects, objects, pushHistoryCommand, selectedIds, layers } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
     toggleObjectSelection: state.toggleObjectSelection,
     selectObjects: state.selectObjects,
     objects: state.objects,
-    pushHistory: state.pushHistory,
+    pushHistoryCommand: state.pushHistoryCommand,
     selectedIds: state.selectedIds,
     layers: state.layers,
   }), shallow);
@@ -94,7 +95,6 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       && selectedIds.length > 1
       && selectedMovableTargets.length > 1;
 
-    pushHistory();
     if (canGroupMove) {
       selectObjects(selectedIds, object.id);
       setDragTargets(selectedMovableTargets);
@@ -263,6 +263,24 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
     const handleMouseUp = () => {
       if (isDragging) {
+        // previous はドラッグ開始時(handleMouseDown)に dragTargets/initialState
+        // へ捕捉済み。next はドラッグ終了時点の実データ(objects)から取る。
+        // ドラッグ中(handleMouseMove)は毎フレーム updateObject するのみで
+        // Command は一切積まない — ここで1回だけ、開始→終了の差分をまとめて積む。
+        const diffCommands = dragTargets.flatMap((target) => {
+          const currentObject = objects.find((candidate) => candidate.id === target.id);
+          if (!currentObject) return [];
+          const previousObject: TimelineObject = {
+            ...currentObject,
+            startTime: target.startTime,
+            duration: target.duration,
+            layer: target.layer,
+          };
+          return buildObjectFieldDiffCommands(previousObject, currentObject);
+        });
+        const batch = buildBatchCommand(diffCommands);
+        if (batch) pushHistoryCommand(batch);
+
         setIsDragging(false);
         setDragType(null);
         setDragTargets([]);
@@ -277,7 +295,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragTargets, isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects, isLayerLocked, layers]);
+  }, [dragTargets, isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects, isLayerLocked, layers, pushHistoryCommand]);
 
   const leftPos = headerWidth + (Math.max(0, object.startTime) * pxPerSec);
   const width = object.duration * pxPerSec;

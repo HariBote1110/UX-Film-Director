@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import type { PsdWorldPlacement, StageCamera3D } from '../types';
+import type { PsdWorldPlacement, StageCamera3D, TimelineObject } from '../types';
+import { buildBatchCommand, buildObjectFieldDiffCommands } from '../store/commandBuilders';
 import { billboardYawRadians } from '../utils/stage3dMath';
 import {
   computeBillboardSyncPlan,
@@ -150,7 +151,7 @@ const loadStageRendererClass = (): Promise<{
 type DragMode =
   | { kind: 'orbit-rotate' }
   | { kind: 'orbit-pan' }
-  | { kind: 'gizmo'; session: GizmoDragSession; billboardId: string };
+  | { kind: 'gizmo'; session: GizmoDragSession; billboardId: string; previousObject: TimelineObject };
 
 const clampPixelRatio = (): number => Math.min(window.devicePixelRatio || 1, 2);
 
@@ -517,11 +518,17 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
             const placement = billboardPlacementsRef.current.get(selectedId)!;
             const { eye, look } = currentEyeLook();
             const ray = screenPointToRay(point, canvasSize(), { eye, look, fovYDeg: FOV_Y_DEG });
-            useStore.getState().pushHistory();
+            const previousObject = useStore.getState().objects.find((obj) => obj.id === selectedId);
+            if (!previousObject) return;
             dragModeRef.current = {
               kind: 'gizmo',
               billboardId: selectedId,
               session: beginGizmoDrag(constraint, ray, placement.position),
+              // previous はここ(ドラッグ開始時点)で捕捉する。ドラッグ中
+              // (onPointerMove)は毎フレーム onBillboardWorldPositionChange 経由で
+              // updateObject するのみで Command は積まない — onPointerUp で
+              // 開始→終了の差分を1回だけ積む。
+              previousObject,
             };
             return;
           }
@@ -582,6 +589,11 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
           const ray = screenPointToRay(point, canvasSize(), { eye, look, fovYDeg: FOV_Y_DEG });
           const finalPosition = endGizmoDrag(mode.session, ray);
           onBillboardWorldPositionChangeRef.current?.(mode.billboardId, finalPosition);
+          const nextObject = useStore.getState().objects.find((obj) => obj.id === mode.billboardId);
+          if (nextObject) {
+            const batch = buildBatchCommand(buildObjectFieldDiffCommands(mode.previousObject, nextObject));
+            if (batch) useStore.getState().pushHistoryCommand(batch);
+          }
         } else {
           endCameraAdjust();
         }

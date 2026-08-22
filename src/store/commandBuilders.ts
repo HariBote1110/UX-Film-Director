@@ -1,4 +1,4 @@
-import type { TimelineObject, ObjectFilter } from '../types';
+import type { TimelineObject, ObjectFilter, LayerState } from '../types';
 import type { Command } from '../generated/rustCore/Command';
 import type { JsonValue } from '../generated/rustCore/serde_json/JsonValue';
 
@@ -63,6 +63,26 @@ export const buildMoveFilterCommand = (
   filterId,
   fromIndex,
   toIndex,
+});
+
+/**
+ * `swapLayerTracks`/`insertLayerTrackAt`/`deleteLayerTrackAt`
+ * (`src/utils/layerTrackOps.ts`)向け。R4-7 の設計どおり、複雑な
+ * リマップロジック(全オブジェクトの`layer`フィールド再計算等)は
+ * Rust 側で再実装せず、変更前後の layers+objects を丸ごと差し替える
+ * `reorderLayers` Command として表現する。
+ */
+export const buildReorderLayersCommand = (
+  previousLayers: LayerState[],
+  nextLayers: LayerState[],
+  previousObjects: TimelineObject[],
+  nextObjects: TimelineObject[],
+): Command => ({
+  kind: 'reorderLayers',
+  previousLayers: previousLayers.map((layer) => ({ ...layer })),
+  nextLayers: nextLayers.map((layer) => ({ ...layer })),
+  previousObjects: previousObjects.map(toCommandObject),
+  nextObjects: nextObjects.map(toCommandObject),
 });
 
 /**

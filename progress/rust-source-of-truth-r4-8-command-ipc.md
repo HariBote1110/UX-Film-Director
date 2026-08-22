@@ -352,3 +352,61 @@ setObjectField差分)を確認。IPC往復自体の正しさはgroup bの
 - `旧pushHistory`/`pastStates`/`futureStates`/`undo`/`redo`は
   `useStore.ts`からは呼ばれなくなったが、`historySlice.ts`自体からは
   まだ削除していない(dual-API継続、他ファイルの17箇所がまだ未移行)。
+
+# R4-8 group d: `layerSlice.ts`/`TimelineItem.tsx`/`OxidiseStageViewport.tsx`の5箇所
+
+## 変換テーブル
+
+| ファイル | action | Command kind | previous捕捉ポイント |
+|---|---|---|---|
+| `layerSlice.ts` | `swapLayerTracks` | `reorderLayers` | `set()`直前、変更前の`state.layers`/`state.objects` |
+| `layerSlice.ts` | `insertLayerTrackAt` | `reorderLayers` | 同上 |
+| `layerSlice.ts` | `deleteLayerTrackAt` | `reorderLayers` | 同上 |
+| `TimelineItem.tsx` | クリップのドラッグ移動/リサイズ(`handleMouseDown`+`handleMouseUp`) | `batch`(`setObjectField`×変更フィールド、単一なら生Command) | **ドラッグ開始**(`handleMouseDown`)で`dragTargets`/`initialState`へ捕捉、**ドラッグ終了**(`handleMouseUp`)で最終値と比較してCommandを構築・1回だけpush(ドラッグ中の`handleMouseMove`は毎フレーム`updateObject`のみでCommandは一切積まない) |
+| `OxidiseStageViewport.tsx` | 3Dギズモでの被写体(PSD世界配置)ドラッグ(`onPointerDown`+`onPointerUp`) | `batch`(`setObjectField`×変更フィールド、単一なら生Command) | **ドラッグ開始**(`onPointerDown`)で`dragModeRef.current.previousObject`へ捕捉、**ドラッグ終了**(`onPointerUp`)で`onBillboardWorldPositionChange`適用後の最新オブジェクトと比較してCommandを構築・1回だけpush(`onPointerMove`は毎フレーム位置更新のみ) |
+
+## Decision
+
+- `layerSlice.ts`の3箇所は元々`setLayerName`/`toggleLayerVisibility`/
+  `toggleLayerLock`には`pushHistory`が無く(undo非対応のまま)、
+  `swapLayerTracks`/`insertLayerTrackAt`/`deleteLayerTrackAt`のみが対象
+  (R4-8ブロッカー記録・R4-7設計どおり実測3箇所)。いずれもR4-7で設計
+  済みの`reorderLayers`(layers+objects丸ごと差し替え、`layerTrackOps.ts`
+  の複雑なリマップロジックはRust側で再実装しない)へ1:1マッピング。
+- `TimelineItem.tsx`/`OxidiseStageViewport.tsx`はどちらも
+  「ドラッグ開始時に`pushHistory()`(1回)→ドラッグ中は`updateObject`の
+  みを毎フレーム呼ぶ→ドラッグ終了時に何もしない」という既存パターン
+  だった。Command化では「ドラッグ終了時に何もしない」の代わりに
+  「開始時点の捕捉値と終了時点の実データを`buildObjectFieldDiffCommands`
+  で比較し、1回だけ`pushHistoryCommand`する」に変更した。**フレーム単位
+  でのCommand発火は発生しない**(`handleMouseMove`/`onPointerMove`は
+  一切`pushHistoryCommand`を呼ばない)。
+- ドラッグして実質何も変わらなかった場合(mousedown直後にmouseupする等)
+  は`buildObjectFieldDiffCommands`が空配列を返し、`buildBatchCommand`が
+  `null`を返すため`pushHistoryCommand`は呼ばれない(zero-target guardが
+  自然に成立)。
+
+## テスト
+
+`src/store/slices/layerSlice.commandConversion.test.ts`を新設(4件、
+swap/insert/delete各1件+範囲外indexでのguard確認)。`TimelineItem.tsx`/
+`OxidiseStageViewport.tsx`はDOM操作(pointer/mouseイベントの実タイミング)
+に依存するE2E的な検証が必要でユニットテストのコストが高いため、
+このバッチでは新規テストを追加していない(ロジック自体は
+`buildObjectFieldDiffCommands`/`buildBatchCommand`という共通ヘルパー
+経由で、これらはgroup cのテストで別途検証済み)。
+
+## 検証済み
+
+- `npx tsc --noEmit` クリーン。
+- `npx vitest run` フル実行、**257ファイル/1854テスト、全green**
+  (旧基準256/1850 + 新規1ファイル/4テスト)。
+- Rust/codegen変更なしのためcargo/parityはスキップ。
+
+## group e以降への引き継ぎ
+
+- 残るは `PropertyPanel.tsx`(7箇所)・`useSceneInteraction.ts`(3箇所)。
+- ここまでで34箇所中 17(useStore) + 3(layerSlice) + 2(TimelineItem/
+  OxidiseStageViewport) = 22箇所が変換済み、残り12箇所
+  (PropertyPanel 7 + useSceneInteraction 3 + 元の見積りに含まれていた
+  テスト/harness 2箇所)。

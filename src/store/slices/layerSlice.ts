@@ -10,6 +10,7 @@ import {
   calculateAutoDuration,
   normaliseLayers,
 } from '../storeHelpers';
+import { buildReorderLayersCommand } from '../commandBuilders';
 
 type LayerSlice = Pick<
   AppState,
@@ -59,10 +60,11 @@ export const createLayerSlice = (set: SetState, get: GetState): LayerSlice => ({
     if (indexA === indexB) return;
     if (state.layers[indexA]?.locked || state.layers[indexB]?.locked) return;
 
-    get().pushHistory();
     const { layers, objects } = applySwapLayerTracks(state.layers, state.objects, indexA, indexB);
+    const nextLayers = normaliseLayers(layers);
+    get().pushHistoryCommand(buildReorderLayersCommand(state.layers, nextLayers, state.objects, objects));
     set({
-      layers: normaliseLayers(layers),
+      layers: nextLayers,
       objects,
       duration: calculateAutoDuration(objects),
       selectedId: null,
@@ -74,10 +76,11 @@ export const createLayerSlice = (set: SetState, get: GetState): LayerSlice => ({
     const state = get();
     if (!Number.isInteger(insertAt) || insertAt < 0 || insertAt >= state.layers.length) return;
 
-    get().pushHistory();
     const { layers, objects } = applyInsertLayerTrack(state.layers, state.objects, insertAt);
+    const nextLayers = normaliseLayers(layers);
+    get().pushHistoryCommand(buildReorderLayersCommand(state.layers, nextLayers, state.objects, objects));
     set({
-      layers: normaliseLayers(layers),
+      layers: nextLayers,
       objects,
       duration: calculateAutoDuration(objects),
       selectedId: null,
@@ -90,10 +93,11 @@ export const createLayerSlice = (set: SetState, get: GetState): LayerSlice => ({
     if (!Number.isInteger(layerIndex) || layerIndex < 0 || layerIndex >= state.layers.length) return;
     if (state.layers[layerIndex]?.locked) return;
 
-    get().pushHistory();
     const { layers, objects } = applyDeleteLayerTrack(state.layers, state.objects, layerIndex);
+    const nextLayers = normaliseLayers(layers);
+    get().pushHistoryCommand(buildReorderLayersCommand(state.layers, nextLayers, state.objects, objects));
     set({
-      layers: normaliseLayers(layers),
+      layers: nextLayers,
       objects,
       duration: calculateAutoDuration(objects),
       selectedId: null,
