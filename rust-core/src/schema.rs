@@ -2726,6 +2726,37 @@ impl Default for ShatteredSphereObjectFields {
     }
 }
 
+/// `GroupControlObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを
+/// 除いた編集モデルフィールド。`GroupControlObject` は
+/// `BaseObject & GroupControlObjectFields & { type: 'group_control' }`
+/// として組み立てる。
+///
+/// **wire 統一（stage 4）は見送る**: `group_control` は他 object を束ねる
+/// 制御構造そのもので、`editableRustScene.ts` の
+/// `EditableRustGroupControl`/`transformForGroupControl` が
+/// `targetLayerCount` を「対象 track を Rust 側 `GroupControl.target_track_ids`
+/// に解決する」ためのクロスオブジェクト参照（同一 layer 以下の他オブジェクトを
+/// 走査して束ねる）に使っており、既存の評価用 `GroupControl`
+/// （本ファイル上部、`Project.group_controls` が保持する別型）へ変換する
+/// ロジックを内包する。これは `audio_visualization`/`audio_sphere`/
+/// `getcolor_dot_field` と同じ「構造的に想定より複雑」なケースのため、
+/// 型移送のみで打ち切る。
+///
+/// `targetLayerCount` の既定値は `Timeline.tsx` の `addGroupControlAt` が
+/// 生成する固定リテラル `0` を採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct GroupControlObjectFields {
+    #[serde(rename = "targetLayerCount")]
+    #[ts(rename = "targetLayerCount")]
+    pub target_layer_count: u32,
+}
+
+impl Default for GroupControlObjectFields {
+    fn default() -> Self {
+        Self { target_layer_count: 0 }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,

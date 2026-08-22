@@ -18,7 +18,7 @@ use uxfd_rust_core::schema::{
     AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind,
     ColourPipeline, ContourTraceObjectFields, DisplacementPolyObjectFields, Easing, Effect,
     FocusLinesPlusObjectFields, Fps, GearObjectFields, GetColorDotFieldObjectFields,
-    GourdObjectFields, GroupControl, HksyAnchorPoint, HksyCheckerGridObjectFields,
+    GourdObjectFields, GroupControl, GroupControlObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields,
     HistogramObjectFields, HologramObjectFields, ImageObjectFields,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
@@ -139,6 +139,8 @@ fn write_ts_bindings() {
         .expect("ShakingPolygonObjectFields の TS export に失敗しました");
     ShatteredSphereObjectFields::export_all(&cfg)
         .expect("ShatteredSphereObjectFields の TS export に失敗しました");
+    GroupControlObjectFields::export_all(&cfg)
+        .expect("GroupControlObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -260,6 +262,7 @@ fn write_json_schemas() {
     write_schema::<ProtractorObjectFields>(&dir, "ProtractorObjectFields");
     write_schema::<ShakingPolygonObjectFields>(&dir, "ShakingPolygonObjectFields");
     write_schema::<ShatteredSphereObjectFields>(&dir, "ShatteredSphereObjectFields");
+    write_schema::<GroupControlObjectFields>(&dir, "GroupControlObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 
