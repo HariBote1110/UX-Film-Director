@@ -181,6 +181,11 @@ const runSingleBench = () => new Promise((resolveRun) => {
       VITE_UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS: String(steadyDurationMs),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Windows: spawning `npm.cmd` directly without a shell fails with
+    // `spawn EINVAL` when there is no inherited console (e.g. launched via
+    // schtasks /it for the W7 24h bench). `shell: true` routes it through
+    // cmd.exe, matching how npm itself recommends invoking .cmd shims.
+    shell: process.platform === 'win32',
   });
 
   child.stdout.on('data', (chunk) => handleOutput(chunk, (text) => process.stdout.write(text)));
