@@ -273,7 +273,9 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   （`progress/rust-source-of-truth-r3-generated-batch1.md`）。
   `audio_visualization`/`audio_sphere` は wire 統一（stage 4）を構造的な
   複雑さ（クロスオブジェクト参照を含む共有ワイヤー型）のため見送り、
-  型移送のみで完了とした。
+  型移送のみで完了とした。続けて `gourd`/`gear`/`track_bar`/`pie_chart`/
+  `histogram`/`tone_curve` の6 kindも2026-08-22に wire 統一まで完了
+  （`progress/rust-source-of-truth-r3-generated-batch2.md`）。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
