@@ -1,3 +1,4 @@
+pub mod agent_project;
 pub mod audio_waveform_scene;
 pub mod command;
 pub mod focus_lines;
@@ -12,6 +13,9 @@ pub mod validation;
 pub mod video_decode_request;
 pub mod video_plane_scene;
 
+pub use agent_project::{
+    build_agent_project_file, parse_agent_project_spec, AgentProjectSpec, AGENT_PROJECT_SPEC_VERSION,
+};
 pub use audio_waveform_scene::{
     build_audio_waveform_line_strip, AudioWaveformLineStrip, AudioWaveformSceneError,
     AudioWaveformSource,
