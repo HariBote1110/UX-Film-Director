@@ -119,24 +119,11 @@ pub(crate) use uxfd_rust_core::ProtractorObjectFields as GeneratedProtractorSour
 // 直接デシリアライズする。
 pub(crate) use uxfd_rust_core::ShakingPolygonObjectFields as GeneratedShakingPolygonSource;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedShatteredSphereSource {
-    pub(crate) generator: String,
-    pub(crate) fracture_amount: f32,
-    pub(crate) delay: f32,
-    pub(crate) radius: f32,
-    pub(crate) limit_distance: f32,
-    pub(crate) thickness: f32,
-    pub(crate) fragment_size: f32,
-    pub(crate) random_shape: f32,
-    pub(crate) speed: f32,
-    pub(crate) impact: f32,
-    pub(crate) gravity: [f32; 3],
-    pub(crate) spin: f32,
-    pub(crate) direction_diffusion: f32,
-    pub(crate) colour: String,
-    pub(crate) seed: i64,
-}
+// `shattered_sphere` kind のワイヤーソースは rust-core の
+// `ShatteredSphereObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。重力は `gravity_x`/`gravity_y`/`gravity_z` の
+// 3フィールドに分解されている（旧 `[f32; 3]` 表現は廃止）。
+pub(crate) use uxfd_rust_core::ShatteredSphereObjectFields as GeneratedShatteredSphereSource;
 
 // `tone_curve` kind のワイヤーソースは rust-core の `ToneCurveObjectFields`
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。

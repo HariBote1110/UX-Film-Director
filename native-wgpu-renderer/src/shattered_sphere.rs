@@ -17,20 +17,35 @@ pub struct NativeShatteredSphereSource {
     pub config_revision: u64,
 }
 
+// shattered_sphere は R3 batch6 で rust-core
+// (`uxfd-rust-core::schema::ShatteredSphereObjectFields`) の camelCase wire
+// フォーマットへ統一済み。`generator` タグは廃止され、重力も
+// `gravityX`/`gravityY`/`gravityZ` の3フィールドに分解されたため、
+// この構造体では旧 `[f32; 3]` 表現ではなく個別フィールドで受け取る
+// （フィールド名/case のみを rust-core にミラーする）。
 #[derive(Debug, Deserialize)]
 struct ShatteredSphereParams {
-    generator: String,
+    #[serde(rename = "fractureAmount")]
     fracture_amount: f32,
     delay: f32,
     radius: f32,
+    #[serde(rename = "limitDistance")]
     limit_distance: f32,
     thickness: f32,
+    #[serde(rename = "fragmentSize")]
     fragment_size: f32,
+    #[serde(rename = "randomShape")]
     random_shape: f32,
     speed: f32,
     impact: f32,
-    gravity: [f32; 3],
+    #[serde(rename = "gravityX")]
+    gravity_x: f32,
+    #[serde(rename = "gravityY")]
+    gravity_y: f32,
+    #[serde(rename = "gravityZ")]
+    gravity_z: f32,
     spin: f32,
+    #[serde(rename = "directionDiffusion")]
     direction_diffusion: f32,
     colour: String,
     seed: i64,
@@ -335,8 +350,7 @@ fn validate_source(
     if source.width == 0 || source.height == 0 {
         return Err("ShatteredSphere dimensions must be positive.".to_string());
     }
-    if params.generator != "shattered-sphere-93"
-        || !params.fracture_amount.is_finite()
+    if !params.fracture_amount.is_finite()
         || !(0.0..=5000.0).contains(&params.fracture_amount)
         || !params.delay.is_finite()
         || !(0.0..=1000.0).contains(&params.delay)
@@ -354,8 +368,7 @@ fn validate_source(
         || !(0.0..=1000.0).contains(&params.speed)
         || !params.impact.is_finite()
         || !(0.0..=1000.0).contains(&params.impact)
-        || params
-            .gravity
+        || [params.gravity_x, params.gravity_y, params.gravity_z]
             .iter()
             .any(|value| !value.is_finite() || !(-1000.0..=1000.0).contains(value))
         || !params.spin.is_finite()
@@ -400,8 +413,8 @@ fn build_uniform(
             params.spin,
         ],
         gravity_diffusion: [
-            params.gravity[0],
-            params.gravity[1],
+            params.gravity_x,
+            params.gravity_y,
             params.direction_diffusion,
             params.random_shape,
         ],

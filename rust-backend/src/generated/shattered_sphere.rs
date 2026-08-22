@@ -98,8 +98,8 @@ fn draw_shattered_sphere(
             let direction_x = cell_x * 0.72 + random_angle.cos() * random_distance;
             let direction_y = cell_y * 0.72 + random_angle.sin() * random_distance;
             let outward = sphere.limit_distance + sphere.impact * 0.35 + sphere.speed * 0.25;
-            let gravity_x = sphere.gravity[0] * progress * progress * 0.035;
-            let gravity_y = sphere.gravity[1] * progress * progress * 0.035;
+            let gravity_x = sphere.gravity_x * progress * progress * 0.035;
+            let gravity_y = sphere.gravity_y * progress * progress * 0.035;
             let moved_x = base_x + direction_x * outward * progress + gravity_x;
             let moved_y =
                 base_y + direction_y * outward * progress + gravity_y - z * sphere.thickness * 0.12;

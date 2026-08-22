@@ -1823,23 +1823,22 @@ const serialiseGeneratedShakingPolygonSource = (object: ShakingPolygonObject): s
 
 const serialiseGeneratedShatteredSphereSource = (object: ShatteredSphereObject): string =>
   JSON.stringify({
-    generator: 'shattered-sphere-93',
-    fracture_amount: Math.min(5000, Math.max(0, finiteNumberOr(object.fractureAmount, 100))),
+    width: object.width,
+    height: object.height,
+    fractureAmount: Math.min(5000, Math.max(0, finiteNumberOr(object.fractureAmount, 100))),
     delay: Math.min(1000, Math.max(0, finiteNumberOr(object.delay, 100))),
     radius: Math.min(10000, Math.max(1, finiteNumberOr(object.radius, 160))),
-    limit_distance: Math.min(10000, Math.max(0, finiteNumberOr(object.limitDistance, 150))),
+    limitDistance: Math.min(10000, Math.max(0, finiteNumberOr(object.limitDistance, 150))),
     thickness: Math.min(1000, Math.max(0, finiteNumberOr(object.thickness, 20))),
-    fragment_size: Math.min(1000, Math.max(1, finiteNumberOr(object.fragmentSize, 40))),
-    random_shape: Math.min(100, Math.max(0, finiteNumberOr(object.randomShape, 100))),
+    fragmentSize: Math.min(1000, Math.max(1, finiteNumberOr(object.fragmentSize, 40))),
+    randomShape: Math.min(100, Math.max(0, finiteNumberOr(object.randomShape, 100))),
     speed: Math.min(1000, Math.max(0, finiteNumberOr(object.speed, 100))),
     impact: Math.min(1000, Math.max(0, finiteNumberOr(object.impact, 100))),
-    gravity: [
-      Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityX, 0))),
-      Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityY, 100))),
-      Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityZ, 0))),
-    ],
+    gravityX: Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityX, 0))),
+    gravityY: Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityY, 100))),
+    gravityZ: Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityZ, 0))),
     spin: Math.min(1000, Math.max(0, finiteNumberOr(object.spin, 100))),
-    direction_diffusion: Math.min(1000, Math.max(0, finiteNumberOr(object.directionDiffusion, 100))),
+    directionDiffusion: Math.min(1000, Math.max(0, finiteNumberOr(object.directionDiffusion, 100))),
     colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#ffffff',
     seed: Math.trunc(finiteNumberOr(object.seed, 93)),
   });

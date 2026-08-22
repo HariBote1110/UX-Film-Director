@@ -858,7 +858,7 @@ fn generated_shattered_sphere_source_frame_animates_fragments_and_transparency()
     let media = SceneMediaReference {
             id: "shattered-sphere-1".to_string(),
             kind: MediaKind::GeneratedShatteredSphere,
-            source: r##"{"generator":"shattered-sphere-93","fracture_amount":100,"delay":100,"radius":160,"limit_distance":150,"thickness":20,"fragment_size":40,"random_shape":100,"speed":100,"impact":100,"gravity":[0,100,0],"spin":100,"direction_diffusion":100,"colour":"#ffffff","seed":93}"##.to_string(),
+            source: r##"{"width":360,"height":360,"fractureAmount":100,"delay":100,"radius":160,"limitDistance":150,"thickness":20,"fragmentSize":40,"randomShape":100,"speed":100,"impact":100,"gravityX":0,"gravityY":100,"gravityZ":0,"spin":100,"directionDiffusion":100,"colour":"#ffffff","seed":93}"##.to_string(),
             width: 360,
             height: 360,
             source_rate: None,

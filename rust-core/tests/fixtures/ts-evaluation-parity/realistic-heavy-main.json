@@ -259,7 +259,7 @@
       {
         "id": "realistic-main-shattered-sphere",
         "kind": "GeneratedShatteredSphere",
-        "source": "{\"generator\":\"shattered-sphere-93\",\"fracture_amount\":100,\"delay\":18,\"radius\":160,\"limit_distance\":180,\"thickness\":24,\"fragment_size\":10,\"random_shape\":85,\"speed\":120,\"impact\":110,\"gravity\":[0,130,0],\"spin\":120,\"direction_diffusion\":95,\"colour\":\"#80d8ff\",\"seed\":93}",
+        "source": "{\"width\":360,\"height\":360,\"fractureAmount\":100,\"delay\":18,\"radius\":160,\"limitDistance\":180,\"thickness\":24,\"fragmentSize\":10,\"randomShape\":85,\"speed\":120,\"impact\":110,\"gravityX\":0,\"gravityY\":130,\"gravityZ\":0,\"spin\":120,\"directionDiffusion\":95,\"colour\":\"#80d8ff\",\"seed\":93}",
         "width": 360,
         "height": 360
       }

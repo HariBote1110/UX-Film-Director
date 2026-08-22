@@ -330,9 +330,6 @@ pub(crate) fn validate_generated_shaking_polygon_source(
 pub(crate) fn validate_generated_shattered_sphere_source(
     source: &GeneratedShatteredSphereSource,
 ) -> Result<(), String> {
-    if source.generator != "shattered-sphere-93" {
-        return Err("generator must be shattered-sphere-93".to_string());
-    }
     if !source.fracture_amount.is_finite()
         || source.fracture_amount < 0.0
         || source.fracture_amount > 5000.0
@@ -370,8 +367,7 @@ pub(crate) fn validate_generated_shattered_sphere_source(
     if !source.impact.is_finite() || source.impact < 0.0 || source.impact > 1000.0 {
         return Err("impact must be 0..1000".to_string());
     }
-    if source
-        .gravity
+    if [source.gravity_x, source.gravity_y, source.gravity_z]
         .iter()
         .any(|value| !value.is_finite() || *value < -1000.0 || *value > 1000.0)
     {

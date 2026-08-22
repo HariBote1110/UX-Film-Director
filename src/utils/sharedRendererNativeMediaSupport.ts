@@ -1298,38 +1298,38 @@ const isSharedRendererNativeGeneratedShakingPolygonSourceSupported = (source: st
 const isSharedRendererNativeGeneratedShatteredSphereSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      fracture_amount?: unknown;
+      fractureAmount?: unknown;
       delay?: unknown;
       radius?: unknown;
-      limit_distance?: unknown;
+      limitDistance?: unknown;
       thickness?: unknown;
-      fragment_size?: unknown;
-      random_shape?: unknown;
+      fragmentSize?: unknown;
+      randomShape?: unknown;
       speed?: unknown;
       impact?: unknown;
-      gravity?: unknown;
+      gravityX?: unknown;
+      gravityY?: unknown;
+      gravityZ?: unknown;
       spin?: unknown;
-      direction_diffusion?: unknown;
+      directionDiffusion?: unknown;
       colour?: unknown;
       seed?: unknown;
     };
     return (
-      parsed.generator === 'shattered-sphere-93'
-      && finiteNumberInRange(parsed.fracture_amount, 0, 5000)
+      finiteNumberInRange(parsed.fractureAmount, 0, 5000)
       && finiteNumberInRange(parsed.delay, 0, 1000)
       && finiteNumberInRange(parsed.radius, 1, 10000)
-      && finiteNumberInRange(parsed.limit_distance, 0, 10000)
+      && finiteNumberInRange(parsed.limitDistance, 0, 10000)
       && finiteNumberInRange(parsed.thickness, 0, 1000)
-      && finiteNumberInRange(parsed.fragment_size, 1, 1000)
-      && finiteNumberInRange(parsed.random_shape, 0, 100)
+      && finiteNumberInRange(parsed.fragmentSize, 1, 1000)
+      && finiteNumberInRange(parsed.randomShape, 0, 100)
       && finiteNumberInRange(parsed.speed, 0, 1000)
       && finiteNumberInRange(parsed.impact, 0, 1000)
-      && Array.isArray(parsed.gravity)
-      && parsed.gravity.length === 3
-      && parsed.gravity.every((value) => finiteNumberInRange(value, -1000, 1000))
+      && finiteNumberInRange(parsed.gravityX, -1000, 1000)
+      && finiteNumberInRange(parsed.gravityY, -1000, 1000)
+      && finiteNumberInRange(parsed.gravityZ, -1000, 1000)
       && finiteNumberInRange(parsed.spin, 0, 1000)
-      && finiteNumberInRange(parsed.direction_diffusion, 0, 1000)
+      && finiteNumberInRange(parsed.directionDiffusion, 0, 1000)
       && typeof parsed.colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
       && typeof parsed.seed === 'number'

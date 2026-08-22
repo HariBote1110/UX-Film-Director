@@ -5237,7 +5237,7 @@ mod tests {
             media: vec![NativeOverlaySceneMedia {
                 id: "shattered-sphere-media".to_string(),
                 kind: "GeneratedShatteredSphere".to_string(),
-                source: r##"{"generator":"shattered-sphere-93","fracture_amount":100,"delay":20,"radius":24,"limit_distance":40,"thickness":10,"fragment_size":8,"random_shape":80,"speed":100,"impact":80,"gravity":[0,100,0],"spin":100,"direction_diffusion":90,"colour":"#80d8ff","seed":93}"##.to_string(),
+                source: r##"{"width":360,"height":360,"fractureAmount":100,"delay":20,"radius":24,"limitDistance":40,"thickness":10,"fragmentSize":8,"randomShape":80,"speed":100,"impact":80,"gravityX":0,"gravityY":100,"gravityZ":0,"spin":100,"directionDiffusion":90,"colour":"#80d8ff","seed":93}"##.to_string(),
                 width: 64,
                 height: 48,
                 source_rate: None,
