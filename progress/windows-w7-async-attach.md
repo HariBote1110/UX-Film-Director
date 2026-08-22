@@ -333,3 +333,136 @@ nv12×2）を単純合算すると2×7.51+2×52.42=119.9秒になり実測79.09�
 - `npx tsc --noEmit`: エラーなし（TS側は無改修）。
 - `npx vitest run`: **256 files / 1856 tests、全green**
   （stage3終了時点のベースラインから無変化、TS側は無改修のため）。
+
+## Stage 5-7: mainpc実機検証・記録・DEFAULT-ON判定
+
+### 実施内容
+
+- bundle転送でmainpc（stage2時点`aa6945d0`）をtip `4b5e05ea`（stage4完了時点）へ同期。
+  `native-overlay`/`shared-video-frame-bridge-node`アドオン＋`rust-backend`を
+  `--release`で再ビルド、いずれも成功（DXC DLLはstage1配置分をそのまま流用、
+  `node_modules/electron/dist/`に存在確認済み）。
+- **napiアドオン単体プローブ（`windows_port_research/tools/w7-verify/probe-attach.mjs`、
+  新設）**: `native-overlay.node`をNodeから直接requireし`attachNativeOverlay`を
+  呼んだ結果、`isPromise=true`・即座に`{"success":false,"attached":false,
+  "reason":"Native overlay owner HWND is null."}`で解決（合成payloadのため
+  当然の失敗、しかし**Promiseとして正しく機能しており、stage1-2のAsyncTask化が
+  napi境界レベルで正しく動作していることを実機で確認できた**）。
+- **native-overlay `cargo test --release`（実HWND、schtasks /it経由）**:
+  lib 93 passed / smoke 2 passed（`attach_and_detach_native_overlay_round_trip_on_real_hwnd`、
+  `native_overlay_follows_owner_window_move_via_geometry_resync_hook`）、
+  **合計95 passed / 0 failed**。smokeテスト2件で39.23秒（実HWNDへの
+  attach+detachを2サイクル、DXCパイプラインコンパイル込み）——STAGE2の
+  単発attach実測88.77秒と比べて大幅に短く、Option C（Bgra版2本の遅延化、
+  このテストパスはBGRA IOSurface exportを一切呼ばないため`bgra_pipeline`/
+  `nv12_bgra_pipeline`は最後まで未構築のまま）の効果と整合する結果。
+  W6 geometry resync実測値もSTAGE2と同一（initial `(18, 212, 338, 452)`、
+  followed `(318, 362, 638, 602)`）——**`register_overlay_geometry_hook`
+  （stage1-2で新設、hook登録をJSスレッド相当の呼び出し元に切り出した設計）が
+  実機でSetWinEventHookの契約を壊していないことを確認した。**
+- **実Electronアプリでのattach latency測定（3回試行）**: 新設
+  `windows_port_research/tools/w7-verify/run-stage5-attach-latency.ps1`で、
+  `npm run dev:native-overlay`（`VITE_UXFD_NATIVE_OVERLAY=1`+
+  `VITE_PERF_AGENT_MODE=1`、STAGE1/2と同一の起動方法）を起動しつつ、
+  `Get-Process -Name electron | Responding`（Windowsのメッセージポンプ
+  生存確認そのもの、Task Managerの「応答なし」判定と同一シグナル）を
+  1秒間隔でポーリングし、main process stdoutに`[NativeOverlay] attach
+  {"success":true...}`が現れるまでの経過時間を測る設計で3回実行した
+  （待機時間90秒/180秒/180秒の3パターン）。
+  - **結果: 3回とも`[NativeOverlay] attach`ログが一度も出現しなかった**
+    （`ELECTRON_ENABLE_LOGGING=1`でrenderer console.*も含めて全stdoutを
+    確認したが、"nativeOverlay"という文字列自体が一度も出現しない）。
+    一方、GPUAdapter/GPUDevice取得・SharedArrayBufferブリッジ起動・
+    perfハーネスの5シナリオ完走（`native_overlay_steady_playback`含む）は
+    いずれも正常に成功しており、アプリ自体は健全に動作していた。
+  - **UIスレッド応答性**: 3回の実行を通じて`Responding`サンプル合計507件、
+    `False`（応答なし）は**0件**。ただし上記のとおりattach自体が一度も
+    発火しなかったため、これは「attachの重いコンパイルが進行中に
+    メッセージポンプが生きているか」の直接証明にはなっていない
+    （「attachが起きていない間、アプリは健全にポンプし続けている」ことの
+    確認に留まる）——正直に記録する。
+
+### 未解決のブロッカー（stage5の核心的な結論）
+
+上記のnapiアドオン単体プローブとnative-overlayの`cargo test --release`
+（実HWND、W6 geometry resync含む）が両方greenであることから、**stage1-2の
+Rust側非同期化・stage4のOption C遅延構築のメカニズム自体は実機で機能して
+いる**と判断できる。しかし、**実Electronアプリ（Viewport.tsx経由）からの
+attach呼び出しが、3回の独立した試行（perfハーネス駆動、最大180秒待機）で
+一度も発火しなかった**——`ipcMain.handle`側の診断ログ
+（`electron/nativeOverlayIpc.ts:66`、`attach`呼び出しが実際に main
+process へ届けば同期/非同期を問わず必ず記録される設計）にすら痕跡が
+残っていないため、`window.nativeOverlay.attach()`自体がrendererから
+一度も呼ばれていないと推定される。
+
+- 候補として考えられる原因（本stageでは特定に至らず、次の一手として残す）:
+  (a) このmainpc環境固有の何か（例: perfハーネスが起動する画面/projectの
+  状態がViewportをDOMにマウントしない構成になっている）、
+  (b) stage3のViewport.tsx改修（interim-presenter状態機械化）が、
+  想定していなかった経路でattach effect自体の初回実行を妨げている、
+  (c) 本stageで初めて`ELECTRON_ENABLE_LOGGING=1`を使った副作用
+  （通常運用に無い環境変数のため、未検証の相互作用がある可能性）。
+- **STAGE1/STAGE2では同一の起動方法（`dev:native-overlay`+
+  `VITE_PERF_AGENT_MODE=1`）で複数回のattach成功ログが確認されていた**
+  （STAGE1: 複数回連続成功、STAGE2: 3回の単発測定いずれも成功、中央値
+  88.77秒）。したがって本現象はSTAGE2以降のどこかで（stage1-4のいずれかの
+  変更、またはmainpc環境側の変化のいずれかで）生じた新しい問題であり、
+  **「非同期化・遅延化そのものが機能しない」ことの証拠ではなく、
+  「実Electron統合経路のどこかにattach起動を妨げる要因がある」ことを
+  示す独立した問題として切り分けて次の一手に記録する。**
+
+### 得られなかった測定（正直な記録）
+
+- **(a) attach window duration（実Electronアプリでの launch→overlay
+  switchover、中央値）**: 得られず。代替として、native-overlay
+  `cargo test --release`のsmokeテスト2サイクル合計39.23秒（実HWND、
+  DXCコンパイル込み）が唯一の実機タイミング証拠。同一手法・同一条件での
+  比較ではないため、これをstage2の88.77秒と直接比較した「短縮量」として
+  正式採用はしない（参考値に留める）。
+- **(d) interim presenterが実際にフレームをpresentしている証拠
+  （CDPスクリーンショット等）**: 得られず（attachが発火しないため、
+  そもそも「presenter→overlay切替」自体が本stageのどの試行でも
+  観測できなかった）。
+
+### DEFAULT-ON判定ゲート（親エージェントのルールを機械的に適用）
+
+判定条件（すべて満たす場合のみ flip）:
+
+1. **UIスレッドがattach中もブロックされないことの証明** — **❌ 未証明**。
+   Responding監視自体は3回ともFalseなし（部分的に肯定的）だが、attachが
+   一度も発火しなかったため「attach進行中」を観測できておらず、証明として
+   不十分。
+2. **presenterが実フレームでwindowを覆っていることの証拠** — **❌ 未証明**。
+   attach非発火のため、presenter→overlay切替の瞬間そのものが一度も
+   観測できなかった。
+3. **geometry追従が非同期化後も機能すること** — **✅ 満たす**。
+   `cargo test --release`のW6 geometry resyncスモークテストが実機green、
+   数値もSTAGE2と一致。
+4. **stage2のsoak/overflow基準が維持されていること** — **✅ 満たす**
+   （STAGE2の記録自体は本stageで変更していない。約10時間ソーク・
+   147サイクル・gate failed/crash/panic/OOM 0件、overflow修正の実機幾何
+   検証も済みという既存の実績はそのまま有効）。
+
+**1・2が不成立のため、`WINDOWS_DEFAULT_ENABLED`は`false`のまま据え置く
+（flipしない）。** markdown/Windows_Port_Plan.mdのPhase 7 ★完了は見送る。
+
+**Blocker（次段階への申し送り）**: 実Electronアプリでnative overlay
+attachが発火しない原因を特定すること。優先度の高い切り分け手順として:
+(1) `ELECTRON_ENABLE_LOGGING=1`無しでの再現有無確認（本stageの環境変数
+追加自体が影響していないか）、(2) `window.nativeOverlay`の存在を
+rendererから直接確認する一時的なdevtools console実行（対話セッションが
+必要、本stageでは実施できなかった）、(3) Viewport.tsxのattach effect
+（`useEffect(() => { if (!nativeOverlayPreviewEnabled) {...}; const
+previewElement = containerRef.current; if (!previewElement ||
+!window.nativeOverlay?.attach) {...} ...`)の分岐に一時的なconsole.log
+を仕込みstage3以降で追加された分岐が早期returnしていないか確認、
+(4) STAGE2時点のコミット（`aa6945d0`）とstage4完了時点（`4b5e05ea`）を
+同一mainpc環境でA/B比較し、regressionの範囲をstage1〜4のどのコミットで
+発生したかbisectする。
+
+### 実施しなかった作業（正直な記録）
+
+- markdown/Windows_Port_Plan.mdのPhase 7 ★完了記載（判定不成立のため
+  見送り）。
+- `nativeOverlayPlatformGate.ts`のゲーティングテスト更新
+  （flipしないため対象コードの変更自体なし）。

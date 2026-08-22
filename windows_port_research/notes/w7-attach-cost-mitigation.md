@@ -343,3 +343,23 @@ Bと並行して着手できる低リスクな補完策として推奨する。
 - wgpu本体（github.com/gfx-rs/wgpu）のDX12 `PIPELINE_CACHE`対応
   tracking issueの有無をWebで確認する（本タスクでは未実施。オフライン環境
   のため次回オンライン接続時に着手）。
+
+## 追記（2026-08-22、W7 stage5-7・mainpc実機検証）
+
+Option B（async attach、native-overlay/src/lib.rs）とOption Cの一部
+（Bgra版2本の遅延構築、native-wgpu-renderer/src/lib.rs）を実装した上で
+mainpc実機検証を実施した。詳細は`progress/windows-w7-async-attach.md`
+「Stage 5-7」節を参照。要点のみ記録する:
+
+- napiアドオン単体プローブ・`cargo test --release`（実HWND attach+detach
+  + W6 geometry resyncスモーク、95 passed/0 failed）は実機でgreen。
+  非同期化・遅延化のメカニズム自体は健全に機能している。
+- しかし**実Electronアプリからのnative overlay attachが3回の独立試行
+  （perfハーネス駆動、最大180秒待機）で一度も発火しなかった**
+  ——STAGE1/STAGE2では同一起動方法で確実に成功していたため、本現象は
+  それ以降（stage1-4のいずれかの変更、またはmainpc環境側の変化）で
+  生じた新しい問題であり、非同期化・遅延化そのものの欠陥ではなく
+  実Electron統合経路のどこかにattach起動を妨げる要因があると判断した。
+- この未解決ブロッカーにより、attach window durationの実測・presenterの
+  実フレームカバレッジ証拠のいずれも取得できず、DEFAULT-ON判定は
+  flipしない（`WINDOWS_DEFAULT_ENABLED`は`false`のまま）。
