@@ -668,4 +668,151 @@ proptest! {
 
         prop_assert_eq!(undone, scene);
     }
+
+    /// `Batch` に任意本数（1..=10）の妥当な `RemoveObject` を積んだ場合、
+    /// 降順 index で構築すれば apply が必ず成功し、`invert(Batch)` を
+    /// apply した undo が必ず元の `SceneData` に戻ること。
+    #[test]
+    fn batch_of_remove_objects_undo_restores_scene_for_any_sequence(
+        remove_count in 1usize..=10usize,
+    ) {
+        let scene = fixture_scene();
+        // 降順 index で RemoveObject を積む: 高い index から取り除けば、
+        // まだ処理していない低い index のオブジェクトの位置はずれない。
+        let mut indices: Vec<usize> = (0..scene.objects.len()).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        let indices = &indices[..remove_count.min(indices.len())];
+
+        let commands: Vec<Command> = indices
+            .iter()
+            .map(|&index| Command::RemoveObject {
+                object_id: object_id_of(&scene.objects[index]),
+                removed: scene.objects[index].clone(),
+                index,
+            })
+            .collect();
+        let batch = Command::Batch { commands };
+
+        let applied = apply_command(&scene, &batch).expect("降順 RemoveObject の Batch は成功するはず");
+        prop_assert_eq!(applied.objects.len(), scene.objects.len() - indices.len());
+
+        let undone = apply_command(&applied, &invert(&batch)).expect("undo(Batch) は成功するはず");
+        prop_assert_eq!(undone, scene);
+    }
+}
+
+// ---------------------------------------------------------------------
+// R4-7b: Batch コマンド
+// ---------------------------------------------------------------------
+
+#[test]
+fn batch_apply_and_undo_round_trip_removes_multiple_objects() {
+    let scene = fixture_scene();
+    // 降順 index (44, 10, 2) で RemoveObject を積む: 高い index から
+    // 取り除けば、まだ処理していない低い index のオブジェクトの位置は
+    // ずれないため、各 RemoveObject の index はコマンド発行時点の実位置と
+    // 一致し続ける。
+    let indices = [44usize, 10usize, 2usize];
+    let commands: Vec<Command> = indices
+        .iter()
+        .map(|&index| Command::RemoveObject {
+            object_id: object_id_of(&scene.objects[index]),
+            removed: scene.objects[index].clone(),
+            index,
+        })
+        .collect();
+    let batch = Command::Batch {
+        commands: commands.clone(),
+    };
+
+    let applied = apply_command(&scene, &batch).expect("Batch(RemoveObject x3) は成功するはず");
+    assert_eq!(applied.objects.len(), scene.objects.len() - 3);
+    for &index in &indices {
+        assert!(
+            !applied
+                .objects
+                .iter()
+                .any(|object| object_id_of(object) == object_id_of(&scene.objects[index])),
+            "index {index} のオブジェクトは削除されているはず"
+        );
+    }
+
+    let undo_batch = invert(&batch);
+    let Command::Batch {
+        commands: undo_commands,
+    } = &undo_batch
+    else {
+        panic!("invert(Batch) は Batch を返すはず");
+    };
+    // invert は sub-invert を逆順に積む: [remove44, remove10, remove2] ->
+    // [invert(remove2), invert(remove10), invert(remove44)]
+    // = [add(idx2), add(idx10), add(idx44)]。
+    assert_eq!(undo_commands.len(), 3);
+
+    let restored = apply_command(&applied, &undo_batch).expect("undo(Batch) は成功するはず");
+    assert_eq!(restored, scene, "元の SceneData に厳密に一致するはず（順序・位置含む）");
+}
+
+#[test]
+fn batch_apply_is_all_or_nothing_on_mid_batch_failure() {
+    let scene = fixture_scene();
+    let valid = Command::SetObjectField {
+        object_id: "realistic-main-video-a".to_string(),
+        field: "opacity".to_string(),
+        next: Value::from(0.25),
+        previous: Value::from(1.0),
+    };
+    let invalid = Command::SetObjectField {
+        object_id: "realistic-main-video-a".to_string(),
+        field: "thisFieldDoesNotExist".to_string(),
+        next: Value::from(1.0),
+        previous: Value::from(0.0),
+    };
+    let batch = Command::Batch {
+        commands: vec![valid, invalid],
+    };
+
+    let error = apply_command(&scene, &batch).expect_err("2番目の失敗で Batch 全体が失敗するはず");
+    assert!(matches!(error, CommandError::InvalidFieldPatch { .. }));
+
+    // apply_command は失敗時に scene を一切書き換えない
+    // （呼び出し側は元の `scene` をそのまま使い続けられる）。
+    let unrelated_probe = apply_command(&scene, &Command::SetObjectField {
+        object_id: "realistic-main-video-a".to_string(),
+        field: "opacity".to_string(),
+        next: Value::from(1.0),
+        previous: Value::from(1.0),
+    })
+    .expect("scene は Batch 失敗の影響を受けていないはず");
+    let probed_opacity = serde_json::to_value(
+        unrelated_probe
+            .objects
+            .iter()
+            .find(|object| object_id_of(object) == "realistic-main-video-a")
+            .unwrap(),
+    )
+    .unwrap()["opacity"]
+        .clone();
+    assert_eq!(probed_opacity, Value::from(1.0), "Batch の1番目の SetObjectField(opacity=0.25) は適用されていないはず");
+}
+
+#[test]
+fn batch_rejects_nested_batch() {
+    let scene = fixture_scene();
+    let inner = Command::Batch { commands: vec![] };
+    let outer = Command::Batch {
+        commands: vec![inner],
+    };
+
+    let error = apply_command(&scene, &outer).expect_err("入れ子の Batch は拒否されるはず");
+    assert!(matches!(error, CommandError::NestedBatch));
+}
+
+#[test]
+fn batch_rejects_empty_commands() {
+    let scene = fixture_scene();
+    let batch = Command::Batch { commands: vec![] };
+
+    let error = apply_command(&scene, &batch).expect_err("空の Batch は拒否されるはず");
+    assert!(matches!(error, CommandError::EmptyBatch));
 }
