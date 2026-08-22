@@ -662,7 +662,9 @@ fn native_generated_effects_can_directly_feed_encode_without_output_shared_memor
     let width = 4;
     let height = 4;
     let waveform_source = "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-1\",\"target_source\":\"/tmp/dialogue.wav\",\"sample_window_seconds\":1,\"colour\":\"#ff0000\",\"thickness\":1,\"amplitude\":1}";
-    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":1}";
+    let particle_source = format!(
+        "{{\"width\":{width},\"height\":{height},\"particleCount\":1,\"seed\":0,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetimeSeconds\":1}}"
+    );
 
     let start = backend.request(json!({
         "id": 104,
@@ -2051,7 +2053,9 @@ fn native_render_shared_frame_builds_generated_particle_sources_from_media() {
     let slot_count = 1;
     let width = 4;
     let height = 4;
-    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":1}";
+    let particle_source = format!(
+        "{{\"width\":{width},\"height\":{height},\"particleCount\":1,\"seed\":0,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetimeSeconds\":1}}"
+    );
 
     let response = backend.request(json!({
         "id": 39,
@@ -2130,7 +2134,9 @@ fn native_render_shared_frame_composites_generated_waveform_and_particle_sources
     let width = 4;
     let height = 4;
     let waveform_source = "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-1\",\"target_source\":\"/tmp/dialogue.wav\",\"sample_window_seconds\":1,\"colour\":\"#ff0000\",\"thickness\":1,\"amplitude\":1}";
-    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":1}";
+    let particle_source = format!(
+        "{{\"width\":{width},\"height\":{height},\"particleCount\":1,\"seed\":0,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetimeSeconds\":1}}"
+    );
 
     let response = backend.request(json!({
         "id": 40,
@@ -2245,7 +2251,9 @@ fn native_render_generated_particle_uses_clip_source_frame_for_motion() {
     let slot_count = 1;
     let width = 4;
     let height = 4;
-    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":1,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":2}";
+    let particle_source = format!(
+        "{{\"width\":{width},\"height\":{height},\"particleCount\":1,\"seed\":0,\"spread\":0,\"speed\":1,\"size\":1,\"colour\":\"#ffffff\",\"lifetimeSeconds\":2}}"
+    );
 
     let response = backend.request(json!({
         "id": 40,
@@ -2555,13 +2563,11 @@ fn native_render_shared_frame_builds_text_sources_from_media() {
 
     let text_source = json!({
         "text": "Hi",
-        "font_family": "Arial",
-        "font_size": 24.0,
-        "colour": "#ffffff",
-        "alignment": "left",
-        "letter_spacing": 0.0,
-        "stroke": null,
-        "shadow": null
+        "fontFamily": "Arial",
+        "fontSize": 24.0,
+        "fill": "#ffffff",
+        "textAlignment": "left",
+        "letterSpacing": 0.0
     })
     .to_string();
 

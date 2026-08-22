@@ -125,3 +125,39 @@
 クロスオブジェクト参照・非シリアライズ可能フィールド・3D固有の型の扱いは
 個別設計が要る。着手前に対象object型の全フィールドと参照関係を洗い出す
 ことを推奨する。
+
+## 追記: 第七の消費者（rust-backend/tests/decode_control_plane.rs）と受け入れゲートの穴
+
+R3のwire統一（camelCase化・`generator`タグ廃止）作業は本ドキュメントの
+時点で「全消費者への追随」を完了扱いとしていたが、実際には
+`rust-backend/tests/decode_control_plane.rs`（統合テストバイナリ、
+`tests/`配下のためcargoのデフォルトターゲットには含まれるが
+`--bin uxfd-rust-backend`では対象外）が旧形式（snake_case + `generator`
+タグ）のワイヤーリテラルを保持したまま取り残されていた。これが
+**第七の消費者**である。
+
+原因は受け入れゲートの実行コマンドが `cargo test --manifest-path
+rust-backend/Cargo.toml --bin uxfd-rust-backend` と `--bin` で絞り込まれて
+いたことで、`tests/*.rs` の統合テストバイナリ（`decode_control_plane`
+含む）が一度も実行されずにR3完了が宣言されていた。
+
+修正内容（本コミットで反映）:
+- `GeneratedParticle` の `source` リテラル4箇所を
+  `{"generator":"standard-particle",...,"particle_count":...,
+  "lifetime_seconds":...}` から `ParticleObjectFields` 正本（camelCase、
+  `generator`タグ無し、`width`/`height`をsource内に含む）形式へ修正
+  （`particleCount`/`lifetimeSeconds`等）。
+- `Text` の `source` リテラル1箇所を `font_family`/`font_size`/
+  `alignment`/`letter_spacing`/`stroke`/`shadow` から `TextObjectFields`
+  正本（`fontFamily`/`fontSize`/`fill`/`textAlignment`/`letterSpacing`、
+  未使用の`stroke`/`shadow`はOptionなので省略）形式へ修正。
+- `GeneratedAudioWaveform`（`waveform_source`, `generator:
+  "audio-waveform-r"`）と `GeneratedAudioSphere`（`generator:
+  "audio-sphere-93"`、`native-wgpu-renderer/tests/`）は本バッチ時点で
+  未移送のkindであり、旧形式のままで正しい（変更していない）。
+
+**今後、R3系の受け入れ確認は必ず `--bin` フィルタを付けない
+フル `cargo test --manifest-path rust-backend/Cargo.toml` を使うこと。**
+`--bin` 絞り込みは `tests/` 配下の統合テストバイナリを黙って除外するため、
+今回のような「本体は直っているが統合テストのフィクスチャだけが古い」
+状態を検出できない。
