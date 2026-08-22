@@ -222,37 +222,37 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'hksy-checker-grid-1',
   kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
-  source: '{"generator":"hksy-checker-grid","cell_size":50,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#333333","background_colour":"#000000"}',
+  source: '{"cellSize":50,"lineWidth":2,"checkerEnabled":true,"gridEnabled":true,"foregroundColour":"#ffffff","secondaryColour":"#333333","backgroundColour":"#000000"}',
   width: 800,
   height: 450,
 }, {
   id: 'hksy-multi-colour-checker-1',
   kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
-  source: '{"generator":"hksy-checker-grid","cell_size":56,"line_width":0,"checker_enabled":true,"grid_enabled":false,"foreground_colour":"#ff5c8a","secondary_colour":"#36c2ff","background_colour":"#111111","palette_colours":["#ff5c8a","#36c2ff","#ffd166","#70e000"]}',
+  source: '{"cellSize":56,"lineWidth":0,"checkerEnabled":true,"gridEnabled":false,"foregroundColour":"#ff5c8a","secondaryColour":"#36c2ff","backgroundColour":"#111111","paletteColours":["#ff5c8a","#36c2ff","#ffd166","#70e000"]}',
   width: 800,
   height: 450,
 }, {
   id: 'hksy-diamond-1',
   kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
-  source: '{"generator":"hksy-checker-grid","pattern":"diamond","cell_size":64,"line_width":96,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ffffff","secondary_colour":"#ffffff","background_colour":"#000000"}',
+  source: '{"pattern":"diamond","cellSize":64,"lineWidth":96,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ffffff","secondaryColour":"#ffffff","backgroundColour":"#000000"}',
   width: 480,
   height: 360,
 }, {
   id: 'hksy-measured-grid-1',
   kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
-  source: '{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":32,"line_width":1,"checker_enabled":false,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#bbeeff","background_colour":"#10131a","separate_interval":5,"separate_line_width":3}',
+  source: '{"pattern":"measured-grid","cellSize":32,"lineWidth":1,"checkerEnabled":false,"gridEnabled":true,"foregroundColour":"#ffffff","secondaryColour":"#bbeeff","backgroundColour":"#10131a","separateInterval":5,"separateLineWidth":3}',
   width: 960,
   height: 540,
 }, {
   id: 'hksy-anchor-line-1',
   kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
-  source: '{"generator":"hksy-checker-grid","pattern":"anchor-line","cell_size":64,"line_width":20,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ffffff","secondary_colour":"#ffffff","background_colour":"#000000","anchor_points":[{"x":-88,"y":50},{"x":0,"y":-100},{"x":88,"y":50}],"round_caps":true,"max_join_distance":50}',
+  source: '{"pattern":"anchor-line","cellSize":64,"lineWidth":20,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ffffff","secondaryColour":"#ffffff","backgroundColour":"#000000","anchorPoints":[{"x":-88,"y":50},{"x":0,"y":-100},{"x":88,"y":50}],"roundCaps":true,"maxJoinDistance":50}',
   width: 480,
   height: 360,
 }, {
   id: 'region-frame-1',
   kind: 'GeneratedRegionFrame' as RustSceneMediaReference['kind'],
-  source: '{"generator":"region-frame-93","line_width":10,"shape":"rectangle","extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}',
+  source: '{"lineWidth":10,"shape":"rectangle","extraWidth":0,"extraHeight":0,"backgroundOpacity":0.2,"frameColour":"#ffffff","backgroundColour":"#ccccff"}',
   width: 800,
   height: 450,
 }, {
@@ -472,7 +472,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-1',
       kind: 'GeneratedSimpleTube',
-      source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","colour_pattern":"single","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}',
+      source: '{"radius":150,"depth":280,"segments":16,"rings":10,"twistDegrees":0,"randomAmount":0,"strokeWidth":3,"colour":"#0e769f","secondaryColour":"#ffffff","colourPattern":"single","fogStrength":0,"fogColour":"#ffffff","seed":93,"torus":false}',
       width: 800,
       height: 450,
     })).toBe(true);
@@ -481,7 +481,7 @@ describe('sharedRendererNativeMediaSupport', () => {
       media: [...media, {
         id: 'simple-tube-1',
         kind: 'GeneratedSimpleTube',
-        source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","colour_pattern":"single","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}',
+        source: '{"radius":150,"depth":280,"segments":16,"rings":10,"twistDegrees":0,"randomAmount":0,"strokeWidth":3,"colour":"#0e769f","secondaryColour":"#ffffff","colourPattern":"single","fogStrength":0,"fogColour":"#ffffff","seed":93,"torus":false}',
         width: 800,
         height: 450,
       }],
@@ -564,7 +564,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-torus-1',
       kind: 'GeneratedSimpleTube',
-      source: '{"generator":"simple-tube-93","radius":170,"depth":260,"segments":24,"rings":16,"twist_degrees":120,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#f9f9f9","colour_pattern":"ring","fog_strength":0.35,"fog_colour":"#ffffff","seed":93,"torus":true}',
+      source: '{"radius":170,"depth":260,"segments":24,"rings":16,"twistDegrees":120,"randomAmount":0,"strokeWidth":3,"colour":"#0e769f","secondaryColour":"#f9f9f9","colourPattern":"ring","fogStrength":0.35,"fogColour":"#ffffff","seed":93,"torus":true}',
       width: 800,
       height: 450,
     })).toBe(true);
@@ -574,7 +574,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'sphere-dots-1',
       kind: 'GeneratedSphereDots',
-      source: '{"generator":"sphere-drawpixel-93","radius":170,"columns":16,"rows":12,"rotation_degrees":10,"offset_degrees":0,"luminance_influence":0,"point_size":6,"latitude_line_width":2,"colour":"#ffffff","secondary_colour":"#36c2ff","seed":93,"plane_mode":false}',
+      source: '{"radius":170,"columns":16,"rows":12,"rotationDegrees":10,"offsetDegrees":0,"luminanceInfluence":0,"pointSize":6,"latitudeLineWidth":2,"colour":"#ffffff","secondaryColour":"#36c2ff","seed":93,"planeMode":false}',
       width: 480,
       height: 480,
     })).toBe(true);
@@ -583,7 +583,7 @@ describe('sharedRendererNativeMediaSupport', () => {
       media: [...media, {
         id: 'sphere-dots-1',
         kind: 'GeneratedSphereDots',
-        source: '{"generator":"sphere-drawpixel-93","radius":170,"columns":16,"rows":12,"rotation_degrees":10,"offset_degrees":0,"luminance_influence":0,"point_size":6,"latitude_line_width":2,"colour":"#ffffff","secondary_colour":"#36c2ff","seed":93,"plane_mode":false}',
+        source: '{"radius":170,"columns":16,"rows":12,"rotationDegrees":10,"offsetDegrees":0,"luminanceInfluence":0,"pointSize":6,"latitudeLineWidth":2,"colour":"#ffffff","secondaryColour":"#36c2ff","seed":93,"planeMode":false}',
         width: 480,
         height: 480,
       }],
@@ -594,7 +594,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'spherical-field-1',
       kind: 'GeneratedSphericalField',
-      source: '{"generator":"spherical-field-93","radius":160,"strength":100,"colour_amount":100,"alpha_amount":0,"line_width":3,"ring_count":4,"vector_count":16,"field_colour":"#ff3b30","secondary_colour":"#36c2ff","background_opacity":0.08,"container":false,"seed":93}',
+      source: '{"radius":160,"strength":100,"colourAmount":100,"alphaAmount":0,"lineWidth":3,"ringCount":4,"vectorCount":16,"fieldColour":"#ff3b30","secondaryColour":"#36c2ff","backgroundOpacity":0.08,"container":false,"seed":93}',
       width: 480,
       height: 480,
     })).toBe(true);

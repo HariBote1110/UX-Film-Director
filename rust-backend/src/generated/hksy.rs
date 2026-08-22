@@ -12,7 +12,7 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
             media.width, media.height
         ));
     }
-    let checker_grid: GeneratedHksyCheckerGridSource = serde_json::from_str(&media.source)
+    let checker_grid: HksyCheckerGridObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| {
             format!(
                 "Invalid GeneratedHksyCheckerGrid media '{}': {error}",
@@ -25,6 +25,16 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
             media.id
         )
     })?;
+    let cell_size = checker_grid.cell_size.round().max(1.0) as u32;
+    let line_width_u32 = checker_grid.line_width.round().max(0.0) as u32;
+    let separate_interval = checker_grid
+        .separate_interval
+        .map(|value| value.round().max(1.0) as u32)
+        .unwrap_or(5);
+    let separate_line_width = checker_grid
+        .separate_line_width
+        .map(|value| value.round().max(0.0) as u32)
+        .unwrap_or(3);
     let foreground =
         parse_hex_colour_source(&checker_grid.foreground_colour).map_err(|message| {
             format!(
@@ -82,7 +92,7 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
             media.width,
             media.height,
             foreground,
-            checker_grid.line_width as f32,
+            line_width_u32 as f32,
         );
         return RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
             format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}")
@@ -97,10 +107,10 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
                 background,
                 line_colour: secondary,
                 separate_colour: foreground,
-                cell_size: checker_grid.cell_size,
-                line_width: checker_grid.line_width,
-                separate_interval: checker_grid.separate_interval.unwrap_or(5),
-                separate_line_width: checker_grid.separate_line_width.unwrap_or(3),
+                cell_size,
+                line_width: line_width_u32,
+                separate_interval,
+                separate_line_width,
             },
         );
         return RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
@@ -115,7 +125,7 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
             media.height,
             anchor_points,
             foreground,
-            checker_grid.line_width as f32,
+            line_width_u32 as f32,
             checker_grid.round_caps.unwrap_or(true),
         );
         return RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
@@ -126,8 +136,8 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
     for y in 0..media.height {
         for x in 0..media.width {
             let colour = if checker_grid.checker_enabled {
-                let tile_x = x / checker_grid.cell_size;
-                let tile_y = y / checker_grid.cell_size;
+                let tile_x = x / cell_size;
+                let tile_y = y / cell_size;
                 if !palette_colours.is_empty() {
                     let palette_index = ((tile_x + tile_y) as usize) % palette_colours.len();
                     palette_colours[palette_index]
@@ -144,8 +154,8 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
         }
     }
 
-    if checker_grid.grid_enabled && checker_grid.line_width > 0 {
-        let line_width = checker_grid.line_width as f32;
+    if checker_grid.grid_enabled && line_width_u32 > 0 {
+        let line_width = line_width_u32 as f32;
         let mut x = 0;
         while x < media.width {
             draw_line_segment_rgba(
@@ -157,7 +167,7 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
                 secondary,
                 line_width,
             );
-            x = x.saturating_add(checker_grid.cell_size);
+            x = x.saturating_add(cell_size);
         }
         let mut y = 0;
         while y < media.height {
@@ -170,7 +180,7 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
                 secondary,
                 line_width,
             );
-            y = y.saturating_add(checker_grid.cell_size);
+            y = y.saturating_add(cell_size);
         }
     }
 
@@ -323,7 +333,7 @@ fn draw_hksy_anchor_line_pattern_rgba(
     pixels: &mut [u8],
     width: u32,
     height: u32,
-    anchor_points: &[GeneratedHksyAnchorPoint],
+    anchor_points: &[HksyAnchorPoint],
     colour: [u8; 3],
     line_width: f32,
     round_caps: bool,

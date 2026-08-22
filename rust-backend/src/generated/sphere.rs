@@ -12,7 +12,7 @@ pub(crate) fn build_generated_sphere_dots_source_frame(
             media.width, media.height
         ));
     }
-    let sphere: GeneratedSphereDotsSource = serde_json::from_str(&media.source)
+    let sphere: SphereDotsObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedSphereDots media '{}': {error}", media.id))?;
     validate_generated_sphere_dots_source(&sphere).map_err(|message| {
         format!(
@@ -63,7 +63,7 @@ fn draw_sphere_dots_rgba(
     pixels: &mut [u8],
     width: u32,
     height: u32,
-    sphere: &GeneratedSphereDotsSource,
+    sphere: &SphereDotsObjectFields,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
 ) {
@@ -178,7 +178,7 @@ fn draw_sphere_dots_plane_rgba(
     centre_x: f32,
     centre_y: f32,
     radius: f32,
-    sphere: &GeneratedSphereDotsSource,
+    sphere: &SphereDotsObjectFields,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
     point_radius: f32,
@@ -239,7 +239,7 @@ pub(crate) fn build_generated_spherical_field_source_frame(
             media.width, media.height
         ));
     }
-    let field: GeneratedSphericalFieldSource =
+    let field: SphericalFieldObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedSphericalField media '{}': {error}",
@@ -294,7 +294,7 @@ fn draw_spherical_field_rgba(
     pixels: &mut [u8],
     width: u32,
     height: u32,
-    field: &GeneratedSphericalFieldSource,
+    field: &SphericalFieldObjectFields,
     field_colour: [u8; 3],
     secondary_colour: [u8; 3],
 ) {

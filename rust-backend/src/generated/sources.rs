@@ -285,117 +285,28 @@ pub(crate) struct GeneratedGetColorDotsSource {
     pub(crate) seed: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedHksyCheckerGridSource {
-    pub(crate) generator: String,
-    pub(crate) pattern: Option<String>,
-    pub(crate) cell_size: u32,
-    pub(crate) line_width: u32,
-    pub(crate) checker_enabled: bool,
-    pub(crate) grid_enabled: bool,
-    pub(crate) foreground_colour: String,
-    pub(crate) secondary_colour: String,
-    pub(crate) background_colour: String,
-    pub(crate) palette_colours: Option<Vec<String>>,
-    pub(crate) separate_interval: Option<u32>,
-    pub(crate) separate_line_width: Option<u32>,
-    pub(crate) anchor_points: Option<Vec<GeneratedHksyAnchorPoint>>,
-    pub(crate) round_caps: Option<bool>,
-    pub(crate) max_join_distance: Option<f32>,
-}
+// `hksy_checker_grid` kind のワイヤーソースは rust-core の
+// `HksyCheckerGridObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。`anchorPoints` の要素型は `HksyAnchorPoint`。
+pub(crate) use uxfd_rust_core::{HksyAnchorPoint, HksyCheckerGridObjectFields};
 
-#[derive(Debug, Deserialize, Clone, Copy)]
-pub(crate) struct GeneratedHksyAnchorPoint {
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-}
+// `region_frame` kind のワイヤーソースは rust-core の
+// `RegionFrameObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::RegionFrameObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedRegionFrameSource {
-    pub(crate) generator: String,
-    pub(crate) line_width: f32,
-    #[serde(default = "default_region_frame_shape")]
-    pub(crate) shape: String,
-    #[serde(default = "default_region_frame_corner_cut")]
-    pub(crate) corner_cut: f32,
-    pub(crate) extra_width: f32,
-    pub(crate) extra_height: f32,
-    pub(crate) background_opacity: f32,
-    pub(crate) frame_colour: String,
-    pub(crate) background_colour: String,
-}
+// `simple_tube` kind のワイヤーソースは rust-core の `SimpleTubeObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::SimpleTubeObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedSimpleTubeSource {
-    pub(crate) generator: String,
-    pub(crate) radius: f32,
-    pub(crate) depth: f32,
-    pub(crate) segments: u32,
-    pub(crate) rings: u32,
-    pub(crate) twist_degrees: f32,
-    pub(crate) random_amount: f32,
-    pub(crate) stroke_width: f32,
-    pub(crate) colour: String,
-    pub(crate) secondary_colour: String,
-    #[serde(default = "default_simple_tube_colour_pattern")]
-    pub(crate) colour_pattern: String,
-    #[serde(default)]
-    pub(crate) fog_strength: f32,
-    #[serde(default = "default_simple_tube_fog_colour")]
-    pub(crate) fog_colour: String,
-    pub(crate) seed: i64,
-    pub(crate) torus: bool,
-}
+// `sphere_dots` kind のワイヤーソースは rust-core の `SphereDotsObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::SphereDotsObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedSphereDotsSource {
-    pub(crate) generator: String,
-    pub(crate) radius: f32,
-    pub(crate) columns: u32,
-    pub(crate) rows: u32,
-    pub(crate) rotation_degrees: f32,
-    pub(crate) offset_degrees: f32,
-    pub(crate) luminance_influence: f32,
-    pub(crate) point_size: f32,
-    pub(crate) latitude_line_width: f32,
-    pub(crate) colour: String,
-    pub(crate) secondary_colour: String,
-    pub(crate) seed: i64,
-    pub(crate) plane_mode: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedSphericalFieldSource {
-    pub(crate) generator: String,
-    pub(crate) radius: f32,
-    pub(crate) strength: f32,
-    pub(crate) colour_amount: f32,
-    pub(crate) alpha_amount: f32,
-    pub(crate) line_width: f32,
-    pub(crate) ring_count: u32,
-    pub(crate) vector_count: u32,
-    pub(crate) field_colour: String,
-    pub(crate) secondary_colour: String,
-    pub(crate) background_opacity: f32,
-    pub(crate) container: bool,
-    pub(crate) seed: i64,
-}
-
-pub(crate) fn default_simple_tube_colour_pattern() -> String {
-    "single".to_string()
-}
-
-pub(crate) fn default_simple_tube_fog_colour() -> String {
-    "#ffffff".to_string()
-}
-
-pub(crate) fn default_region_frame_shape() -> String {
-    "rectangle".to_string()
-}
-
-pub(crate) fn default_region_frame_corner_cut() -> f32 {
-    20.0
-}
+// `spherical_field` kind のワイヤーソースは rust-core の
+// `SphericalFieldObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::SphericalFieldObjectFields;
 
 // `shape` kind のワイヤーソースは rust-core の `ShapeObjectFields`（編集モデルの
 // 正本）を camelCase のまま直接デシリアライズする。`GeneratedGradientSource` への

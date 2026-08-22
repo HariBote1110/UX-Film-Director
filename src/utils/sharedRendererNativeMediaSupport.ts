@@ -1410,46 +1410,45 @@ const isSharedRendererNativeGeneratedToneCurveSourceSupported = (source: string)
 const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       pattern?: unknown;
-      cell_size?: unknown;
-      line_width?: unknown;
-      checker_enabled?: unknown;
-      grid_enabled?: unknown;
-      foreground_colour?: unknown;
-      secondary_colour?: unknown;
-      background_colour?: unknown;
-      palette_colours?: unknown;
-      separate_interval?: unknown;
-      separate_line_width?: unknown;
-      anchor_points?: unknown;
-      round_caps?: unknown;
-      max_join_distance?: unknown;
+      cellSize?: unknown;
+      lineWidth?: unknown;
+      checkerEnabled?: unknown;
+      gridEnabled?: unknown;
+      foregroundColour?: unknown;
+      secondaryColour?: unknown;
+      backgroundColour?: unknown;
+      paletteColours?: unknown;
+      separateInterval?: unknown;
+      separateLineWidth?: unknown;
+      anchorPoints?: unknown;
+      roundCaps?: unknown;
+      maxJoinDistance?: unknown;
     };
-    const paletteColoursSupported = parsed.palette_colours === undefined || (
-      Array.isArray(parsed.palette_colours)
-      && parsed.palette_colours.length >= 2
-      && parsed.palette_colours.length <= 16
-      && parsed.palette_colours.every((colour) => (
+    const paletteColoursSupported = parsed.paletteColours === undefined || (
+      Array.isArray(parsed.paletteColours)
+      && parsed.paletteColours.length >= 2
+      && parsed.paletteColours.length <= 16
+      && parsed.paletteColours.every((colour) => (
         typeof colour === 'string'
         && /^#[0-9a-f]{6}$/i.test(colour)
       ))
     );
     const measuredGridFieldsSupported = parsed.pattern !== 'measured-grid' || (
-      typeof parsed.separate_interval === 'number'
-      && Number.isInteger(parsed.separate_interval)
-      && parsed.separate_interval >= 1
-      && parsed.separate_interval <= 1000
-      && typeof parsed.separate_line_width === 'number'
-      && Number.isInteger(parsed.separate_line_width)
-      && parsed.separate_line_width >= 0
-      && parsed.separate_line_width <= 100
+      typeof parsed.separateInterval === 'number'
+      && Number.isFinite(parsed.separateInterval)
+      && parsed.separateInterval >= 1
+      && parsed.separateInterval <= 1000
+      && typeof parsed.separateLineWidth === 'number'
+      && Number.isFinite(parsed.separateLineWidth)
+      && parsed.separateLineWidth >= 0
+      && parsed.separateLineWidth <= 100
     );
     const anchorLineFieldsSupported = parsed.pattern !== 'anchor-line' || (
-      Array.isArray(parsed.anchor_points)
-      && parsed.anchor_points.length >= 2
-      && parsed.anchor_points.length <= 16
-      && parsed.anchor_points.every((point) => (
+      Array.isArray(parsed.anchorPoints)
+      && parsed.anchorPoints.length >= 2
+      && parsed.anchorPoints.length <= 16
+      && parsed.anchorPoints.every((point) => (
         typeof point === 'object'
         && point !== null
         && typeof (point as { x?: unknown }).x === 'number'
@@ -1461,31 +1460,30 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
         && (point as { y: number }).y >= -1000
         && (point as { y: number }).y <= 1000
       ))
-      && typeof parsed.round_caps === 'boolean'
-      && typeof parsed.max_join_distance === 'number'
-      && Number.isFinite(parsed.max_join_distance)
-      && parsed.max_join_distance >= 0
-      && parsed.max_join_distance <= 300
+      && typeof parsed.roundCaps === 'boolean'
+      && typeof parsed.maxJoinDistance === 'number'
+      && Number.isFinite(parsed.maxJoinDistance)
+      && parsed.maxJoinDistance >= 0
+      && parsed.maxJoinDistance <= 300
     );
     return (
-      parsed.generator === 'hksy-checker-grid'
-      && (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond' || parsed.pattern === 'measured-grid' || parsed.pattern === 'anchor-line')
-      && typeof parsed.cell_size === 'number'
-      && Number.isInteger(parsed.cell_size)
-      && parsed.cell_size >= 1
-      && parsed.cell_size <= 1000
-      && typeof parsed.line_width === 'number'
-      && Number.isInteger(parsed.line_width)
-      && parsed.line_width >= 0
-      && parsed.line_width <= 100
-      && typeof parsed.checker_enabled === 'boolean'
-      && typeof parsed.grid_enabled === 'boolean'
-      && typeof parsed.foreground_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
-      && typeof parsed.secondary_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond' || parsed.pattern === 'measured-grid' || parsed.pattern === 'anchor-line')
+      && typeof parsed.cellSize === 'number'
+      && Number.isFinite(parsed.cellSize)
+      && parsed.cellSize >= 1
+      && parsed.cellSize <= 1000
+      && typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth >= 0
+      && parsed.lineWidth <= 100
+      && typeof parsed.checkerEnabled === 'boolean'
+      && typeof parsed.gridEnabled === 'boolean'
+      && typeof parsed.foregroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foregroundColour)
+      && typeof parsed.secondaryColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondaryColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
       && paletteColoursSupported
       && measuredGridFieldsSupported
       && anchorLineFieldsSupported
@@ -1599,40 +1597,38 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
 const isSharedRendererNativeGeneratedRegionFrameSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      line_width?: unknown;
+      lineWidth?: unknown;
       shape?: unknown;
-      corner_cut?: unknown;
-      extra_width?: unknown;
-      extra_height?: unknown;
-      background_opacity?: unknown;
-      frame_colour?: unknown;
-      background_colour?: unknown;
+      cornerCut?: unknown;
+      extraWidth?: unknown;
+      extraHeight?: unknown;
+      backgroundOpacity?: unknown;
+      frameColour?: unknown;
+      backgroundColour?: unknown;
     };
     return (
-      parsed.generator === 'region-frame-93'
-      && typeof parsed.line_width === 'number'
-      && Number.isFinite(parsed.line_width)
-      && parsed.line_width >= 0
-      && parsed.line_width <= 5000
+      typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth >= 0
+      && parsed.lineWidth <= 5000
       && (parsed.shape === undefined || parsed.shape === 'rectangle' || parsed.shape === 'ellipse' || parsed.shape === 'cut_corner')
-      && (parsed.shape !== 'cut_corner' || (typeof parsed.corner_cut === 'number' && Number.isFinite(parsed.corner_cut) && parsed.corner_cut >= 0 && parsed.corner_cut <= 5000))
-      && typeof parsed.extra_width === 'number'
-      && Number.isFinite(parsed.extra_width)
-      && parsed.extra_width >= -5000
-      && parsed.extra_width <= 5000
-      && typeof parsed.extra_height === 'number'
-      && Number.isFinite(parsed.extra_height)
-      && parsed.extra_height >= -5000
-      && parsed.extra_height <= 5000
-      && typeof parsed.background_opacity === 'number'
-      && Number.isFinite(parsed.background_opacity)
-      && parsed.background_opacity >= 0
-      && parsed.background_opacity <= 1
-      && typeof parsed.frame_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.frame_colour)
-      && typeof parsed.background_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      && (parsed.shape !== 'cut_corner' || (typeof parsed.cornerCut === 'number' && Number.isFinite(parsed.cornerCut) && parsed.cornerCut >= 0 && parsed.cornerCut <= 5000))
+      && typeof parsed.extraWidth === 'number'
+      && Number.isFinite(parsed.extraWidth)
+      && parsed.extraWidth >= -5000
+      && parsed.extraWidth <= 5000
+      && typeof parsed.extraHeight === 'number'
+      && Number.isFinite(parsed.extraHeight)
+      && parsed.extraHeight >= -5000
+      && parsed.extraHeight <= 5000
+      && typeof parsed.backgroundOpacity === 'number'
+      && Number.isFinite(parsed.backgroundOpacity)
+      && parsed.backgroundOpacity >= 0
+      && parsed.backgroundOpacity <= 1
+      && typeof parsed.frameColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.frameColour)
+      && typeof parsed.backgroundColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.backgroundColour)
     );
   } catch {
     return false;
@@ -1642,25 +1638,23 @@ const isSharedRendererNativeGeneratedRegionFrameSourceSupported = (source: strin
 const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
       depth?: unknown;
       segments?: unknown;
       rings?: unknown;
-      twist_degrees?: unknown;
-      random_amount?: unknown;
-      stroke_width?: unknown;
+      twistDegrees?: unknown;
+      randomAmount?: unknown;
+      strokeWidth?: unknown;
       colour?: unknown;
-      secondary_colour?: unknown;
-      colour_pattern?: unknown;
-      fog_strength?: unknown;
-      fog_colour?: unknown;
+      secondaryColour?: unknown;
+      colourPattern?: unknown;
+      fogStrength?: unknown;
+      fogColour?: unknown;
       seed?: unknown;
       torus?: unknown;
     };
     return (
-      parsed.generator === 'simple-tube-93'
-      && typeof parsed.radius === 'number'
+      typeof parsed.radius === 'number'
       && Number.isFinite(parsed.radius)
       && parsed.radius >= 0
       && parsed.radius <= 9000
@@ -1676,30 +1670,27 @@ const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string
       && Number.isInteger(parsed.rings)
       && parsed.rings >= 2
       && parsed.rings <= 128
-      && typeof parsed.twist_degrees === 'number'
-      && Number.isFinite(parsed.twist_degrees)
-      && parsed.twist_degrees >= -1800
-      && parsed.twist_degrees <= 1800
-      && typeof parsed.random_amount === 'number'
-      && Number.isFinite(parsed.random_amount)
-      && parsed.random_amount >= -300
-      && parsed.random_amount <= 300
-      && typeof parsed.stroke_width === 'number'
-      && Number.isFinite(parsed.stroke_width)
-      && parsed.stroke_width >= 0
-      && parsed.stroke_width <= 200
+      && typeof parsed.twistDegrees === 'number'
+      && Number.isFinite(parsed.twistDegrees)
+      && parsed.twistDegrees >= -1800
+      && parsed.twistDegrees <= 1800
+      && typeof parsed.randomAmount === 'number'
+      && Number.isFinite(parsed.randomAmount)
+      && parsed.randomAmount >= -300
+      && parsed.randomAmount <= 300
+      && typeof parsed.strokeWidth === 'number'
+      && Number.isFinite(parsed.strokeWidth)
+      && parsed.strokeWidth >= 0
+      && parsed.strokeWidth <= 200
       && typeof parsed.colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
-      && typeof parsed.secondary_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
-      && (parsed.colour_pattern === 'single' || parsed.colour_pattern === 'ring' || parsed.colour_pattern === 'depth')
-      && typeof parsed.fog_strength === 'number'
-      && Number.isFinite(parsed.fog_strength)
-      && parsed.fog_strength >= 0
-      && parsed.fog_strength <= 1
-      && typeof parsed.fog_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.fog_colour)
-      && Number.isInteger(parsed.seed)
+      && typeof parsed.secondaryColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondaryColour)
+      && (parsed.colourPattern === undefined || parsed.colourPattern === 'single' || parsed.colourPattern === 'ring' || parsed.colourPattern === 'depth')
+      && (parsed.fogStrength === undefined || (typeof parsed.fogStrength === 'number' && Number.isFinite(parsed.fogStrength) && parsed.fogStrength >= 0 && parsed.fogStrength <= 1))
+      && (parsed.fogColour === undefined || (typeof parsed.fogColour === 'string' && /^#[0-9a-f]{6}$/i.test(parsed.fogColour)))
+      && typeof parsed.seed === 'number'
+      && Number.isFinite(parsed.seed)
       && typeof parsed.torus === 'boolean'
     );
   } catch {
@@ -1710,23 +1701,21 @@ const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string
 const isSharedRendererNativeGeneratedSphereDotsSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
       columns?: unknown;
       rows?: unknown;
-      rotation_degrees?: unknown;
-      offset_degrees?: unknown;
-      luminance_influence?: unknown;
-      point_size?: unknown;
-      latitude_line_width?: unknown;
+      rotationDegrees?: unknown;
+      offsetDegrees?: unknown;
+      luminanceInfluence?: unknown;
+      pointSize?: unknown;
+      latitudeLineWidth?: unknown;
       colour?: unknown;
-      secondary_colour?: unknown;
+      secondaryColour?: unknown;
       seed?: unknown;
-      plane_mode?: unknown;
+      planeMode?: unknown;
     };
     return (
-      parsed.generator === 'sphere-drawpixel-93'
-      && typeof parsed.radius === 'number'
+      typeof parsed.radius === 'number'
       && Number.isFinite(parsed.radius)
       && parsed.radius >= 1
       && parsed.radius <= 5000
@@ -1738,32 +1727,33 @@ const isSharedRendererNativeGeneratedSphereDotsSourceSupported = (source: string
       && Number.isInteger(parsed.rows)
       && parsed.rows >= 2
       && parsed.rows <= 256
-      && typeof parsed.rotation_degrees === 'number'
-      && Number.isFinite(parsed.rotation_degrees)
-      && parsed.rotation_degrees >= -1000
-      && parsed.rotation_degrees <= 1000
-      && typeof parsed.offset_degrees === 'number'
-      && Number.isFinite(parsed.offset_degrees)
-      && parsed.offset_degrees >= -360
-      && parsed.offset_degrees <= 360
-      && typeof parsed.luminance_influence === 'number'
-      && Number.isFinite(parsed.luminance_influence)
-      && parsed.luminance_influence >= -5000
-      && parsed.luminance_influence <= 5000
-      && typeof parsed.point_size === 'number'
-      && Number.isFinite(parsed.point_size)
-      && parsed.point_size >= 0
-      && parsed.point_size <= 200
-      && typeof parsed.latitude_line_width === 'number'
-      && Number.isFinite(parsed.latitude_line_width)
-      && parsed.latitude_line_width >= 0
-      && parsed.latitude_line_width <= 100
+      && typeof parsed.rotationDegrees === 'number'
+      && Number.isFinite(parsed.rotationDegrees)
+      && parsed.rotationDegrees >= -1000
+      && parsed.rotationDegrees <= 1000
+      && typeof parsed.offsetDegrees === 'number'
+      && Number.isFinite(parsed.offsetDegrees)
+      && parsed.offsetDegrees >= -360
+      && parsed.offsetDegrees <= 360
+      && typeof parsed.luminanceInfluence === 'number'
+      && Number.isFinite(parsed.luminanceInfluence)
+      && parsed.luminanceInfluence >= -5000
+      && parsed.luminanceInfluence <= 5000
+      && typeof parsed.pointSize === 'number'
+      && Number.isFinite(parsed.pointSize)
+      && parsed.pointSize >= 0
+      && parsed.pointSize <= 200
+      && typeof parsed.latitudeLineWidth === 'number'
+      && Number.isFinite(parsed.latitudeLineWidth)
+      && parsed.latitudeLineWidth >= 0
+      && parsed.latitudeLineWidth <= 100
       && typeof parsed.colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
-      && typeof parsed.secondary_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
-      && Number.isInteger(parsed.seed)
-      && typeof parsed.plane_mode === 'boolean'
+      && typeof parsed.secondaryColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondaryColour)
+      && typeof parsed.seed === 'number'
+      && Number.isFinite(parsed.seed)
+      && typeof parsed.planeMode === 'boolean'
     );
   } catch {
     return false;
@@ -1773,23 +1763,21 @@ const isSharedRendererNativeGeneratedSphereDotsSourceSupported = (source: string
 const isSharedRendererNativeGeneratedSphericalFieldSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
       strength?: unknown;
-      colour_amount?: unknown;
-      alpha_amount?: unknown;
-      line_width?: unknown;
-      ring_count?: unknown;
-      vector_count?: unknown;
-      field_colour?: unknown;
-      secondary_colour?: unknown;
-      background_opacity?: unknown;
+      colourAmount?: unknown;
+      alphaAmount?: unknown;
+      lineWidth?: unknown;
+      ringCount?: unknown;
+      vectorCount?: unknown;
+      fieldColour?: unknown;
+      secondaryColour?: unknown;
+      backgroundOpacity?: unknown;
       container?: unknown;
       seed?: unknown;
     };
     return (
-      parsed.generator === 'spherical-field-93'
-      && typeof parsed.radius === 'number'
+      typeof parsed.radius === 'number'
       && Number.isFinite(parsed.radius)
       && parsed.radius >= 0
       && parsed.radius <= 5000
@@ -1797,36 +1785,37 @@ const isSharedRendererNativeGeneratedSphericalFieldSourceSupported = (source: st
       && Number.isFinite(parsed.strength)
       && parsed.strength >= -200
       && parsed.strength <= 200
-      && typeof parsed.colour_amount === 'number'
-      && Number.isFinite(parsed.colour_amount)
-      && parsed.colour_amount >= -100
-      && parsed.colour_amount <= 100
-      && typeof parsed.alpha_amount === 'number'
-      && Number.isFinite(parsed.alpha_amount)
-      && parsed.alpha_amount >= -100
-      && parsed.alpha_amount <= 100
-      && typeof parsed.line_width === 'number'
-      && Number.isFinite(parsed.line_width)
-      && parsed.line_width >= 0
-      && parsed.line_width <= 100
-      && typeof parsed.ring_count === 'number'
-      && Number.isInteger(parsed.ring_count)
-      && parsed.ring_count >= 1
-      && parsed.ring_count <= 64
-      && typeof parsed.vector_count === 'number'
-      && Number.isInteger(parsed.vector_count)
-      && parsed.vector_count >= 0
-      && parsed.vector_count <= 256
-      && typeof parsed.field_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.field_colour)
-      && typeof parsed.secondary_colour === 'string'
-      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
-      && typeof parsed.background_opacity === 'number'
-      && Number.isFinite(parsed.background_opacity)
-      && parsed.background_opacity >= 0
-      && parsed.background_opacity <= 1
+      && typeof parsed.colourAmount === 'number'
+      && Number.isFinite(parsed.colourAmount)
+      && parsed.colourAmount >= -100
+      && parsed.colourAmount <= 100
+      && typeof parsed.alphaAmount === 'number'
+      && Number.isFinite(parsed.alphaAmount)
+      && parsed.alphaAmount >= -100
+      && parsed.alphaAmount <= 100
+      && typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth >= 0
+      && parsed.lineWidth <= 100
+      && typeof parsed.ringCount === 'number'
+      && Number.isInteger(parsed.ringCount)
+      && parsed.ringCount >= 1
+      && parsed.ringCount <= 64
+      && typeof parsed.vectorCount === 'number'
+      && Number.isInteger(parsed.vectorCount)
+      && parsed.vectorCount >= 0
+      && parsed.vectorCount <= 256
+      && typeof parsed.fieldColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fieldColour)
+      && typeof parsed.secondaryColour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondaryColour)
+      && typeof parsed.backgroundOpacity === 'number'
+      && Number.isFinite(parsed.backgroundOpacity)
+      && parsed.backgroundOpacity >= 0
+      && parsed.backgroundOpacity <= 1
       && typeof parsed.container === 'boolean'
-      && Number.isInteger(parsed.seed)
+      && typeof parsed.seed === 'number'
+      && Number.isFinite(parsed.seed)
     );
   } catch {
     return false;

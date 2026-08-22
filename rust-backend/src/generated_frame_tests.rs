@@ -931,7 +931,7 @@ fn generated_hksy_checker_grid_source_frame_contains_checker_cells_and_grid() {
     let media = SceneMediaReference {
             id: "hksy-checker-grid-1".to_string(),
             kind: MediaKind::GeneratedHksyCheckerGrid,
-            source: r##"{"generator":"hksy-checker-grid","cell_size":50,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#333333","background_colour":"#000000"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"cellSize":50,"lineWidth":2,"checkerEnabled":true,"gridEnabled":true,"foregroundColour":"#ffffff","secondaryColour":"#333333","backgroundColour":"#000000"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -968,7 +968,7 @@ fn generated_hksy_checker_grid_source_frame_uses_palette_colours_for_checker_til
     let media = SceneMediaReference {
             id: "hksy-multi-colour-checker-1".to_string(),
             kind: MediaKind::GeneratedHksyCheckerGrid,
-            source: r##"{"generator":"hksy-checker-grid","cell_size":20,"line_width":0,"checker_enabled":true,"grid_enabled":false,"foreground_colour":"#ff5c8a","secondary_colour":"#36c2ff","background_colour":"#111111","palette_colours":["#ff5c8a","#36c2ff","#ffd166","#70e000"]}"##.to_string(),
+            source: r##"{"width":120,"height":80,"cellSize":20,"lineWidth":0,"checkerEnabled":true,"gridEnabled":false,"foregroundColour":"#ff5c8a","secondaryColour":"#36c2ff","backgroundColour":"#111111","paletteColours":["#ff5c8a","#36c2ff","#ffd166","#70e000"]}"##.to_string(),
             width: 120,
             height: 80,
             source_rate: None,
@@ -1009,7 +1009,7 @@ fn generated_hksy_checker_grid_source_frame_renders_diamond_pattern_with_transpa
     let media = SceneMediaReference {
             id: "hksy-diamond-1".to_string(),
             kind: MediaKind::GeneratedHksyCheckerGrid,
-            source: r##"{"generator":"hksy-checker-grid","pattern":"diamond","cell_size":64,"line_width":96,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ffffff","secondary_colour":"#ffffff","background_colour":"#000000"}"##.to_string(),
+            source: r##"{"width":480,"height":360,"pattern":"diamond","cellSize":64,"lineWidth":96,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ffffff","secondaryColour":"#ffffff","backgroundColour":"#000000"}"##.to_string(),
             width: 480,
             height: 360,
             source_rate: None,
@@ -1042,7 +1042,7 @@ fn generated_hksy_checker_grid_source_frame_renders_measured_grid_lines() {
     let media = SceneMediaReference {
             id: "hksy-measured-grid-1".to_string(),
             kind: MediaKind::GeneratedHksyCheckerGrid,
-            source: r##"{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":32,"line_width":1,"checker_enabled":false,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#bbeeff","background_colour":"#10131a","separate_interval":5,"separate_line_width":3}"##.to_string(),
+            source: r##"{"width":320,"height":240,"pattern":"measured-grid","cellSize":32,"lineWidth":1,"checkerEnabled":false,"gridEnabled":true,"foregroundColour":"#ffffff","secondaryColour":"#bbeeff","backgroundColour":"#10131a","separateInterval":5,"separateLineWidth":3}"##.to_string(),
             width: 320,
             height: 240,
             source_rate: None,
@@ -1077,7 +1077,7 @@ fn generated_hksy_checker_grid_source_frame_renders_anchor_line_pattern() {
     let media = SceneMediaReference {
             id: "hksy-anchor-line-1".to_string(),
             kind: MediaKind::GeneratedHksyCheckerGrid,
-            source: r##"{"generator":"hksy-checker-grid","pattern":"anchor-line","cell_size":64,"line_width":20,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ffffff","secondary_colour":"#ffffff","background_colour":"#000000","anchor_points":[{"x":-88,"y":50},{"x":0,"y":-100},{"x":88,"y":50}],"round_caps":true,"max_join_distance":50}"##.to_string(),
+            source: r##"{"width":480,"height":360,"pattern":"anchor-line","cellSize":64,"lineWidth":20,"checkerEnabled":false,"gridEnabled":false,"foregroundColour":"#ffffff","secondaryColour":"#ffffff","backgroundColour":"#000000","anchorPoints":[{"x":-88,"y":50},{"x":0,"y":-100},{"x":88,"y":50}],"roundCaps":true,"maxJoinDistance":50}"##.to_string(),
             width: 480,
             height: 360,
             source_rate: None,
@@ -1301,7 +1301,7 @@ fn generated_region_frame_source_frame_renders_border_and_background() {
     let media = SceneMediaReference {
             id: "region-frame-1".to_string(),
             kind: MediaKind::GeneratedRegionFrame,
-            source: r##"{"generator":"region-frame-93","line_width":10,"shape":"rectangle","extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"lineWidth":10,"shape":"rectangle","extraWidth":0,"extraHeight":0,"backgroundOpacity":0.2,"frameColour":"#ffffff","backgroundColour":"#ccccff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -1328,7 +1328,7 @@ fn generated_region_frame_source_frame_renders_ellipse_variant_with_transparent_
     let media = SceneMediaReference {
             id: "ellipse-region-frame-1".to_string(),
             kind: MediaKind::GeneratedRegionFrame,
-            source: r##"{"generator":"region-frame-93","line_width":10,"shape":"ellipse","extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            source: r##"{"width":200,"height":120,"lineWidth":10,"shape":"ellipse","extraWidth":0,"extraHeight":0,"backgroundOpacity":0.2,"frameColour":"#ffffff","backgroundColour":"#ccccff"}"##.to_string(),
             width: 200,
             height: 120,
             source_rate: None,
@@ -1360,7 +1360,7 @@ fn generated_region_frame_source_frame_renders_cut_corner_variant() {
     let media = SceneMediaReference {
             id: "cut-region-frame-1".to_string(),
             kind: MediaKind::GeneratedRegionFrame,
-            source: r##"{"generator":"region-frame-93","line_width":8,"shape":"cut_corner","corner_cut":24,"extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            source: r##"{"width":200,"height":120,"lineWidth":8,"shape":"cut_corner","cornerCut":24,"extraWidth":0,"extraHeight":0,"backgroundOpacity":0.2,"frameColour":"#ffffff","backgroundColour":"#ccccff"}"##.to_string(),
             width: 200,
             height: 120,
             source_rate: None,
@@ -1392,7 +1392,7 @@ fn generated_simple_tube_source_frame_renders_tube_lines() {
     let media = SceneMediaReference {
             id: "simple-tube-1".to_string(),
             kind: MediaKind::GeneratedSimpleTube,
-            source: r##"{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","seed":93,"torus":false}"##.to_string(),
+            source: r##"{"width":800,"height":450,"radius":150,"depth":280,"segments":16,"rings":10,"twistDegrees":0,"randomAmount":0,"strokeWidth":3,"colour":"#0e769f","secondaryColour":"#ffffff","seed":93,"torus":false}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -1424,7 +1424,7 @@ fn generated_simple_tube_source_frame_renders_torus_with_fogged_ring_pattern() {
     let media = SceneMediaReference {
             id: "simple-tube-torus-1".to_string(),
             kind: MediaKind::GeneratedSimpleTube,
-            source: r##"{"generator":"simple-tube-93","radius":170,"depth":260,"segments":24,"rings":16,"twist_degrees":120,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#f9f9f9","colour_pattern":"ring","fog_strength":0.35,"fog_colour":"#ffffff","seed":93,"torus":true}"##.to_string(),
+            source: r##"{"width":800,"height":450,"radius":170,"depth":260,"segments":24,"rings":16,"twistDegrees":120,"randomAmount":0,"strokeWidth":3,"colour":"#0e769f","secondaryColour":"#f9f9f9","colourPattern":"ring","fogStrength":0.35,"fogColour":"#ffffff","seed":93,"torus":true}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -1456,7 +1456,7 @@ fn generated_sphere_dots_source_frame_renders_equator_points() {
     let media = SceneMediaReference {
             id: "sphere-dots-1".to_string(),
             kind: MediaKind::GeneratedSphereDots,
-            source: r##"{"generator":"sphere-drawpixel-93","radius":170,"columns":16,"rows":11,"rotation_degrees":0,"offset_degrees":0,"luminance_influence":0,"point_size":6,"latitude_line_width":2,"colour":"#ffffff","secondary_colour":"#36c2ff","seed":93,"plane_mode":false}"##.to_string(),
+            source: r##"{"width":480,"height":480,"radius":170,"columns":16,"rows":11,"rotationDegrees":0,"offsetDegrees":0,"luminanceInfluence":0,"pointSize":6,"latitudeLineWidth":2,"colour":"#ffffff","secondaryColour":"#36c2ff","seed":93,"planeMode":false}"##.to_string(),
             width: 480,
             height: 480,
             source_rate: None,
@@ -1488,7 +1488,7 @@ fn generated_spherical_field_source_frame_renders_force_ring() {
     let media = SceneMediaReference {
             id: "spherical-field-1".to_string(),
             kind: MediaKind::GeneratedSphericalField,
-            source: r##"{"generator":"spherical-field-93","radius":160,"strength":100,"colour_amount":100,"alpha_amount":0,"line_width":3,"ring_count":4,"vector_count":16,"field_colour":"#ff3b30","secondary_colour":"#36c2ff","background_opacity":0.08,"container":false,"seed":93}"##.to_string(),
+            source: r##"{"width":480,"height":480,"radius":160,"strength":100,"colourAmount":100,"alphaAmount":0,"lineWidth":3,"ringCount":4,"vectorCount":16,"fieldColour":"#ff3b30","secondaryColour":"#36c2ff","backgroundOpacity":0.08,"container":false,"seed":93}"##.to_string(),
             width: 480,
             height: 480,
             source_rate: None,

@@ -438,19 +438,20 @@ pub(crate) fn validate_generated_tone_curve_source(
 }
 
 pub(crate) fn validate_generated_region_frame_source(
-    source: &GeneratedRegionFrameSource,
+    source: &RegionFrameObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "region-frame-93" {
-        return Err("generator must be region-frame-93".to_string());
-    }
     if !source.line_width.is_finite() || !(0.0..=5000.0).contains(&source.line_width) {
         return Err("line_width must be 0..5000".to_string());
     }
-    if source.shape != "rectangle" && source.shape != "ellipse" && source.shape != "cut_corner" {
-        return Err("shape must be rectangle, ellipse, or cut_corner".to_string());
+    if let Some(shape) = source.shape.as_deref() {
+        if shape != "rectangle" && shape != "ellipse" && shape != "cut_corner" {
+            return Err("shape must be rectangle, ellipse, or cut_corner".to_string());
+        }
     }
-    if !source.corner_cut.is_finite() || !(0.0..=5000.0).contains(&source.corner_cut) {
-        return Err("corner_cut must be 0..5000".to_string());
+    if let Some(corner_cut) = source.corner_cut {
+        if !corner_cut.is_finite() || !(0.0..=5000.0).contains(&corner_cut) {
+            return Err("corner_cut must be 0..5000".to_string());
+        }
     }
     if !source.extra_width.is_finite() || !(-5000.0..=5000.0).contains(&source.extra_width) {
         return Err("extra_width must be -5000..5000".to_string());
@@ -467,11 +468,8 @@ pub(crate) fn validate_generated_region_frame_source(
 }
 
 pub(crate) fn validate_generated_simple_tube_source(
-    source: &GeneratedSimpleTubeSource,
+    source: &SimpleTubeObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "simple-tube-93" {
-        return Err("generator must be simple-tube-93".to_string());
-    }
     if !source.radius.is_finite() || !(0.0..=9000.0).contains(&source.radius) {
         return Err("radius must be 0..9000".to_string());
     }
@@ -493,27 +491,25 @@ pub(crate) fn validate_generated_simple_tube_source(
     if !source.stroke_width.is_finite() || !(0.0..=200.0).contains(&source.stroke_width) {
         return Err("stroke_width must be 0..200".to_string());
     }
-    if source.colour_pattern != "single"
-        && source.colour_pattern != "ring"
-        && source.colour_pattern != "depth"
-    {
-        return Err("colour_pattern must be single, ring, or depth".to_string());
+    if let Some(colour_pattern) = source.colour_pattern.as_deref() {
+        if colour_pattern != "single" && colour_pattern != "ring" && colour_pattern != "depth" {
+            return Err("colour_pattern must be single, ring, or depth".to_string());
+        }
     }
-    if !source.fog_strength.is_finite() || !(0.0..=1.0).contains(&source.fog_strength) {
-        return Err("fog_strength must be 0..1".to_string());
+    if let Some(fog_strength) = source.fog_strength {
+        if !fog_strength.is_finite() || !(0.0..=1.0).contains(&fog_strength) {
+            return Err("fog_strength must be 0..1".to_string());
+        }
     }
     parse_hex_colour_source(&source.colour)?;
     parse_hex_colour_source(&source.secondary_colour)?;
-    parse_hex_colour_source(&source.fog_colour)?;
+    parse_hex_colour_source(source.fog_colour.as_deref().unwrap_or("#ffffff"))?;
     Ok(())
 }
 
 pub(crate) fn validate_generated_sphere_dots_source(
-    source: &GeneratedSphereDotsSource,
+    source: &SphereDotsObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "sphere-drawpixel-93" {
-        return Err("generator must be sphere-drawpixel-93".to_string());
-    }
     if !source.radius.is_finite() || !(1.0..=5000.0).contains(&source.radius) {
         return Err("radius must be 1..5000".to_string());
     }
@@ -550,11 +546,8 @@ pub(crate) fn validate_generated_sphere_dots_source(
 }
 
 pub(crate) fn validate_generated_spherical_field_source(
-    source: &GeneratedSphericalFieldSource,
+    source: &SphericalFieldObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "spherical-field-93" {
-        return Err("generator must be spherical-field-93".to_string());
-    }
     if !source.radius.is_finite() || !(0.0..=5000.0).contains(&source.radius) {
         return Err("radius must be 0..5000".to_string());
     }
@@ -585,11 +578,8 @@ pub(crate) fn validate_generated_spherical_field_source(
 }
 
 pub(crate) fn validate_generated_hksy_checker_grid_source(
-    source: &GeneratedHksyCheckerGridSource,
+    source: &HksyCheckerGridObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "hksy-checker-grid" {
-        return Err("generator must be hksy-checker-grid".to_string());
-    }
     if let Some(pattern) = source.pattern.as_deref() {
         if pattern != "checker-grid"
             && pattern != "diamond"
@@ -601,10 +591,10 @@ pub(crate) fn validate_generated_hksy_checker_grid_source(
             );
         }
     }
-    if source.cell_size == 0 || source.cell_size > 1000 {
+    if !source.cell_size.is_finite() || !(1.0..=1000.0).contains(&source.cell_size) {
         return Err("cell_size must be 1..1000".to_string());
     }
-    if source.line_width > 100 {
+    if !source.line_width.is_finite() || !(0.0..=100.0).contains(&source.line_width) {
         return Err("line_width must be 0..100".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;
@@ -619,12 +609,12 @@ pub(crate) fn validate_generated_hksy_checker_grid_source(
         }
     }
     if let Some(separate_interval) = source.separate_interval {
-        if separate_interval == 0 || separate_interval > 1000 {
+        if !separate_interval.is_finite() || !(1.0..=1000.0).contains(&separate_interval) {
             return Err("separate_interval must be 1..1000".to_string());
         }
     }
     if let Some(separate_line_width) = source.separate_line_width {
-        if separate_line_width > 100 {
+        if !separate_line_width.is_finite() || !(0.0..=100.0).contains(&separate_line_width) {
             return Err("separate_line_width must be 0..100".to_string());
         }
     }

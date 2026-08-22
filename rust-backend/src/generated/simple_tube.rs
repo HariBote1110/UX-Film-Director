@@ -12,7 +12,7 @@ pub(crate) fn build_generated_simple_tube_source_frame(
             media.width, media.height
         ));
     }
-    let simple_tube: GeneratedSimpleTubeSource = serde_json::from_str(&media.source)
+    let simple_tube: SimpleTubeObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedSimpleTube media '{}': {error}", media.id))?;
     validate_generated_simple_tube_source(&simple_tube).map_err(|message| {
         format!(
@@ -33,7 +33,7 @@ pub(crate) fn build_generated_simple_tube_source_frame(
                 media.id
             )
         })?;
-    let fog_colour = parse_hex_colour_source(&simple_tube.fog_colour).map_err(|message| {
+    let fog_colour = parse_hex_colour_source(simple_tube.fog_colour.as_deref().unwrap_or("#ffffff")).map_err(|message| {
         format!(
             "Invalid GeneratedSimpleTube media '{}': fog_colour {message}",
             media.id
@@ -70,7 +70,7 @@ fn draw_simple_tube_rgba(
     pixels: &mut [u8],
     width: u32,
     height: u32,
-    tube: &GeneratedSimpleTubeSource,
+    tube: &SimpleTubeObjectFields,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
     fog_colour: [u8; 3],
@@ -124,7 +124,7 @@ fn draw_simple_tube_rgba(
             segment_count,
             twist,
             tube.random_amount,
-            tube.seed + ring_index as i64,
+            tube.seed as i64 + ring_index as i64,
         );
         let ring_colour = simple_tube_colour_for_ring(
             tube,
@@ -189,7 +189,7 @@ fn draw_simple_tube_rgba(
         segment_count,
         twist_total * 0.5,
         tube.random_amount,
-        tube.seed + 10_000,
+        tube.seed as i64 + 10_000,
     );
     let centre_colour = simple_tube_colour_for_ring(
         tube,
@@ -241,7 +241,7 @@ fn draw_simple_tube_torus_rgba(
     centre_y: f32,
     radius_x: f32,
     radius_y: f32,
-    tube: &GeneratedSimpleTubeSource,
+    tube: &SimpleTubeObjectFields,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
     fog_colour: [u8; 3],
@@ -259,7 +259,7 @@ fn draw_simple_tube_torus_rgba(
         segment_count,
         tube.twist_degrees.to_radians(),
         tube.random_amount,
-        tube.seed,
+        tube.seed as i64,
     );
     let ring_colour = simple_tube_colour_for_ring(tube, 0, 1, colour, secondary_colour, fog_colour);
     for pair in points.windows(2) {
@@ -310,14 +310,14 @@ fn draw_simple_tube_torus_rgba(
 }
 
 fn simple_tube_colour_for_ring(
-    tube: &GeneratedSimpleTubeSource,
+    tube: &SimpleTubeObjectFields,
     index: u32,
     count: u32,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
     fog_colour: [u8; 3],
 ) -> [u8; 3] {
-    let pattern_colour = match tube.colour_pattern.as_str() {
+    let pattern_colour = match tube.colour_pattern.as_deref().unwrap_or("single") {
         "ring" if index % 2 == 1 => secondary_colour,
         "depth" => {
             let amount = if count <= 1 {
@@ -332,7 +332,7 @@ fn simple_tube_colour_for_ring(
     mix_rgb_u8(
         pattern_colour,
         fog_colour,
-        tube.fog_strength.clamp(0.0, 1.0),
+        tube.fog_strength.unwrap_or(0.0).clamp(0.0, 1.0),
     )
 }
 

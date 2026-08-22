@@ -12,7 +12,7 @@ pub(crate) fn build_generated_region_frame_source_frame(
             media.width, media.height
         ));
     }
-    let region_frame: GeneratedRegionFrameSource = serde_json::from_str(&media.source)
+    let region_frame: RegionFrameObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedRegionFrame media '{}': {error}", media.id))?;
     validate_generated_region_frame_source(&region_frame).map_err(|message| {
         format!(
@@ -57,7 +57,7 @@ pub(crate) fn build_generated_region_frame_source_frame(
     ];
     let border = [frame_colour[0], frame_colour[1], frame_colour[2], 255];
     let line_width = region_frame.line_width.ceil().max(0.0);
-    match region_frame.shape.as_str() {
+    match region_frame.shape.as_deref().unwrap_or("rectangle") {
         "ellipse" => draw_region_frame_ellipse_rgba(
             &mut pixels,
             media.width,
@@ -71,7 +71,7 @@ pub(crate) fn build_generated_region_frame_source_frame(
             media.width,
             media.height,
             line_width,
-            region_frame.corner_cut,
+            region_frame.corner_cut.unwrap_or(20.0),
             background,
             border,
         ),

@@ -1843,56 +1843,29 @@ const serialiseGeneratedToneCurveSource = (object: ToneCurveObject): string =>
     backgroundColour: object.backgroundColour,
   });
 
-const normaliseHksyPaletteColours = (colours: readonly string[] | undefined): string[] => {
-  if (!Array.isArray(colours)) return [];
-  return colours
-    .filter((colour) => /^#[0-9a-f]{6}$/i.test(colour))
-    .slice(0, 16);
-};
-
-const defaultHksyAnchorPoints = [
-  { x: -88, y: 50 },
-  { x: 0, y: -100 },
-  { x: 88, y: 50 },
-];
-
-const normaliseHksyAnchorPoints = (points: HksyCheckerGridObject['anchorPoints']): Array<{ x: number; y: number }> => {
-  if (!Array.isArray(points)) return defaultHksyAnchorPoints;
-  const normalised = points
-    .filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
-    .map((point) => ({
-      x: Math.min(1000, Math.max(-1000, point.x)),
-      y: Math.min(1000, Math.max(-1000, point.y)),
-    }))
-    .slice(0, 16);
-  return normalised.length >= 2 ? normalised : defaultHksyAnchorPoints;
-};
-
-const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string => {
-  const paletteColours = normaliseHksyPaletteColours(object.paletteColours ?? undefined);
-  const pattern = object.pattern === 'diamond' || object.pattern === 'measured-grid' || object.pattern === 'anchor-line' ? object.pattern : undefined;
-  return JSON.stringify({
-    generator: 'hksy-checker-grid',
-    ...(pattern ? { pattern } : {}),
-    cell_size: Math.min(1000, Math.max(1, Math.trunc(finiteNumberOr(object.cellSize, 50)))),
-    line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.lineWidth, 2)))),
-    checker_enabled: object.checkerEnabled === true,
-    grid_enabled: object.gridEnabled === true,
-    foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#ffffff',
-    secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#333333',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
-    ...(paletteColours.length >= 2 ? { palette_colours: paletteColours } : {}),
-    ...(pattern === 'measured-grid' ? {
-      separate_interval: Math.min(1000, Math.max(1, Math.trunc(finiteNumberOr(object.separateInterval, 5)))),
-      separate_line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.separateLineWidth, 3)))),
-    } : {}),
-    ...(pattern === 'anchor-line' ? {
-      anchor_points: normaliseHksyAnchorPoints(object.anchorPoints),
-      round_caps: object.roundCaps !== false,
-      max_join_distance: Math.min(300, Math.max(0, finiteNumberOr(object.maxJoinDistance, 50))),
-    } : {}),
+// `hksy_checker_grid` kind のワイヤーソースは rust-core の
+// `HksyCheckerGridObjectFields`（正本）を camelCase のまま直接デシリアライズ
+// する。フォールバック/クランプは rust-backend の validator/frame builder
+// 側に移した。
+const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    pattern: object.pattern,
+    cellSize: object.cellSize,
+    lineWidth: object.lineWidth,
+    checkerEnabled: object.checkerEnabled,
+    gridEnabled: object.gridEnabled,
+    foregroundColour: object.foregroundColour,
+    secondaryColour: object.secondaryColour,
+    backgroundColour: object.backgroundColour,
+    paletteColours: object.paletteColours,
+    separateInterval: object.separateInterval,
+    separateLineWidth: object.separateLineWidth,
+    anchorPoints: object.anchorPoints,
+    roundCaps: object.roundCaps,
+    maxJoinDistance: object.maxJoinDistance,
   });
-};
 
 const serialiseGeneratedGetColorDotsSource = (
   object: GetColorDotFieldObject,
@@ -1970,72 +1943,87 @@ const getColorSampleSourceForObject = (
   return { source };
 };
 
+// `region_frame` kind のワイヤーソースは rust-core の `RegionFrameObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string =>
   JSON.stringify({
-    generator: 'region-frame-93',
-    line_width: Math.min(5000, Math.max(0, finiteNumberOr(object.lineWidth, 10))),
-    shape: object.shape === 'ellipse' || object.shape === 'cut_corner' ? object.shape : 'rectangle',
-    ...(object.shape === 'cut_corner' ? {
-      corner_cut: Math.min(5000, Math.max(0, finiteNumberOr(object.cornerCut, 20))),
-    } : {}),
-    extra_width: Math.min(5000, Math.max(-5000, finiteNumberOr(object.extraWidth, 0))),
-    extra_height: Math.min(5000, Math.max(-5000, finiteNumberOr(object.extraHeight, 0))),
-    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.2))),
-    frame_colour: /^#[0-9a-f]{6}$/i.test(object.frameColour) ? object.frameColour : '#ffffff',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ccccff',
+    width: object.width,
+    height: object.height,
+    lineWidth: object.lineWidth,
+    shape: object.shape,
+    cornerCut: object.cornerCut,
+    extraWidth: object.extraWidth,
+    extraHeight: object.extraHeight,
+    backgroundOpacity: object.backgroundOpacity,
+    frameColour: object.frameColour,
+    backgroundColour: object.backgroundColour,
   });
 
+// `simple_tube` kind のワイヤーソースは rust-core の `SimpleTubeObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedSimpleTubeSource = (object: SimpleTubeObject): string =>
   JSON.stringify({
-    generator: 'simple-tube-93',
-    radius: Math.min(9000, Math.max(0, finiteNumberOr(object.radius, 150))),
-    depth: Math.min(12000, Math.max(-12000, finiteNumberOr(object.depth, 280))),
-    segments: Math.min(128, Math.max(3, Math.trunc(finiteNumberOr(object.segments, 16)))),
-    rings: Math.min(128, Math.max(2, Math.trunc(finiteNumberOr(object.rings, 10)))),
-    twist_degrees: Math.min(1800, Math.max(-1800, finiteNumberOr(object.twistDegrees, 0))),
-    random_amount: Math.min(300, Math.max(-300, finiteNumberOr(object.randomAmount, 0))),
-    stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 3))),
-    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#0e769f',
-    secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#ffffff',
-    colour_pattern: object.colourPattern === 'ring' || object.colourPattern === 'depth' ? object.colourPattern : 'single',
-    fog_strength: Math.min(1, Math.max(0, finiteNumberOr(object.fogStrength, 0))),
-    fog_colour: object.fogColour && /^#[0-9a-f]{6}$/i.test(object.fogColour) ? object.fogColour : '#ffffff',
-    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
-    torus: object.torus === true,
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    depth: object.depth,
+    segments: object.segments,
+    rings: object.rings,
+    twistDegrees: object.twistDegrees,
+    randomAmount: object.randomAmount,
+    strokeWidth: object.strokeWidth,
+    colour: object.colour,
+    secondaryColour: object.secondaryColour,
+    colourPattern: object.colourPattern,
+    fogStrength: object.fogStrength,
+    fogColour: object.fogColour,
+    seed: object.seed,
+    torus: object.torus,
   });
 
+// `sphere_dots` kind のワイヤーソースは rust-core の `SphereDotsObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
 const serialiseGeneratedSphereDotsSource = (object: SphereDotsObject): string =>
   JSON.stringify({
-    generator: 'sphere-drawpixel-93',
-    radius: Math.min(5000, Math.max(1, finiteNumberOr(object.radius, 170))),
-    columns: Math.min(256, Math.max(3, Math.trunc(finiteNumberOr(object.columns, 16)))),
-    rows: Math.min(256, Math.max(2, Math.trunc(finiteNumberOr(object.rows, 12)))),
-    rotation_degrees: Math.min(1000, Math.max(-1000, finiteNumberOr(object.rotationDegrees, 10))),
-    offset_degrees: Math.min(360, Math.max(-360, finiteNumberOr(object.offsetDegrees, 0))),
-    luminance_influence: Math.min(5000, Math.max(-5000, finiteNumberOr(object.luminanceInfluence, 0))),
-    point_size: Math.min(200, Math.max(0, finiteNumberOr(object.pointSize, 6))),
-    latitude_line_width: Math.min(100, Math.max(0, finiteNumberOr(object.latitudeLineWidth, 2))),
-    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#ffffff',
-    secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#36c2ff',
-    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
-    plane_mode: object.planeMode === true,
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    columns: object.columns,
+    rows: object.rows,
+    rotationDegrees: object.rotationDegrees,
+    offsetDegrees: object.offsetDegrees,
+    luminanceInfluence: object.luminanceInfluence,
+    pointSize: object.pointSize,
+    latitudeLineWidth: object.latitudeLineWidth,
+    colour: object.colour,
+    secondaryColour: object.secondaryColour,
+    seed: object.seed,
+    planeMode: object.planeMode,
   });
 
+// `spherical_field` kind のワイヤーソースは rust-core の
+// `SphericalFieldObjectFields`（正本）を camelCase のまま直接デシリアライズ
+// する。フォールバック/クランプは rust-backend の validator/frame builder
+// 側に移した。
 const serialiseGeneratedSphericalFieldSource = (object: SphericalFieldObject): string =>
   JSON.stringify({
-    generator: 'spherical-field-93',
-    radius: Math.min(5000, Math.max(0, finiteNumberOr(object.radius, 160))),
-    strength: Math.min(200, Math.max(-200, finiteNumberOr(object.strength, 100))),
-    colour_amount: Math.min(100, Math.max(-100, finiteNumberOr(object.colourAmount, 100))),
-    alpha_amount: Math.min(100, Math.max(-100, finiteNumberOr(object.alphaAmount, 0))),
-    line_width: Math.min(100, Math.max(0, finiteNumberOr(object.lineWidth, 3))),
-    ring_count: Math.min(64, Math.max(1, Math.trunc(finiteNumberOr(object.ringCount, 4)))),
-    vector_count: Math.min(256, Math.max(0, Math.trunc(finiteNumberOr(object.vectorCount, 16)))),
-    field_colour: /^#[0-9a-f]{6}$/i.test(object.fieldColour) ? object.fieldColour : '#ff3b30',
-    secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#36c2ff',
-    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.08))),
-    container: object.container === true,
-    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    strength: object.strength,
+    colourAmount: object.colourAmount,
+    alphaAmount: object.alphaAmount,
+    lineWidth: object.lineWidth,
+    ringCount: object.ringCount,
+    vectorCount: object.vectorCount,
+    fieldColour: object.fieldColour,
+    secondaryColour: object.secondaryColour,
+    backgroundOpacity: object.backgroundOpacity,
+    container: object.container,
+    seed: object.seed,
   });
 
 const findTargetAudioForGeneratedAudio = (
