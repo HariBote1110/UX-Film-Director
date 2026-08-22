@@ -26,7 +26,7 @@ use uxfd_rust_core::schema::{
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
-    Project, ProjectSettings, ProjectSize, ProtractorObjectFields, PsdWorldPlacement,
+    Project, ProjectFile, ProjectSettings, ProjectSize, ProtractorObjectFields, PsdWorldPlacement,
     PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields,
     SamplingMode, SceneData, StageCamera3D,
@@ -61,6 +61,7 @@ fn write_ts_bindings() {
         .with_large_int("number");
 
     Project::export_all(&cfg).expect("Project の TS export に失敗しました");
+    ProjectFile::export_all(&cfg).expect("ProjectFile の TS export に失敗しました");
     SceneSnapshot::export_all(&cfg).expect("SceneSnapshot の TS export に失敗しました");
     EvaluatedClip::export_all(&cfg).expect("EvaluatedClip の TS export に失敗しました");
     ShapeObjectFields::export_all(&cfg).expect("ShapeObjectFields の TS export に失敗しました");
@@ -231,6 +232,7 @@ fn write_json_schemas() {
     write_schema::<Track>(&dir, "Track");
     write_schema::<GroupControl>(&dir, "GroupControl");
     write_schema::<Project>(&dir, "Project");
+    write_schema::<ProjectFile>(&dir, "ProjectFile");
     write_schema::<ShapeType>(&dir, "ShapeType");
     write_schema::<ShapeGradientKind>(&dir, "ShapeGradientKind");
     write_schema::<ShapeGradientScope>(&dir, "ShapeGradientScope");

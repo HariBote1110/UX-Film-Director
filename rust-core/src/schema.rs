@@ -3772,3 +3772,126 @@ pub struct SceneData {
     #[ts(rename = "stageCamera3D")]
     pub stage_camera_3d: StageCamera3D,
 }
+
+/// `.uxfd.json` ファイルフォーマットのマジック文字列。
+/// `src/utils/projectFile.ts` の `PROJECT_FILE_FORMAT` と同値。
+pub const PROJECT_FILE_FORMAT: &str = "uxfd-project";
+
+/// `.uxfd.json` の V1（旧・単一シーン）フォーマット。
+/// `src/utils/projectFile.ts` の `ProjectFileV1` と同形。
+/// R4-1b の時点で V1 は移行専用（`ProjectFile::from` の入力）であり、
+/// 生成物として TS 側に直接公開する必要はないため `TS` は導出しない。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectFileV1 {
+    pub format: String,
+    pub version: u32,
+    #[serde(rename = "savedAt")]
+    pub saved_at: String,
+    #[serde(rename = "projectSettings")]
+    pub project_settings: ProjectSettings,
+    pub duration: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layers: Option<Vec<LayerState>>,
+    pub objects: Vec<TimelineObject>,
+}
+
+/// `.uxfd.json` の V2（複数シーン）フォーマット。TS 側 `ProjectFileV2`
+/// （`src/utils/projectFile.ts`）のトップレベル payload と同形。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ProjectFile {
+    pub format: String,
+    pub version: u32,
+    #[serde(rename = "savedAt")]
+    #[ts(rename = "savedAt")]
+    pub saved_at: String,
+    #[serde(rename = "projectSettings")]
+    #[ts(rename = "projectSettings")]
+    pub project_settings: ProjectSettings,
+    #[serde(rename = "activeSceneId")]
+    #[ts(rename = "activeSceneId")]
+    pub active_scene_id: String,
+    pub scenes: Vec<SceneData>,
+}
+
+/// `.uxfd.json` を V1/V2 どちらの形でも読み込むための untagged union。
+/// フィールド集合が V1（`duration`/`objects`）と V2（`activeSceneId`/`scenes`）
+/// で排他的であるため、`serde(untagged)` の総当たり判定でも一意に決まる。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum ProjectFileVersioned {
+    V2(ProjectFile),
+    V1(ProjectFileV1),
+}
+
+const LEGACY_SCENE_ID: &str = "legacy-scene-1";
+/// `src/components/timelineConstants.ts` の `MAX_LAYERS` と同値。
+const MAX_LAYERS: usize = 100;
+
+impl CameraState {
+    /// `src/utils/sceneState.ts` の `createDefaultCamera` と同値。
+    pub fn default_camera() -> Self {
+        CameraState {
+            centre_offset_x: 0.0,
+            centre_offset_y: 0.0,
+            zoom: 1.0,
+            rotation_deg: 0.0,
+        }
+    }
+}
+
+impl StageCamera3D {
+    /// `src/utils/sceneState.ts` の `createDefaultStageCamera3D` と同値。
+    pub fn default_stage_camera_3d() -> Self {
+        StageCamera3D {
+            position: Vec3 {
+                x: 0.0,
+                y: 1.6,
+                z: 6.0,
+            },
+            target: Vec3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+        }
+    }
+}
+
+/// `src/utils/sceneState.ts` の `createDefaultLayers` と同値。
+pub fn default_layers() -> Vec<LayerState> {
+    (0..MAX_LAYERS)
+        .map(|index| LayerState {
+            name: format!("Layer {}", index + 1),
+            visible: true,
+            locked: false,
+        })
+        .collect()
+}
+
+impl From<ProjectFileV1> for ProjectFile {
+    /// `src/utils/projectFile.ts` の `migrateV1ToV2` を忠実に移植する。
+    fn from(v1: ProjectFileV1) -> Self {
+        let layers = v1.layers.unwrap_or_else(default_layers);
+        let duration = if v1.duration.is_finite() {
+            v1.duration.max(1.0)
+        } else {
+            30.0
+        };
+        ProjectFile {
+            format: PROJECT_FILE_FORMAT.to_string(),
+            version: 2,
+            saved_at: v1.saved_at,
+            project_settings: v1.project_settings,
+            active_scene_id: LEGACY_SCENE_ID.to_string(),
+            scenes: vec![SceneData {
+                id: LEGACY_SCENE_ID.to_string(),
+                name: "Scene 1".to_string(),
+                duration,
+                layers,
+                objects: v1.objects,
+                camera: CameraState::default_camera(),
+                stage_camera_3d: StageCamera3D::default_stage_camera_3d(),
+            }],
+        }
+    }
+}

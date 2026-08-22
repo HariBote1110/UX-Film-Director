@@ -400,6 +400,15 @@ golden-frame parity 維持、既存 E2E export の画素一致。
 `progress/rust-source-of-truth-r4-project-file.md` を参照。`ProjectFile` 型・
 マイグレーション・IPC・`projectFile.ts` の書き換えは未着手（R4-1b 以降）。
 
+**進捗（R4-1b・2026-08-22）**: `ProjectFile`/`ProjectFileV1`/`ProjectFileVersioned`
+（V1/V2 untagged union）を `rust-core/src/schema.rs` へ追加し、
+`From<ProjectFileV1> for ProjectFile` で TS 側 `migrateV1ToV2` を移植。
+`rust-core/src/project_file.rs` の純粋関数 `project_file_from_json`/
+`project_file_to_json_value` と、実プロジェクト fixture によるラウンドトリップ
+テスト（`rust-core/tests/project_file_round_trip.rs`）を追加。IPC・
+`electron/`・`projectFile.ts` の書き換えは引き続き未着手（R4-2 以降）。詳細は
+`progress/rust-source-of-truth-r4-project-file.md` を参照。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、

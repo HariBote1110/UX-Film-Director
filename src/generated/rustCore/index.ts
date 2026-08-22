@@ -64,6 +64,7 @@ export * from './PieChartSortMode';
 export * from './PlainEffectorLineObjectFields';
 export * from './PositionKeyframe';
 export * from './Project';
+export * from './ProjectFile';
 export * from './ProjectSettings';
 export * from './ProjectSize';
 export * from './ProtractorObjectFields';
