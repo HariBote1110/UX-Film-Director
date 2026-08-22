@@ -236,6 +236,37 @@ pub enum Command {
         next: StageCamera3D,
         previous: StageCamera3D,
     },
+
+    /// 複数の `Command` を「1 個の undo ステップ」として束ねる（R4-8 で判明
+    /// した複数オブジェクト削除/分割/貼り付け/グループ化等、11 の UI 操作に
+    /// 対応するために追加した）。
+    ///
+    /// - **apply は all-or-nothing**: `commands` を作業用コピー上へ順番に
+    ///   適用し、途中の 1 つでも失敗したらその `CommandError` をそのまま
+    ///   返す。元の `scene`（呼び出し元が保持する参照）は一切変更しない
+    ///   （`apply_command` はどのバリアントでも「ローカル clone 上でのみ
+    ///   変更し、失敗したら破棄する」設計を貫いているため、`Batch` も他の
+    ///   バリアントと同じ規約に従うだけで自然に成立する）。
+    /// - **invert は逆順**: `invert(Batch[a, b, c]) == Batch[invert(c),
+    ///   invert(b), invert(a)]`。一部だけ undo するという状態は存在しない
+    ///   （apply が all-or-nothing のため、Batch は「全部成功した」か
+    ///   「一切適用されていない」のいずれかでしか履歴に積まれない）ので、
+    ///   単純な逆順 + 各要素の invert で正しい undo になる。
+    /// - **入れ子は拒否**: `commands` に `Command::Batch` 自体が含まれる
+    ///   場合は `apply_command` が `CommandError::NestedBatch` を返す。
+    ///   nested Batch を許すと「内側の Batch が部分失敗したら外側はどこまで
+    ///   ロールバックするか」を再帰的に考える必要が生じ、invert の逆順則
+    ///   （フラットな 1 段の逆順で十分）が壊れるため、設計をシンプルに保つ
+    ///   ためにあえて禁止する。
+    /// - **空 Batch は拒否**: `commands` が空の `Batch` は
+    ///   `CommandError::EmptyBatch` で apply 時に拒否する。呼び出し側
+    ///   （UI）が「対象 0 件の操作」を誤って undo 履歴へ積んでしまうと、
+    ///   undo/redo が何もしないスタックエントリを生み、ユーザーから見て
+    ///   「undo を押しても何も起きない」不可解な挙動になるため、
+    ///   コマンド構築側（呼び出し元）に「積む前に対象が 1 件以上あるか」を
+    ///   確認させる設計とした。
+    #[serde(rename = "batch")]
+    Batch { commands: Vec<Command> },
 }
 
 /// コマンド適用が失敗した理由。
@@ -278,6 +309,11 @@ pub enum CommandError {
         filter_id: String,
         reason: String,
     },
+    /// `Batch` の `commands` が空だった。
+    EmptyBatch,
+    /// `Batch` の `commands` に `Command::Batch` 自体が含まれていた
+    /// （入れ子の Batch は許可しない）。
+    NestedBatch,
 }
 
 /// `command` を `scene` に適用し、新しい `SceneData` を返す。
@@ -546,6 +582,21 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
 
         Command::SetStageCamera3D { next, .. } => {
             next_scene.stage_camera_3d = *next;
+        }
+
+        Command::Batch { commands } => {
+            if commands.is_empty() {
+                return Err(CommandError::EmptyBatch);
+            }
+            if commands
+                .iter()
+                .any(|sub_command| matches!(sub_command, Command::Batch { .. }))
+            {
+                return Err(CommandError::NestedBatch);
+            }
+            for sub_command in commands {
+                next_scene = apply_command(&next_scene, sub_command)?;
+            }
         }
     }
 
@@ -830,6 +881,10 @@ pub fn invert(command: &Command) -> Command {
         Command::SetStageCamera3D { next, previous } => Command::SetStageCamera3D {
             next: *previous,
             previous: *next,
+        },
+
+        Command::Batch { commands } => Command::Batch {
+            commands: commands.iter().rev().map(invert).collect(),
         },
     }
 }
