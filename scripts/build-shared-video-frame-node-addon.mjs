@@ -2,27 +2,32 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { resolveCargoBin, buildCargoNotFoundHint } from './resolveCargo.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const crateDir = path.join(repoRoot, 'shared-video-frame-bridge-node')
 const isRelease = process.argv.includes('--release')
 const profile = isRelease ? 'release' : 'debug'
 const manifestPath = path.join(crateDir, 'Cargo.toml')
+const cargoBin = resolveCargoBin()
 
 const cargoArgs = ['build', '--manifest-path', manifestPath]
 if (isRelease) {
   cargoArgs.push('--release')
 }
 
-const cargo = spawnSync('cargo', cargoArgs, {
+const cargo = spawnSync(cargoBin, cargoArgs, {
   cwd: repoRoot,
   stdio: 'inherit',
 })
 
 if (cargo.error) {
   console.error(
-    `[build-shared-video-frame-node-addon] failed to start "cargo ${cargoArgs.join(' ')}" (cwd: ${repoRoot}): ${cargo.error.message}`
+    `[build-shared-video-frame-node-addon] failed to start "${cargoBin} ${cargoArgs.join(' ')}" (cwd: ${repoRoot}): ${cargo.error.message}`
   )
+  if (cargo.error.code === 'ENOENT') {
+    console.error(buildCargoNotFoundHint('build-shared-video-frame-node-addon'))
+  }
   process.exit(1)
 }
 

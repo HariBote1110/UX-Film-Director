@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveCargoBin, buildCargoNotFoundHint } from './resolveCargo.mjs';
 
+const cargoBin = resolveCargoBin();
 const nativeOverlayBuildScript = fileURLToPath(new URL('../scripts/build-native-overlay-addon.mjs', import.meta.url));
 const bridgeBuildScript = fileURLToPath(new URL('../scripts/build-shared-video-frame-node-addon.mjs', import.meta.url));
 const viteBin = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
@@ -33,6 +35,9 @@ const runCommand = (label, command, args, onDone) => {
     console.error(
       `[dev] failed to start step "${label}" (${describeCommand(command, args)}) in cwd=${process.cwd()}: ${err.message}`
     );
+    if (err.code === 'ENOENT' && command === cargoBin) {
+      console.error(buildCargoNotFoundHint('dev'));
+    }
     process.exit(1);
   });
 
@@ -81,7 +86,7 @@ const startVite = () => {
 
 const buildRustBackendRelease = (onDone) => {
   console.error('[dev] building rust-backend (release)...');
-  runCommand('rust-backend build', 'cargo', ['build', '--release', '--manifest-path', rustBackendManifest], onDone);
+  runCommand('rust-backend build', cargoBin, ['build', '--release', '--manifest-path', rustBackendManifest], onDone);
 };
 
 console.error('[dev] building native-overlay addon...');

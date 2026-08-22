@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
+import { resolveCargoBin, buildCargoNotFoundHint } from './resolveCargo.mjs';
 import {
   existsSync,
   mkdirSync,
@@ -392,10 +393,18 @@ const main = async () => {
   log('ネイティブ描画・共有フレーム・Rust backendを再ビルド');
   execFileSync(process.execPath, [NATIVE_OVERLAY_BUILD], { cwd: ROOT, stdio: 'inherit' });
   execFileSync(process.execPath, [SHARED_FRAME_BUILD], { cwd: ROOT, stdio: 'inherit' });
-  execFileSync('cargo', ['build', '--manifest-path', RUST_BACKEND_MANIFEST], {
-    cwd: ROOT,
-    stdio: 'inherit',
-  });
+  const cargoBin = resolveCargoBin();
+  try {
+    execFileSync(cargoBin, ['build', '--manifest-path', RUST_BACKEND_MANIFEST], {
+      cwd: ROOT,
+      stdio: 'inherit',
+    });
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      console.error(buildCargoNotFoundHint('run-realistic-heavy-edit-e2e'));
+    }
+    throw err;
+  }
 
   const viteStartedAtMs = Date.now();
   log(`Vite起動: ${VITE_PORT}`);

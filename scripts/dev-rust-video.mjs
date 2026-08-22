@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveCargoBin, buildCargoNotFoundHint } from './resolveCargo.mjs';
 
+const cargoBin = resolveCargoBin();
 const bridgeBuildScript = fileURLToPath(new URL('../scripts/build-shared-video-frame-node-addon.mjs', import.meta.url));
 const viteBin = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
 const rustBackendManifest = fileURLToPath(new URL('../rust-backend/Cargo.toml', import.meta.url));
@@ -44,10 +46,17 @@ const startVite = () => {
 
 const buildRustBackendRelease = (onDone) => {
   const child = spawn(
-    'cargo',
+    cargoBin,
     ['build', '--release', '--manifest-path', rustBackendManifest],
     { stdio: 'inherit' }
   );
+  child.on('error', (err) => {
+    console.error(`[dev-rust-video] failed to start "${cargoBin} build" : ${err.message}`);
+    if (err.code === 'ENOENT') {
+      console.error(buildCargoNotFoundHint('dev-rust-video'));
+    }
+    process.exit(1);
+  });
   child.on('exit', (code, signal) => {
     if (signal) {
       finishFromChild(code, signal);
