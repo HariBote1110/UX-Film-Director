@@ -280,7 +280,7 @@ parity ゲートも全通過）。詳細は
 - golden-frame parity（`architecture/04-render-parity.md`）を移行の合格条件にする。
   **macOS の parity が崩れたら移行を止める。**
 
-### Phase 5: Windows overlay 実装（推定 4-6日）— コード実装は完了、実機の attach/present 経路は未検証（★完了にはしない）
+### Phase 5: Windows overlay 実装（推定 4-6日）★完了 2026-08-22
 
 `native-overlay` に `win32_overlay.rs` を足す。`macos_overlay.rs`（1,172 行）の対応物。
 
@@ -299,24 +299,79 @@ parity ゲートも全通過）。詳細は
   スモークテスト（`native-overlay/tests/win32_overlay_smoke.rs`）を用意し
   mainpc でビルド・実行したが、`schtasks /it` 経由の実行が 3 分以上
   ハングし完走しなかった（プロセスは強制終了して後始末済み）。
-  ハング箇所は未特定 —
-  `DCompositionCreateDevice`/`CreateTargetForHwnd` 自体が原因か、
-  `wgpu::Instance::request_adapter`/`request_device` が
-  メッセージポンプの無い owner window 上でブロックしているのか、
-  それ以外かは切り分けられていない。つまり **DirectComposition +
-  wgpu composition surface の実機での実際の attach 成立は未確認**。
+  つまり **DirectComposition + wgpu composition surface の実機での
+  実際の attach 成立は未確認**。
   Phase 0（`sustained-present.md`）の probe は同じ構成要素
   （DCompositionCreateDevice → CreateTargetForHwnd → CreateVisual →
   SetRoot → SurfaceTargetUnsafe::CompositionVisual）を実機で 60 秒超
-  連続 present して成功しているため設計自体の妥当性は高いが、
-  probe とこの実装の間の差分（本実装は owner を通常の
-  top-level window にしている・メッセージループを回していない等）が
-  ハングの原因になっている可能性がある。次のセッションでの優先課題。
+  連続 present して成功しているため設計自体の妥当性は高い。
+  **原因切り分け完了（`windows_port_research/notes/w5-attach-hang.md`）**:
+  段階ログを仕込んで実機再現したところ、`DCompositionCreateDevice`/
+  `CreateTargetForHwnd`/`CreateVisual`/`SetRoot` と
+  `wgpu::Instance::request_adapter`/`request_device` はいずれも
+  メッセージポンプの無いプロセスでも数秒で正常完了しており、
+  「メッセージポンプ不在が原因」という仮説は**棄却**。実際に進行が
+  止まっていたのは attach 完了までに `NativeWgpuLiveSurfaceRenderer::
+  from_surface` が作る 9 本の描画パイプラインのうち 2 本目、
+  `nv12::create_nv12_pipeline_for_format`（シェーダ
+  `shared-renderer/shaders/nv12_composite.wgsl`、678行）で、
+  10 分間追跡しても完了しなかった。1 本目のパイプライン（598行の
+  シェーダ）は1分未満で完了しており、行数差（+13%）に見合わない
+  所要時間の差から `nv12_composite.wgsl` 固有の構造がコンパイル経路を
+  病的に遅くしている可能性が高い。DirectComposition/wgpu surface
+  attach 自体の設計は健全であることが実機で確認できたため、
+  残る未検証事項はこのシェーダのコンパイル時間問題のみに絞られた。
 
-コードの実装（cfg分岐・型・pure関数・Cargo依存）は完了し、pure関数と
-既存の周辺テストは実機で確認済みだが、**この機能の中核である
-「実際にoverlayウィンドウがDirectComposition経由で合成されるか」は
-実機で確認できていない**ため、Phase 5 全体を ★完了 とは書かない。
+  **さらに切り分け完了（`windows_port_research/notes/nv12-pipeline-compile-time.md`、
+  最小再現ツール `windows_port_research/tools/nv12-pipeline-repro`）**:
+  「nv12 固有の構造が原因」という上記の推測は**棄却**。nv12版を持たない
+  `solid_composite.wgsl`（598行、1本目のパイプラインのシェーダ）だけを
+  単体計測しても Windows/DX12 で **104秒** かかった
+  （macOS/Metal では1〜3秒未満、H-C採択）。`create_shader_module`
+  （naga の WGSL→HLSL変換）はどちらのシェーダも1msで、遅いのは一貫して
+  `create_render_pipeline`（DX12 既定コンパイラ Fxc 本体）。真因は
+  **両シェーダが共有する550行超の "effects tail" が、wgpu 自身
+  "old, slow and unmaintained" と明記するレガシーコンパイラ Fxc に
+  とって病的に遅いこと**で、nv12 はこれに YCbCr変換コード（+80行）が
+  加わり悪化する。**タイムアウト900秒での再実行で 676.9秒（約11分17秒）
+  で完了することを確認——無限ループ・デッドロックではなく、有限だが
+  非常に長い時間のかかるコンパイルだったと確定した**（solid比で約6.5倍、
+  行数差はわずか+13%なので非線形な悪化）。DirectComposition + wgpu
+  composition surface の設計自体は健全（全段階が有限時間で成功する）
+  ことも同時に確定した。代替コンパイラ
+  （`DynamicDxc`: mainpc に dxcompiler.dll/dxil.dll 無く即失敗、
+  `StaticDxc`: MSVC標準ライブラリのシンボル未解決でリンクエラー）は
+  どちらも本ホストでは追加のダウンロード/ツールチェイン更新なしに
+  検証できなかった（当時）。
+
+  **★DXC導入・実機E2E検証完了（`windows_port_research/notes/nv12-pipeline-compile-time.md`
+  「追記2」、ユーザー承認のもとDXCをmainpcへ実際にダウンロード・導入）**:
+  DXC（github.com/microsoft/DirectXShaderCompiler v1.9.2607）を取得し
+  `nv12-pipeline-repro` で実測したところ、Fxc比で solid 約13.9倍・
+  nv12 約12.9倍高速化した（nv12: 676.9秒→中央値52.4秒）。これを受け
+  `native-wgpu-renderer/src/lib.rs` に
+  `NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir)` を実装
+  （実行ファイルと同じディレクトリに `dxcompiler.dll`/`dxil.dll` が
+  両方揃っていれば `DynamicDxc`、欠けていれば `Fxc` へ自動フォールバック。
+  TDDで4件のテストを追加、macOS・mainpc両方でgreen）。DLL配置後、
+  `native-overlay/tests/win32_overlay_smoke.rs` を mainpc で
+  `schtasks /it` 経由で再実行した結果 **`test result: ok. 1 passed;
+  0 failed; ... finished in 79.09s`** — attach/detach の実 HWND 往復が
+  実機で完走することを確認した。
+
+コードの実装（cfg分岐・型・pure関数・Cargo依存）に加え、**この機能の
+中核である「実際にoverlayウィンドウがDirectComposition経由で合成される
+か」も実機で確認できた**ため、Phase 5 全体を ★完了 とする。
+
+**残課題（Phase 6以降）**: (1) 79.09秒は初回attach呼び出し1回分の
+パイプライン生成コスト（以降のpresentでは再利用される）。この同期
+ブロックがUIスレッドに与える影響の検討は未着手。(2)
+`dxcompiler.dll`/`dxil.dll` をElectronビルド成果物へ実際に組み込む
+作業（`electron-builder` の `extraResources` 設定等）はW1側の
+フォローアップとして未着手（配置場所・サイズ・ライセンスの申し送りは
+`nv12-pipeline-compile-time.md`「W1/electron-builderへの申し送り」
+参照。DLL欠如時もFxcへ安全にフォールバックするため機能上の必須項目
+ではない）。
 
 - `attach_native_overlay_inner` の `#[cfg(target_os = "windows")]` 分岐を実装する。
   現状は `attach_live_overlay_surface_renderer` が `Err("...only available on macOS")` を返す stub。

@@ -1,0 +1,23 @@
+[package]
+name = "nv12-pipeline-repro"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# 研究用の使い捨てツール。windows_port_research/notes/w5-attach-hang.md /
+# nv12-pipeline-compile-time.md の再現手順。native-wgpu-renderer には
+# 依存しない（wgpu だけの最小構成でパイプライン生成そのものを計測する）。
+
+[[bin]]
+name = "nv12-pipeline-repro"
+path = "src/main.rs"
+
+[dependencies]
+wgpu = "25"
+pollster = "0.3"
+
+[features]
+# `Dx12Compiler::StaticDxc` を試すためのフラグ。mach-dxcompiler-rs を
+# 静的リンクするため追加のDLL配置が要らない（DynamicDxcはシステムに
+# dxcompiler.dll/dxil.dll が無いとFxcへ黙ってフォールバックする）。
+static-dxc = ["wgpu/static-dxc"]

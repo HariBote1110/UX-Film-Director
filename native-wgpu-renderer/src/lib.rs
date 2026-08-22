@@ -398,6 +398,39 @@ impl NativeWgpuLiveSurfaceRenderer {
     /// 広告せず透過できないため使わない。`SurfaceTargetUnsafe::CompositionVisual`
     /// で visual に直接 surface を作ることで、`alpha_mode: PreMultiplied` の
     /// 透過 present が可能になる。
+    /// Windows の DX12 バックエンドが使う HLSL コンパイラを選ぶ。
+    ///
+    /// `windows_port_research/notes/nv12-pipeline-compile-time.md` の実測:
+    /// wgpu 既定の `Fxc`（"old, slow and unmaintained" と wgpu 自身が明記）は
+    /// `shared-renderer/shaders/nv12_composite.wgsl` のパイプライン生成に
+    /// 676.9秒（約11分17秒）かかったのに対し、`DynamicDxc`
+    /// （<https://github.com/microsoft/DirectXShaderCompiler> 配布の
+    /// `dxcompiler.dll`/`dxil.dll` を動的ロード）では中央値52.4秒
+    /// （約13倍高速）だった。
+    ///
+    /// `dxcompiler.dll`/`dxil.dll` が `dir`（実行ファイルと同じ
+    /// ディレクトリを想定）に両方揃っている場合のみ `DynamicDxc` を選び、
+    /// 揃っていなければ `Fxc` へフォールバックする。Fxc でも最終的には
+    /// 有限時間で成功することを実機で確認済み（同ノート参照）なので、
+    /// フォールバックしても機能的には壊れず、単に遅いだけになる。
+    ///
+    /// `wgpu::Dx12Compiler` はプラットフォーム非依存のデータ型なので、
+    /// この判定ロジック自体は macOS でもユニットテストできる
+    /// （実際に DX12 デバイスを作るのは Windows 実機のみ）。
+    fn resolve_dx12_compiler(dir: &std::path::Path) -> wgpu::Dx12Compiler {
+        let dxc_path = dir.join("dxcompiler.dll");
+        let dxil_path = dir.join("dxil.dll");
+        if dxc_path.is_file() && dxil_path.is_file() {
+            wgpu::Dx12Compiler::DynamicDxc {
+                dxc_path: dxc_path.to_string_lossy().into_owned(),
+                dxil_path: dxil_path.to_string_lossy().into_owned(),
+                max_shader_model: wgpu::DxcShaderModel::V6_5,
+            }
+        } else {
+            wgpu::Dx12Compiler::Fxc
+        }
+    }
+
     #[cfg(target_os = "windows")]
     pub async fn from_hwnd(
         dcomp_device: windows::Win32::Graphics::DirectComposition::IDCompositionDevice,
@@ -409,6 +442,16 @@ impl NativeWgpuLiveSurfaceRenderer {
 
         let mut instance_descriptor = wgpu::InstanceDescriptor::default();
         instance_descriptor.backends = wgpu::Backends::DX12;
+        // DXC が使えれば使う（Fxc 比 約13倍高速、上の `resolve_dx12_compiler`
+        // ドキュメントコメント参照）。実行ファイルと同じディレクトリに
+        // `dxcompiler.dll`/`dxil.dll` が無ければ自動的に Fxc へ
+        // フォールバックする。
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                instance_descriptor.backend_options.dx12.shader_compiler =
+                    Self::resolve_dx12_compiler(exe_dir);
+            }
+        }
         let instance = wgpu::Instance::new(&instance_descriptor);
         let visual_ptr = visual.as_raw() as *mut std::ffi::c_void;
         let target = wgpu::SurfaceTargetUnsafe::CompositionVisual(visual_ptr);
@@ -3966,6 +4009,49 @@ mod tests {
             NativeWgpuLiveSurfaceRenderer::present_scene_with_decoration_and_nv12_to_surface_texture::<
                 RgbaFrame,
             >;
+    }
+
+    #[test]
+    fn resolve_dx12_compiler_falls_back_to_fxc_when_dlls_absent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let compiler = NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir.path());
+        assert!(matches!(compiler, wgpu::Dx12Compiler::Fxc));
+    }
+
+    #[test]
+    fn resolve_dx12_compiler_falls_back_to_fxc_when_only_dxcompiler_present() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("dxcompiler.dll"), b"stub").expect("write dxcompiler.dll");
+        let compiler = NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir.path());
+        assert!(matches!(compiler, wgpu::Dx12Compiler::Fxc));
+    }
+
+    #[test]
+    fn resolve_dx12_compiler_falls_back_to_fxc_when_only_dxil_present() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("dxil.dll"), b"stub").expect("write dxil.dll");
+        let compiler = NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir.path());
+        assert!(matches!(compiler, wgpu::Dx12Compiler::Fxc));
+    }
+
+    #[test]
+    fn resolve_dx12_compiler_uses_dynamic_dxc_when_both_dlls_present() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("dxcompiler.dll"), b"stub").expect("write dxcompiler.dll");
+        std::fs::write(dir.path().join("dxil.dll"), b"stub").expect("write dxil.dll");
+        let compiler = NativeWgpuLiveSurfaceRenderer::resolve_dx12_compiler(dir.path());
+        match compiler {
+            wgpu::Dx12Compiler::DynamicDxc {
+                dxc_path,
+                dxil_path,
+                max_shader_model,
+            } => {
+                assert!(dxc_path.ends_with("dxcompiler.dll"), "{dxc_path}");
+                assert!(dxil_path.ends_with("dxil.dll"), "{dxil_path}");
+                assert!(matches!(max_shader_model, wgpu::DxcShaderModel::V6_5));
+            }
+            other => panic!("expected DynamicDxc, got {other:?}"),
+        }
     }
 
     fn request_test_adapter() -> wgpu::Adapter {
