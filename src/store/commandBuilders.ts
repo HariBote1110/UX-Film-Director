@@ -1,4 +1,4 @@
-import type { TimelineObject, ObjectFilter, LayerState } from '../types';
+import type { TimelineObject, ObjectFilter, LayerState, CameraState, StageCamera3D } from '../types';
 import type { Command } from '../generated/rustCore/Command';
 import type { JsonValue } from '../generated/rustCore/serde_json/JsonValue';
 
@@ -72,6 +72,28 @@ export const buildMoveFilterCommand = (
  * Rust 側で再実装せず、変更前後の layers+objects を丸ごと差し替える
  * `reorderLayers` Command として表現する。
  */
+/**
+ * `setCamera`/`setStageCamera3D`(`useStore.ts`)向け。カメラ状態は
+ * フィールド数が少なく丸ごと swap の設計(R4-7)のため、呼び出し側で
+ * merge ロジックを複製せず、実際に`setCamera`/`setStageCamera3D`を
+ * 呼んだ**後**の store の実値を`next`として渡す形を前提にする
+ * (呼び出し元で`useStore.getState()`から前後を読んで渡す)。
+ * `previous`===`next`(実質変化なし)なら`null`を返す。
+ */
+export const buildSetCameraCommand = (previous: CameraState, next: CameraState): Command | null => {
+  if (JSON.stringify(previous) === JSON.stringify(next)) return null;
+  return { kind: 'setCamera', previous: { ...previous }, next: { ...next } };
+};
+
+export const buildSetStageCamera3DCommand = (previous: StageCamera3D, next: StageCamera3D): Command | null => {
+  if (JSON.stringify(previous) === JSON.stringify(next)) return null;
+  return {
+    kind: 'setStageCamera3D',
+    previous: { position: { ...previous.position }, target: { ...previous.target } },
+    next: { position: { ...next.position }, target: { ...next.target } },
+  };
+};
+
 export const buildReorderLayersCommand = (
   previousLayers: LayerState[],
   nextLayers: LayerState[],

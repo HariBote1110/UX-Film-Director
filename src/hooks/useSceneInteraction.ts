@@ -17,6 +17,7 @@ import {
   resolvePointerSelectionIntent,
   type Vec2,
 } from '../utils/sceneInteractionLogic';
+import { buildBatchCommand, buildObjectFieldDiffCommands } from '../store/commandBuilders';
 
 /**
  * PixiJS のシーングラフに依存しない、DOM ポインタイベントベースのインタラクションフック。
@@ -44,6 +45,7 @@ interface ResizeState {
   rotationRad: number;
   anchorWorld: Vec2;
   lockAspectRatio: boolean;
+  initialObjState: TimelineObject | null;
 }
 
 /** ハンドル等が constant-size 表示でも反転しない最小スケール。 */
@@ -54,14 +56,14 @@ export const useSceneInteraction = (
   viewportRef: React.MutableRefObject<SceneHitTestViewport>
 ) => {
   const {
-    updateObject, selectObject, toggleObjectSelection, selectObjects, selectedIds, pushHistory, isPlaying, togglePlay, layers
+    updateObject, selectObject, toggleObjectSelection, selectObjects, selectedIds, pushHistoryCommand, isPlaying, togglePlay, layers
   } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
     toggleObjectSelection: state.toggleObjectSelection,
     selectObjects: state.selectObjects,
     selectedIds: state.selectedIds,
-    pushHistory: state.pushHistory,
+    pushHistoryCommand: state.pushHistoryCommand,
     isPlaying: state.isPlaying,
     togglePlay: state.togglePlay,
     layers: state.layers,
@@ -74,7 +76,7 @@ export const useSceneInteraction = (
   const resizeRef = useRef<ResizeState>({
     active: false, targetId: null, corner: 'bottom-right',
     bounds: { bx: 0, by: 0, bw: 0, bh: 0 }, rotationRad: 0, anchorWorld: { x: 0, y: 0 },
-    lockAspectRatio: true,
+    lockAspectRatio: true, initialObjState: null,
   });
 
   const isRecordingPathRef = useRef(false);
@@ -114,10 +116,9 @@ export const useSceneInteraction = (
       if (!isPlaying) togglePlay();
     }
 
-    if (!isRecordingPathRef.current) {
-      pushHistory();
-    }
-
+    // previous はここ(ドラッグ開始)で initialObjState として捕捉する。
+    // 実際に Command を積むのはドラッグ終了(onPointerUp)時 — ドラッグ中の
+    // onPointerMove は毎フレーム updateObject するのみで Command は積まない。
     selectObject(targetId);
     const startWorld = toWorld(e.clientX, e.clientY);
 
@@ -161,11 +162,28 @@ export const useSceneInteraction = (
       const pathData = recordedPathRef.current;
       const normalised = normaliseRecordedMotionPath(pathData);
       if (normalised.length > 0 && dragRef.current.targetId) {
-        pushHistory();
+        const previousObject = dragRef.current.initialObjState;
+        const currentObject = latestObjectsRef.current.find(o => o.id === dragRef.current.targetId);
+        if (previousObject && currentObject) {
+          const batch = buildBatchCommand(
+            buildObjectFieldDiffCommands(previousObject, { ...currentObject, motionPath: normalised })
+          );
+          if (batch) pushHistoryCommand(batch);
+        }
         updateObject(dragRef.current.targetId, { motionPath: normalised });
         alert('Motion Path Recorded!');
       }
       (window as any).isPathRecordingMode = false;
+    } else if (dragRef.current.active && dragRef.current.targetId && dragRef.current.initialObjState) {
+      // 通常ドラッグ(位置移動)終了: 開始時点の initialObjState と現在の実データを
+      // 比較して1回だけ Command を積む。
+      const currentObject = latestObjectsRef.current.find(o => o.id === dragRef.current.targetId);
+      if (currentObject) {
+        const batch = buildBatchCommand(
+          buildObjectFieldDiffCommands(dragRef.current.initialObjState, currentObject)
+        );
+        if (batch) pushHistoryCommand(batch);
+      }
     }
 
     if (dragRef.current.active) {
@@ -201,7 +219,8 @@ export const useSceneInteraction = (
       y: containerWorldTransform.y + rotatedAnchor.y,
     };
 
-    pushHistory();
+    // previous はここ(リサイズ開始)で initialObjState として捕捉する。
+    // 実際に Command を積むのはリサイズ終了(onResizeEnd)時。
     selectObject(targetId);
 
     resizeRef.current = {
@@ -212,6 +231,7 @@ export const useSceneInteraction = (
       rotationRad: containerWorldTransform.rotationRad,
       anchorWorld,
       lockAspectRatio: !e.shiftKey,
+      initialObjState: { ...currentObj },
     };
   };
 
@@ -238,10 +258,18 @@ export const useSceneInteraction = (
 
   const onResizeEnd = () => {
     if (resizeRef.current.active) {
+      const { targetId, initialObjState } = resizeRef.current;
+      if (targetId && initialObjState) {
+        const currentObject = latestObjectsRef.current.find(o => o.id === targetId);
+        if (currentObject) {
+          const batch = buildBatchCommand(buildObjectFieldDiffCommands(initialObjState, currentObject));
+          if (batch) pushHistoryCommand(batch);
+        }
+      }
       resizeRef.current = {
         active: false, targetId: null, corner: 'bottom-right',
         bounds: { bx: 0, by: 0, bw: 0, bh: 0 }, rotationRad: 0, anchorWorld: { x: 0, y: 0 },
-        lockAspectRatio: true,
+        lockAspectRatio: true, initialObjState: null,
       };
     }
   };

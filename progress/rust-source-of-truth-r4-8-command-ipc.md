@@ -410,3 +410,62 @@ swap/insert/delete各1件+範囲外indexでのguard確認)。`TimelineItem.tsx`/
   OxidiseStageViewport) = 22箇所が変換済み、残り12箇所
   (PropertyPanel 7 + useSceneInteraction 3 + 元の見積りに含まれていた
   テスト/harness 2箇所)。
+
+# R4-8 group e: `PropertyPanel.tsx`(7箇所)/`useSceneInteraction.ts`(3箇所)
+
+## 変換テーブル
+
+| ファイル | action | Command kind | previous捕捉ポイント |
+|---|---|---|---|
+| `PropertyPanel.tsx`(SceneAndCameraPanel) | `applyCamera` | `setCamera` | `setCamera(patch)`呼び出し**前**の`useStore.getState().camera`を`previous`、呼び出し**後**の値を`next`(mergeロジックを複製せず実測) |
+| 同上 | `applyStageCamera3D` | `setStageCamera3D` | 同様に`setStageCamera3D`呼び出し前後の実測値 |
+| `PropertyPanel.tsx`(PropertyPanel) | `handleApplyBatchTransform` | `batch`(`setObjectField`×対象オブジェクト×変更フィールド) | `updates`計算後、`set()`前に`buildObjectFieldDiffCommands`で各対象の差分化 |
+| 同上 | `handleVisionApplyCropFromLastTrack` | `batch`(`setObjectField`) | patch確定後、`updateObject`呼び出し前に差分化 |
+| 同上 | `handleVisionTrackRun`(トラッキング結果の反映) | `batch`(`setObjectField`) | `nextKeyframes`確定後、`updateObject`呼び出し前に差分化 |
+| 同上 | `handleApplyAviUtlMotionPreset` | `batch`(`setObjectField`×対象オブジェクト) | 複数選択(sequence-aware)/単一選択どちらもpatch確定後に差分化してからupdateObject |
+| 同上 | `handleApplyAviUtlEffectPreset` | `batch`(`setObjectField`) | patch確定後、`updateObject`呼び出し前に差分化 |
+| `useSceneInteraction.ts` | オブジェクトドラッグ移動(`onPointerDown`→`onPointerMove`→`onPointerUp`) | `batch`(`setObjectField`) | **ドラッグ開始**(`onPointerDown`)で`dragRef.current.initialObjState`へ捕捉、**ドラッグ終了**(`onPointerUp`)で実データと比較して1回だけpush(`onPointerMove`はCommandを積まない) |
+| 同上 | motion path記録(`onPointerDown`→録画→`onPointerUp`) | `batch`(`setObjectField`) | 同じ`initialObjState`(録画開始前の状態)を使い、録画終了時に`motionPath`込みで差分化 |
+| 同上 | リサイズ(`onResizeStart`→`onResizeMove`→`onResizeEnd`) | `batch`(`setObjectField`) | **リサイズ開始**(`onResizeStart`)で`resizeRef.current.initialObjState`へ捕捉、**リサイズ終了**(`onResizeEnd`)で実データと比較して1回だけpush |
+
+いずれのドラッグ系サイトも`onPointerMove`/`onResizeMove`ではCommandを
+一切積まない(per-frame emitter化を回避)。`applyCamera`/
+`applyStageCamera3D`は「呼び出し前後の実測値を比較する」方式を採用し、
+`setCamera`/`setStageCamera3D`のmerge/sanitiseロジックをPropertyPanel側
+で複製しない(実際に適用された結果と厳密に一致させる)。
+
+## Decision
+
+- `buildSetCameraCommand`/`buildSetStageCamera3DCommand`を
+  `commandBuilders.ts`へ追加。`previous`===`next`(実質変化なし)なら
+  `null`を返す。
+- ドラッグ/リサイズ2箇所(`useSceneInteraction.ts`)は、`ResizeState`へ
+  `initialObjState: TimelineObject | null`フィールドを新設し、
+  `TimelineItem.tsx`/`OxidiseStageViewport.tsx`(group d)と同じ
+  「開始時捕捉→終了時diff」パターンを踏襲した。
+
+## テスト
+
+このバッチではDOM/ポインタイベント駆動のUIコード(既存にも単体テストが
+存在しない箇所)への変更が中心のため、新規テストは追加していない
+(ロジックの正しさは共通ヘルパー`buildObjectFieldDiffCommands`/
+`buildBatchCommand`/`buildSetCameraCommand`/`buildSetStageCamera3DCommand`
+経由で、前者2つはgroup cのテストで、後者2つは型のみの薄いヘルパーで
+別途カバー範囲内)。
+
+## 検証済み
+
+- `npx tsc --noEmit` クリーン。
+- `npx vitest run` フル実行、**257ファイル/1854テスト、全green**
+  (group dと同数、リグレッションなし)。
+- Rust/codegen変更なしのためcargo/parityはスキップ。
+
+## 34箇所の変換完了
+
+`grep -rn "pushHistory()" src` の結果は
+`src/commands/registerAppCommands.test.ts`と
+`src/e2e/realisticHeavyEditHarness.ts`の2箇所のみ(いずれもR4-8ブロッカー
+記録で「34箇所本体とは別」と記録済みのテスト/harnessコード)。
+**本体34箇所は全て`pushHistoryCommand`へ変換完了**。group fで旧API
+(`pushHistory`/`pastStates`/`futureStates`/`undo`/`redo`)を削除する際に
+この2箇所も併せて対応する。

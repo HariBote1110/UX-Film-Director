@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
+import {
+  buildBatchCommand,
+  buildObjectFieldDiffCommands,
+  buildSetCameraCommand,
+  buildSetStageCamera3DCommand,
+} from '../store/commandBuilders';
 import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, HksyCheckerGridObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject, BarcodeObject, PuzzlePieceObject, ColourWheelObject, GourdObject, GearObject, TrackBarObject, PieChartObject, HistogramObject, ToneCurveObject, SunburstObject, CircularArrowObject, TriangleBracketObject, TartanCheckObject, HoundstoothObject, YagasuriObject, PaperAirplaneObject, AsanohaPatternObject, FocusLinesPlusObject, RandomLineExObject, AudioSphereObject, RegionFrameObject, SimpleTubeObject, ContourTraceObject, DisplacementPolyObject, HologramObject, ProtractorObject, ShakingPolygonObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
@@ -221,7 +227,7 @@ const SceneAndCameraPanel: React.FC = () => {
   const deleteScene = useStore((state) => state.deleteScene);
   const renameScene = useStore((state) => state.renameScene);
   const setCamera = useStore((state) => state.setCamera);
-  const pushHistory = useStore((state) => state.pushHistory);
+  const pushHistoryCommand = useStore((state) => state.pushHistoryCommand);
   const editorMode = projectSettings.editorMode ?? '2d';
   const activeScene = scenes.find((scene) => scene.id === activeSceneId);
   const [renameDraft, setRenameDraft] = useState(activeScene?.name ?? '');
@@ -240,13 +246,17 @@ const SceneAndCameraPanel: React.FC = () => {
   }, [activeSceneId, activeScene?.name]);
 
   const applyCamera = (patch: Partial<CameraState>) => {
-    pushHistory();
+    const previous = useStore.getState().camera;
     setCamera(patch);
+    const cmd = buildSetCameraCommand(previous, useStore.getState().camera);
+    if (cmd) pushHistoryCommand(cmd);
   };
 
   const applyStageCamera3D = (patch: Parameters<typeof setStageCamera3D>[0]) => {
-    pushHistory();
+    const previous = useStore.getState().stageCamera3D;
     setStageCamera3D(patch);
+    const cmd = buildSetStageCamera3DCommand(previous, useStore.getState().stageCamera3D);
+    if (cmd) pushHistoryCommand(cmd);
   };
 
   const handleApplyAviUtlCameraTargetPreset = () => {
@@ -439,7 +449,7 @@ const PropertyPanel: React.FC = () => {
       && layers[obj.layer]?.locked !== true
     ));
   }, [layers, objects, selectedId, selectedIds]);
-  const pushHistory = useStore((state) => state.pushHistory);
+  const pushHistoryCommand = useStore((state) => state.pushHistoryCommand);
   const updateObject = useStore((state) => state.updateObject);
   const beginProxyGeneration = useStore((state) => state.beginProxyGeneration);
   const endProxyGeneration = useStore((state) => state.endProxyGeneration);
@@ -909,7 +919,13 @@ const PropertyPanel: React.FC = () => {
       .filter((entry): entry is { id: string; patch: Partial<TimelineObject> } => entry !== null);
     if (updates.length === 0) return;
 
-    pushHistory();
+    const diffCommands = updates.flatMap((entry) => {
+      const previousObject = selectedObjects.find((obj) => obj.id === entry.id);
+      if (!previousObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, { ...previousObject, ...entry.patch } as TimelineObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) pushHistoryCommand(batch);
     updates.forEach((entry) => {
       updateObject(entry.id, entry.patch);
     });
@@ -1099,11 +1115,11 @@ const PropertyPanel: React.FC = () => {
     }
     const kfs = buildSubjectCropKeyframesFromVisionTrackSamples(lastVisionTrackSamples, video);
     if (kfs.length === 0) return;
-    pushHistory();
-    updateObject(video.id, {
-      subjectCropEnabled: true,
-      subjectCropKeyframes: kfs
-    } as Partial<TimelineObject>);
+    const patch = { subjectCropEnabled: true, subjectCropKeyframes: kfs } as Partial<TimelineObject>;
+    const diffCommands = buildObjectFieldDiffCommands(video, { ...video, ...patch } as TimelineObject);
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) pushHistoryCommand(batch);
+    updateObject(video.id, patch);
   };
 
   const handleGenerateProxy = async () => {
@@ -1210,7 +1226,6 @@ const PropertyPanel: React.FC = () => {
                 : '既存の位置キーフレームとマージしますか？（キャンセルで置き換え）'
             )
           : false;
-      pushHistory();
       let nextKeyframes = built;
       if (merge && overlay.keyframes && overlay.keyframes.length > 0) {
         const keyOf = (t: number) => Math.round(t * 1000);
@@ -1219,7 +1234,11 @@ const PropertyPanel: React.FC = () => {
         built.forEach((k) => byTime.set(keyOf(k.time), k));
         nextKeyframes = Array.from(byTime.values()).sort((a, b) => a.time - b.time);
       }
-      updateObject(overlay.id, { keyframes: nextKeyframes, enableAnimation: false } as Partial<TimelineObject>);
+      const overlayPatch = { keyframes: nextKeyframes, enableAnimation: false } as Partial<TimelineObject>;
+      const diffCommands = buildObjectFieldDiffCommands(overlay, { ...overlay, ...overlayPatch } as TimelineObject);
+      const batch = buildBatchCommand(diffCommands);
+      if (batch) pushHistoryCommand(batch);
+      updateObject(overlay.id, overlayPatch);
     } finally {
       setVisionTrackBusy(false);
     }
@@ -1475,23 +1494,32 @@ const PropertyPanel: React.FC = () => {
   };
 
   const handleApplyAviUtlMotionPreset = (presetId: AviUtlMotionPresetId) => {
-    pushHistory();
     if (sequenceAwareMotionPresets.has(presetId) && selectedObjects.length > 1) {
-      selectedObjects.forEach((object, index) => {
-        updateObject(
-          object.id,
-          buildAviUtlMotionPresetPatch(object, presetId, {
-            sequenceIndex: index,
-            sequenceTotal: selectedObjects.length
-          }) as Partial<TimelineObject>
-        );
+      const patchesByObjectId = new Map(selectedObjects.map((object, index) => [
+        object.id,
+        buildAviUtlMotionPresetPatch(object, presetId, {
+          sequenceIndex: index,
+          sequenceTotal: selectedObjects.length
+        }) as Partial<TimelineObject>
+      ]));
+      const diffCommands = selectedObjects.flatMap((object) => {
+        const patch = patchesByObjectId.get(object.id);
+        if (!patch) return [];
+        return buildObjectFieldDiffCommands(object, { ...object, ...patch } as TimelineObject);
+      });
+      const batch = buildBatchCommand(diffCommands);
+      if (batch) pushHistoryCommand(batch);
+      selectedObjects.forEach((object) => {
+        const patch = patchesByObjectId.get(object.id);
+        if (patch) updateObject(object.id, patch);
       });
       return;
     }
-    updateObject(
-      selectedObject.id,
-      buildAviUtlMotionPresetPatch(selectedObject, presetId) as Partial<TimelineObject>
-    );
+    const patch = buildAviUtlMotionPresetPatch(selectedObject, presetId) as Partial<TimelineObject>;
+    const diffCommands = buildObjectFieldDiffCommands(selectedObject, { ...selectedObject, ...patch } as TimelineObject);
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) pushHistoryCommand(batch);
+    updateObject(selectedObject.id, patch);
   };
 
   const handleCaptureAviUtlCoordinateStore = () => {
@@ -1503,17 +1531,20 @@ const PropertyPanel: React.FC = () => {
   };
 
   const handleApplyAviUtlEffectPreset = (presetId: AviUtlEffectPresetId) => {
-    pushHistory();
     const nextObject = applyAviUtlEffectPresetToObject(selectedObject, presetId);
     const nextFilters = nextObject.filters ?? [];
-    updateObject(selectedObject.id, {
+    const patch = {
       filters: nextFilters,
       colorCorrection: nextObject.colorCorrection,
       customClipping: nextObject.customClipping,
       vibration: nextObject.vibration,
       shadow: nextObject.shadow,
       ...(nextObject.type === 'shape' ? { gradient: nextObject.gradient } : {})
-    } as Partial<TimelineObject>);
+    } as Partial<TimelineObject>;
+    const diffCommands = buildObjectFieldDiffCommands(selectedObject, { ...selectedObject, ...patch } as TimelineObject);
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) pushHistoryCommand(batch);
+    updateObject(selectedObject.id, patch);
     setActiveFilterId(nextFilters[nextFilters.length - 1]?.id ?? null);
   };
 
