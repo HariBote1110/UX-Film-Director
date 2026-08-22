@@ -515,6 +515,41 @@ parity ゲートも全通過）。詳細は
   workerスレッドへ逃がす」設計は実Electronアプリでは機能しないことが
   確定し棄却済み（正確な内部機構は未特定、次の一手として申し送り）。
   詳細は `progress/windows-w7-async-attach.md` のstage6節を参照。
+- **需要駆動staged attach（実施済み、2026-08-23、★完了）**: stage6完了後も
+  単発attach（本番ビルド想定）約45.4秒はUX上まだ長いという指摘を受け、
+  Phase 1でmainpc実機（RTX 3070 Ti、DXC）にて`finish_pipelines`の全9
+  パイプラインを個別計測し、`nv12_composite`が中央値57.585秒（全体の
+  86.6%、支配的コスト）であることを確定。Phase 2で`finish_pipelines`を
+  Essential集合（solid_composite + 8種の小型シェーダ、実測合計約8.9秒）と
+  Deferred集合（nv12_compositeのみ）に分割し、**attachはEssentialの完成
+  だけで解決**、nv12はattach直後（初回動画使用を待たず）に
+  `std::thread::spawn`でバックグラウンドコンパイルするよう再設計した。
+  TS側は`shouldRouteFrameToNativeOverlay`（動画を含まないシーンは
+  essential readyで即座にoverlayへ、動画を含むシーンはnv12 readyまで
+  presenterに留める保守的ゲート）を新設。Phase 3でmainpc実機検証（3回、
+  schtasks /it経由、`UXFD_PERF_KEEP_ALIVE=1`でperfハーネス自動終了を
+  抑止）を実施し、**launch→attach(essential ready)中央値29.93秒**
+  （旧stage6の45.4秒から大幅短縮、ただしvite dev-server/Electronの
+  ビルド起動オーバーヘッド約18.5秒を含む値であり、本番パッケージビルド
+  ではこの部分が無くなるためさらに短くなる見込み——未検証のまま正直に
+  記録）、**nv12バックグラウンド完了はattachから中央値12.57秒**
+  （Phase 1の孤立測定57.585秒より大幅に速いが、同一shaderの繰り返し
+  コンパイルによるDXC/ドライバのシェーダキャッシュ温まり効果の可能性が
+  高く、初回・低温状態のユーザー体験はPhase 1の52〜58秒に近い可能性が
+  残る——正直に記録）、**UIスレッド応答性は3回とも
+  `Responding=False`サンプル0件**（essential窓・nv12バックグラウンド窓
+  いずれも含めて合計136サンプル中0件）で実証した。動画クリップを含む
+  シーンでの欠落/黒フレームはログ・perfハーネス完走（5行×3回とも成功）
+  いずれにも現れず、presenter/overlay状態機械のロジック自体は6件の
+  ユニットテスト（`nativeOverlayNv12Gate.test.ts`）でTDD検証済み。
+  presenter実フレームのCDPスクリーンショット直接証拠は、SSHローカル
+  ポートフォワード越しのChrome DevTools Protocol接続で本stageにて
+  初めて取得に成功した（`--remote-debugging-port`+`--remote-allow-origins`
+  のopt-inスイッチ、`electron/main.ts`）が、nv12 readyがほぼ即時
+  （観測範囲3ms〜15.76秒）だったため「動画がpresenter上にある」瞬間を
+  手動ポーリングで捕捉することはできなかった——健全なpost-attach描画の
+  スクリーンショットは取得済み。詳細は
+  `progress/windows-w7-async-attach.md`の同節を参照。
 
 ## 4. 既存設計との整合
 

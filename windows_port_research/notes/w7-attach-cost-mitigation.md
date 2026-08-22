@@ -500,3 +500,19 @@ device内でのpipeline再利用のような未知の機構は存在しない**�
   高速化する可能性を意図的に排除していない（3回間でのバラつき、
   特にnv12の52.7〜58.4秒の幅はこの影響を含む可能性がある）。
   Phase 3の実attach latency測定で最終的な数値を確定させる。
+
+## 追記（2026-08-23、需要駆動staged attach Phase 3: mainpc実機検証）
+
+Phase 2実装（Essential/Deferred分割、`progress/windows-w7-async-attach.md`
+参照）の実機検証をmainpcで実施した。手順・環境・全測定表・正直な注記
+（vite dev-serverオーバーヘッドの混入、nv12バックグラウンド完了が
+Phase1の孤立測定より大幅に速かった件のシェーダキャッシュ温まり仮説）は
+`progress/windows-w7-async-attach.md`のPhase 3節に記録した（研究ノートの
+重複を避けるため要点のみここに記す）。
+
+- launch→attach(essential ready)中央値: **29.93秒**（3回、mainpc実機）。
+- attach→nv12Ready中央値: **12.57秒**（同3回）——Phase1の孤立測定
+  （nv12単体57.585秒）との乖離はwarm shader cache仮説で説明を試みたが
+  確証には至っておらず、cold cache状態での再測定を次の一手として残す。
+- UIスレッド応答性: 3回とも`Responding=False`サンプル0件（合計136
+  サンプル、essential窓・nv12バックグラウンド窓の両方を含む）。

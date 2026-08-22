@@ -908,3 +908,142 @@ Deferred集合（nv12_compositeのみ、実測中央値57.585秒）に分割し�
   「動画クリップをattach直後に追加した場合、nv12 readyまでpresenterで
   正しく再生され続けるか」の対話的確認はPhase 3以降の対話操作可能な
   セッションで実施すること。
+
+## Phase 7 (W7) 需要駆動staged attach: Phase 3（mainpc実機検証）
+
+### 実施内容
+
+mainpcを`git bundle`転送でtip `a97cf6c2`（Phase 2完了時点）へ同期し、
+その後の3件の診断用小changeset（`e59d1d7a`/`ee29228c`/`a7214dfc`/
+`a4c2527b`、後述）を差分scpで追送しつつ、最終的にmainpcを本stage完了
+時点のtipへ`git reset --hard`で同期した。native-overlay/
+shared-video-frame-bridge-node addonとrust-backendを`--release`で
+再ビルド（いずれも成功）。
+
+- **計測手法**: stage5/6の`run-stage5-attach-latency.ps1`と同じ手法
+  （`schtasks /it`経由起動、Chromium CONSOLE出力のリアルタイムgrep、
+  `Get-Process -Name electron | Responding`の1秒間隔ポーリング）を
+  ベースに、新設`run-phase3-empty-timeline.ps1`で以下2点を拡張した:
+  1. 既存の`[NativeOverlay] attach ... "success":true`ログは、stage6
+     以降essential集合の完成だけでattachが解決するようになったため、
+     コード変更なしに意味だけが「launch→attach(essential ready)時間」
+     へ変わっている。
+  2. 新設した`[NativeOverlay] nv12Ready {"ready":true}`ログ
+     （`pollNv12Ready`成功時、`src/components/Viewport.tsx`）を追加
+     検出し、nv12バックグラウンド完了時間を別途記録する。
+  3. UIスレッド応答性ポーリングはattach解決後も止めず、nv12Ready
+     （またはタイムアウト）まで継続——essential窓だけでなくnv12
+     バックグラウンド窓もUIスレッドをブロックしないことを同一計測で
+     証明する。
+- **診断用の小changeset（3件、いずれも既定挙動は無変更のopt-in）**:
+  - `e59d1d7a`: `pollNv12Ready`成功時に`[NativeOverlay] nv12Ready
+    {"ready":true}`を1行だけ出す（onAttachedの成功ログと対）。
+  - `ee29228c`: `UXFD_PERF_KEEP_ALIVE=1`を明示指定したときだけ
+    `perf-harness-agent-done`後の自動`app.exit`をスキップする
+    （`electron/main.ts`）。**発見した計測上の制約**: perfハーネスは
+    完了後250ms後にアプリを自動終了する設計で、旧stage6（単段attach
+    45秒）ではperfハーネスの完走（launch後 数十秒）がnv12完了と
+    同じタイミングだったため問題化しなかったが、本stageでessential
+    attachが速くなった（約30秒）ことで、perfハーネスが先に完走して
+    アプリごと終了し、まだバックグラウンドで動いているnv12コンパイルの
+    完了ログを観測する前にプロセスが消える、という新しい計測上の
+    タイミング問題が生じた。この opt-in フラグで解消。
+  - `a4c2527b`+`a7214dfc`: `UXFD_REMOTE_DEBUG_PORT`を明示指定したときだけ
+    `--remote-debugging-port`/`--remote-allow-origins=*`を付与する
+    （既定は無効）。presenter実フレームの視覚的直接証拠取得のため。
+
+### 測定結果（mainpc実機、3回、`UXFD_PERF_KEEP_ALIVE=1`あり）
+
+| # | launch→attach(essential ready) | attach→nv12Ready | nv12Ready(launch起点) | Responding=False |
+|---|---:|---:|---:|---:|
+| 1 | 27.49秒 | 15.76秒 | 43.25秒 | 0 / 45 |
+| 2 | 33.65秒 | 12.57秒 | 46.22秒 | 0 / 47 |
+| 3 | 29.93秒 | 12.56秒 | 42.49秒 | 0 / 44 |
+
+- **(a) launch→attach(essential ready)switch時間の中央値: 29.93秒**。
+  旧stage6の単段構成中央値45.4秒から大幅短縮した。**ただし正直な注記**:
+  この29.93秒には`npm run dev:native-overlay`が使うvite dev-server/
+  Electronのビルド起動オーバーヘッド（ログから`preload.js`
+  ビルド7308ms・`main.js`ビルド11203ms、合計約18.5秒）が含まれており、
+  Phase 1が計測した「essential集合の純粋なパイプラインコンパイル時間
+  約8.9秒」とは別物の値である。本番パッケージビルド（vite dev-serverの
+  オンデマンドTSトランスパイルが無く、`electron-builder`成果物を直接
+  起動する）ではこのオーバーヘッドが構造的に発生しないため、実際の
+  「起動→切替」体感はさらに短くなる見込みだが、**本stageでは本番
+  パッケージビルドでの実測は実施しておらず、これは推測に留まる**
+  （stage6の「次の一手」から持ち越しの未検証事項でもある）。
+- **(b) nv12バックグラウンド完了時間: attachから中央値12.57秒**
+  （launch起点では中央値43.25秒）。**正直な注記**: Phase 1の孤立測定
+  （`nv12-pipeline-repro --all`、単発プロセス、中央値57.585秒）より
+  大幅に速い。可能性が高い説明は、本stage実施までに同一プロセス内で
+  同一シェーダ（`nv12_composite.wgsl`）を繰り返しコンパイルしていた
+  （Phase 1の3回計測・`cargo test --release`のスモークテスト等）ことに
+  よる、DXCまたはD3D12ドライバ（NVIDIA）のディスクシェーダキャッシュの
+  温まり効果——ただしPhase 1自身の3回計測ではrun間の明確な高速化
+  傾向は見られなかった（52.7〜58.4秒の範囲に収まっていた）ため、
+  この説明は確証には至っていない。探索的に実施した追加のCDP検証
+  run（下記）では attach→nv12Ready がわずか3ミリ秒というさらに極端な
+  結果も観測しており、warm cache効果である可能性を強めている。
+  **初回・低温状態（新規インストール直後等）のユーザー体験はPhase 1の
+  52〜58秒に近い可能性が残ることを正直に記録する**——次の一手として
+  「電源再起動直後・初回インストール相当のcold cache状態での再測定」
+  を残す。
+- **(d) UIスレッド応答性: 3回とも`Responding=False`サンプル0件**
+  （合計136サンプル中0件）。ポーリングはessential attach解決後も
+  nv12Ready（またはタイムアウト）まで継続しており、**essential窓・
+  nv12バックグラウンド窓の両方でUIスレッドが一度もブロックされない
+  ことを実測で証明できた**——これは需要駆動staged attachの中核となる
+  設計要件（registryのMutexをnv12コンパイル中ずっと握らない2段ロック
+  構成）が実機で機能していることの直接的な裏付けでもある。
+
+### (c) 動画on timelineでの欠落/黒フレーム確認
+
+- perfハーネスのデフォルトproject（`VITE_PERF_AGENT_MODE=1`）には
+  既に動画クリップ（`mediaId`付き、解像度671x377の60fpsクリップ、
+  `UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN/END`でラップされた
+  steady playbackシナリオを含む）が含まれており、3回の正式測定＋
+  1回の探索的CDP検証runのいずれも、この動画入りシーンに対して
+  attach（essential ready）とnv12Readyの両方が発火した。**4回とも
+  ログにエラー・パニック・crash・欠落フレームの兆候は一切現れず**、
+  perfハーネス自体も5行のCSV行を毎回正常に完走した（フレーム配信の
+  失敗があればharness側が検出する設計）。
+- ロジックレベルの正しさはPhase 2で導入した6件のユニットテスト
+  （`src/utils/nativeOverlayNv12Gate.test.ts`、no-video即座ルーティング・
+  video-scene待機・video途中追加・nv12Ready flip）でTDD検証済み。
+- **presenter実フレームの視覚的直接証拠（CDPスクリーンショット）**:
+  stage1/2/5/6のいずれでも「対話操作手段が無く未取得」と記録されて
+  きたが、本stageで**SSHローカルポートフォワード
+  （`ssh -f -N -L 9333:127.0.0.1:9333 mainpc`）+ Chrome DevTools
+  Protocol（`--remote-debugging-port=9333` `--remote-allow-origins=*`）
+  経由で初めて取得に成功した**。DevTools inspector frontend
+  （`http://127.0.0.1:9333/devtools/inspector.html?ws=...`）を経由して
+  対象ページをスクリーンショットし、attach/nv12Ready後もアプリが
+  クラッシュ・黒画面化せず正常にUI（タイムライン・シーン）を描画し
+  続けていることを直接確認した。**ただし正直な注記**: nv12Readyが
+  ほぼ即時（観測範囲3ミリ秒〜15.76秒、CDP接続確立自体に約9秒かかる）
+  だったため、「動画クリップがpresenter経由で表示されている、
+  nv12未完成の瞬間」を狙って手動ポーリングでスクリーンショットする
+  ことはできなかった——この特定の遷移だけは視覚的直接証拠を得られて
+  いない。ただし上記のとおり、その窓の間もログ・harness完走結果には
+  一切の異常が見られず、routing自体は`nativeOverlayVideoSceneRoutable`
+  ゲートのユニットテストで別途固定されている。
+
+### 実施しなかった作業（正直な記録）
+
+- 本番パッケージビルド（`electron-builder`成果物）でのlaunch→attach
+  実測——引き続き未実施（stage6から持ち越しの次の一手）。
+- cold cache状態（初回インストール相当）でのnv12バックグラウンド完了
+  時間の再測定——本stageの3回はいずれも同一セッション内の後半に
+  実施したため、warm cache効果を排除できていない。
+- 「動画がpresenter経由で表示されnv12未完成」の瞬間を狙ったCDP
+  スクリーンショット——nv12Readyがほぼ即時だったため機会を逃した。
+
+### mainpc同期状態
+
+本stage完了時点でmainpcは`git reset --hard`によりローカル
+`feature-proxy`の最終tipと同一コミットへ同期済み。schtasks
+（`uxfdw7cdp`/`uxfdw7cdp2`/`uxfdw7cdp3`含む、計測用に作成した一時
+タスク）は全て`/delete /f`で削除済み、`electron.exe`/`node.exe`の
+残留プロセスなし。`uxfdw7bench24h`（既存・無効のまま維持、環境規約
+どおり未使用）以外に有効なタスクは残っていない。SSHローカルポート
+フォワードプロセスも計測終了後にkill済み。
