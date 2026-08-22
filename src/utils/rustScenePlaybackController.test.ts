@@ -9,7 +9,7 @@ const audioWaveformSource =
 const audioSphereSource =
   '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}';
 const simpleTubeSource =
-  '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","colour_pattern":"single","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}';
+  '{"radius":150,"depth":280,"segments":16,"rings":10,"twistDegrees":0,"randomAmount":0,"strokeWidth":3,"colour":"#0e769f","secondaryColour":"#ffffff","colourPattern":"single","fogStrength":0,"fogColour":"#ffffff","seed":93,"torus":false}';
 
 const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
   sceneId: 'scene-1',
