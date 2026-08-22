@@ -22,7 +22,7 @@ use uxfd_rust_core::schema::{
     HistogramObjectFields, ImageObjectFields,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
-    PieChartObjectFields, PieChartSortMode, PositionKeyframe,
+    PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
     Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields,
     SamplingMode,
@@ -126,6 +126,8 @@ fn write_ts_bindings() {
         .expect("ContourTraceObjectFields の TS export に失敗しました");
     DisplacementPolyObjectFields::export_all(&cfg)
         .expect("DisplacementPolyObjectFields の TS export に失敗しました");
+    PlainEffectorLineObjectFields::export_all(&cfg)
+        .expect("PlainEffectorLineObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -242,6 +244,7 @@ fn write_json_schemas() {
     write_schema::<RandomLineExObjectFields>(&dir, "RandomLineExObjectFields");
     write_schema::<ContourTraceObjectFields>(&dir, "ContourTraceObjectFields");
     write_schema::<DisplacementPolyObjectFields>(&dir, "DisplacementPolyObjectFields");
+    write_schema::<PlainEffectorLineObjectFields>(&dir, "PlainEffectorLineObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

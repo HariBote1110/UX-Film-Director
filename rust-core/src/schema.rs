@@ -2446,6 +2446,286 @@ impl Default for DisplacementPolyObjectFields {
     }
 }
 
+/// `plain_effector_line` kind (`src/types.ts` の `PlainEffectorLineObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & PlainEffectorLineObjectFields & { type: 'plain_effector_line' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `plainEffectorLineObjectFactory.ts` の
+/// `buildAviUtlPlainEffectorLineObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PlainEffectorLineObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: f32,
+    pub strength: f32,
+    pub randomness: f32,
+    pub zoom: f32,
+    pub invert: bool,
+    #[serde(rename = "lineCount")]
+    #[ts(rename = "lineCount")]
+    pub line_count: u32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    pub colour: String,
+    #[serde(rename = "colourAmount")]
+    #[ts(rename = "colourAmount")]
+    pub colour_amount: f32,
+    pub seed: u32,
+}
+
+impl Default for PlainEffectorLineObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            radius: 100.0,
+            strength: 1.0,
+            randomness: 0.0,
+            zoom: 1.0,
+            invert: false,
+            line_count: 24,
+            line_width: 2.0,
+            colour: "#f74d52".to_string(),
+            colour_amount: 1.0,
+            seed: 93,
+        }
+    }
+}
+
+/// `hologram` kind (`src/types.ts` の `HologramObject`) の kind 固有フィールド。
+/// 編集モデル型は
+/// `BaseObject & HologramObjectFields & { type: 'hologram' }` として組み立てる。
+///
+/// `width`/`height` は `hologramObjectFactory.ts` の
+/// `buildAviUtlHologramObject` の固定リテラル (800x450) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct HologramObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "tileSize")]
+    #[ts(rename = "tileSize")]
+    pub tile_size: u32,
+    #[serde(rename = "rotationDegrees")]
+    #[ts(rename = "rotationDegrees")]
+    pub rotation_degrees: f32,
+    #[serde(rename = "gradientAngleDegrees")]
+    #[ts(rename = "gradientAngleDegrees")]
+    pub gradient_angle_degrees: f32,
+    #[serde(rename = "colourMode")]
+    #[ts(rename = "colourMode")]
+    pub colour_mode: u32,
+    #[serde(rename = "tintColour")]
+    #[ts(rename = "tintColour")]
+    pub tint_colour: String,
+}
+
+impl Default for HologramObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            tile_size: 80,
+            rotation_degrees: 0.0,
+            gradient_angle_degrees: -60.0,
+            colour_mode: 1,
+            tint_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `protractor` kind (`src/types.ts` の `ProtractorObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & ProtractorObjectFields & { type: 'protractor' }` として
+/// 組み立てる。
+///
+/// `width`/`height` は `protractorObjectFactory.ts` の
+/// `buildAviUtlProtractorObject` の固定リテラル (420x240) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ProtractorObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: u32,
+    #[serde(rename = "measuredAngleDegrees")]
+    #[ts(rename = "measuredAngleDegrees")]
+    pub measured_angle_degrees: f32,
+    #[serde(rename = "tickStepDegrees")]
+    #[ts(rename = "tickStepDegrees")]
+    pub tick_step_degrees: u32,
+    #[serde(rename = "majorTickStepDegrees")]
+    #[ts(rename = "majorTickStepDegrees")]
+    pub major_tick_step_degrees: u32,
+    #[serde(rename = "decimalPlaces")]
+    #[ts(rename = "decimalPlaces")]
+    pub decimal_places: u32,
+    #[serde(rename = "lineColour")]
+    #[ts(rename = "lineColour")]
+    pub line_colour: String,
+    #[serde(rename = "textColour")]
+    #[ts(rename = "textColour")]
+    pub text_colour: String,
+    #[serde(rename = "shadowColour")]
+    #[ts(rename = "shadowColour")]
+    pub shadow_colour: String,
+}
+
+impl Default for ProtractorObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 420.0,
+            height: 240.0,
+            radius: 180,
+            measured_angle_degrees: 90.0,
+            tick_step_degrees: 10,
+            major_tick_step_degrees: 30,
+            decimal_places: 1,
+            line_colour: "#ffffff".to_string(),
+            text_colour: "#ffffff".to_string(),
+            shadow_colour: "#000000".to_string(),
+        }
+    }
+}
+
+/// `shaking_polygon` kind (`src/types.ts` の `ShakingPolygonObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & ShakingPolygonObjectFields & { type: 'shaking_polygon' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `shakingPolygonObjectFactory.ts` の
+/// `buildAviUtlShakingPolygonObject` の固定リテラル (360x360) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ShakingPolygonObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: u32,
+    #[serde(rename = "vertexCount")]
+    #[ts(rename = "vertexCount")]
+    pub vertex_count: u32,
+    #[serde(rename = "fixedDiameter")]
+    #[ts(rename = "fixedDiameter")]
+    pub fixed_diameter: u32,
+    #[serde(rename = "verticalDistortionPercent")]
+    #[ts(rename = "verticalDistortionPercent")]
+    pub vertical_distortion_percent: f32,
+    #[serde(rename = "repeatCount")]
+    #[ts(rename = "repeatCount")]
+    pub repeat_count: u32,
+    #[serde(rename = "repeatFrequency")]
+    #[ts(rename = "repeatFrequency")]
+    pub repeat_frequency: u32,
+    pub fill: bool,
+    #[serde(rename = "jitterRange")]
+    #[ts(rename = "jitterRange")]
+    pub jitter_range: f32,
+    #[serde(rename = "jitterInterval")]
+    #[ts(rename = "jitterInterval")]
+    pub jitter_interval: u32,
+    pub stepped: bool,
+    pub colour: String,
+    pub seed: u32,
+}
+
+impl Default for ShakingPolygonObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 360.0,
+            height: 360.0,
+            line_width: 20,
+            vertex_count: 3,
+            fixed_diameter: 260,
+            vertical_distortion_percent: 0.0,
+            repeat_count: 1,
+            repeat_frequency: 1,
+            fill: false,
+            jitter_range: 20.0,
+            jitter_interval: 10,
+            stepped: false,
+            colour: "#ffffff".to_string(),
+            seed: 0,
+        }
+    }
+}
+
+/// `shattered_sphere` kind (`src/types.ts` の `ShatteredSphereObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & ShatteredSphereObjectFields & { type: 'shattered_sphere' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `shatteredSphereObjectFactory.ts` の
+/// `buildAviUtlShatteredSphereObject` の固定リテラル (360x360) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。重力は TS 側が
+/// `gravityX`/`gravityY`/`gravityZ` の3フィールドで持つため、rust-backend
+/// 側の旧 `[f32; 3]` 配列表現はやめ、フィールドをそのままミラーする。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct ShatteredSphereObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "fractureAmount")]
+    #[ts(rename = "fractureAmount")]
+    pub fracture_amount: f32,
+    pub delay: f32,
+    pub radius: f32,
+    #[serde(rename = "limitDistance")]
+    #[ts(rename = "limitDistance")]
+    pub limit_distance: f32,
+    pub thickness: f32,
+    #[serde(rename = "fragmentSize")]
+    #[ts(rename = "fragmentSize")]
+    pub fragment_size: f32,
+    #[serde(rename = "randomShape")]
+    #[ts(rename = "randomShape")]
+    pub random_shape: f32,
+    pub speed: f32,
+    pub impact: f32,
+    #[serde(rename = "gravityX")]
+    #[ts(rename = "gravityX")]
+    pub gravity_x: f32,
+    #[serde(rename = "gravityY")]
+    #[ts(rename = "gravityY")]
+    pub gravity_y: f32,
+    #[serde(rename = "gravityZ")]
+    #[ts(rename = "gravityZ")]
+    pub gravity_z: f32,
+    pub spin: f32,
+    #[serde(rename = "directionDiffusion")]
+    #[ts(rename = "directionDiffusion")]
+    pub direction_diffusion: f32,
+    pub colour: String,
+    pub seed: u32,
+}
+
+impl Default for ShatteredSphereObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 360.0,
+            height: 360.0,
+            fracture_amount: 100.0,
+            delay: 100.0,
+            radius: 160.0,
+            limit_distance: 150.0,
+            thickness: 20.0,
+            fragment_size: 40.0,
+            random_shape: 100.0,
+            speed: 100.0,
+            impact: 100.0,
+            gravity_x: 0.0,
+            gravity_y: 100.0,
+            gravity_z: 0.0,
+            spin: 100.0,
+            direction_diffusion: 100.0,
+            colour: "#ffffff".to_string(),
+            seed: 93,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
