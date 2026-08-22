@@ -1,6 +1,6 @@
 import { EasingType } from './utils/easings';
 import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields, ShakingPolygonObjectFields, ShatteredSphereObjectFields, GroupControlObjectFields } from './generated/rustCore';
-import type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting } from './generated/rustCore';
+import type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting, PsdLayerNodeFields } from './generated/rustCore';
 export type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting };
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
@@ -518,6 +518,16 @@ export type SphericalFieldObject = BaseObject & SphericalFieldObjectFields & { t
 
 // --- PSD連携用 ---
 
+/**
+ * `PsdLayerStruct` is a display-oriented derived view, not independently
+ * persisted editable state: `buildPsdLayerTree` (src/utils/psdParser.ts)
+ * rebuilds it from `PsdLayerNode` + `activeLayerIds` on every load/save
+ * (see `restorePsdObjectFromFile` and `sanitiseObjectForSave` in
+ * src/utils/projectFile.ts, which always recompute `layerTree` rather than
+ * trust the saved copy). It therefore stays a hand-written TS type — only
+ * `PsdLayerNode` (the true source of truth for the layer tree) is migrated
+ * to rust-core (`PsdLayerNodeFields`, R3バッチB).
+ */
 export interface PsdLayerStruct {
   seq: string | null;
   name: string;
@@ -527,21 +537,18 @@ export interface PsdLayerStruct {
   blobUrl?: string; 
 }
 
-export interface PsdLayerNode {
-  id: string;
-  name: string;
-  isGroup: boolean;
-  isRadio: boolean;
-  children: PsdLayerNode[];
-  width: number;
-  height: number;
-  left: number;
-  top: number;
-  defaultVisible: boolean;
-  src?: string;
+/**
+ * Runtime-only fields that never round-trip through JSON persistence.
+ * Kept as an explicit TS-side layer instead of the plain-intersection
+ * pattern used elsewhere, because `PsdLayerNode` is recursive and the
+ * runtime field must survive on every node in the tree.
+ */
+export interface PsdLayerNodeRuntimeFields {
   /** In-memory raster for Pixi (not JSON-serialisable; strip before project save). */
   textureSource?: ImageBitmap;
 }
+
+export type PsdLayerNode = Omit<PsdLayerNodeFields, 'children'> & PsdLayerNodeRuntimeFields & { children: PsdLayerNode[] };
 
 export interface PsdObject extends BaseObject {
   type: 'psd';

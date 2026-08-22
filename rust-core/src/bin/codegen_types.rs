@@ -21,6 +21,7 @@ use uxfd_rust_core::schema::{
     GourdObjectFields, GroupControl, GroupControlObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields,
     HistogramObjectFields, HologramObjectFields, ImageObjectFields,
     LipSyncMapping, LipSyncSetting, LipSyncSourceMode,
+    PsdLayerNodeFields,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
@@ -148,6 +149,7 @@ fn write_ts_bindings() {
     LipSyncSourceMode::export_all(&cfg).expect("LipSyncSourceMode の TS export に失敗しました");
     LipSyncMapping::export_all(&cfg).expect("LipSyncMapping の TS export に失敗しました");
     LipSyncSetting::export_all(&cfg).expect("LipSyncSetting の TS export に失敗しました");
+    PsdLayerNodeFields::export_all(&cfg).expect("PsdLayerNodeFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -278,6 +280,7 @@ fn write_json_schemas() {
     write_schema::<LipSyncSourceMode>(&dir, "LipSyncSourceMode");
     write_schema::<LipSyncMapping>(&dir, "LipSyncMapping");
     write_schema::<LipSyncSetting>(&dir, "LipSyncSetting");
+    write_schema::<PsdLayerNodeFields>(&dir, "PsdLayerNodeFields");
 
     println!("codegen:types (JSON Schema) 完了 -> {}", dir.display());
 }

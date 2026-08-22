@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PsdLayerNodeFields",
+  "description": "PSD レイヤーツリーのノード。`src/types.ts` の `PsdLayerNode` と同形の\n再帰構造（`children: Vec<PsdLayerNodeFields>`）。R3バッチAのスパイクで\n確認済みのとおり `Box<>` は不要（`Vec` 自体がヒープ間接参照）。\n\nTS 側は `textureSource?: ImageBitmap`（GPU 専用・非シリアライズ）を\n別レイヤー（`PsdLayerNodeRuntimeFields`）として合成するため、この\nフィールドはここには含めない。`PsdLayerStruct`（`seq`/`checked`/\n`isRadio`/`blobUrl` を持つ表示専用の派生ビュー、`buildPsdLayerTree` が\n`PsdLayerNode` から都度再構築する）も同じ理由でここには含めず、\nTS 側の手書き型のまま残す。",
+  "type": "object",
+  "properties": {
+    "children": {
+      "type": "array",
+      "items": {
+        "$ref": "#"
+      }
+    },
+    "defaultVisible": {
+      "type": "boolean"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "id": {
+      "type": "string"
+    },
+    "isGroup": {
+      "type": "boolean"
+    },
+    "isRadio": {
+      "type": "boolean"
+    },
+    "left": {
+      "type": "number",
+      "format": "float"
+    },
+    "name": {
+      "type": "string"
+    },
+    "src": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "top": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "isGroup",
+    "isRadio",
+    "children",
+    "width",
+    "height",
+    "left",
+    "top",
+    "defaultVisible"
+  ]
+}

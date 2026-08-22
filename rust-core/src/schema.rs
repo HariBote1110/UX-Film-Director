@@ -2836,3 +2836,35 @@ pub struct LipSyncSetting {
     pub audio_id: Option<String>,
     pub mapping: LipSyncMapping,
 }
+
+/// PSD レイヤーツリーのノード。`src/types.ts` の `PsdLayerNode` と同形の
+/// 再帰構造（`children: Vec<PsdLayerNodeFields>`）。R3バッチAのスパイクで
+/// 確認済みのとおり `Box<>` は不要（`Vec` 自体がヒープ間接参照）。
+///
+/// TS 側は `textureSource?: ImageBitmap`（GPU 専用・非シリアライズ）を
+/// 別レイヤー（`PsdLayerNodeRuntimeFields`）として合成するため、この
+/// フィールドはここには含めない。`PsdLayerStruct`（`seq`/`checked`/
+/// `isRadio`/`blobUrl` を持つ表示専用の派生ビュー、`buildPsdLayerTree` が
+/// `PsdLayerNode` から都度再構築する）も同じ理由でここには含めず、
+/// TS 側の手書き型のまま残す。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PsdLayerNodeFields {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "isGroup")]
+    #[ts(rename = "isGroup")]
+    pub is_group: bool,
+    #[serde(rename = "isRadio")]
+    #[ts(rename = "isRadio")]
+    pub is_radio: bool,
+    pub children: Vec<PsdLayerNodeFields>,
+    pub width: f32,
+    pub height: f32,
+    pub left: f32,
+    pub top: f32,
+    #[serde(rename = "defaultVisible")]
+    #[ts(rename = "defaultVisible")]
+    pub default_visible: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+}
