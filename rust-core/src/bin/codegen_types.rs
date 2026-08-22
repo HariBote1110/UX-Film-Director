@@ -15,27 +15,29 @@ use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
     AsanohaPatternObjectFields, AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields,
-    AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind,
-    ColourPipeline, ContourTraceObjectFields, DisplacementPolyObjectFields, Easing, Effect,
-    FocusLinesPlusObjectFields, Fps, GearObjectFields, GetColorDotFieldObjectFields,
+    AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, BaseObject,
+    CameraState, Clip, ClipKind, ColourPipeline, ContourTraceObjectFields,
+    DisplacementPolyObjectFields, Easing, EditorMode, Effect, FocusLinesPlusObjectFields, Fps,
+    GearObjectFields, GetColorDotFieldObjectFields,
     GourdObjectFields, GroupControl, GroupControlObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields,
     HistogramObjectFields, HologramObjectFields, ImageObjectFields,
-    LipSyncMapping, LipSyncSetting, LipSyncSourceMode,
+    LayerState, LipSyncMapping, LipSyncSetting, LipSyncSourceMode,
     PsdLayerNodeFields, PsdObjectFields,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
-    Project, ProjectSize, ProtractorObjectFields, PsdWorldPlacement,
+    Project, ProjectSettings, ProjectSize, ProtractorObjectFields, PsdWorldPlacement,
     PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields,
-    SamplingMode, StageCamera3D,
+    SamplingMode, SceneData, StageCamera3D,
     ScalarKeyframe, ShakingPolygonObjectFields, ShapeGradientFill, ShapeGradientKind,
     ShapeGradientScope, ShapeObjectFields,
     CircularArrowObjectFields, HoundstoothObjectFields, ShapeType, ShatteredSphereObjectFields,
     SimpleTubeObjectFields,
     SphereDotsObjectFields, SphericalFieldObjectFields, SubjectCropAnimation, SubjectCropKeyframe,
     SubjectCropNormKeyframe, SunburstObjectFields, TartanCheckObjectFields, TextAlignment,
-    TextObjectFields, TextShadow, TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields,
+    TextObjectFields, TextShadow, TextStroke, TimelineObject, ToneCurveObjectFields, Track,
+    TrackBarObjectFields,
     TriangleBracketObjectFields, Transform, Vec3, VideoObjectFields, WipeAnimation, WipeEdge,
     YagasuriObjectFields,
 };
@@ -151,6 +153,17 @@ fn write_ts_bindings() {
     LipSyncSetting::export_all(&cfg).expect("LipSyncSetting の TS export に失敗しました");
     PsdLayerNodeFields::export_all(&cfg).expect("PsdLayerNodeFields の TS export に失敗しました");
     PsdObjectFields::export_all(&cfg).expect("PsdObjectFields の TS export に失敗しました");
+
+    // R4-1a: ファイル形式スキャフォールディング。BaseObject / TimelineObject の
+    // export_all が依存するサブ型（PathPoint / ObjectFilter 系 / ShadowEffect 等）
+    // も連鎖して書き出す。
+    BaseObject::export_all(&cfg).expect("BaseObject の TS export に失敗しました");
+    TimelineObject::export_all(&cfg).expect("TimelineObject の TS export に失敗しました");
+    EditorMode::export_all(&cfg).expect("EditorMode の TS export に失敗しました");
+    ProjectSettings::export_all(&cfg).expect("ProjectSettings の TS export に失敗しました");
+    LayerState::export_all(&cfg).expect("LayerState の TS export に失敗しました");
+    CameraState::export_all(&cfg).expect("CameraState の TS export に失敗しました");
+    SceneData::export_all(&cfg).expect("SceneData の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -283,6 +296,13 @@ fn write_json_schemas() {
     write_schema::<LipSyncSetting>(&dir, "LipSyncSetting");
     write_schema::<PsdLayerNodeFields>(&dir, "PsdLayerNodeFields");
     write_schema::<PsdObjectFields>(&dir, "PsdObjectFields");
+    write_schema::<BaseObject>(&dir, "BaseObject");
+    write_schema::<TimelineObject>(&dir, "TimelineObject");
+    write_schema::<EditorMode>(&dir, "EditorMode");
+    write_schema::<ProjectSettings>(&dir, "ProjectSettings");
+    write_schema::<LayerState>(&dir, "LayerState");
+    write_schema::<CameraState>(&dir, "CameraState");
+    write_schema::<SceneData>(&dir, "SceneData");
 
     println!("codegen:types (JSON Schema) 完了 -> {}", dir.display());
 }
