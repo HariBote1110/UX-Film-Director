@@ -334,7 +334,7 @@ pub struct OverlayLiveSurfaceDiagnostics {
     pub live_readback_export_max_channel_delta: Option<u8>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OverlayLayerContract {
     pub pixel_format: &'static str,
     pub view_x: f64,
@@ -2613,7 +2613,11 @@ pub fn set_native_overlay_obstructed(window_id: u32, obstructed: bool) -> Result
     {
         macos_overlay::set_overlay_view_obstructed(renderer.view_handle, obstructed);
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        win32_overlay::set_overlay_window_obstructed(renderer.overlay_hwnd, obstructed);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = renderer;
         let _ = obstructed;

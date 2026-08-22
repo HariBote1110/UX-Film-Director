@@ -17,17 +17,87 @@
 
 use napi::bindgen_prelude::Buffer;
 use std::ffi::c_void;
+use std::time::{Duration, Instant};
 use uxfd_native_overlay::{
     attach_native_overlay, detach_native_overlay, NativeOverlayAttachPayload,
     NativeOverlayDetachPayload,
 };
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, RegisterClassW, CS_HREDRAW, CS_VREDRAW,
-    WNDCLASSW, WS_EX_LEFT, WS_OVERLAPPEDWINDOW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EnumWindows,
+    GetClassNameW, GetWindow, GetWindowRect, PeekMessageW, RegisterClassW, SetWindowPos,
+    TranslateMessage, CS_HREDRAW, CS_VREDRAW, GW_OWNER, MSG, PM_REMOVE, SWP_NOACTIVATE,
+    SWP_NOSIZE, SWP_NOZORDER, WNDCLASSW, WS_EX_LEFT, WS_OVERLAPPEDWINDOW,
 };
+
+/// `win32_overlay.rs` の `NATIVE_OVERLAY_WINDOW_CLASS` と同じ値
+/// （private const のためテスト側で複製している。変更時は両方直すこと）。
+const NATIVE_OVERLAY_WINDOW_CLASS: &str = "UXFDNativeOverlayWindow";
+
+/// テストプロセスにメッセージループが無いと、Phase 6 で追加した
+/// `SetWinEventHook(..., WINEVENT_OUTOFCONTEXT)` のコールバックは配送されない
+/// （`win32_overlay.rs` の `geometry_resync_win_event_proc` doc 参照）。
+/// Electron の実プロセスは常に UI スレッドでメッセージポンプを回しているため
+/// この前提は本番では自動的に満たされるが、このスモークテストでは明示的に
+/// 短時間だけポンプを回して同じ状況を再現する。
+fn pump_messages_briefly(duration: Duration) {
+    let deadline = Instant::now() + duration;
+    let mut msg = MSG::default();
+    unsafe {
+        while Instant::now() < deadline {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
+/// `cargo test` は既定でテスト関数を並行実行するため、複数テストが同時に
+/// overlay window（class 名は全テスト共通の `UXFDNativeOverlayWindow`）を
+/// 作ることがある。`FindWindowExW` を class 名だけで引くと他テストの
+/// overlay を誤って掴む可能性があるため、`GetWindow(GW_OWNER)` が求める
+/// `owner` と一致するものだけを `EnumWindows` で絞り込む。
+unsafe extern "system" fn find_overlay_window_enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let search = &mut *(lparam.0 as *mut OverlaySearch);
+    if GetWindow(hwnd, GW_OWNER).unwrap_or_default() != search.owner {
+        return true.into();
+    }
+    let mut class_buffer = [0_u16; 256];
+    let length = GetClassNameW(hwnd, &mut class_buffer);
+    if length == 0 {
+        return true.into();
+    }
+    let class_name = String::from_utf16_lossy(&class_buffer[..length as usize]);
+    if class_name == NATIVE_OVERLAY_WINDOW_CLASS {
+        search.found = Some(hwnd);
+        return false.into();
+    }
+    true.into()
+}
+
+struct OverlaySearch {
+    owner: HWND,
+    found: Option<HWND>,
+}
+
+unsafe fn find_overlay_window(owner: HWND) -> Option<HWND> {
+    let mut search = OverlaySearch { owner, found: None };
+    let _ = EnumWindows(
+        Some(find_overlay_window_enum_proc),
+        LPARAM(&mut search as *mut OverlaySearch as isize),
+    );
+    search.found
+}
+
+unsafe fn window_rect(hwnd: HWND) -> RECT {
+    let mut rect = RECT::default();
+    let _ = GetWindowRect(hwnd, &mut rect);
+    rect
+}
 
 fn wide_null(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
@@ -112,7 +182,135 @@ fn attach_and_detach_native_overlay_round_trip_on_real_hwnd() {
     }
 }
 
+/// Phase 6（geometry 追従）の実機検証。owner を `SetWindowPos` で実際に
+/// 動かし、Phase 6 で追加した `EVENT_OBJECT_LOCATIONCHANGE` resync hook が
+/// overlay の HWND を追従させることを確認する。
+///
+/// `SetWinEventHook(..., WINEVENT_OUTOFCONTEXT)` はフックを登録したスレッド
+/// のメッセージキュー経由で配送されるため、[`pump_messages_briefly`] で
+/// テストプロセス自身のメッセージポンプを明示的に回す（Electron 本番では
+/// UI スレッドが常時ポンプを回しているため不要な工程だが、素の Win32 テスト
+/// バイナリではこれが無いとフックが一切発火しない）。
+#[test]
+fn native_overlay_follows_owner_window_move_via_geometry_resync_hook() {
+    unsafe {
+        let hinstance = GetModuleHandleW(None).expect("GetModuleHandleW failed");
+        let class_name = wide_null("UXFDW6GeometryFollowOwnerWindow");
+        let class = WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(owner_wndproc),
+            hInstance: hinstance.into(),
+            lpszClassName: PCWSTR(class_name.as_ptr()),
+            ..Default::default()
+        };
+        let _ = RegisterClassW(&class);
+
+        let title = wide_null("UXFD W6 geometry follow owner");
+        let owner: HWND = CreateWindowExW(
+            WS_EX_LEFT,
+            PCWSTR(class_name.as_ptr()),
+            PCWSTR(title.as_ptr()),
+            WS_OVERLAPPEDWINDOW,
+            0,
+            0,
+            640,
+            480,
+            None,
+            None,
+            hinstance,
+            None,
+        )
+        .expect("CreateWindowExW(owner) failed");
+        assert!(!owner.0.is_null(), "owner HWND must be non-null");
+
+        let handle_bytes = (owner.0 as usize).to_ne_bytes().to_vec();
+        let window_id: u32 = 424_243;
+
+        let attach_response = attach_native_overlay(NativeOverlayAttachPayload {
+            window_id,
+            native_window_handle: Some(Buffer::from(handle_bytes.clone())),
+            x: 10.0,
+            y: 20.0,
+            width: 320.0,
+            height: 240.0,
+            scale_factor: 1.0,
+        });
+        assert!(
+            attach_response.success,
+            "attach_native_overlay must succeed on real Windows hardware, reason={:?}",
+            attach_response.reason
+        );
+
+        let overlay = find_overlay_window(owner).expect(
+            "overlay window with class UXFDNativeOverlayWindow owned by our owner HWND must exist after a successful attach",
+        );
+        let initial_rect = window_rect(overlay);
+        eprintln!(
+            "[w6-geometry-follow] initial overlay rect = ({}, {}, {}, {})",
+            initial_rect.left, initial_rect.top, initial_rect.right, initial_rect.bottom
+        );
+
+        // owner を大きく動かす。resync が働けば overlay も同じ量だけ移動する
+        // はず（owner のクライアント原点 + contract のオフセットは不変）。
+        const MOVE_DELTA_X: i32 = 300;
+        const MOVE_DELTA_Y: i32 = 150;
+        let owner_rect_before = window_rect(owner);
+        let target_x = owner_rect_before.left + MOVE_DELTA_X;
+        let target_y = owner_rect_before.top + MOVE_DELTA_Y;
+        let _ = SetWindowPos(
+            owner,
+            None,
+            target_x,
+            target_y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+
+        // resync hook のコールバックが配送されるまでメッセージポンプを回しつつ
+        // ポーリングする（最大 5 秒）。
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut followed_rect = window_rect(overlay);
+        while Instant::now() < deadline {
+            pump_messages_briefly(Duration::from_millis(100));
+            followed_rect = window_rect(overlay);
+            let observed_delta_x = followed_rect.left - initial_rect.left;
+            let observed_delta_y = followed_rect.top - initial_rect.top;
+            if observed_delta_x == MOVE_DELTA_X && observed_delta_y == MOVE_DELTA_Y {
+                break;
+            }
+        }
+
+        eprintln!(
+            "[w6-geometry-follow] followed overlay rect = ({}, {}, {}, {})",
+            followed_rect.left, followed_rect.top, followed_rect.right, followed_rect.bottom
+        );
+        assert_eq!(
+            followed_rect.left - initial_rect.left,
+            MOVE_DELTA_X,
+            "overlay must follow the owner window's horizontal move within 5s"
+        );
+        assert_eq!(
+            followed_rect.top - initial_rect.top,
+            MOVE_DELTA_Y,
+            "overlay must follow the owner window's vertical move within 5s"
+        );
+
+        let detach_response = detach_native_overlay(NativeOverlayDetachPayload {
+            window_id,
+            native_window_handle: Some(Buffer::from(handle_bytes)),
+        });
+        assert!(
+            detach_response.success,
+            "detach_native_overlay must succeed after a successful attach, reason={:?}",
+            detach_response.reason
+        );
+
+        let _ = DestroyWindow(owner);
+    }
+}
+
 // `PCWSTR` の生存期間に依存するダミー参照を防ぐため、未使用 import 警告を
-// 抑止するための no-op。テスト自体は上の1本のみ。
+// 抑止するための no-op。テスト自体は上の2本のみ。
 #[allow(dead_code)]
 fn _silence_unused_import_lint(_ptr: *mut c_void) {}

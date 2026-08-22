@@ -29,13 +29,23 @@ use windows::Win32::Graphics::DirectComposition::{
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen as WinClientToScreen;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::Threading::GetCurrentProcessId;
+use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
+use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, RegisterClassW, ShowWindow, CS_HREDRAW, CS_VREDRAW,
-    SW_SHOWNOACTIVATE, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, RegisterClassW, SetWindowPos, ShowWindow, CS_HREDRAW,
+    CS_VREDRAW, EVENT_OBJECT_LOCATIONCHANGE, HWND_BOTTOM, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_NOZORDER, SW_SHOWNOACTIVATE, WINEVENT_OUTOFCONTEXT, WNDCLASSW,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 use crate::OverlayLayerContract;
+
+/// `SetWinEventHook` のコールバックが `OBJID_WINDOW` / `CHILDID_SELF` を
+/// 表す際に受け取る値（`windows` crate の Win32_UI_WindowsAndMessaging には
+/// 定数として存在しないため、Win32 SDK のヘッダ値をそのまま定義する）。
+const OBJID_WINDOW: i32 = 0;
+const CHILDID_SELF: i32 = 0;
 
 const NATIVE_OVERLAY_WINDOW_CLASS: &str = "UXFDNativeOverlayWindow";
 const WM_NCHITTEST: u32 = 0x0084;
@@ -68,6 +78,187 @@ struct OverlayWindowResources {
 // アクセスは `NativeWgpuLiveSurfaceRenderer` 側が握る）契約のもとで明示する。
 unsafe impl Send for OverlayWindowResources {}
 
+/// geometry resync（`markdown/Windows_Port_Plan.md` Phase 6）のために
+/// owner HWND ごとに保持する状態。`SetWinEventHook`
+/// （`EVENT_OBJECT_LOCATIONCHANGE`）のコールバックはグローバル関数
+/// ポインタでしかフックできず、クロージャでキャプチャできないため、
+/// 対象 owner を静的レジストリへ登録して owner HWND をキーに引く設計。
+///
+/// macOS 側の `GEOMETRY_RESYNC_OBSERVERS`（`macos_overlay.rs`）と同じ
+/// 「レジストリに resync 用の状態を保持し、通知/イベントのたびに解決し直す」
+/// 構造の Win32 対応物。
+struct GeometryResyncHookState {
+    hook: isize,
+    overlay_hwnd: isize,
+    owner_hwnd: isize,
+    contract: OverlayLayerContract,
+}
+
+unsafe impl Send for GeometryResyncHookState {}
+
+static GEOMETRY_RESYNC_HOOKS: std::sync::OnceLock<Mutex<HashMap<usize, GeometryResyncHookState>>> =
+    std::sync::OnceLock::new();
+
+fn geometry_resync_hooks() -> &'static Mutex<HashMap<usize, GeometryResyncHookState>> {
+    GEOMETRY_RESYNC_HOOKS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// `SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, ...)` のコールバック。
+///
+/// macOS は `NSWindowDidMoveNotification` / `NSWindowDidResizeNotification`
+/// を購読すればよいが、Electron/Chromium が所有する HWND は
+/// このクレート側でサブクラス化（`WNDPROC` の差し替え）することが
+/// 安全ではない（Chromium 自身が `WNDPROC` を握っており、素朴な
+/// `SetWindowLongPtr(GWLP_WNDPROC, ...)` は Chromium 側の実装と競合しうる）。
+/// そのため `WM_MOVE`/`WM_SIZE`/`WM_WINDOWPOSCHANGED` を直接フックせず、
+/// システム全体のアクセシビリティイベントである
+/// `EVENT_OBJECT_LOCATIONCHANGE`（`WINEVENT_OUTOFCONTEXT`）を購読する。
+/// この方式はウィンドウの移動・リサイズ・最小化・復元のいずれでも発火し、
+/// DPI 変更（`WM_DPICHANGED`）でもウィンドウ矩形が変わるため同じイベントで
+/// 拾える。owner を直接操作しないため Chromium との競合リスクが無い。
+///
+/// `WINEVENT_OUTOFCONTEXT` はフックを呼び出したスレッドのメッセージキュー経由
+/// で非同期配送されるため、当該スレッドがメッセージポンプを回している必要が
+/// ある。`attach_overlay_window` は Electron のメインプロセス（napi の
+/// 同期呼び出し元）スレッドから呼ばれ、そのスレッドは Chromium の UI スレッド
+/// として常時メッセージループを回しているため、この前提は満たされる
+/// （`windows_port_research/notes/w5-attach-hang.md` で確認した
+/// 「メッセージポンプ不在でも DirectComposition 自体は数秒で完了する」とは
+/// 別の話で、こちらはイベント配送の前提）。実機での配送確認は
+/// mainpc のみで可能（§Verification 参照）。
+extern "system" fn geometry_resync_win_event_proc(
+    _hook: HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    id_object: i32,
+    id_child: i32,
+    _id_event_thread: u32,
+    _dwms_event_time: u32,
+) {
+    if event != EVENT_OBJECT_LOCATIONCHANGE || id_object != OBJID_WINDOW || id_child != CHILDID_SELF
+    {
+        return;
+    }
+    let Ok(registry) = geometry_resync_hooks().lock() else {
+        return;
+    };
+    let Some(state) = registry.get(&(hwnd.0 as usize)) else {
+        // このイベントは登録済みの owner とは無関係なウィンドウのもの
+        // （プロセス内の他ウィンドウ、あるいは owner の子孫）。
+        return;
+    };
+    let owner = HWND(state.owner_hwnd as *mut c_void);
+    let overlay = HWND(state.overlay_hwnd as *mut c_void);
+    let contract = state.contract.clone();
+    drop(registry);
+    unsafe {
+        resync_overlay_geometry(owner, overlay, &contract);
+    }
+}
+
+/// owner の現在のクライアント原点・DPI から overlay の screen rect を
+/// 再計算し、`SetWindowPos` で反映する。attach 時の初期配置
+/// （[`attach_overlay_window`]）と resync（本関数）はどちらも
+/// `resolve_overlay_screen_rect` を通すことで、二重に異なる式を持たない
+/// （macOS 側 `resolve_overlay_view_local_rect` のコメント参照）。
+unsafe fn resync_overlay_geometry(owner: HWND, overlay: HWND, contract: &OverlayLayerContract) {
+    let Ok((origin_x, origin_y)) = owner_client_origin(owner) else {
+        return;
+    };
+    let dpi_scale_factor = dpi_scale_factor_from_dpi(GetDpiForWindow(owner));
+    let (screen_x, screen_y, width, height) = resolve_overlay_screen_rect(
+        origin_x,
+        origin_y,
+        contract.view_x,
+        contract.view_y,
+        contract.view_width,
+        contract.view_height,
+        dpi_scale_factor,
+    );
+    let _ = SetWindowPos(
+        overlay,
+        None,
+        screen_x,
+        screen_y,
+        width,
+        height,
+        SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+}
+
+/// owner HWND の move/resize/DPI 変更に overlay を追従させる resync hook を
+/// 登録する。`attach_overlay_window` の最後で 1 回だけ呼ばれる。
+unsafe fn register_geometry_resync_hook(
+    owner: HWND,
+    overlay: HWND,
+    contract: OverlayLayerContract,
+) -> Result<(), String> {
+    let process_id = GetCurrentProcessId();
+    let hook = SetWinEventHook(
+        EVENT_OBJECT_LOCATIONCHANGE,
+        EVENT_OBJECT_LOCATIONCHANGE,
+        None,
+        Some(geometry_resync_win_event_proc),
+        process_id,
+        0,
+        WINEVENT_OUTOFCONTEXT,
+    );
+    if hook.is_invalid() {
+        return Err("Native overlay SetWinEventHook failed.".to_string());
+    }
+    let state = GeometryResyncHookState {
+        hook: hook.0 as isize,
+        overlay_hwnd: overlay.0 as isize,
+        owner_hwnd: owner.0 as isize,
+        contract,
+    };
+    let mut registry = geometry_resync_hooks()
+        .lock()
+        .map_err(|_| "Native overlay geometry resync hook registry is poisoned.".to_string())?;
+    registry.insert(owner.0 as usize, state);
+    Ok(())
+}
+
+/// `detach_overlay_window` から呼ばれ、登録済みの resync hook を解除する。
+unsafe fn unregister_geometry_resync_hook(owner: HWND) {
+    let Ok(mut registry) = geometry_resync_hooks().lock() else {
+        return;
+    };
+    if let Some(state) = registry.remove(&(owner.0 as usize)) {
+        let _ = UnhookWinEvent(HWINEVENTHOOK(state.hook as *mut c_void));
+    }
+}
+
+/// Bug E 相当（`markdown/Windows_Port_Plan.md` Phase 6）— overlay に隠れる
+/// HTML UI を前面に出したいとき、overlay の z-order を一時的に下げる。
+/// macOS の `set_overlay_view_obstructed`（child NSWindow の
+/// `orderWindow:relativeTo:`）に対応する Win32 版。
+///
+/// `WS_POPUP` ウィンドウは `SetWindowPos` の `hWndInsertAfter` に
+/// `HWND_BOTTOM`/`HWND_TOP` を渡すだけで z-order を切り替えられる
+/// （owner に対する子孫関係は `CreateWindowExW` の `hWndParent` 引数で
+/// 既に確立済みなので、`HWND_TOP`/`HWND_BOTTOM` は owner の子ウィンドウ群
+/// の中での相対順として扱われる）。macOS 版のように「対象ウィンドウの
+/// windowNumber を明示的に relativeTo: へ渡す」必要は Win32 には無い。
+pub fn set_overlay_window_obstructed(overlay_hwnd: usize, obstructed: bool) {
+    if overlay_hwnd == 0 {
+        return;
+    }
+    let overlay = HWND(overlay_hwnd as *mut c_void);
+    let insert_after = if obstructed { HWND_BOTTOM } else { HWND_TOP };
+    unsafe {
+        let _ = SetWindowPos(
+            overlay,
+            insert_after,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
+}
+
 /// Electron の owner HWND のクライアント原点（スクリーン座標）と、
 /// `OverlayLayerContract` のオフセット付き矩形（owner クライアントローカル
 /// 座標、top-left origin — Win32 ネイティブの座標系はそもそも flip 不要）
@@ -77,8 +268,18 @@ unsafe impl Send for OverlayWindowResources {}
 /// （attach 時の geometry 解決を実機依存 API から切り離してテストする）を
 /// Win32 向けに移したもの。Win32 の座標系は top-left origin で統一されて
 /// おり isFlipped 相当の分岐は不要なため、macOS 版より単純になる。
-/// 親追従（`WM_MOVE`/`WM_SIZE` resync）は Phase 6 の対象で、ここでは
-/// attach 時点の 1 回分の解決だけを提供する。
+///
+/// `dpi_scale_factor` は attach/resync いずれの呼び出しでも
+/// `dpi_scale_factor_from_dpi(GetDpiForWindow(owner))` を渡すこと。
+/// `contract.view_*` は TS 側で CSS px（論理ピクセル）として計算されている
+/// ため（`contents_scale` と同じ位置づけ、`lib.rs` の
+/// `OverlayLayerContract::contents_scale` 参照）、Win32 の物理ピクセル座標系
+/// へ渡す前に DPI スケールを掛けて変換する必要がある。100% スケール
+/// （`dpi_scale_factor == 1.0`）では従来どおり無変換になる。
+///
+/// Phase 6 で `attach`（1 回きりの解決）だけでなく親ウィンドウの
+/// move/resize/DPI 変更を受けての resync からも呼ばれるようになった
+/// （[`register_geometry_resync_hook`] 参照）。
 pub fn resolve_overlay_screen_rect(
     owner_client_origin_x: i32,
     owner_client_origin_y: i32,
@@ -86,12 +287,32 @@ pub fn resolve_overlay_screen_rect(
     contract_view_y: f64,
     contract_view_width: f64,
     contract_view_height: f64,
+    dpi_scale_factor: f64,
 ) -> (i32, i32, i32, i32) {
-    let screen_x = owner_client_origin_x + contract_view_x.round() as i32;
-    let screen_y = owner_client_origin_y + contract_view_y.round() as i32;
-    let width = contract_view_width.round().max(1.0) as i32;
-    let height = contract_view_height.round().max(1.0) as i32;
+    let scaled_x = contract_view_x * dpi_scale_factor;
+    let scaled_y = contract_view_y * dpi_scale_factor;
+    let scaled_width = contract_view_width * dpi_scale_factor;
+    let scaled_height = contract_view_height * dpi_scale_factor;
+    let screen_x = owner_client_origin_x + scaled_x.round() as i32;
+    let screen_y = owner_client_origin_y + scaled_y.round() as i32;
+    let width = scaled_width.round().max(1.0) as i32;
+    let height = scaled_height.round().max(1.0) as i32;
     (screen_x, screen_y, width, height)
+}
+
+/// Win32 の `GetDpiForWindow` が返す生の DPI 値（既定 96 = 100%）を
+/// `resolve_overlay_screen_rect` に渡す倍率へ変換する純粋関数。
+/// `USER_DEFAULT_SCREEN_DPI`（96）を基準にした単純な比率。
+/// per-monitor DPI awareness（`markdown/Windows_Port_Plan.md` Phase 6）の
+/// 計算そのものはこれだけで、実機依存なのは呼び出し元の
+/// `GetDpiForWindow` 呼び出しだけ。mainpc は 100% スケール機なので
+/// このスケーリング自体の実機高DPI検証は未実施（下記モジュール doc 参照）。
+pub fn dpi_scale_factor_from_dpi(dpi: u32) -> f64 {
+    const USER_DEFAULT_SCREEN_DPI: f64 = 96.0;
+    if dpi == 0 {
+        return 1.0;
+    }
+    dpi as f64 / USER_DEFAULT_SCREEN_DPI
 }
 
 extern "system" fn overlay_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -164,6 +385,7 @@ pub fn attach_overlay_window(
 
     unsafe {
         let (origin_x, origin_y) = owner_client_origin(owner)?;
+        let dpi_scale_factor = dpi_scale_factor_from_dpi(GetDpiForWindow(owner));
         let (screen_x, screen_y, width, height) = resolve_overlay_screen_rect(
             origin_x,
             origin_y,
@@ -171,6 +393,7 @@ pub fn attach_overlay_window(
             contract.view_y,
             contract.view_width,
             contract.view_height,
+            dpi_scale_factor,
         );
 
         let hinstance = GetModuleHandleW(None)
@@ -218,12 +441,24 @@ pub fn attach_overlay_window(
             .lock()
             .map_err(|_| "Native overlay window registry is poisoned.".to_string())?;
         registry.insert(owner.0 as usize, resources);
+        drop(registry);
+
+        // Phase 6: 親ウィンドウの move/resize/最小化/復元/DPI 変更に overlay
+        // を追従させる resync hook を登録する。失敗しても attach 自体は
+        // 継続する（追従できないだけで overlay 自体は初期位置に表示される）。
+        if let Err(reason) = register_geometry_resync_hook(owner, overlay, contract.clone()) {
+            eprintln!("[uxfd-native-overlay] geometry resync hook registration failed: {reason}");
+        }
+
         Ok((overlay_hwnd, dcomp_device, visual))
     }
 }
 
 pub fn detach_overlay_window(native_window_handle: &[u8]) -> Result<(), String> {
     let owner = native_window_handle_to_owner_hwnd(native_window_handle)?;
+    unsafe {
+        unregister_geometry_resync_hook(owner);
+    }
     let mut registry = overlay_windows()
         .lock()
         .map_err(|_| "Native overlay window registry is poisoned.".to_string())?;
@@ -244,16 +479,17 @@ mod geometry_tests {
     #[test]
     fn resolve_overlay_screen_rect_offsets_by_owner_client_origin() {
         // Win32 は top-left origin 一本なので macOS の isFlipped 分岐は不要。
-        // 単純にオーナーのクライアント原点へ view_x/view_y を足すだけでよい。
+        // 単純にオーナーのクライアント原点へ view_x/view_y を足すだけでよい
+        // （DPI スケール 1.0 = 100% では無変換）。
         let (x, y, width, height) =
-            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0);
+            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0, 1.0);
         assert_eq!((x, y, width, height), (112, 234, 600, 400));
     }
 
     #[test]
     fn resolve_overlay_screen_rect_rounds_fractional_view_offsets() {
         let (x, y, width, height) =
-            resolve_overlay_screen_rect(0, 0, 12.4, 34.6, 600.4, 400.6);
+            resolve_overlay_screen_rect(0, 0, 12.4, 34.6, 600.4, 400.6, 1.0);
         assert_eq!((x, y, width, height), (12, 35, 600, 401));
     }
 
@@ -261,7 +497,33 @@ mod geometry_tests {
     fn resolve_overlay_screen_rect_clamps_size_to_at_least_one_pixel() {
         // 0 幅/高さの CreateWindowExW は未定義動作になりやすいので、
         // 最低 1px を保証する。
-        let (_, _, width, height) = resolve_overlay_screen_rect(0, 0, 0.0, 0.0, 0.0, 0.0);
+        let (_, _, width, height) = resolve_overlay_screen_rect(0, 0, 0.0, 0.0, 0.0, 0.0, 1.0);
         assert_eq!((width, height), (1, 1));
+    }
+
+    #[test]
+    fn resolve_overlay_screen_rect_scales_view_rect_by_dpi_factor() {
+        // 150% スケール（144 DPI）では contract の view rect（論理ピクセル）
+        // を 1.5 倍してから owner のクライアント原点（物理ピクセル）へ足す。
+        let (x, y, width, height) =
+            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0, 1.5);
+        assert_eq!((x, y, width, height), (100 + 18, 200 + 51, 900, 600));
+    }
+
+    #[test]
+    fn dpi_scale_factor_from_dpi_maps_96_to_one() {
+        assert_eq!(dpi_scale_factor_from_dpi(96), 1.0);
+    }
+
+    #[test]
+    fn dpi_scale_factor_from_dpi_maps_144_to_one_point_five() {
+        assert_eq!(dpi_scale_factor_from_dpi(144), 1.5);
+    }
+
+    #[test]
+    fn dpi_scale_factor_from_dpi_treats_zero_as_no_scale() {
+        // GetDpiForWindow は失敗時に 0 を返すことがある。フォールバックとして
+        // 100% スケール扱いにし、overlay サイズが 0 化するのを防ぐ。
+        assert_eq!(dpi_scale_factor_from_dpi(0), 1.0);
     }
 }

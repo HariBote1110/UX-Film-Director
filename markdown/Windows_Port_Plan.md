@@ -394,18 +394,45 @@ parity ゲートも全通過）。詳細は
 - resize 追従は surface reconfigure で実装してよい。Phase 0 で連続 8,445 回の再構成が
   失敗ゼロだった。
 
-### Phase 6: geometry 追従・DPI（推定 2-3日）
+### Phase 6: geometry 追従・DPI（推定 2-3日、★完了。高DPIの実機検証のみ未検証）
 
-- 親ウィンドウの移動・リサイズ・最小化・DPI 変更・devtools 開閉に overlay を追従させる。
-  macOS 側は `macos_overlay.rs` の `GEOMETRY_RESYNC_OBSERVERS` で
-  `NSWindowDidMoveNotification` 等を拾っている。Windows は `WM_MOVE` / `WM_SIZE` /
-  `WM_DPICHANGED` / `WM_WINDOWPOSCHANGED` に相当する仕掛けが要る。
-- `resolve_view_local_rect_for_parent_bounds` 相当の純粋関数は
-  プラットフォーム非依存に切り出せるはず（macOS 側は既にテスト済み）。
-- **per-monitor DPI awareness**。実機は 100% スケールだったため今回のプローブは
-  DPI 非対応のままで座標が一致した。高DPI 環境は未検証で、ここは新規に詰める必要がある。
-- Bug E 相当（overlay に隠れる HTML UI の z-order 制御）を Windows でどうするか。
-  macOS は child window の ordering を切り替えている。
+詳細は `progress/windows-w6-geometry-dpi.md` を参照。
+
+- **親ウィンドウ追従**: Electron/Chromium が所有する owner HWND を
+  サブクラス化（`WNDPROC` 差し替え）するのは Chromium 自身の実装と競合しうるため
+  避け、`SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, WINEVENT_OUTOFCONTEXT)`
+  でシステム全体のアクセシビリティイベントを購読する方式を採用した
+  （`win32_overlay.rs::register_geometry_resync_hook`）。move/resize/最小化/
+  復元/DPI 変更のいずれもウィンドウ矩形変化として拾える。macOS の
+  `NSWindowDidMoveNotification` 購読と同じ「対象を直接操作せず通知を受けて
+  手動で resync する」設計の Win32 対応物。`WINEVENT_OUTOFCONTEXT` はフックを
+  登録したスレッドのメッセージポンプ経由で配送されるため、Electron の
+  UI スレッド（常時メッセージループを回す）が呼び出し元であることが前提。
+  mainpc 実機で owner を `SetWindowPos` で実際に動かし、overlay HWND が
+  同じ量だけ追従することを確認済み（`tests/win32_overlay_smoke.rs`）。
+- **純粋関数の切り出し**: `resolve_overlay_screen_rect`
+  （W5 で導入済み）に `dpi_scale_factor` 引数を追加し、attach 時の初期配置と
+  resync（`resync_overlay_geometry`）の両方が同じ関数を通るようにした
+  （二重に異なる式を持つリグレッション再発を防ぐ、macOS 側と同じ設計判断）。
+- **per-monitor DPI awareness**: `dpi_scale_factor_from_dpi(GetDpiForWindow(...))`
+  で DPI（既定 96 = 100%）を倍率へ変換し、`contract.view_*`（CSS px）を
+  物理ピクセルへ変換してから座標を組み立てる。この変換ロジック自体は
+  macOS 側と同じくプラットフォーム非依存のためユニットテスト済み。
+  **実機での高DPI検証は未実施**（mainpc は 100% スケール機のため）。
+- **Bug E 相当**: `set_overlay_window_obstructed`（`SetWindowPos` の
+  `HWND_TOP`/`HWND_BOTTOM`）を実装し、`set_native_overlay_obstructed` の
+  Windows 分岐へ配線した。macOS のように `windowNumber` を明示的に
+  `relativeTo:` へ渡す必要が Win32 には無く（`WS_POPUP` の owner 関係だけで
+  z-order が決まる）、より単純。**実 Electron 上での HTML UI 重なり確認は
+  未実施**（コンパイル・単体の SetWindowPos 呼び出し経路のみ確認）。
+- **79秒（Fxc）/更に短い（DXC）初回パイプライン生成のUIスレッドブロック**:
+  `#[napi(js_name = "attachNativeOverlay")]` は `async` 指定が無い同期関数
+  であり、JS 側は `await addon.attachNativeOverlay(...)` で呼ぶが napi は
+  この呼び出しを Node/Electron のメインスレッド上で同期実行する。
+  つまり初回 attach のパイプライン生成コストは**そのまま Electron の
+  UI スレッドをブロックする**ことを確認した。修正（非同期化・別スレッド化）
+  は本 Phase のスコープ外（計画書の指示どおり「trivially safe でない限り
+  fix しない」）。W7 以降の課題として申し送る。
 
 ### Phase 7: 段階導入と既定切替（推定 1日）
 
@@ -451,7 +478,7 @@ parity ゲートも全通過）。詳細は
 | **Phase 4 の wgpu 移行で macOS の NV12 ゼロコピーが壊れる** | 高 | golden-frame parity を合格条件にし、崩れたら移行を止める。最悪 `nv12/import.rs` を一時的に memcpy 経路へ戻す（Phase 3a 相当へ退避） |
 | 連続描画でちらつく / 60fps 出ない | 高 | Phase 0 で先に検出する。代替として `VisualFromWndHandle` 経路を試す |
 | Chromium 自身の DirectComposition と z-order 競合 | 中 | 静止状態では観測されず。Phase 0 で動的な操作を含めて再確認する |
-| 高DPI で overlay がずれる | 中 | Phase 6 で per-monitor DPI awareness を明示的に設計する。macOS 側の純粋関数テストと同じ形で先にテストを書く |
+| 高DPI で overlay がずれる | 中 | Phase 6 で `dpi_scale_factor_from_dpi`/`resolve_overlay_screen_rect` を実装・ユニットテスト済み。**実機の高DPI環境での検証はmainpcが100%スケール機のため未実施のまま**（W7以降で高DPI機での確認が必要） |
 | wgpu 移行が長引き Windows 以外の作業を止める | 中 | Phase 1-3 は Phase 4 と独立なので先に出す。Phase 3 完了時点で「overlay 以外は動く」を確定させる |
 | Windows 版の保守コストで macOS の速度が落ちる | 中 | ADR-001 の優先順位は維持。Windows の parity failure は当面 blocker にしない |
 | 開発機（rustc 1.93.0）と Windows 機（1.98.0）のバージョン差 | 低 | 揃える。`rust-toolchain.toml` の導入を検討する |
