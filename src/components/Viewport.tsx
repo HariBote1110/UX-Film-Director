@@ -77,6 +77,7 @@ import {
 import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRendererPresenterRestartSession';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import { resolveNativeOverlayEnabled } from '../utils/nativeOverlayPlatformGate';
+import { createNativeOverlayAttachLifecycle } from '../utils/nativeOverlayAttachLifecycle';
 import { psdImportTraceCollector } from '../perf/psdImportTrace';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
 import {
@@ -736,6 +737,26 @@ const Viewport: React.FC = () => {
   const nativeOverlayPreviewEnabled = resolveNativeOverlayEnabled(window.uxfdPlatform ?? '', {
     VITE_UXFD_NATIVE_OVERLAY: import.meta.env.VITE_UXFD_NATIVE_OVERLAY,
   });
+  // Phase 7 (W7) STAGE 3 — interim-presenter 状態機械。
+  // attach_native_overlay が非同期化された（windows-w7-async-attach.md）ため、
+  // 「機能が有効か」（nativeOverlayPreviewEnabled、設定値）と
+  // 「実際に overlay へ present してよいか」（attach 完了済みか）を分離する。
+  // Windows では初回 attach に数十秒かかりうるため、attach 完了までは
+  // WebGPU presenter を描画対象として使い続け、成功した時点でだけ overlay へ
+  // 切り替える。macOS は attach が高速に完了するため実質即座に 'overlay' へ
+  // 遷移する（シーケンス自体は共通コードのため変わらない、所要時間が短いだけ）。
+  // オーケストレーション本体（generation カウンタによる「最新の意図が勝つ」
+  // 契約、cancel時の古いresolve無視）は React 非依存のutilへ切り出し、
+  // nativeOverlayAttachLifecycle.test.ts で直接検証している。
+  const [nativeOverlayLifecycleState, setNativeOverlayLifecycleState] = useState<
+    'presenter' | 'attaching' | 'overlay'
+  >('presenter');
+  // 「presenter で代替描画してよい/overlay へ present してよい」の判定に
+  // 使う派生値。attach 完了（'overlay'）のときだけ true になる——
+  // nativeOverlayPreviewEnabled（設定値、常にtrue/false固定に近い）と違い、
+  // 1セッション中に false → true（attach成功）→ false（トグルOFF/失敗）と
+  // 遷移しうる。
+  const nativeOverlayReady = nativeOverlayLifecycleState === 'overlay';
   // 選択デコレーション（送信ロジック・SVG 透明化 state）は
   // SceneSelectionDecorationLayer.tsx へ移設済み。attach 成功 tick の bump
   // だけは Viewport 側に残す（attach 自体は Viewport が行うため）。
@@ -771,12 +792,42 @@ const Viewport: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!nativeOverlayPreviewEnabled) return;
+    if (!nativeOverlayPreviewEnabled) {
+      // 設定値そのものがOFF（未対応OS/明示opt-out）——attachライフサイクル自体を
+      // 起動しない。presenter が唯一の描画対象になる。
+      setNativeOverlayLifecycleState('presenter');
+      return;
+    }
     const previewElement = containerRef.current;
-    if (!previewElement || !window.nativeOverlay?.attach) return;
+    if (!previewElement || !window.nativeOverlay?.attach) {
+      setNativeOverlayLifecycleState('presenter');
+      return;
+    }
 
     let disposed = false;
     let lastNativeOverlayAttachKey: string | null = null;
+    let pendingAttachRect: Parameters<NonNullable<typeof window.nativeOverlay.attach>>[0] | null = null;
+    const nativeOverlayLifecycle = createNativeOverlayAttachLifecycle({
+      attach: () => {
+        // runAttach() 呼び出し直前に computeAttachRect() が pendingAttachRect を
+        // 確定させているため、ここでは必ず non-null。
+        const rect = pendingAttachRect;
+        return window.nativeOverlay!.attach(rect!);
+      },
+      onStateChange: setNativeOverlayLifecycleState,
+      onAttached: () => {
+        // attach 成功で addon 側の選択デコレーション state が失われている可能性が
+        // あるため、tick を進めて同値 quad でも再送させる。
+        setNativeOverlayAttachTick((tick) => tick + 1);
+      },
+      onAttachFailed: (reason) => {
+        // Option B（非同期attach）: 失敗しても presenter が既に描画対象のため
+        // ユーザー体験には影響しない。原因はログに残す（自動リトライはしない
+        // ——次に rect が実際に変化したときの attach() 呼び出しで自然に再試行
+        // される、既存の key dedupe と同じ設計）。
+        console.error('[NativeOverlay] attach failed', reason);
+      },
+    });
     const attach = () => {
       if (disposed) return;
       const viewportRect = previewElement.getBoundingClientRect();
@@ -797,12 +848,8 @@ const Viewport: React.FC = () => {
       };
       if (nextAttachKey === lastNativeOverlayAttachKey) return;
       lastNativeOverlayAttachKey = nextAttachKey;
-      void window.nativeOverlay?.attach(nextAttachRect).then((response) => {
-        if (disposed || !response?.attached) return;
-        // attach 成功で addon 側の選択デコレーション state が失われている可能性が
-        // あるため、tick を進めて同値 quad でも再送させる。
-        setNativeOverlayAttachTick((tick) => tick + 1);
-      });
+      pendingAttachRect = nextAttachRect;
+      nativeOverlayLifecycle.runAttach();
     };
 
     attach();
@@ -834,6 +881,11 @@ const Viewport: React.FC = () => {
 
     return () => {
       disposed = true;
+      // unmount（および nativeOverlayPreviewEnabled のトグルOFF、この effect の
+      // 再実行はどちらも同じクリーンアップ経路）— pending中のattachがあれば
+      // その後のresolveを無視させ、状態を直ちに 'presenter' へ戻す
+      // （「最新の意図が勝つ」契約、nativeOverlayAttachLifecycle.test.ts参照）。
+      nativeOverlayLifecycle.cancel();
       window.clearInterval(attachPollTimerId);
       observer?.disconnect();
       window.removeEventListener('resize', attach);
@@ -1206,7 +1258,7 @@ const Viewport: React.FC = () => {
       : time;
     const previewTime = isPlaying
       && rustVideoOnlyEnabled
-      && nativeOverlayPreviewEnabled
+      && nativeOverlayReady
       && sharedRendererNativeReuseLastPreviewTimeRef.current !== null
       ? resolveSharedRendererNativeReuseReplayTime({
         requestedTime: sharedRendererNativeReuseLastPreviewTimeRef.current,
@@ -1240,7 +1292,7 @@ const Viewport: React.FC = () => {
     // 上書きしないよう requestId を先に進めてから透明clearを発行する。
     if (shouldPresentSharedRendererEmptyScenePresentation({
       session,
-      nativeOverlayPreviewEnabled,
+      nativeOverlayPreviewEnabled: nativeOverlayReady,
     })) {
       sharedRendererVideoDecodeRequestIdRef.current += 1;
       notifyNativeOverlaySceneCleared(0);
@@ -1251,7 +1303,7 @@ const Viewport: React.FC = () => {
     // 経路）が同梱する選択デコレーションを、body と全く同じ (currentObjects,
     // previewTime) から計算する。standalone 側（shouldSendStandaloneDecoration）
     // はこの present が body co-delivery を行う tick では送信をスキップする。
-    const sessionSelectionDecoration = nativeOverlayPreviewEnabled
+    const sessionSelectionDecoration = nativeOverlayReady
       ? {
         canvasWidth: projectSettings.width,
         canvasHeight: projectSettings.height,
@@ -1404,12 +1456,13 @@ const Viewport: React.FC = () => {
       const control = sharedRendererPresenterControlRef.current;
       // video-only・混在は動画デコード注入経由、native-render-only（図形/画像のみ）
       // は Phase 3b Step2 から render.nativeSharedFrame の合成結果を直接
-      // 同梱 present する経路で、どちらも nativeOverlayPreviewEnabled のとき
-      // native overlay へ乗る。失敗時だけDOM側WebGPU canvas
-      // （presentPreparedNativeRenderFrame）へフォールバックする。
+      // 同梱 present する経路で、どちらも nativeOverlayReady（attach完了済み）
+      // のとき native overlay へ乗る。attach 完了前（'attaching'）や失敗時は
+      // presentPreparedNativeRenderFrame の DOM側WebGPU canvas経路が
+      // interim presenter として使われる。
       if (control?.ok && (
-        (nativeOverlayPreviewEnabled && isNativeOverlayDirectSceneSession(session))
-        || (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session))
+        (nativeOverlayReady && isNativeOverlayDirectSceneSession(session))
+        || (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session))
         || control.presentPreparedNativeRenderFrame
       )) {
         const presentPreparedNativeRenderFrame = control.presentPreparedNativeRenderFrame;
@@ -1422,7 +1475,7 @@ const Viewport: React.FC = () => {
         void (async () => {
           try {
             if (
-              nativeOverlayPreviewEnabled
+              nativeOverlayReady
               && isNativeOverlayDirectSceneSession(session)
               && !isSharedRendererNativeRenderOnlySession(session)
             ) {
@@ -1460,7 +1513,7 @@ const Viewport: React.FC = () => {
               }
               return;
             }
-            if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {
+            if (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session)) {
               // Phase 3b Step2 — 図形/画像のみのセッションは DOM canvas を
               // 経由せず render.nativeSharedFrame の合成結果を直接 native
               // overlay へ present する（選択デコレーション同梱つき）。
@@ -1558,7 +1611,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererPreviewEnabled,
     sharedRendererVideoCutoverEnabled,
-    nativeOverlayPreviewEnabled,
+    nativeOverlayReady,
     rustVideoOnlyEnabled,
     requestSharedRendererExternalVideoFrameRepaint,
   ]);
@@ -1966,7 +2019,7 @@ const Viewport: React.FC = () => {
     // non-video sources locally, so mixed sessions can use the same direct
     // CAMetalLayer presentation path. Native-render-only sessions still use
     // their dedicated presentation path.
-    const nativeOverlayDirectSceneEligible = nativeOverlayPreviewEnabled
+    const nativeOverlayDirectSceneEligible = nativeOverlayReady
       && isNativeOverlayDirectSceneSession(presenterRestartSession);
 
     void startSharedRendererViewportPresenter({
@@ -2036,7 +2089,7 @@ const Viewport: React.FC = () => {
       // （noVideoDecodeRequest）ときだけ overlay drawable を transparent
       // clear する。再生中の一時的な decode 失敗（frameDecodeFailed 等）
       // では直前フレームを保持してちらつきを避け、毎tickの再clearも避ける。
-      if (nativeOverlayPreviewEnabled) {
+      if (nativeOverlayReady) {
         const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(
           nativeOverlayTransparentClearStateRef.current,
           nativeOverlayPresentResult
@@ -2154,7 +2207,7 @@ const Viewport: React.FC = () => {
     // currentTime tick（onCurrentTimeTickRef）が受けて session を再構築するので、
     // presenter の再起動が必要な変化は sharedRendererPreviewSession の変化として
     // ここへ届く。
-  }, [isExporting, isPlaying, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
+  }, [isExporting, isPlaying, nativeOverlayReady, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
   // 3D ステージの現在フレームを StageRenderer#readbackRgba で読み戻し、
   // stage3dSnapshotCanvasRef の2Dキャンバスへ描き込む(export/snapshot用)。
@@ -2638,7 +2691,7 @@ const Viewport: React.FC = () => {
               height={previewH}
               projectCanvasWidth={projectSettings.width}
               projectCanvasHeight={projectSettings.height}
-              nativeOverlayPreviewEnabled={nativeOverlayPreviewEnabled}
+              nativeOverlayPreviewEnabled={nativeOverlayReady}
               rustVideoOnlyEnabled={rustVideoOnlyEnabled}
               sharedRendererPreviewSession={sharedRendererPreviewSession}
               nativeOverlayAttachTick={nativeOverlayAttachTick}

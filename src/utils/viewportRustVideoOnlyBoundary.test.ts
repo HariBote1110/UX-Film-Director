@@ -139,7 +139,7 @@ describe('Viewport Rust video-only boundary', () => {
 
   it('resends the native overlay attach rectangle for viewport lifecycle changes', () => {
     const code = viewportSource();
-    const start = code.indexOf('if (!nativeOverlayPreviewEnabled) return;');
+    const start = code.indexOf('if (!nativeOverlayPreviewEnabled) {');
     const end = code.indexOf('}, [nativeOverlayPreviewEnabled]', start);
     const nativeOverlayEffectBlock = code.slice(start, end);
 
@@ -480,7 +480,7 @@ describe('Viewport Rust video-only boundary', () => {
     // clearSurface を発行する。attach effect の cleanup で clearSurface が
     // detach より先に呼ばれる順序も併せて要求する。
     const code = viewportSource();
-    const start = code.indexOf('if (!nativeOverlayPreviewEnabled) return;');
+    const start = code.indexOf('if (!nativeOverlayPreviewEnabled) {');
     const end = code.indexOf('}, [nativeOverlayPreviewEnabled]', start);
     const nativeOverlayEffectBlock = code.slice(start, end);
 
@@ -633,10 +633,10 @@ describe('Viewport Rust video-only boundary', () => {
     const block = code.slice(start, end);
 
     expect(start).toBeGreaterThan(-1);
-    // 両方の overlay 分岐は nativeOverlayPreviewEnabled をガードするため、
-    // 無効時はどちらもスキップされ DOM canvas 経路まで落ちる。
+    // 両方の overlay 分岐は nativeOverlayReady（attach完了済みか）をガードするため、
+    // 未接続/無効時はどちらもスキップされ DOM canvas 経路まで落ちる。
     expect(block).toContain('&& isNativeOverlayDirectSceneSession(session)');
-    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
+    expect(block).toContain('if (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session)) {');
     expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, {');
     expect(block).toContain('nativeRenderDiagnostics: result.diagnostics');
   });
@@ -712,7 +712,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(block).toContain('&& !isSharedRendererNativeRenderOnlySession(session)');
     expect(block).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(block).toContain('selectionDecoration: sessionSelectionDecoration');
-    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
+    expect(block).toContain('if (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session)) {');
     expect(block.indexOf('isNativeOverlayDirectSceneSession(session)'))
       .toBeLessThan(block.indexOf('if (!presentPreparedNativeRenderFrame) return;'));
   });
@@ -727,7 +727,7 @@ describe('Viewport Rust video-only boundary', () => {
     const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
     const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
     const block = code.slice(start, end);
-    const nativeRenderOnlyOverlayStart = block.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererNativeRenderOnlySession(session)) {');
+    const nativeRenderOnlyOverlayStart = block.indexOf('if (nativeOverlayReady && isSharedRendererNativeRenderOnlySession(session)) {');
     const domCanvasFallbackStart = block.indexOf('if (!presentPreparedNativeRenderFrame) return;');
 
     expect(start).toBeGreaterThan(-1);

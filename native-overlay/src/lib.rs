@@ -1507,7 +1507,7 @@ impl Task for AttachNativeOverlayTask {
             .take()
             .expect("AttachNativeOverlayTask::compute must run exactly once");
         Ok(
-            match catch_unwind(AssertUnwindSafe(|| attach_native_overlay_compute(payload))) {
+            match std::panic::catch_unwind(AssertUnwindSafe(|| attach_native_overlay_compute(payload))) {
                 Ok(outcome) => outcome,
                 Err(_) => AttachNativeOverlayOutcome::Done(failure(
                     "Native overlay attach panicked.",

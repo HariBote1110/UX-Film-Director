@@ -1,6 +1,6 @@
-# W7 Option B: attach_native_overlay 非同期化（stage 1-2、Rust側）
+# W7 Option B: attach_native_overlay 非同期化（stage 1-2、Rust側 / stage 3、Viewport.tsx側）
 
-## Decision
+## Decision（stage 1-2、Rust側）
 
 - napi-rs の非同期化手法は新規検証不要と判断した。`native-overlay/src/lib.rs`
   には既に `prepareNativeOverlaySources`（beachball対策Fix 2）が
@@ -99,3 +99,111 @@
   のメッセージポンプ上で機能するか、attachレイテンシが実際に短縮されるか）は
   **本stageでは未実施**。次段階（stage 3: Viewport.tsx状態機械化）と合わせて
   実施する計画。
+
+## Stage 3（本セクション）: Viewport.tsx interim-presenter 状態機械
+
+### Decision
+
+- `src/utils/nativeOverlayAttachLifecycle.ts` に React 非依存の純粋な
+  オーケストレーション（`createNativeOverlayAttachLifecycle`）を新設した。
+  状態は `'presenter' | 'attaching' | 'overlay'` の3値。`generation` カウンタ
+  で「最新の `runAttach()` 呼び出しだけが状態遷移に反映される」契約を実装し、
+  `cancel()` 以降はどんな世代の resolve も無視して直ちに `'presenter'` に戻す。
+  この層だけで以下の5パターンを DOM/React 環境なしで直接ユニットテスト
+  できる（`nativeOverlayAttachLifecycle.test.ts`、6件）:
+  1. 成功（`presenter → attaching → overlay`）
+  2. 失敗（`presenter → attaching → presenter`、`onAttachFailed` 経由で
+     呼び出し元が `console.error` する。**自動リトライはしない**——次に
+     attach rect が実際に変化したときの `attach()` 呼び出しで初めて
+     再試行される、既存の rect-key dedupe と同じ設計を踏襲）
+  3. pending 中の `cancel()`（unmount/トグルOFF）— 以降その attach が
+     resolve しても無視される
+  4. `runAttach()` の連続呼び出し（resize連打・トグルの往復）— 最後に
+     呼ばれた世代の結果だけが反映される
+  5. 即時 resolve（macOS相当）でも `attaching → overlay` のシーケンス自体は
+     変わらない（所要時間が短いだけで分岐はプラットフォーム非依存の
+     共通コードのため、設計上自明であることをテストで固定した）
+- `Viewport.tsx` に `nativeOverlayLifecycleState`（useState、上記3値）と
+  派生値 `nativeOverlayReady = nativeOverlayLifecycleState === 'overlay'` を
+  追加した。attach effect（旧: rect差分検出→`window.nativeOverlay.attach()`を
+  直接呼ぶだけ）を `createNativeOverlayAttachLifecycle` 経由に書き換え、
+  cleanup（unmount・`nativeOverlayPreviewEnabled` トグルOFF両方が通る同じ
+  経路）で必ず `cancel()` を呼ぶ。
+- **call site 監査**: `grep -n nativeOverlayPreviewEnabled src/components/Viewport.tsx`
+  で洗い出した19箇所（定義1・コメント3を除く実コード15箇所）を、
+  「設定値そのもの（機能が有効かどうか、attachライフサイクル自体を
+  起動するかどうか）」と「フレームごとの描画ルーティング判定（overlay に
+  present してよいか）」の2種類に分類し直した:
+  - **設定値のまま**（`nativeOverlayPreviewEnabled`、変更なし）: attach effect
+    の起動ゲート（旧774→現795）とその deps（旧855→現907）、objects.length
+    空検出 effect（旧971/975→現1023/1027）、projectId 切替 effect
+    （旧980/983→現1032/1035）。いずれも「attachライフサイクルや透明clearを
+    走らせるかどうか」であり、attach完了状態とは独立の判断。
+  - **`nativeOverlayReady` へ置換**（8箇所、attach完了済みかどうかで
+    presenter/overlay のどちらへフレームを送るかを決める箇所）:
+    `publishSharedRendererPreviewSession` 内の native reuse 再生時刻判定
+    （旧1209→現1261）、空シーンpresent判定（旧1243→現1295）、選択デコレーション
+    quad 計算（旧1254→現1306）、native overlay direct/native-render-only
+    ルーティング分岐×3（旧1411/1412/1425/1463→現1464/1465/1478/1516）、
+    presenter再起動時の`nativeOverlayDirectSceneEligible`算出（旧1969→現2022）、
+    presenter起動後のtransparent clear判定（旧2039→現2092）、
+    `SceneSelectionDecorationLayer`へのprop（旧2641→現2694、コンポーネント
+    自体は無改修——prop名`nativeOverlayPreviewEnabled`はそのまま、渡す値だけ
+    `nativeOverlayReady`にした）。
+  - 副次的に発見した既存の依存配列漏れ（本stageの変更とは無関係の
+    pre-existing gap）: `publishSharedRendererPreviewSession`の
+    `useCallback`依存配列（現1604-1617）は元から`nativeOverlayPreviewEnabled`を
+    含んでいたため`nativeOverlayReady`へ置換するだけで済んだが、
+    presenter再起動`useCallback`の依存配列（現2210付近）は
+    `nativeOverlayPreviewEnabled`自体が最初から入っておらず、参照先が
+    ほぼ固定値だったため実害は小さかった潜在的staleness bugだった。
+    `nativeOverlayReady`は1セッション中に値が変わる派生値のため、
+    今回`nativeOverlayReady`を新規追加し正しくした（本stageで導入した
+    値についてのみ修正、他の既存漏れの網羅的監査はスコープ外）。
+- **既存の失敗時フォールバック機構との関係**: `publishSharedRendererPreviewSession`
+  の native overlay 経路（`prepareSharedRendererViewportNativeOverlayPresent`
+  等）は元々 `result.ok === false` のとき presenter 再起動
+  （`setSharedRendererPreviewSession(session)`）へフォールバックする設計が
+  既にあった。これは「overlayへのpresentが失敗した」場合のフォールバックで
+  あり、本stageが導入した`nativeOverlayReady`ゲートは「そもそもoverlayが
+  attach完了していない間はpresent自体を試みない」という一段前の防御。
+  両者は独立に効き、互いを置き換えるものではない。
+
+### Alternatives considered
+
+- **`SceneSelectionDecorationLayer.tsx`自体の内部ロジック改修**: 見送った。
+  同コンポーネントは `nativeOverlayPreviewEnabled` prop を受け取って
+  独自の分岐（SVGデコレーション描画 vs overlay quad送信）を持つが、
+  今回はViewport.tsx側で渡す値を`nativeOverlayReady`に変えるだけで
+  「attach完了まではSVGデコレーション、完了後はoverlay quad」という
+  望む挙動が得られる（prop名の意味論が「overlayに送ってよいか」という
+  より正確なものになった）。コンポーネント本体は無改修のためリグレッション
+  リスクを追加しない。
+- **状態機械をReducerパターン（`useReducer`+イベント型）で実装**: 見送った。
+  `createNativeOverlayAttachLifecycle`が実質的に同じ責務（状態遷移の
+  一元管理、副作用の分離）を果たしており、Reactに依存しない分テストが
+  軽量になるため、こちらを採用した。
+
+### 検証結果
+
+- `npx tsc --noEmit`: エラーなし。
+- `npx vitest run`: **256 files / 1856 tests、全green**（stage開始前ベース
+  ライン255/1850から、新規`nativeOverlayAttachLifecycle.test.ts`
+  1ファイル・6テストの純増のみ）。
+- 副次的な発見と修正: `src/utils/nativeOverlayCrateBoundary.test.ts`が
+  `native-overlay/src/lib.rs`中の`std::panic::catch_unwind`（完全修飾形）の
+  存在をソース文字列検査していたが、stage 1-2で削除した旧
+  `attach_native_overlay_inner`ラッパーがその完全修飾呼び出しの唯一の
+  出現箇所だったため、stage 1-2コミット時点で気づかず壊していた
+  （stage 1-2ではRust側の`cargo test`/`tsc`のみ実行し`vitest run`を
+  実行していなかったための見落とし）。`AttachNativeOverlayTask::compute`内の
+  `catch_unwind`呼び出しを`std::panic::catch_unwind`に修飾し直し解消
+  （native-overlay/src/lib.rs、1行修正）。`src/utils/viewportRustVideoOnlyBoundary.test.ts`
+  も、本stageで意図的に`nativeOverlayPreviewEnabled`→`nativeOverlayReady`へ
+  改名した3箇所のルーティング分岐文字列と、attach effectの条件式が
+  `if (!nativeOverlayPreviewEnabled) return;`から`if (!nativeOverlayPreviewEnabled) {`
+  （設定OFF時に明示的に`'presenter'`へ戻す分岐を追加したため）へ変わった点を
+  反映して更新した（いずれも意図した設計変更の反映であり、リグレッションではない）。
+- macOS `cargo test --lib`（native-overlay）: **101 passed / 0 failed**
+  （ベースライン維持、上記1行修正を含めた状態で再確認）。
+- mainpc実機検証は本stageでも未実施（stage 4以降で計画）。
