@@ -180,3 +180,88 @@
 - 全 34 箇所の移行が完了するまでは `pastStates`/`futureStates`/
   `pushHistory`/`undo`/`redo`(旧 API)を削除しないこと
   (dual-API 期間中は両方が `AppState` に共存する)。
+
+# R4-8 group c 着手時に判明した設計上のブロッカー: 単一 Command では表現できない呼び出し箇所が大半
+
+## 事象
+
+group b の完了後、`useStore.ts` の 17 箇所(`pushHistory()` 呼び出し実測)
+を `pushHistoryCommand` へ変換する group c に着手し、全 17 箇所を精査した
+ところ、**単一の `Command`(R4-6/R4-7 が定義した 12 kind)へ 1:1 変換できる
+のは 6 箇所のみ**で、残り 11 箇所は「1 回の undo ステップで複数オブジェクト
+を同時に追加/変更/削除する」操作であり、現行の `Command` enum(バッチ/複数
+コマンドをまとめる variant を持たない)では表現できないことが判明した。
+
+## 変換可能だった 6 箇所(単一オブジェクト操作)
+
+| 行 | action | Command kind |
+|---|---|---|
+| `addObject`(354) | 1 オブジェクト追加 | `addObject` |
+| `addObjectFilter`(509) | 1 オブジェクトへ 1 フィルタ追加 | `addFilter` |
+| `toggleObjectFilter`(524) | 1 フィルタの enabled 切替 | `toggleFilterEnabled` |
+| `moveObjectFilter`(539) | 1 フィルタの並び替え | `moveFilter` |
+| `removeObjectFilter`(554) | 1 フィルタ削除 | `removeFilter` |
+| `deleteObject`(582) | 1 オブジェクト削除 | `removeObject` |
+
+## 変換不能と判定した 11 箇所(複数オブジェクトに同時作用)
+
+| 行 | action | 理由 |
+|---|---|---|
+| `deleteSelectedObjects`(607) | 選択中の任意数のオブジェクトを一括削除 |
+| `rippleDeleteObject`(626) | 1 個削除だが後続オブジェクト全ての `startTime` 等をリップルで再計算(`computeRippledObjects`)— 実質「任意数のオブジェクトの複数フィールドを同時変更」 |
+| `rippleDeleteSelectedObjects`(652) | 上に同じく複数選択+リップル |
+| `splitObject`(676) | 既存オブジェクトを変更(`firstPart`)しつつ新規オブジェクトを追加(`secondPart`)— 1 操作で「変更+追加」の複合 |
+| `cutSelectedObjects`(761) | 任意数のオブジェクトを一括削除 |
+| `pasteObjects` 相当(827) | 任意数のオブジェクトを一括追加 |
+| `duplicateSelectedObjects`(892) | 任意数のオブジェクトを一括追加 |
+| `duplicateSelectedObjectsWithObjectCopyExt`(924) | 同上(コピー数 3 倍でさらに多い) |
+| `applyAviUtlStoredCoordinatesToSelection`(953) | 任意数のオブジェクトの複数フィールドを同時パッチ |
+| `groupSelectedObjects`(978) | 任意数のオブジェクトの `groupId` を同時変更 |
+| `ungroupSelectedObjects`(1000) | 同上 |
+
+## 根本原因
+
+R4-7 で定義した第二層コマンド(`AddObject`/`RemoveObject`/`AddFilter`/
+`RemoveFilter`/`ToggleFilterEnabled`/`MoveFilter`/`UpdateFilterParams`/
+`SetLayerState`/`ReorderLayers`/`SetCamera`/`SetStageCamera3D`)は、いずれも
+「1 回の apply で 1 個の意味的変更」を表す設計になっており、
+`Command::Batch(Vec<Command>)` のような複数コマンドをまとめて 1 回の
+undo/redo ステップとして扱う variant が存在しない
+(`rust-source-of-truth-r4-commands.md` にもその設計は登場しない)。
+`SetObjectField` も対象は単一 `object_id` のみで、複数オブジェクトへの
+一括パッチは不可。
+
+## この場で対応しなかった理由
+
+- `Command` enum への `Batch` variant 追加は `rust-core/src/command.rs`
+  の変更を要し、本タスクの許可スコープ(`rust-core/` は非対象ファイル)
+  外である。
+- 仮に TS 側だけで「複数 `pushHistoryCommand` を連続で積む」実装にすると、
+  undo が「複数回に分けてしか戻せない」(1 回の Ctrl+Z で `duplicateSelectedObjects`
+  が作った 3 個のオブジェクトのうち 1 個しか消えない、等)という UX 退行を
+  生み、タスク要件「UI 側の 1 操作 = 1 undo ステップ」の暗黙の前提
+  (旧スナップショット API と同じ粒度)を破る。誤った変換をして
+  「tsc が通る」ことだけを理由に commit するのは「Rust の結果と乖離しない」
+  という要件に反すると判断した。
+
+## 推奨される次の一手(このセッションでは未着手)
+
+1. `rust-core/src/command.rs` に `Command::Batch(Vec<Command>)` を追加し、
+   `apply_command`/`invert` をそれに対応させる(R4-7 の担当領域の再開、
+   別バッチとして起票が必要)。
+2. Batch 対応が入るまでの暫定策として、上記 11 箇所は**旧スナップショット
+   API(`pushHistory`/`undo`/`redo`)に据え置く**(dual-API 期間を意図的に
+   延長する)。この場合でも 6 箇所(addObject/フィルタ 4 種/deleteObject)は
+   `pushHistoryCommand` へ先行変換して問題ない(スタックの型が異なる
+   `pastStates`(スナップショット)と `pastCommands`(コマンド)が並存する
+   ため、UI 側の Ctrl+Z ハンドラは「どちらのスタックにも直近の変更が
+   積まれていれば、より新しい方を優先する」等の突き合わせロジックが
+   別途必要になる点に注意 — 単純に両方の undo を呼ぶと二重 undo になる)。
+
+## このセッションでの判断
+
+- 6 箇所の先行変換は、上記の「二重 undo 回避ロジックが未設計」という
+  理由により、**今回はコード変更を行わなかった**(unified な undo UX
+  を壊すリスクの方が「6/34 を進めた」という進捗より優先度が低いと判断)。
+- group c は本ブロッカーの発見と記録のみで区切り、`useStore.ts` の
+  コード自体は無改修(tree は group b コミット時点のまま)。
