@@ -42,12 +42,9 @@ pub(crate) fn validate_generated_barcode_source(
 }
 
 pub(crate) fn validate_generated_colour_wheel_source(
-    source: &GeneratedColourWheelSource,
+    source: &ColourWheelObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "colour-wheel" {
-        return Err("generator must be colour-wheel".to_string());
-    }
-    if source.radius == 0 || source.radius > 2000 {
+    if !source.radius.is_finite() || source.radius < 1.0 || source.radius > 2000.0 {
         return Err("radius must be 1..2000".to_string());
     }
     if !source.saturation.is_finite() || source.saturation < 0.0 || source.saturation > 100.0 {

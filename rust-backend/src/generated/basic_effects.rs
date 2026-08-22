@@ -138,7 +138,7 @@ pub(crate) fn build_generated_colour_wheel_source_frame(
             media.width, media.height
         ));
     }
-    let wheel: GeneratedColourWheelSource = serde_json::from_str(&media.source)
+    let wheel: ColourWheelObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedColourWheel media '{}': {error}", media.id))?;
     validate_generated_colour_wheel_source(&wheel).map_err(|message| {
         format!(

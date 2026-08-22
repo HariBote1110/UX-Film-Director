@@ -19,15 +19,9 @@ pub(crate) struct GeneratedGradientSource {
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
 pub(crate) use uxfd_rust_core::PuzzlePieceObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedColourWheelSource {
-    pub(crate) generator: String,
-    pub(crate) radius: u32,
-    pub(crate) saturation: f32,
-    pub(crate) brightness: f32,
-    pub(crate) ring_width_percent: f32,
-    pub(crate) segment_count: u32,
-}
+// `colour_wheel` kind のワイヤーソースは rust-core の `ColourWheelObjectFields`
+// （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
+pub(crate) use uxfd_rust_core::ColourWheelObjectFields;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedGourdSource {
