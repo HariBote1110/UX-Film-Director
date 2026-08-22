@@ -886,8 +886,6 @@ const Viewport: React.FC = () => {
       if (nextAttachKey === lastNativeOverlayAttachKey) return;
       lastNativeOverlayAttachKey = nextAttachKey;
       pendingAttachRect = nextAttachRect;
-      // TEMP DIAGNOSTIC（stage5切り分け継続、後で削除）:
-      console.warn('[NativeOverlay] runAttach() invoked', { nextAttachKey });
       nativeOverlayLifecycle.runAttach();
     };
 

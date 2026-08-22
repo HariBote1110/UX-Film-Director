@@ -62,18 +62,12 @@ export const registerNativeOverlayIpcHandlers = (
   options: RegisterNativeOverlayIpcHandlersOptions = {},
 ): void => {
   ipcMain.handle(nativeOverlayIpcChannels.attach, async (event, payload) => {
-    // TEMP DIAGNOSTIC (stage5 triage, remove later): confirm the IPC call
-    // itself reaches main before bridge.attach() (which can take tens of
-    // seconds on Windows) resolves.
-    console.info('[NativeOverlay] attach IPC received')
     const response = await bridge.attach(withWindowId(payload, event, options.resolveWindowIdFromEvent))
     options.logDiagnostic?.('attach', response)
     return response
   })
-  ipcMain.handle(nativeOverlayIpcChannels.detach, async (event, payload) => {
-    console.info('[NativeOverlay] detach IPC received')
-    return bridge.detach(withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload)
-  })
+  ipcMain.handle(nativeOverlayIpcChannels.detach, async (event, payload) =>
+    bridge.detach(withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload))
   ipcMain.handle(nativeOverlayIpcChannels.presentSharedFrame, async (event, payload) =>
     bridge.presentSharedFrame(
       withWindowId(
