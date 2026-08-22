@@ -18,17 +18,28 @@ pub struct NativeShakingPolygonSource {
     pub config_revision: u64,
 }
 
+// shaking_polygon は R3 batch6 で rust-core
+// (`uxfd-rust-core::schema::ShakingPolygonObjectFields`) の camelCase wire
+// フォーマットへ統一済み。`generator` タグは廃止されたため、この構造体では
+// 受け取らない（フィールド名/case のみを rust-core にミラーする）。
 #[derive(Debug, Deserialize)]
 struct ShakingPolygonParams {
-    generator: String,
+    #[serde(rename = "lineWidth")]
     line_width: u32,
+    #[serde(rename = "vertexCount")]
     vertex_count: u32,
+    #[serde(rename = "fixedDiameter")]
     fixed_diameter: u32,
+    #[serde(rename = "verticalDistortionPercent")]
     vertical_distortion_percent: f32,
+    #[serde(rename = "repeatCount")]
     repeat_count: u32,
+    #[serde(rename = "repeatFrequency")]
     repeat_frequency: u32,
     fill: bool,
+    #[serde(rename = "jitterRange")]
     jitter_range: f32,
+    #[serde(rename = "jitterInterval")]
     jitter_interval: u32,
     stepped: bool,
     colour: String,
@@ -387,7 +398,6 @@ fn validate_source(
 ) -> Result<(), String> {
     if source.width == 0
         || source.height == 0
-        || params.generator != "shaking-polygon"
         || !(1..=100).contains(&params.line_width)
         || !(2..=16).contains(&params.vertex_count)
         || params.fixed_diameter > 2000

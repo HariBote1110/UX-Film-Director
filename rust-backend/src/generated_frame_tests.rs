@@ -820,7 +820,7 @@ fn generated_shaking_polygon_source_frame_contains_jittered_outline_and_transpar
     let media = SceneMediaReference {
             id: "shaking-polygon-1".to_string(),
             kind: MediaKind::GeneratedShakingPolygon,
-            source: r##"{"generator":"shaking-polygon","line_width":20,"vertex_count":3,"fixed_diameter":260,"vertical_distortion_percent":0,"repeat_count":1,"repeat_frequency":1,"fill":false,"jitter_range":20,"jitter_interval":10,"stepped":false,"colour":"#ffffff","seed":0}"##.to_string(),
+            source: r##"{"width":360,"height":360,"lineWidth":20,"vertexCount":3,"fixedDiameter":260,"verticalDistortionPercent":0,"repeatCount":1,"repeatFrequency":1,"fill":false,"jitterRange":20,"jitterInterval":10,"stepped":false,"colour":"#ffffff","seed":0}"##.to_string(),
             width: 360,
             height: 360,
             source_rate: None,

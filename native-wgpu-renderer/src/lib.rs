@@ -5144,7 +5144,7 @@ mod tests {
         let shaking_polygon_sources = HashMap::from([(
             "shaking-polygon-media".to_string(),
             NativeShakingPolygonSource {
-                source: r##"{"generator":"shaking-polygon","line_width":3,"vertex_count":5,"fixed_diameter":36,"vertical_distortion_percent":10,"repeat_count":3,"repeat_frequency":2,"fill":true,"jitter_range":4,"jitter_interval":2,"stepped":false,"colour":"#ff8000","seed":93}"##.to_string(),
+                source: r##"{"width":360,"height":360,"lineWidth":3,"vertexCount":5,"fixedDiameter":36,"verticalDistortionPercent":10,"repeatCount":3,"repeatFrequency":2,"fill":true,"jitterRange":4,"jitterInterval":2,"stepped":false,"colour":"#ff8000","seed":93}"##.to_string(),
                 width: 64,
                 height: 48,
                 source_frame: 1,

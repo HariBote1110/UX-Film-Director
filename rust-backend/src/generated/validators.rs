@@ -295,9 +295,6 @@ pub(crate) fn validate_generated_protractor_source(
 pub(crate) fn validate_generated_shaking_polygon_source(
     source: &GeneratedShakingPolygonSource,
 ) -> Result<(), String> {
-    if source.generator != "shaking-polygon" {
-        return Err("generator must be shaking-polygon".to_string());
-    }
     if source.line_width == 0 || source.line_width > 100 {
         return Err("line_width must be 1..100".to_string());
     }

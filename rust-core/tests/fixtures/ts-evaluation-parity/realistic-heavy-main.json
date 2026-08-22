@@ -252,7 +252,7 @@
       {
         "id": "realistic-main-shaking-polygon",
         "kind": "GeneratedShakingPolygon",
-        "source": "{\"generator\":\"shaking-polygon\",\"line_width\":6,\"vertex_count\":5,\"fixed_diameter\":260,\"vertical_distortion_percent\":0,\"repeat_count\":3,\"repeat_frequency\":2,\"fill\":true,\"jitter_range\":14,\"jitter_interval\":4,\"stepped\":false,\"colour\":\"#ff9f1c\",\"seed\":93}",
+        "source": "{\"width\":360,\"height\":360,\"lineWidth\":6,\"vertexCount\":5,\"fixedDiameter\":260,\"verticalDistortionPercent\":0,\"repeatCount\":3,\"repeatFrequency\":2,\"fill\":true,\"jitterRange\":14,\"jitterInterval\":4,\"stepped\":false,\"colour\":\"#ff9f1c\",\"seed\":93}",
         "width": 360,
         "height": 360
       },

@@ -1239,53 +1239,51 @@ const isSharedRendererNativeGeneratedProtractorSourceSupported = (source: string
 const isSharedRendererNativeGeneratedShakingPolygonSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
-      line_width?: unknown;
-      vertex_count?: unknown;
-      fixed_diameter?: unknown;
-      vertical_distortion_percent?: unknown;
-      repeat_count?: unknown;
-      repeat_frequency?: unknown;
+      lineWidth?: unknown;
+      vertexCount?: unknown;
+      fixedDiameter?: unknown;
+      verticalDistortionPercent?: unknown;
+      repeatCount?: unknown;
+      repeatFrequency?: unknown;
       fill?: unknown;
-      jitter_range?: unknown;
-      jitter_interval?: unknown;
+      jitterRange?: unknown;
+      jitterInterval?: unknown;
       stepped?: unknown;
       colour?: unknown;
       seed?: unknown;
     };
     return (
-      parsed.generator === 'shaking-polygon'
-      && typeof parsed.line_width === 'number'
-      && Number.isInteger(parsed.line_width)
-      && parsed.line_width >= 1
-      && parsed.line_width <= 100
-      && typeof parsed.vertex_count === 'number'
-      && Number.isInteger(parsed.vertex_count)
-      && parsed.vertex_count >= 2
-      && parsed.vertex_count <= 16
-      && typeof parsed.fixed_diameter === 'number'
-      && Number.isInteger(parsed.fixed_diameter)
-      && parsed.fixed_diameter >= 0
-      && parsed.fixed_diameter <= 2000
-      && typeof parsed.vertical_distortion_percent === 'number'
-      && Number.isFinite(parsed.vertical_distortion_percent)
-      && parsed.vertical_distortion_percent >= -100
-      && parsed.vertical_distortion_percent <= 100
-      && typeof parsed.repeat_count === 'number'
-      && Number.isInteger(parsed.repeat_count)
-      && parsed.repeat_count >= 1
-      && parsed.repeat_count <= 100
-      && typeof parsed.repeat_frequency === 'number'
-      && Number.isInteger(parsed.repeat_frequency)
-      && parsed.repeat_frequency >= 1
+      typeof parsed.lineWidth === 'number'
+      && Number.isInteger(parsed.lineWidth)
+      && parsed.lineWidth >= 1
+      && parsed.lineWidth <= 100
+      && typeof parsed.vertexCount === 'number'
+      && Number.isInteger(parsed.vertexCount)
+      && parsed.vertexCount >= 2
+      && parsed.vertexCount <= 16
+      && typeof parsed.fixedDiameter === 'number'
+      && Number.isInteger(parsed.fixedDiameter)
+      && parsed.fixedDiameter >= 0
+      && parsed.fixedDiameter <= 2000
+      && typeof parsed.verticalDistortionPercent === 'number'
+      && Number.isFinite(parsed.verticalDistortionPercent)
+      && parsed.verticalDistortionPercent >= -100
+      && parsed.verticalDistortionPercent <= 100
+      && typeof parsed.repeatCount === 'number'
+      && Number.isInteger(parsed.repeatCount)
+      && parsed.repeatCount >= 1
+      && parsed.repeatCount <= 100
+      && typeof parsed.repeatFrequency === 'number'
+      && Number.isInteger(parsed.repeatFrequency)
+      && parsed.repeatFrequency >= 1
       && typeof parsed.fill === 'boolean'
-      && typeof parsed.jitter_range === 'number'
-      && Number.isFinite(parsed.jitter_range)
-      && parsed.jitter_range >= 0
-      && parsed.jitter_range <= 2000
-      && typeof parsed.jitter_interval === 'number'
-      && Number.isInteger(parsed.jitter_interval)
-      && parsed.jitter_interval >= 1
+      && typeof parsed.jitterRange === 'number'
+      && Number.isFinite(parsed.jitterRange)
+      && parsed.jitterRange >= 0
+      && parsed.jitterRange <= 2000
+      && typeof parsed.jitterInterval === 'number'
+      && Number.isInteger(parsed.jitterInterval)
+      && parsed.jitterInterval >= 1
       && typeof parsed.stepped === 'boolean'
       && typeof parsed.colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)

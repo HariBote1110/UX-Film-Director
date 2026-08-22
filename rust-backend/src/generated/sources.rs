@@ -114,22 +114,10 @@ pub(crate) use uxfd_rust_core::HologramObjectFields as GeneratedHologramSource;
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
 pub(crate) use uxfd_rust_core::ProtractorObjectFields as GeneratedProtractorSource;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedShakingPolygonSource {
-    pub(crate) generator: String,
-    pub(crate) line_width: u32,
-    pub(crate) vertex_count: u32,
-    pub(crate) fixed_diameter: u32,
-    pub(crate) vertical_distortion_percent: f32,
-    pub(crate) repeat_count: u32,
-    pub(crate) repeat_frequency: u32,
-    pub(crate) fill: bool,
-    pub(crate) jitter_range: f32,
-    pub(crate) jitter_interval: u32,
-    pub(crate) stepped: bool,
-    pub(crate) colour: String,
-    pub(crate) seed: i64,
-}
+// `shaking_polygon` kind のワイヤーソースは rust-core の
+// `ShakingPolygonObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::ShakingPolygonObjectFields as GeneratedShakingPolygonSource;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedShatteredSphereSource {
