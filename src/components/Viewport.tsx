@@ -76,6 +76,7 @@ import {
 } from '../utils/sharedRendererExternalVideoMasterClock';
 import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRendererPresenterRestartSession';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
+import { resolveNativeOverlayEnabled } from '../utils/nativeOverlayPlatformGate';
 import { psdImportTraceCollector } from '../perf/psdImportTrace';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
 import {
@@ -728,7 +729,13 @@ const Viewport: React.FC = () => {
   // renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
   // '0' 指定でレガシー経路へ opt-out できる。
   const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC !== '0';
-  const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';
+  // Phase 7 (W7) STAGE 1: macOSはopt-out（既定ON）のまま、Windowsは
+  // 24時間ベンチ完了までopt-in（既定OFF）とする。判定ロジックは純粋関数
+  // resolveNativeOverlayEnabled（テストはnativeOverlayPlatformGate.test.ts）
+  // に切り出してあり、ベンチ合格後の既定反転はそちら1箇所の変更で済む。
+  const nativeOverlayPreviewEnabled = resolveNativeOverlayEnabled(window.uxfdPlatform ?? '', {
+    VITE_UXFD_NATIVE_OVERLAY: import.meta.env.VITE_UXFD_NATIVE_OVERLAY,
+  });
   // 選択デコレーション（送信ロジック・SVG 透明化 state）は
   // SceneSelectionDecorationLayer.tsx へ移設済み。attach 成功 tick の bump
   // だけは Viewport 側に残す（attach 自体は Viewport が行うため）。

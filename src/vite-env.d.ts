@@ -25,6 +25,9 @@ interface Window {
     send: (channel: string, ...args: any[]) => void;
     invoke: (channel: string, ...args: any[]) => Promise<any>;
   };
+  // Phase 7 (W7) STAGE 1: native overlayのプラットフォーム別既定ゲート判定に使う
+  // process.platform（preload経由でstatic値を公開、electron/preload.ts参照）。
+  uxfdPlatform?: string;
   electronFile?: {
     getPathForFile: (file: File) => string;
   };
