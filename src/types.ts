@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -741,124 +741,22 @@ export interface ShatteredSphereObject extends BaseObject {
 export type ToneCurveObject = BaseObject & ToneCurveObjectFields & { type: 'tone_curve' };
 
 // hksy チェッカー/グリッド互換の生成オブジェクト
-export interface HksyCheckerGridObject extends BaseObject {
-  type: 'hksy_checker_grid';
-  width: number;
-  height: number;
-  pattern?: 'checker-grid' | 'diamond' | 'measured-grid' | 'anchor-line';
-  cellSize: number;
-  lineWidth: number;
-  checkerEnabled: boolean;
-  gridEnabled: boolean;
-  foregroundColour: string;
-  secondaryColour: string;
-  backgroundColour: string;
-  paletteColours?: string[];
-  separateInterval?: number;
-  separateLineWidth?: number;
-  anchorPoints?: Array<{ x: number; y: number }>;
-  roundCaps?: boolean;
-  maxJoinDistance?: number;
-}
+export type HksyCheckerGridObject = BaseObject & HksyCheckerGridObjectFields & { type: 'hksy_checker_grid' };
 
 // GetColor V2R ドット化表現互換の生成オブジェクト
-export interface GetColorDotFieldObject extends BaseObject {
-  type: 'getcolor_dot_field';
-  width: number;
-  height: number;
-  columns: number;
-  rows: number;
-  dotSize: number;
-  dotShape?: 'circle' | 'square' | 'diamond';
-  strokeWidth?: number;
-  sizeInfluence: number;
-  luminanceInfluence: number;
-  hueShiftDegrees: number;
-  alternateRows: boolean;
-  foregroundColour: string;
-  secondaryColour: string;
-  backgroundColour: string;
-  sampleSourcePath?: string;
-  sampleSourceObjectId?: string;
-  sampleSourceLayer?: number;
-  sampleStrength?: number;
-  sampleHueShiftDegrees?: number;
-  seed: number;
-}
+export type GetColorDotFieldObject = BaseObject & GetColorDotFieldObjectFields & { type: 'getcolor_dot_field' };
 
 // 93 領域枠互換の生成オブジェクト
-export interface RegionFrameObject extends BaseObject {
-  type: 'region_frame';
-  width: number;
-  height: number;
-  lineWidth: number;
-  shape?: 'rectangle' | 'ellipse' | 'cut_corner';
-  cornerCut?: number;
-  extraWidth: number;
-  extraHeight: number;
-  backgroundOpacity: number;
-  frameColour: string;
-  backgroundColour: string;
-}
+export type RegionFrameObject = BaseObject & RegionFrameObjectFields & { type: 'region_frame' };
 
 // 93 SimpleTube互換の生成オブジェクト
-export interface SimpleTubeObject extends BaseObject {
-  type: 'simple_tube';
-  width: number;
-  height: number;
-  radius: number;
-  depth: number;
-  segments: number;
-  rings: number;
-  twistDegrees: number;
-  randomAmount: number;
-  strokeWidth: number;
-  colour: string;
-  secondaryColour: string;
-  colourPattern?: 'single' | 'ring' | 'depth';
-  fogStrength?: number;
-  fogColour?: string;
-  seed: number;
-  torus: boolean;
-}
+export type SimpleTubeObject = BaseObject & SimpleTubeObjectFields & { type: 'simple_tube' };
 
 // 93 Sphere(DrawPixel)互換の生成オブジェクト
-export interface SphereDotsObject extends BaseObject {
-  type: 'sphere_dots';
-  width: number;
-  height: number;
-  radius: number;
-  columns: number;
-  rows: number;
-  rotationDegrees: number;
-  offsetDegrees: number;
-  luminanceInfluence: number;
-  pointSize: number;
-  latitudeLineWidth: number;
-  colour: string;
-  secondaryColour: string;
-  seed: number;
-  planeMode: boolean;
-}
+export type SphereDotsObject = BaseObject & SphereDotsObjectFields & { type: 'sphere_dots' };
 
 // 93 SphericalField互換の生成オブジェクト
-export interface SphericalFieldObject extends BaseObject {
-  type: 'spherical_field';
-  width: number;
-  height: number;
-  radius: number;
-  strength: number;
-  colourAmount: number;
-  alphaAmount: number;
-  lineWidth: number;
-  ringCount: number;
-  vectorCount: number;
-  fieldColour: string;
-  secondaryColour: string;
-  backgroundOpacity: number;
-  container: boolean;
-  seed: number;
-}
+export type SphericalFieldObject = BaseObject & SphericalFieldObjectFields & { type: 'spherical_field' };
 
 // --- PSD連携用 ---
 

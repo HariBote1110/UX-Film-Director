@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HksyCheckerGridObjectFields",
+  "description": "`hksy_checker_grid` kind (`src/types.ts` の `HksyCheckerGridObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & HksyCheckerGridObjectFields & { type: 'hksy_checker_grid' }`\nとして組み立てる。\n\n`width`/`height` は `hksyCheckerGridObjectFactory.ts` の\n`buildHksyCheckerGridObject` がプロジェクトサイズから都度計算するため\nニュートラルな `0.0` にする。他のフィールドは同関数の固定リテラル\n（cellSize: 50, lineWidth: 2, checkerEnabled: true, gridEnabled: true,\nforegroundColour: '#ffffff', secondaryColour: '#333333',\nbackgroundColour: '#000000'）をそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "anchorPoints": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/HksyAnchorPoint"
+      }
+    },
+    "backgroundColour": {
+      "type": "string"
+    },
+    "cellSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "checkerEnabled": {
+      "type": "boolean"
+    },
+    "foregroundColour": {
+      "type": "string"
+    },
+    "gridEnabled": {
+      "type": "boolean"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "maxJoinDistance": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "paletteColours": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "pattern": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "roundCaps": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "secondaryColour": {
+      "type": "string"
+    },
+    "separateInterval": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "separateLineWidth": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "cellSize",
+    "lineWidth",
+    "checkerEnabled",
+    "gridEnabled",
+    "foregroundColour",
+    "secondaryColour",
+    "backgroundColour"
+  ],
+  "$defs": {
+    "HksyAnchorPoint": {
+      "description": "`src/types.ts` の `HksyCheckerGridObject.anchorPoints` の要素型。",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    }
+  }
+}

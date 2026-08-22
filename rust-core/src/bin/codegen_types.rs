@@ -16,13 +16,16 @@ use ts_rs::{Config, TS};
 use uxfd_rust_core::schema::{
     AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields,
     AudioVisualizationType, BarcodeObjectFields, Clip, ClipKind, ColourPipeline, Easing, Effect,
-    Fps, GearObjectFields, GourdObjectFields, GroupControl, HistogramObjectFields,
+    Fps, GearObjectFields, GetColorDotFieldObjectFields, GourdObjectFields, GroupControl,
+    HksyAnchorPoint, HksyCheckerGridObjectFields, HistogramObjectFields,
     ImageObjectFields,
     ColourWheelObjectFields, MediaKind, MediaReference, ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PositionKeyframe,
-    Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, SamplingMode,
+    Project, ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RegionFrameObjectFields,
+    SamplingMode,
     ScalarKeyframe, ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields,
-    ShapeType, SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
+    ShapeType, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields,
+    SubjectCropAnimation, SubjectCropKeyframe, SubjectCropNormKeyframe, TextAlignment,
     TextObjectFields, TextShadow, TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields,
     Transform, VideoObjectFields, WipeAnimation,
     WipeEdge,
@@ -82,6 +85,19 @@ fn write_ts_bindings() {
         .expect("HistogramObjectFields の TS export に失敗しました");
     ToneCurveObjectFields::export_all(&cfg)
         .expect("ToneCurveObjectFields の TS export に失敗しました");
+    HksyAnchorPoint::export_all(&cfg).expect("HksyAnchorPoint の TS export に失敗しました");
+    HksyCheckerGridObjectFields::export_all(&cfg)
+        .expect("HksyCheckerGridObjectFields の TS export に失敗しました");
+    GetColorDotFieldObjectFields::export_all(&cfg)
+        .expect("GetColorDotFieldObjectFields の TS export に失敗しました");
+    RegionFrameObjectFields::export_all(&cfg)
+        .expect("RegionFrameObjectFields の TS export に失敗しました");
+    SimpleTubeObjectFields::export_all(&cfg)
+        .expect("SimpleTubeObjectFields の TS export に失敗しました");
+    SphereDotsObjectFields::export_all(&cfg)
+        .expect("SphereDotsObjectFields の TS export に失敗しました");
+    SphericalFieldObjectFields::export_all(&cfg)
+        .expect("SphericalFieldObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -179,6 +195,13 @@ fn write_json_schemas() {
     write_schema::<PieChartObjectFields>(&dir, "PieChartObjectFields");
     write_schema::<HistogramObjectFields>(&dir, "HistogramObjectFields");
     write_schema::<ToneCurveObjectFields>(&dir, "ToneCurveObjectFields");
+    write_schema::<HksyAnchorPoint>(&dir, "HksyAnchorPoint");
+    write_schema::<HksyCheckerGridObjectFields>(&dir, "HksyCheckerGridObjectFields");
+    write_schema::<GetColorDotFieldObjectFields>(&dir, "GetColorDotFieldObjectFields");
+    write_schema::<RegionFrameObjectFields>(&dir, "RegionFrameObjectFields");
+    write_schema::<SimpleTubeObjectFields>(&dir, "SimpleTubeObjectFields");
+    write_schema::<SphereDotsObjectFields>(&dir, "SphereDotsObjectFields");
+    write_schema::<SphericalFieldObjectFields>(&dir, "SphericalFieldObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

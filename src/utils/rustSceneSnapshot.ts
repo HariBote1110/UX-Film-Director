@@ -1869,7 +1869,7 @@ const normaliseHksyAnchorPoints = (points: HksyCheckerGridObject['anchorPoints']
 };
 
 const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string => {
-  const paletteColours = normaliseHksyPaletteColours(object.paletteColours);
+  const paletteColours = normaliseHksyPaletteColours(object.paletteColours ?? undefined);
   const pattern = object.pattern === 'diamond' || object.pattern === 'measured-grid' || object.pattern === 'anchor-line' ? object.pattern : undefined;
   return JSON.stringify({
     generator: 'hksy-checker-grid',

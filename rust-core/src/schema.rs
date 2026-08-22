@@ -1424,7 +1424,7 @@ impl Default for ToneCurveObjectFields {
 pub struct HksyCheckerGridObjectFields {
     pub width: f32,
     pub height: f32,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
     #[serde(rename = "cellSize")]
     #[ts(rename = "cellSize")]
@@ -1447,26 +1447,28 @@ pub struct HksyCheckerGridObjectFields {
     #[serde(rename = "backgroundColour")]
     #[ts(rename = "backgroundColour")]
     pub background_colour: String,
-    #[serde(rename = "paletteColours", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "paletteColours", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "paletteColours")]
     pub palette_colours: Option<Vec<String>>,
-    #[serde(rename = "separateInterval", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "separateInterval", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "separateInterval")]
     pub separate_interval: Option<f32>,
     #[serde(
         rename = "separateLineWidth",
+        default,
         skip_serializing_if = "Option::is_none"
     )]
     #[ts(rename = "separateLineWidth")]
     pub separate_line_width: Option<f32>,
-    #[serde(rename = "anchorPoints", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "anchorPoints", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "anchorPoints")]
     pub anchor_points: Option<Vec<HksyAnchorPoint>>,
-    #[serde(rename = "roundCaps", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "roundCaps", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "roundCaps")]
     pub round_caps: Option<bool>,
     #[serde(
         rename = "maxJoinDistance",
+        default,
         skip_serializing_if = "Option::is_none"
     )]
     #[ts(rename = "maxJoinDistance")]
@@ -1528,10 +1530,10 @@ pub struct GetColorDotFieldObjectFields {
     #[serde(rename = "dotSize")]
     #[ts(rename = "dotSize")]
     pub dot_size: f32,
-    #[serde(rename = "dotShape", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "dotShape", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "dotShape")]
     pub dot_shape: Option<String>,
-    #[serde(rename = "strokeWidth", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "strokeWidth", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "strokeWidth")]
     pub stroke_width: Option<f32>,
     #[serde(rename = "sizeInfluence")]
@@ -1555,26 +1557,29 @@ pub struct GetColorDotFieldObjectFields {
     #[serde(rename = "backgroundColour")]
     #[ts(rename = "backgroundColour")]
     pub background_colour: String,
-    #[serde(rename = "sampleSourcePath", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "sampleSourcePath", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "sampleSourcePath")]
     pub sample_source_path: Option<String>,
     #[serde(
         rename = "sampleSourceObjectId",
+        default,
         skip_serializing_if = "Option::is_none"
     )]
     #[ts(rename = "sampleSourceObjectId")]
     pub sample_source_object_id: Option<String>,
     #[serde(
         rename = "sampleSourceLayer",
+        default,
         skip_serializing_if = "Option::is_none"
     )]
     #[ts(rename = "sampleSourceLayer")]
     pub sample_source_layer: Option<f32>,
-    #[serde(rename = "sampleStrength", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "sampleStrength", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "sampleStrength")]
     pub sample_strength: Option<f32>,
     #[serde(
         rename = "sampleHueShiftDegrees",
+        default,
         skip_serializing_if = "Option::is_none"
     )]
     #[ts(rename = "sampleHueShiftDegrees")]
@@ -1628,9 +1633,9 @@ pub struct RegionFrameObjectFields {
     #[serde(rename = "lineWidth")]
     #[ts(rename = "lineWidth")]
     pub line_width: f32,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
-    #[serde(rename = "cornerCut", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "cornerCut", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "cornerCut")]
     pub corner_cut: Option<f32>,
     #[serde(rename = "extraWidth")]
@@ -1697,13 +1702,13 @@ pub struct SimpleTubeObjectFields {
     #[serde(rename = "secondaryColour")]
     #[ts(rename = "secondaryColour")]
     pub secondary_colour: String,
-    #[serde(rename = "colourPattern", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "colourPattern", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "colourPattern")]
     pub colour_pattern: Option<String>,
-    #[serde(rename = "fogStrength", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "fogStrength", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "fogStrength")]
     pub fog_strength: Option<f32>,
-    #[serde(rename = "fogColour", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "fogColour", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "fogColour")]
     pub fog_colour: Option<String>,
     pub seed: u32,

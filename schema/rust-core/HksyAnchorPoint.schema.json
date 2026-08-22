@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HksyAnchorPoint",
+  "description": "`src/types.ts` の `HksyCheckerGridObject.anchorPoints` の要素型。",
+  "type": "object",
+  "properties": {
+    "x": {
+      "type": "number",
+      "format": "float"
+    },
+    "y": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "x",
+    "y"
+  ]
+}

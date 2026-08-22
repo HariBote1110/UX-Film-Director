@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SphereDotsObjectFields",
+  "description": "`sphere_dots` kind (`src/types.ts` の `SphereDotsObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & SphereDotsObjectFields & { type: 'sphere_dots' }` として\n組み立てる。\n\n`width`/`height` は `sphereDotsObjectFactory.ts` の\n`buildAviUtlSphereDotsObject` がプロジェクトサイズから都度計算するため\nニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラルを\nそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "columns": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "latitudeLineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "luminanceInfluence": {
+      "type": "number",
+      "format": "float"
+    },
+    "offsetDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "planeMode": {
+      "type": "boolean"
+    },
+    "pointSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "number",
+      "format": "float"
+    },
+    "rotationDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "rows": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "secondaryColour": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "radius",
+    "columns",
+    "rows",
+    "rotationDegrees",
+    "offsetDegrees",
+    "luminanceInfluence",
+    "pointSize",
+    "latitudeLineWidth",
+    "colour",
+    "secondaryColour",
+    "seed",
+    "planeMode"
+  ]
+}
