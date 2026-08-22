@@ -32,11 +32,11 @@ export const registerAppCommands = (bus: CommandBus, store: AppCommandStore): vo
   });
 
   bus.register('edit.undo', () => {
-    store.getState().undo();
+    void store.getState().undoCommand();
   });
 
   bus.register('edit.redo', () => {
-    store.getState().redo();
+    void store.getState().redoCommand();
   });
 
   bus.register('edit.delete', (payload) => {

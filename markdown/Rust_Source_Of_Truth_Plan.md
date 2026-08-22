@@ -494,6 +494,32 @@ invert、入れ子 Batch と空 Batch はいずれも `CommandError` で拒否�
 `progress/rust-source-of-truth-r4-7b-command-batch.md` を参照。R4-8
 group c 以降で該当 11 箇所を `Batch` へ配線する作業が残る。
 
+**進捗（R4-8・2026-08-22、stream-1B 完了）**: `historySlice.ts` を
+スナップショット方式（`pastStates`/`futureStates`/`pushHistory`/`undo`/
+`redo`）から command stack 方式（`pastCommands`/`futureCommands`/
+`pushHistoryCommand`/`undoCommand`/`redoCommand`）へ全面移行した。
+group b でまず dual-API（新旧併存）として追加し、group c〜e で
+`useStore.ts`(17)/`layerSlice.ts`(3)/`TimelineItem.tsx`(1)/
+`OxidiseStageViewport.tsx`(1)/`PropertyPanel.tsx`(7)/
+`useSceneInteraction.ts`(3) の計 34 呼び出し箇所を段階的に
+`pushHistoryCommand` へ移行し、group f で旧 API を削除した
+（ドラッグ/リサイズ系は「開始時に前値を捕捉→終了時に diff して 1 回だけ
+push」パターンに統一し、per-frame emitter 化を回避）。undo/redo は
+`command.apply` IPC 往復の非同期処理（bridge 不在 no-op、ignore-while-
+pending、apply 失敗時は状態変更なし）。tsc/フル cargo test
+(rust-core・rust-backend)/codegen:types:check/fixture parity（差分ゼロ、
+`KNOWN_DIFFERENCES.json` は `[]` 維持）/vitest 257 ファイル 1854 件、
+全て合格。詳細は `progress/rust-source-of-truth-r4-8-command-ipc.md`
+（group a〜f 全記録）を参照。
+**stream-1B（`historySlice` の command 化）はこれで完了と判定する**。
+ただし `filterStack.ts` 本体（`addFilterToObject`/
+`toggleFilterEnabledInObject`/`moveFilterInObject`/
+`removeFilterFromObject`/`updateFilterParamsInObject` の実装、および
+Rust 側フィルタコマンドとの厳密な legacy フィールド同期）は今回の
+スコープ外のまま **R4-9 として独立に残っている**（R4-8 は「filter 系
+Command との配線」のみを行い、`filterStack.ts` の実装移送そのものは
+一切行っていない）。R4 全体の完了判定は R4-9 の着地を待つ。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、

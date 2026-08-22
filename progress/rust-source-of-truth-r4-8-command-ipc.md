@@ -469,3 +469,113 @@ swap/insert/delete各1件+範囲外indexでのguard確認)。`TimelineItem.tsx`/
 **本体34箇所は全て`pushHistoryCommand`へ変換完了**。group fで旧API
 (`pushHistory`/`pastStates`/`futureStates`/`undo`/`redo`)を削除する際に
 この2箇所も併せて対応する。
+
+# R4-8 group f: 旧スナップショットAPI削除・R4-8完了
+
+## Decision
+
+- `historySlice.ts`から`pastStates`/`futureStates`/`pushHistory`/`undo`/
+  `redo`を削除した。`storeTypes.ts`の`HistorySnapshot`型・対応する
+  `AppState`フィールドも削除。`useStore.ts`の5箇所(initializeProject/
+  loadProject/switchScene/addScene/deleteScene)にあった
+  `pastStates: [], futureStates: []`初期化を`pastCommands: [],
+  futureCommands: []`へ置き換えた。
+- 旧APIを直接呼んでいた本体外の2箇所(R4-8ブロッカー記録で「34箇所本体
+  とは別」と記録済み)を移行:
+  - `src/commands/registerAppCommands.ts`の`edit.undo`/`edit.redo`
+    ハンドラ: `store.getState().undo()/redo()` →
+    `void store.getState().undoCommand()/redoCommand()`
+    (fire-and-forgetのまま、コマンドバスのハンドラは同期シグネチャ
+    のため)。
+  - `src/e2e/realisticHeavyEditHarness.ts`: `undo()/redo()` →
+    `await undoCommand()/redoCommand()`(囲む`exercise`関数は既に
+    async)。もう1箇所の`pushHistory()`+`updateObject`は
+    `buildObjectFieldDiffCommands`+`buildBatchCommand`による
+    diffベースのCommand構築へ変換。
+
+## テストの適応/削除マッピング
+
+| ファイル | 変更内容 | 理由 |
+|---|---|---|
+| `src/commands/registerAppCommands.test.ts` | 「wires edit.undo and edit.redo」テストを`setCommandBridgeForTests`でモックbridgeを注入する非同期版へ書き換え(削除せず適応)。`pushHistory()`+同期assertionを、`pushHistoryCommand({kind:'setCamera',...})`+`await flushAsync()`+非同期assertionへ変更 | undo/redoが非同期command stackへ移行したため、配線検証も非同期化が必要。テスト自体の目的(edit.undo/edit.redoが正しいstoreアクションを呼ぶか)は変わらないため削除ではなく適応 |
+| `src/integration/heavyEffectsStress.test.ts` | `pastStates.length`のassertionを`pastCommands.length`へ変更(意味は同一: 「大量のフィルタパラメータ更新で履歴が肥大化しない」) | フィールド名の変更のみ、テストの意図は不変 |
+
+既存のundo/redo挙動テストで**削除したものは無い**(group b〜eの各バッチ
+時点で確認済みのとおり、`grep -rln "\.undo()\|pastStates"`が元々
+テストコードにほぼ存在せず、大半のstoreテストはundo/redoを経由しない
+forward操作のみを検証していたため、今回の書き換えで壊れたテストは
+上記2ファイルのみだった)。Rust側(`rust-core/tests/command_undo.rs`)の
+undo/invert検証はR4-6/R4-7/R4-7bで別途28+5件(33件)が既にカバー済みで、
+TS側で重複して同じ範囲を検証する必要はないと判断し、新規のRust相当
+テストは追加していない。
+
+## 検証済み(フルゲート)
+
+- `npx tsc --noEmit` クリーン。
+- `npm run codegen:types:check` 差分ゼロ(Rust側の型変更は本グループで
+  行っていないため無変化)。
+- `cargo test --manifest-path rust-core/Cargo.toml` フル実行、全green。
+- `cargo test --manifest-path rust-backend/Cargo.toml` フル実行、全green
+  (64+2+5件、ignoredのベンチ専用3件を除く)。
+- `npm run fixture:evaluation-parity`(447フレーム比較、除外0)+
+  `cargo test --test ts_evaluation_parity` green、
+  `KNOWN_DIFFERENCES.json`は`[]`のまま(差分なし、git diff検出せず)。
+- `npx vitest run` フル実行、**257ファイル/1854テスト、全green**
+  (group e時点と同数 — 純粋なリネーム・API削除で、テスト数の増減なし)。
+
+## R4-8完了
+
+`historySlice.ts`のcommand stack化と、`pushHistory`呼び出し全34箇所の
+変換が完了した。採用戦略は**dual-API**(group bで新API追加→group c〜eで
+34箇所を段階移行→group fで旧API削除)。
+
+### 全34箇所+テスト/harness2箇所の最終変換テーブル
+
+group c(useStore.ts 17箇所)・group d(layerSlice.ts 3箇所+
+TimelineItem.tsx 1箇所+OxidiseStageViewport.tsx 1箇所)・group e
+(PropertyPanel.tsx 7箇所+useSceneInteraction.ts 3箇所)の各記録
+(このファイル内の該当セクション)に全エントリを記載済み。group fでは
+上記の追加2箇所(registerAppCommands.ts/realisticHeavyEditHarness.ts)
+のみを移行した。
+
+### async/queueing方針(group bで確定・以降変更なし)
+
+ignore-while-pending。`isCommandHistoryPending`がtrueの間の追加の
+undo/redo呼び出しは黙って無視する(キューイングしない)。理由は
+group bのDecisionセクション参照。
+
+### undo-fidelity(整合性)アプローチ
+
+- undo/redoの正しさそのもの(apply/invertのround-trip)は
+  `rust-core/tests/command_undo.rs`(R4-6/R4-7/R4-7b、単体28件+
+  proptest5件、全33件)で固定済み。TS側はこれを信頼し、
+  `historySlice.test.ts`(group b、6件)で「TS側がbridgeへ正しい
+  Commandを渡し、結果を正しくstateへ反映するか」という配線の正しさに
+  絞って検証した(Rust側ロジックの再検証はしない、二重管理を避ける)。
+- 各呼び出し箇所のCommand構築の正しさは、`useStoreCommandConversion.test.ts`
+  (group c、9件)・`layerSlice.commandConversion.test.ts`(group d、4件)で、
+  「pastCommandsへ正しい形のCommandが積まれるか」を確認した。
+- **既知の忠実性の限界**: フィルタ系Command(`AddFilter`/`RemoveFilter`等)
+  はRust側`apply_command`が`filters`配列のみを操作し、
+  `filterStack.ts`の`materialiseSyncedObject`が行う legacy フィールド
+  (`colorCorrection`/`customClipping`/`vibration`/`shadow`/`gradient`)
+  との同期をRust側では一切行わない。このため、フィルタ追加/削除の
+  undo/redoをRust側apply経由で行うと、`filters`配列は正しく復元される
+  一方でlegacyフィールドは古いままになりうる(forward方向の操作は
+  従来どおりTS側`filterStack.ts`が両方を同期するため問題ないが、undo/
+  redoでRust側の結果をそのままstateへ反映する箇所はこのギャップの
+  影響を受けうる)。これはR4-8のスコープでは意図的に対応していない
+  (`filterStack.ts`本体の書き換えはR4-9の担当領域と最初から明記されて
+  いた、progress/rust-source-of-truth-r4-commands.mdのR4-8への引き継ぎ
+  記述を参照)。R4-9でfilterStack.tsをRust移送する際に、この同期ギャップ
+  も併せて解消される見込み。
+
+## R4-9への引き継ぎ
+
+- `filterStack.ts`本体(`addFilterToObject`等の実装そのもの)はまだ
+  Rustへ移送されていない。R4-8は「呼び出し箇所がfilter系Commandを
+  正しく発行するか」という配線のみを完了させた。
+- 上記の「フィルタ操作undo時のlegacyフィールド非同期」問題は、R4-9で
+  `filterStack.ts`をRustへ移送する際に、`materialiseSyncedObject`相当の
+  ロジックをRust側`apply_command`にも実装するか、TS側でCommand適用後に
+  追加の同期パスを挟むかの設計判断が必要。

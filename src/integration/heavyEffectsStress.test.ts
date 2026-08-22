@@ -273,6 +273,9 @@ describe('heavy effects stress (Zustand store)', () => {
     const fadeMult = getFadeOpacityMultiplier(finalObject!);
     expect(fadeMult).toBeGreaterThanOrEqual(0);
     expect(fadeMult).toBeLessThanOrEqual(1);
-    expect(useStore.getState().pastStates.length).toBeLessThanOrEqual(2);
+    // R4-8 group f: 履歴は command stack(`pastCommands`)へ移行した。
+    // `addObject`のみが1件積み(`updateObjectFilterParams`は履歴を積まない)、
+    // 2,800回のパラメータ更新で肥大化しないことを確認する。
+    expect(useStore.getState().pastCommands.length).toBeLessThanOrEqual(2);
   });
 });

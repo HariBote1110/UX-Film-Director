@@ -1,4 +1,5 @@
 import { useStore } from '../store/useStore';
+import { buildBatchCommand, buildObjectFieldDiffCommands } from '../store/commandBuilders';
 import {
   buildProjectFileData,
   parseProjectPayloadV2,
@@ -234,19 +235,30 @@ const exercise = async (
   stateAfterScrub.selectObjects(editableIds);
   stateAfterScrub.duplicateSelectedObjectsWithObjectCopyExt();
   const duplicatedObjectCount = useStore.getState().objects.length;
-  useStore.getState().undo();
+  // R4-8 group f: undo/redo は command stack 経由(`command.apply` IPC 往復)
+  // の非同期処理へ移行した。
+  await useStore.getState().undoCommand();
   const undoObjectCount = useStore.getState().objects.length;
-  useStore.getState().redo();
+  await useStore.getState().redoCommand();
   const redoObjectCount = useStore.getState().objects.length;
 
   const firstVideo = useStore.getState().objects.find((object) => object.type === 'video');
   if (firstVideo) {
-    useStore.getState().pushHistory();
-    useStore.getState().updateObject(firstVideo.id, {
+    const previous = firstVideo;
+    const next = {
+      ...firstVideo,
       x: firstVideo.x + 18,
       y: firstVideo.y + 10,
       duration: Math.max(1, firstVideo.duration - 0.5),
       offset: (firstVideo.offset ?? 0) + 0.25,
+    };
+    const batch = buildBatchCommand(buildObjectFieldDiffCommands(previous, next));
+    if (batch) useStore.getState().pushHistoryCommand(batch);
+    useStore.getState().updateObject(firstVideo.id, {
+      x: next.x,
+      y: next.y,
+      duration: next.duration,
+      offset: next.offset,
     });
   }
 

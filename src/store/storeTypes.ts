@@ -25,13 +25,6 @@ export interface ClipboardState {
   anchorY: number;
 }
 
-export interface HistorySnapshot {
-  objects: TimelineObject[];
-  layers: LayerState[];
-  camera?: CameraState;
-  stageCamera3D?: StageCamera3D;
-}
-
 /** プレビュー上の Vision 検出枠（トラッキングなし・単フレーム）。プロジェクトには保存しない。 */
 export type VisionDetectionOverlayState = {
   videoId: string;
@@ -140,14 +133,11 @@ export interface AppState {
   clipboard: ClipboardState | null;
   aviUtlCoordinateStoreSnapshot: AviUtlCoordinateStoreSnapshot | null;
 
-  pastStates: HistorySnapshot[];
-  futureStates: HistorySnapshot[];
-
   /**
-   * R4-8 group b: command stack（新 API）。旧スナップショット API
-   * （`pastStates`/`futureStates`/`pushHistory`/`undo`/`redo`）と並存する
-   * dual-API 期間の新側。呼び出し箇所の移行（group c 以降）が終わるまで
-   * 両方が有効な状態を保つ。
+   * R4-8: 編集履歴の command stack。旧スナップショット API
+   * （`pastStates`/`futureStates`/`pushHistory`/`undo`/`redo`）は
+   * group f で削除済み（全 34 箇所の呼び出しを `pushHistoryCommand` へ
+   * 移行してから、この command stack へ一本化した）。
    */
   pastCommands: Command[];
   futureCommands: Command[];
@@ -209,13 +199,9 @@ export interface AppState {
    */
   clearPreviewObstructed: (reason: string) => void;
 
-  pushHistory: () => void;
-  undo: () => void;
-  redo: () => void;
-
   /**
-   * R4-8 group b: command stack へ `Command` を積む新 API。呼び出し側が
-   * コミット時点で `previous`/`next` を確定させた `Command` を渡す
+   * command stack へ `Command` を積む。呼び出し側がコミット時点で
+   * `previous`/`next` を確定させた `Command` を渡す
    * （フィールド単位は `setObjectField` 等）。
    */
   pushHistoryCommand: (command: Command) => void;

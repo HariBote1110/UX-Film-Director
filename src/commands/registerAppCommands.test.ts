@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../store/useStore';
 import { createCommandBus } from './commandBus';
 import { registerAppCommands } from './registerAppCommands';
+import { setCommandBridgeForTests } from '../utils/rustBackendCommandBridge';
+import type { RustBackendApplyCommandResult } from '../utils/rustBackendCommandBridge';
+
+/** `undoCommand`/`redoCommand`(fire-and-forget)の完了をテストから待つためのヘルパー。 */
+const flushAsync = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('registerAppCommands', () => {
   beforeEach(() => {
@@ -11,6 +16,10 @@ describe('registerAppCommands', () => {
       fps: 60,
       sampleRate: 48_000,
     });
+  });
+
+  afterEach(() => {
+    setCommandBridgeForTests(null);
   });
 
   it('wires playback.toggle to togglePlay', () => {
@@ -42,16 +51,32 @@ describe('registerAppCommands', () => {
     expect(useStore.getState().currentTime).toBe(0);
   });
 
-  it('wires edit.undo and edit.redo to the history slice actions', () => {
+  it('wires edit.undo and edit.redo to the command-stack history actions', async () => {
     const bus = createCommandBus();
     registerAppCommands(bus, useStore);
-    useStore.getState().pushHistory();
-    useStore.setState({ camera: { ...useStore.getState().camera, zoom: 2.5 } as any });
+
+    // R4-8 group f: undo/redo は非同期 command stack(`undoCommand`/
+    // `redoCommand`)へ移行した。bridge を注入し、setCamera の apply/invert
+    // だけを模す最小限のフェイクで配線(edit.undo/edit.redo → undoCommand/
+    // redoCommand)を検証する。
+    setCommandBridgeForTests({
+      applyCommand: async ({ scene, command }): Promise<RustBackendApplyCommandResult> => {
+        if (command.kind !== 'setCamera') throw new Error(`unexpected command kind: ${command.kind}`);
+        return { success: true, result: { scene: { ...scene, camera: command.next } } };
+      },
+    });
+
+    const previousCamera = useStore.getState().camera;
+    const nextCamera = { ...previousCamera, zoom: 2.5 };
+    useStore.getState().pushHistoryCommand({ kind: 'setCamera', previous: previousCamera, next: nextCamera });
+    useStore.setState({ camera: nextCamera });
 
     bus.execute('edit.undo');
+    await flushAsync();
     expect(useStore.getState().camera.zoom).not.toBe(2.5);
 
     bus.execute('edit.redo');
+    await flushAsync();
     expect(useStore.getState().camera.zoom).toBe(2.5);
   });
 
