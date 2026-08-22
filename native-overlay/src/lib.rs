@@ -1724,6 +1724,9 @@ fn attach_native_overlay_prepare_sync(
 /// 使うパイプラインコンパイル（DXCの本体、Windowsで数十秒）。HWND/COM
 /// には一切触れない。macOS・失敗ケースは`Done`を素通しするだけ
 /// （既にJSスレッド側で確定済み）。
+#[cfg(target_os = "windows")]
+static ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
 fn attach_native_overlay_compute_pipelines(
     state: AttachNativeOverlayPreparedState,
 ) -> AttachNativeOverlayOutcome {
@@ -1737,7 +1740,22 @@ fn attach_native_overlay_compute_pipelines(
             contract,
             window_id,
         } => {
+            // stage6実機再検証で判明した追加の知見: React StrictMode等に
+            // 起因する複数の並行attach呼び出し（実機で3回）が、この
+            // pipelineコンパイル区間（DXC、単体で数十秒）を同時に複数
+            // worker スレッドで実行すると、単体実測（nv12単体52.42秒・
+            // solid単体7.51秒）の合算を大幅に超える時間がかかる（実機で
+            // 180秒+の grace 期間中に1件も完了しなかった）。HWND/COMは
+            // 既にJSスレッド側の同期区間で完了済みのため、ここで
+            // グローバルロックにより直列化してもcross-thread
+            // DestroyWindowのようなWin32スレッド親和性の問題は起きない
+            // （`wgpu::Device`/`Queue`のみのSend+Safe区間）。
+            let _serialize_guard = ATTACH_NATIVE_OVERLAY_PIPELINE_SERIALIZE_LOCK
+                .get_or_init(|| Mutex::new(()))
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             let renderer = prepared.finish_pipelines();
+            drop(_serialize_guard);
             let overlay_renderer =
                 NativeOverlayLiveSurfaceRenderer::finish_from_hwnd(window_id, overlay_hwnd, &contract, renderer);
             AttachNativeOverlayOutcome::NeedsWindowsGeometryHook {
