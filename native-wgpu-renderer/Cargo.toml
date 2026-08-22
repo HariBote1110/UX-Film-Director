@@ -29,6 +29,16 @@ wgpu = "25"
 metal = "0.31"
 objc = "0.2.7"
 
+# Windows native overlay（Windows_Port_Plan.md Phase 5 / ADR-012）:
+# `from_hwnd` が DirectComposition の `IDCompositionDevice` / `IDCompositionVisual`
+# を扱うために必要。probe-sustained（windows_port_research/tools/probe-sustained）
+# が windows 0.58 で実機検証済みだが、本クレートは他の依存と揃え 0.58 系に固定する。
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Graphics_DirectComposition",
+    "Win32_Foundation",
+] }
+
 [dev-dependencies]
 tempfile = "3.14"
 uxfd-decode-spike = { path = "../decode-spike" }

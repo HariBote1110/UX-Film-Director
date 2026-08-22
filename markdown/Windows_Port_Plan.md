@@ -280,9 +280,43 @@ parity ゲートも全通過）。詳細は
 - golden-frame parity（`architecture/04-render-parity.md`）を移行の合格条件にする。
   **macOS の parity が崩れたら移行を止める。**
 
-### Phase 5: Windows overlay 実装（推定 4-6日）
+### Phase 5: Windows overlay 実装（推定 4-6日）— コード実装は完了、実機の attach/present 経路は未検証（★完了にはしない）
 
 `native-overlay` に `win32_overlay.rs` を足す。`macos_overlay.rs`（1,172 行）の対応物。
+
+**実装結果**: ADR-012 どおり DirectComposition 経路で実装した。詳細は
+[windows-w5-native-overlay.md](../progress/windows-w5-native-overlay.md)。
+
+- macOS `cargo test`（native-overlay 99/0/0、native-wgpu-renderer 全 pass）は不変。
+- `cargo check --target x86_64-pc-windows-msvc --tests`（両クレート）0 errors。
+- Windows 実機（`mainpc`）で `cargo test --release`:
+  native-wgpu-renderer 全 pass（native_reference_parity 37 件含む）、
+  native-overlay 84 passed / 2 failed（失敗 2 件は本実装と無関係の
+  既存 Windows 固有バグ — 決定ログ参照）。新規追加した
+  `win32_overlay::geometry_tests`（純粋関数 3 件）はこの実機実行に含まれ、
+  3 件とも pass。
+- **未検証（重要）**: `attach_native_overlay` を実 HWND に対して呼ぶ実機
+  スモークテスト（`native-overlay/tests/win32_overlay_smoke.rs`）を用意し
+  mainpc でビルド・実行したが、`schtasks /it` 経由の実行が 3 分以上
+  ハングし完走しなかった（プロセスは強制終了して後始末済み）。
+  ハング箇所は未特定 —
+  `DCompositionCreateDevice`/`CreateTargetForHwnd` 自体が原因か、
+  `wgpu::Instance::request_adapter`/`request_device` が
+  メッセージポンプの無い owner window 上でブロックしているのか、
+  それ以外かは切り分けられていない。つまり **DirectComposition +
+  wgpu composition surface の実機での実際の attach 成立は未確認**。
+  Phase 0（`sustained-present.md`）の probe は同じ構成要素
+  （DCompositionCreateDevice → CreateTargetForHwnd → CreateVisual →
+  SetRoot → SurfaceTargetUnsafe::CompositionVisual）を実機で 60 秒超
+  連続 present して成功しているため設計自体の妥当性は高いが、
+  probe とこの実装の間の差分（本実装は owner を通常の
+  top-level window にしている・メッセージループを回していない等）が
+  ハングの原因になっている可能性がある。次のセッションでの優先課題。
+
+コードの実装（cfg分岐・型・pure関数・Cargo依存）は完了し、pure関数と
+既存の周辺テストは実機で確認済みだが、**この機能の中核である
+「実際にoverlayウィンドウがDirectComposition経由で合成されるか」は
+実機で確認できていない**ため、Phase 5 全体を ★完了 とは書かない。
 
 - `attach_native_overlay_inner` の `#[cfg(target_os = "windows")]` 分岐を実装する。
   現状は `attach_live_overlay_surface_renderer` が `Err("...only available on macOS")` を返す stub。

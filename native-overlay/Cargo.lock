@@ -1949,6 +1949,7 @@ dependencies = [
  "uxfd-shared-memory-spike",
  "uxfd-shared-video-frame-bridge",
  "wgpu",
+ "windows",
 ]
 
 [[package]]
@@ -1969,6 +1970,7 @@ dependencies = [
  "uxfd-shared-memory-spike",
  "uxfd-sidecar-protocol",
  "wgpu",
+ "windows",
 ]
 
 [[package]]

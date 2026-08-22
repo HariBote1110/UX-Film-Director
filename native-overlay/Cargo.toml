@@ -6,7 +6,10 @@ build = "build.rs"
 
 [lib]
 name = "uxfd_native_overlay"
-crate-type = ["cdylib"]
+# "rlib" を追加したのは Windows_Port_Plan.md Phase 5（W5）の実機スモークテスト
+# （tests/win32_overlay_smoke.rs）が `uxfd_native_overlay::attach_native_overlay`
+# 等をライブラリとして呼ぶため。napi addon としての "cdylib" 出力は変わらない。
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 napi = "3.9.2"
@@ -27,6 +30,18 @@ metal = "0.31.0"
 objc = "0.2.7"
 url = "2"
 uxfd-macos-video-decode = { path = "../macos-video-decode" }
+
+# Windows native overlay（Windows_Port_Plan.md Phase 5 / ADR-012）:
+# `win32_overlay.rs` が owner HWND の取得・overlay WS_POPUP window の作成・
+# DirectComposition device/target/visual のセットアップに使う。
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_DirectComposition",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+] }
 
 [dev-dependencies]
 uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
