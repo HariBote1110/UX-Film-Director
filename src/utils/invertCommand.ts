@@ -4,9 +4,12 @@ import type { Command } from '../generated/rustCore/Command';
  * `rust-core::command::invert` の TS 側ミラー。
  *
  * R4-6/R4-7 の設計記録（progress/rust-source-of-truth-r4-commands.md）が
- * 確認した通り、全 12 kind の `invert` は「`next`/`previous` を入れ替える」
+ * 確認した通り、12 kind の `invert` は「`next`/`previous` を入れ替える」
  * （あるいは `AddObject`↔`RemoveObject` のような kind そのものの入れ替え）
- * という純粋なフィールド swap で表現できる。Rust 側のロジックを複製する
+ * という純粋なフィールド swap で表現できる。R4-7b で追加した `batch`
+ * （13 kind目）は「`commands` を逆順にしたうえで各要素を再帰的に
+ * `invertCommand` する」ことで表現する（`rust-core::command::invert` の
+ * `Command::Batch` 腕と同じ規約）。Rust 側のロジックを複製する
  * のは DRY 違反だが、undo を「invert を command.apply する」形にするには
  * apply 前に invert 済みコマンドを構築する必要があり、かつ invert 自体は
  * サーバ往復するほどの処理ではない（純粋関数・副作用なし）ため、往復
@@ -108,6 +111,14 @@ export const invertCommand = (command: Command): Command => {
         kind: 'setStageCamera3D',
         next: command.previous,
         previous: command.next,
+      };
+
+    case 'batch':
+      // rust-core::command::invert と同じ: 逆順に積み、各要素も invert する
+      // (invert(Batch[a, b, c]) === Batch[invert(c), invert(b), invert(a)])。
+      return {
+        kind: 'batch',
+        commands: [...command.commands].reverse().map(invertCommand),
       };
 
     default: {
