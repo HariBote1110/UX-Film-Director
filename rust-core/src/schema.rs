@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -2867,4 +2869,68 @@ pub struct PsdLayerNodeFields {
     pub default_visible: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub src: Option<String>,
+}
+
+/// `psd` kind の編集モデル（R3バッチC）。`src/types.ts` の `PsdObject` と同形。
+///
+/// `PsdObject` は「平坦な intersection ではなく明示的な合成」の唯一の例外
+/// （バッチBの注記どおり）で、TS 側は
+/// `Omit<PsdObjectFields, 'rootLayer'> & PsdRuntimeFields & { rootLayer?: PsdLayerNode, layerTree?: PsdLayerStruct[] }`
+/// として組み立てる。以下2フィールドはこの Rust 型には**含めない**:
+///
+/// - `layerTree: PsdLayerStruct[]` — `buildPsdLayerTree` が `rootLayer` +
+///   `activeLayerIds` から都度再構築する表示専用の派生ビュー
+///   （`restorePsdObjectFromFile` は保存済みの値を信頼せず必ず再計算する）。
+///   独立した永続状態ではないため、`PsdLayerStruct` 自体もバッチBと同じ理由で
+///   TS 側の手書き型のまま残す。
+/// - `file?: File` — ブラウザの `File` オブジェクト。GPU テクスチャと同様の
+///   ランタイム専用値で JSON にシリアライズされない
+///   （`sanitiseObjectForSave` が保存直前に `undefined` へ落とす）。
+///
+/// `activeLayerIds` はキー集合がレイヤーIDに依存し動的だが、決定的な JSON
+/// キー順を保証するため `HashMap` ではなく `BTreeMap` を使う。保存済み
+/// ファイルの既存キー順（挿入順）とはズレうるが、消費側
+/// （`Object.entries`/`Record` として読む TS コード、および
+/// `projectFile.test.ts` の `toEqual` によるラウンドトリップ検証）はすべて
+/// キー順に依存しない構造比較のため、バイト互換ではなく shape 互換で足りる
+/// （このバッチCで実測・確認済み）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PsdObjectFields {
+    pub src: String,
+    #[serde(rename = "filePath", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "filePath")]
+    pub file_path: Option<String>,
+    pub width: f32,
+    pub height: f32,
+    pub scale: f32,
+    #[serde(rename = "rootLayer", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "rootLayer")]
+    pub root_layer: Option<PsdLayerNodeFields>,
+    #[serde(rename = "activeLayerIds", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "activeLayerIds")]
+    pub active_layer_ids: Option<BTreeMap<String, bool>>,
+    #[serde(rename = "lipSync", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "lipSync")]
+    pub lip_sync: Option<LipSyncSetting>,
+    #[serde(rename = "worldPlacement", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "worldPlacement")]
+    pub world_placement: Option<PsdWorldPlacement>,
+}
+
+impl Default for PsdObjectFields {
+    fn default() -> Self {
+        Self {
+            src: String::new(),
+            file_path: None,
+            width: 0.0,
+            height: 0.0,
+            // psdParser.ts の4つの構築箇所すべてで `scale: 1.0` の固定リテラル
+            // （ファイル由来ではない真の既定値）。
+            scale: 1.0,
+            root_layer: None,
+            active_layer_ids: None,
+            lip_sync: None,
+            world_placement: None,
+        }
+    }
 }

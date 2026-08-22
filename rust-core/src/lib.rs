@@ -31,7 +31,7 @@ pub use schema::{
     ImageObjectFields, LipSyncMapping, LipSyncSetting, LipSyncSourceMode, MediaKind, ColourWheelObjectFields, MediaReference,
     PaperAirplaneObjectFields, ParticleObjectFields, PieChartLabelMode, PieChartObjectFields,
     PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe, Project, ProjectSize,
-    ProtractorObjectFields, PsdWorldPlacement,
+    ProtractorObjectFields, PsdLayerNodeFields, PsdObjectFields, PsdWorldPlacement,
     PuzzleConnectorMode, PuzzlePieceObjectFields, RandomLineExObjectFields,
     RegionFrameObjectFields, SamplingMode,
     ScalarKeyframe, ShakingPolygonObjectFields, ShapeGradientFill, ShapeGradientKind,
