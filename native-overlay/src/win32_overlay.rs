@@ -165,6 +165,9 @@ unsafe fn resync_overlay_geometry(owner: HWND, overlay: HWND, contract: &Overlay
     let Ok((origin_x, origin_y)) = owner_client_origin(owner) else {
         return;
     };
+    let Ok(client_height) = owner_client_height(owner) else {
+        return;
+    };
     let dpi_scale_factor = dpi_scale_factor_from_dpi(GetDpiForWindow(owner));
     let (screen_x, screen_y, width, height) = resolve_overlay_screen_rect(
         origin_x,
@@ -174,6 +177,7 @@ unsafe fn resync_overlay_geometry(owner: HWND, overlay: HWND, contract: &Overlay
         contract.view_width,
         contract.view_height,
         dpi_scale_factor,
+        client_height,
     );
     let _ = SetWindowPos(
         overlay,
@@ -280,6 +284,19 @@ pub fn set_overlay_window_obstructed(overlay_hwnd: usize, obstructed: bool) {
 /// Phase 6 で `attach`（1 回きりの解決）だけでなく親ウィンドウの
 /// move/resize/DPI 変更を受けての resync からも呼ばれるようになった
 /// （[`register_geometry_resync_hook`] 参照）。
+///
+/// `owner_client_height_px` は owner のクライアント領域の高さ（物理ピクセル、
+/// `GetClientRect` で取得）。TS 側 `buildNativeOverlayAttachRect`
+/// （`src/utils/nativeOverlayViewportGeometry.ts`）は
+/// `y = contentHeight - viewportRect.top - viewportOffsetTop - height` という
+/// 式で常に bottom-left origin の `contract.view_y` を計算しており、これは
+/// macOS AppKit の `isFlipped` 前提を打ち消すための変換で、送信元コードは
+/// Windows/macOS で分岐していない（`macos_overlay.rs` の
+/// `resolve_view_local_rect_for_parent_bounds` 冒頭のコメント参照）。
+/// そのため Win32 側でも「owner のクライアント高さを使って bottom-left →
+/// top-left へ変換する」処理が必須で、これを省くと overlay の縦位置が
+/// 実際の canvas 位置と無関係にずれ、canvas 領域を大きくはみ出して描画される
+/// （2026-08 mainpc 実機で観測された「えげつないはみ出し」バグの原因）。
 pub fn resolve_overlay_screen_rect(
     owner_client_origin_x: i32,
     owner_client_origin_y: i32,
@@ -288,15 +305,21 @@ pub fn resolve_overlay_screen_rect(
     contract_view_width: f64,
     contract_view_height: f64,
     dpi_scale_factor: f64,
+    owner_client_height_px: i32,
 ) -> (i32, i32, i32, i32) {
     let scaled_x = contract_view_x * dpi_scale_factor;
     let scaled_y = contract_view_y * dpi_scale_factor;
     let scaled_width = contract_view_width * dpi_scale_factor;
     let scaled_height = contract_view_height * dpi_scale_factor;
-    let screen_x = owner_client_origin_x + scaled_x.round() as i32;
-    let screen_y = owner_client_origin_y + scaled_y.round() as i32;
     let width = scaled_width.round().max(1.0) as i32;
     let height = scaled_height.round().max(1.0) as i32;
+    // bottom-left origin (TS 由来) → top-left origin (owner client-local) への変換。
+    // macOS の `resolve_view_local_rect_for_parent_bounds` の
+    // `parent_view_bounds_height - contract_view_y - contract_view_height` と同じ式を、
+    // 物理ピクセルへスケール済みの値同士で行う。
+    let flipped_local_y = owner_client_height_px as f64 - scaled_y.round() - height as f64;
+    let screen_x = owner_client_origin_x + scaled_x.round() as i32;
+    let screen_y = owner_client_origin_y + flipped_local_y.round() as i32;
     (screen_x, screen_y, width, height)
 }
 
@@ -371,6 +394,17 @@ unsafe fn owner_client_origin(owner: HWND) -> Result<(i32, i32), String> {
     Ok((origin.x, origin.y))
 }
 
+/// owner HWND のクライアント領域の高さ（物理ピクセル）を取得する。
+/// `resolve_overlay_screen_rect` の bottom-left → top-left 変換
+/// （TS 側 `buildNativeOverlayAttachRect` が送る bottom-left origin の
+/// `contract.view_y` を打ち消すため）に必要。
+unsafe fn owner_client_height(owner: HWND) -> Result<i32, String> {
+    let mut rect = windows::Win32::Foundation::RECT::default();
+    windows::Win32::UI::WindowsAndMessaging::GetClientRect(owner, &mut rect)
+        .map_err(|error| format!("Native overlay GetClientRect failed: {error:?}"))?;
+    Ok(rect.bottom - rect.top)
+}
+
 /// `attach_native_overlay_inner` の Windows 分岐から呼ばれる。
 /// overlay window を作成し、DirectComposition device/target/visual を
 /// セットアップして root visual まで `SetRoot` する。戻り値は overlay HWND
@@ -385,6 +419,7 @@ pub fn attach_overlay_window(
 
     unsafe {
         let (origin_x, origin_y) = owner_client_origin(owner)?;
+        let client_height = owner_client_height(owner)?;
         let dpi_scale_factor = dpi_scale_factor_from_dpi(GetDpiForWindow(owner));
         let (screen_x, screen_y, width, height) = resolve_overlay_screen_rect(
             origin_x,
@@ -394,6 +429,7 @@ pub fn attach_overlay_window(
             contract.view_width,
             contract.view_height,
             dpi_scale_factor,
+            client_height,
         );
 
         let hinstance = GetModuleHandleW(None)
