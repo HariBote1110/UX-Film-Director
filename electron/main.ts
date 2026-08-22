@@ -8,6 +8,17 @@ import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 import { validateProxyDuration } from '../src/utils/proxyValidation';
+
+// Phase 7 (W7) Phase 3実機検証: presenter/overlay切替の視覚的直接証拠
+// （CDPスクリーンショット）を非対話SSHセッションからも取得できるよう、
+// `UXFD_REMOTE_DEBUG_PORT`を明示指定したときだけChrome DevTools Protocol
+// をopt-inで有効化する（既定では付与しない、本番/通常dev起動には一切
+// 影響しない）。`app.commandLine.appendSwitch`はapp readyより前に
+// 呼ぶ必要がある。
+if (process.env.UXFD_REMOTE_DEBUG_PORT) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env.UXFD_REMOTE_DEBUG_PORT);
+  app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
+}
 import {
   buildFfmpegNotFoundMessage,
   resolveFfmpegPath as resolveFfmpegPathFromDeps,
