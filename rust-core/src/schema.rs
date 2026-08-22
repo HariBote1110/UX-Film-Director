@@ -1409,6 +1409,456 @@ impl Default for ToneCurveObjectFields {
     }
 }
 
+/// `hksy_checker_grid` kind (`src/types.ts` の `HksyCheckerGridObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & HksyCheckerGridObjectFields & { type: 'hksy_checker_grid' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `hksyCheckerGridObjectFactory.ts` の
+/// `buildHksyCheckerGridObject` がプロジェクトサイズから都度計算するため
+/// ニュートラルな `0.0` にする。他のフィールドは同関数の固定リテラル
+/// （cellSize: 50, lineWidth: 2, checkerEnabled: true, gridEnabled: true,
+/// foregroundColour: '#ffffff', secondaryColour: '#333333',
+/// backgroundColour: '#000000'）をそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct HksyCheckerGridObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    #[serde(rename = "cellSize")]
+    #[ts(rename = "cellSize")]
+    pub cell_size: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(rename = "checkerEnabled")]
+    #[ts(rename = "checkerEnabled")]
+    pub checker_enabled: bool,
+    #[serde(rename = "gridEnabled")]
+    #[ts(rename = "gridEnabled")]
+    pub grid_enabled: bool,
+    #[serde(rename = "foregroundColour")]
+    #[ts(rename = "foregroundColour")]
+    pub foreground_colour: String,
+    #[serde(rename = "secondaryColour")]
+    #[ts(rename = "secondaryColour")]
+    pub secondary_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+    #[serde(rename = "paletteColours", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "paletteColours")]
+    pub palette_colours: Option<Vec<String>>,
+    #[serde(rename = "separateInterval", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "separateInterval")]
+    pub separate_interval: Option<f32>,
+    #[serde(
+        rename = "separateLineWidth",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(rename = "separateLineWidth")]
+    pub separate_line_width: Option<f32>,
+    #[serde(rename = "anchorPoints", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "anchorPoints")]
+    pub anchor_points: Option<Vec<HksyAnchorPoint>>,
+    #[serde(rename = "roundCaps", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "roundCaps")]
+    pub round_caps: Option<bool>,
+    #[serde(
+        rename = "maxJoinDistance",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(rename = "maxJoinDistance")]
+    pub max_join_distance: Option<f32>,
+}
+
+impl Default for HksyCheckerGridObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            pattern: None,
+            cell_size: 50.0,
+            line_width: 2.0,
+            checker_enabled: true,
+            grid_enabled: true,
+            foreground_colour: "#ffffff".to_string(),
+            secondary_colour: "#333333".to_string(),
+            background_colour: "#000000".to_string(),
+            palette_colours: None,
+            separate_interval: None,
+            separate_line_width: None,
+            anchor_points: None,
+            round_caps: None,
+            max_join_distance: None,
+        }
+    }
+}
+
+/// `src/types.ts` の `HksyCheckerGridObject.anchorPoints` の要素型。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct HksyAnchorPoint {
+    pub x: f32,
+    pub y: f32,
+}
+
+/// `getcolor_dot_field` kind (`src/types.ts` の `GetColorDotFieldObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & GetColorDotFieldObjectFields & { type: 'getcolor_dot_field' }`
+/// として組み立てる。
+///
+/// **wire 統一（stage 4）は見送る**: `serialiseGeneratedGetColorDotsSource`
+/// （rustSceneSnapshot.ts）は `sampleSourcePath` が空の場合に他オブジェクト
+/// （image/psd）を `sampleSourceObjectId`/`sampleSourceLayer` で解決する
+/// クロスオブジェクト参照を行い、解決結果を wire に含める。これは
+/// `audio_visualization`/`audio_sphere` と同じ「構造的に想定より複雑」な
+/// ケースのため、型移送のみで打ち切る。
+///
+/// `width`/`height` は `getColorDotFieldObjectFactory.ts` の
+/// `buildGetColorDotFieldObject` がプロジェクトサイズから都度計算するため
+/// ニュートラルな `0.0` にする。他のフィールドは同関数の固定リテラルを
+/// そのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct GetColorDotFieldObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub columns: u32,
+    pub rows: u32,
+    #[serde(rename = "dotSize")]
+    #[ts(rename = "dotSize")]
+    pub dot_size: f32,
+    #[serde(rename = "dotShape", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "dotShape")]
+    pub dot_shape: Option<String>,
+    #[serde(rename = "strokeWidth", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "strokeWidth")]
+    pub stroke_width: Option<f32>,
+    #[serde(rename = "sizeInfluence")]
+    #[ts(rename = "sizeInfluence")]
+    pub size_influence: f32,
+    #[serde(rename = "luminanceInfluence")]
+    #[ts(rename = "luminanceInfluence")]
+    pub luminance_influence: f32,
+    #[serde(rename = "hueShiftDegrees")]
+    #[ts(rename = "hueShiftDegrees")]
+    pub hue_shift_degrees: f32,
+    #[serde(rename = "alternateRows")]
+    #[ts(rename = "alternateRows")]
+    pub alternate_rows: bool,
+    #[serde(rename = "foregroundColour")]
+    #[ts(rename = "foregroundColour")]
+    pub foreground_colour: String,
+    #[serde(rename = "secondaryColour")]
+    #[ts(rename = "secondaryColour")]
+    pub secondary_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+    #[serde(rename = "sampleSourcePath", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "sampleSourcePath")]
+    pub sample_source_path: Option<String>,
+    #[serde(
+        rename = "sampleSourceObjectId",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(rename = "sampleSourceObjectId")]
+    pub sample_source_object_id: Option<String>,
+    #[serde(
+        rename = "sampleSourceLayer",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(rename = "sampleSourceLayer")]
+    pub sample_source_layer: Option<f32>,
+    #[serde(rename = "sampleStrength", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "sampleStrength")]
+    pub sample_strength: Option<f32>,
+    #[serde(
+        rename = "sampleHueShiftDegrees",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(rename = "sampleHueShiftDegrees")]
+    pub sample_hue_shift_degrees: Option<f32>,
+    pub seed: u32,
+}
+
+impl Default for GetColorDotFieldObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            columns: 32,
+            rows: 18,
+            dot_size: 14.0,
+            dot_shape: None,
+            stroke_width: None,
+            size_influence: 0.65,
+            luminance_influence: 0.7,
+            hue_shift_degrees: 0.0,
+            alternate_rows: true,
+            foreground_colour: "#ffffff".to_string(),
+            secondary_colour: "#36c2ff".to_string(),
+            background_colour: "#000000".to_string(),
+            sample_source_path: None,
+            sample_source_object_id: None,
+            sample_source_layer: None,
+            sample_strength: None,
+            sample_hue_shift_degrees: None,
+            seed: 93,
+        }
+    }
+}
+
+/// `region_frame` kind (`src/types.ts` の `RegionFrameObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & RegionFrameObjectFields & { type: 'region_frame' }` として
+/// 組み立てる。
+///
+/// `width`/`height` は `regionFrameObjectFactory.ts` の
+/// `buildAviUtlRegionFrameObject` がプロジェクトサイズから都度計算するため
+/// ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラル
+/// （lineWidth: 10, extraWidth: 0, extraHeight: 0, backgroundOpacity: 0.2,
+/// frameColour: '#ffffff', backgroundColour: '#ccccff'）をそのまま採用する。
+/// `shape`/`cornerCut` はバリアント（rectangle/ellipse/cut_corner）ごとに
+/// 明示されるフィールドで、共通既定値としてはニュートラルな `None` にする。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct RegionFrameObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shape: Option<String>,
+    #[serde(rename = "cornerCut", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "cornerCut")]
+    pub corner_cut: Option<f32>,
+    #[serde(rename = "extraWidth")]
+    #[ts(rename = "extraWidth")]
+    pub extra_width: f32,
+    #[serde(rename = "extraHeight")]
+    #[ts(rename = "extraHeight")]
+    pub extra_height: f32,
+    #[serde(rename = "backgroundOpacity")]
+    #[ts(rename = "backgroundOpacity")]
+    pub background_opacity: f32,
+    #[serde(rename = "frameColour")]
+    #[ts(rename = "frameColour")]
+    pub frame_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for RegionFrameObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            line_width: 10.0,
+            shape: None,
+            corner_cut: None,
+            extra_width: 0.0,
+            extra_height: 0.0,
+            background_opacity: 0.2,
+            frame_colour: "#ffffff".to_string(),
+            background_colour: "#ccccff".to_string(),
+        }
+    }
+}
+
+/// `simple_tube` kind (`src/types.ts` の `SimpleTubeObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & SimpleTubeObjectFields & { type: 'simple_tube' }` として
+/// 組み立てる。
+///
+/// `width`/`height` は `simpleTubeObjectFactory.ts` の
+/// `buildAviUtlSimpleTubeObject` がプロジェクトサイズから都度計算するため
+/// ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラルを
+/// そのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SimpleTubeObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: f32,
+    pub depth: f32,
+    pub segments: u32,
+    pub rings: u32,
+    #[serde(rename = "twistDegrees")]
+    #[ts(rename = "twistDegrees")]
+    pub twist_degrees: f32,
+    #[serde(rename = "randomAmount")]
+    #[ts(rename = "randomAmount")]
+    pub random_amount: f32,
+    #[serde(rename = "strokeWidth")]
+    #[ts(rename = "strokeWidth")]
+    pub stroke_width: f32,
+    pub colour: String,
+    #[serde(rename = "secondaryColour")]
+    #[ts(rename = "secondaryColour")]
+    pub secondary_colour: String,
+    #[serde(rename = "colourPattern", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "colourPattern")]
+    pub colour_pattern: Option<String>,
+    #[serde(rename = "fogStrength", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "fogStrength")]
+    pub fog_strength: Option<f32>,
+    #[serde(rename = "fogColour", skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "fogColour")]
+    pub fog_colour: Option<String>,
+    pub seed: u32,
+    pub torus: bool,
+}
+
+impl Default for SimpleTubeObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            radius: 150.0,
+            depth: 280.0,
+            segments: 16,
+            rings: 10,
+            twist_degrees: 0.0,
+            random_amount: 0.0,
+            stroke_width: 3.0,
+            colour: "#0e769f".to_string(),
+            secondary_colour: "#ffffff".to_string(),
+            colour_pattern: None,
+            fog_strength: None,
+            fog_colour: None,
+            seed: 93,
+            torus: false,
+        }
+    }
+}
+
+/// `sphere_dots` kind (`src/types.ts` の `SphereDotsObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & SphereDotsObjectFields & { type: 'sphere_dots' }` として
+/// 組み立てる。
+///
+/// `width`/`height` は `sphereDotsObjectFactory.ts` の
+/// `buildAviUtlSphereDotsObject` がプロジェクトサイズから都度計算するため
+/// ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラルを
+/// そのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SphereDotsObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: f32,
+    pub columns: u32,
+    pub rows: u32,
+    #[serde(rename = "rotationDegrees")]
+    #[ts(rename = "rotationDegrees")]
+    pub rotation_degrees: f32,
+    #[serde(rename = "offsetDegrees")]
+    #[ts(rename = "offsetDegrees")]
+    pub offset_degrees: f32,
+    #[serde(rename = "luminanceInfluence")]
+    #[ts(rename = "luminanceInfluence")]
+    pub luminance_influence: f32,
+    #[serde(rename = "pointSize")]
+    #[ts(rename = "pointSize")]
+    pub point_size: f32,
+    #[serde(rename = "latitudeLineWidth")]
+    #[ts(rename = "latitudeLineWidth")]
+    pub latitude_line_width: f32,
+    pub colour: String,
+    #[serde(rename = "secondaryColour")]
+    #[ts(rename = "secondaryColour")]
+    pub secondary_colour: String,
+    pub seed: u32,
+    #[serde(rename = "planeMode")]
+    #[ts(rename = "planeMode")]
+    pub plane_mode: bool,
+}
+
+impl Default for SphereDotsObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            radius: 170.0,
+            columns: 16,
+            rows: 12,
+            rotation_degrees: 10.0,
+            offset_degrees: 0.0,
+            luminance_influence: 0.0,
+            point_size: 6.0,
+            latitude_line_width: 2.0,
+            colour: "#ffffff".to_string(),
+            secondary_colour: "#36c2ff".to_string(),
+            seed: 93,
+            plane_mode: false,
+        }
+    }
+}
+
+/// `spherical_field` kind (`src/types.ts` の `SphericalFieldObject`) の kind
+/// 固有フィールド。編集モデル型は
+/// `BaseObject & SphericalFieldObjectFields & { type: 'spherical_field' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `sphericalFieldObjectFactory.ts` の
+/// `buildAviUtlSphericalFieldObject` がプロジェクトサイズから都度計算する
+/// ため ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定
+/// リテラルをそのまま採用する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SphericalFieldObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: f32,
+    pub strength: f32,
+    #[serde(rename = "colourAmount")]
+    #[ts(rename = "colourAmount")]
+    pub colour_amount: f32,
+    #[serde(rename = "alphaAmount")]
+    #[ts(rename = "alphaAmount")]
+    pub alpha_amount: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(rename = "ringCount")]
+    #[ts(rename = "ringCount")]
+    pub ring_count: u32,
+    #[serde(rename = "vectorCount")]
+    #[ts(rename = "vectorCount")]
+    pub vector_count: u32,
+    #[serde(rename = "fieldColour")]
+    #[ts(rename = "fieldColour")]
+    pub field_colour: String,
+    #[serde(rename = "secondaryColour")]
+    #[ts(rename = "secondaryColour")]
+    pub secondary_colour: String,
+    #[serde(rename = "backgroundOpacity")]
+    #[ts(rename = "backgroundOpacity")]
+    pub background_opacity: f32,
+    pub container: bool,
+    pub seed: u32,
+}
+
+impl Default for SphericalFieldObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            radius: 160.0,
+            strength: 100.0,
+            colour_amount: 100.0,
+            alpha_amount: 0.0,
+            line_width: 3.0,
+            ring_count: 4,
+            vector_count: 16,
+            field_colour: "#ff3b30".to_string(),
+            secondary_colour: "#36c2ff".to_string(),
+            background_opacity: 0.08,
+            container: false,
+            seed: 93,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,
