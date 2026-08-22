@@ -478,26 +478,39 @@ mod geometry_tests {
 
     #[test]
     fn resolve_overlay_screen_rect_offsets_by_owner_client_origin() {
-        // Win32 は top-left origin 一本なので macOS の isFlipped 分岐は不要。
-        // 単純にオーナーのクライアント原点へ view_x/view_y を足すだけでよい
-        // （DPI スケール 1.0 = 100% では無変換）。
+        // Win32 は screen 座標こそ top-left origin だが、contract.view_x/view_y
+        // は TS 側 `buildNativeOverlayAttachRect`（src/utils/nativeOverlayViewportGeometry.ts）
+        // が常に「bottom-left origin」で計算して送ってくる
+        // （macOS AppKit の isFlipped 前提を打ち消すための式であり、
+        // 送信元は Windows/macOS で分岐していない）。そのため Win32 側でも
+        // macOS の `resolve_view_local_rect_for_parent_bounds` と同じ
+        // 「owner クライアント高さを使って bottom-left → top-left へ変換する」
+        // 処理が必要。owner client height を contract の view_height と
+        // 同じ 400 に取ると、bottom-left の view_y=34 はちょうど
+        // full-height 矩形の 34 == 400-34-366 ではなく、単純な
+        // owner_client_height(400) - view_y(34) - view_height(400) = -34 になる
+        // ケースを避けるため、owner のクライアント高さを view より大きい
+        // 634（= view_y 34 + view_height 400 + 余白 200）に取り、
+        // 期待 top-left y = owner_client_height - view_y - view_height = 200
+        // となることを確認する。
         let (x, y, width, height) =
-            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0, 1.0);
-        assert_eq!((x, y, width, height), (112, 234, 600, 400));
+            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0, 1.0, 634);
+        assert_eq!((x, y, width, height), (112, 200 + 200, 600, 400));
     }
 
     #[test]
     fn resolve_overlay_screen_rect_rounds_fractional_view_offsets() {
         let (x, y, width, height) =
-            resolve_overlay_screen_rect(0, 0, 12.4, 34.6, 600.4, 400.6, 1.0);
-        assert_eq!((x, y, width, height), (12, 35, 600, 401));
+            resolve_overlay_screen_rect(0, 0, 12.4, 34.6, 600.4, 400.6, 1.0, 1000);
+        assert_eq!((x, y, width, height), (12, 1000 - 35 - 401, 600, 401));
     }
 
     #[test]
     fn resolve_overlay_screen_rect_clamps_size_to_at_least_one_pixel() {
         // 0 幅/高さの CreateWindowExW は未定義動作になりやすいので、
         // 最低 1px を保証する。
-        let (_, _, width, height) = resolve_overlay_screen_rect(0, 0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        let (_, _, width, height) =
+            resolve_overlay_screen_rect(0, 0, 0.0, 0.0, 0.0, 0.0, 1.0, 0);
         assert_eq!((width, height), (1, 1));
     }
 
@@ -505,9 +518,24 @@ mod geometry_tests {
     fn resolve_overlay_screen_rect_scales_view_rect_by_dpi_factor() {
         // 150% スケール（144 DPI）では contract の view rect（論理ピクセル）
         // を 1.5 倍してから owner のクライアント原点（物理ピクセル）へ足す。
+        // owner_client_height_px も物理ピクセルで渡され、bottom-left → top-left
+        // 変換は物理ピクセル同士で行う。
         let (x, y, width, height) =
-            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0, 1.5);
-        assert_eq!((x, y, width, height), (100 + 18, 200 + 51, 900, 600));
+            resolve_overlay_screen_rect(100, 200, 12.0, 34.0, 600.0, 400.0, 1.5, 900);
+        assert_eq!((x, y, width, height), (100 + 18, 200 + (900 - 51 - 600), 900, 600));
+    }
+
+    #[test]
+    fn resolve_overlay_screen_rect_flips_bottom_left_contract_y_to_top_left_screen_y() {
+        // buildNativeOverlayAttachRect の実例を模した回帰テスト:
+        // contentHeight=800, viewportRect.top=100, height=600
+        // -> contract.view_y = 800 - 100 - 600 = 100 (bottom-left 前提)
+        // owner のクライアント高さも 800 (dpi=1.0) のとき、
+        // 本来のウィンドウ内 top-left y は 100 に戻らなければならない。
+        let contract_view_y = 800.0 - 100.0 - 600.0;
+        let (_, y, _, _) =
+            resolve_overlay_screen_rect(0, 0, 0.0, contract_view_y, 600.0, 600.0, 1.0, 800);
+        assert_eq!(y, 100);
     }
 
     #[test]
