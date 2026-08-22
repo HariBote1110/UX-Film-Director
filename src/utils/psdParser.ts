@@ -650,10 +650,15 @@ const loadLayerImage = async (node: PsdLayerNode, layer: Layer): Promise<void> =
 };
 
 /**
- * 移行中（R5-5 で削除予定）: PSD インポートフロー（`parsePsdAsObject`）からは
- * 既に外れており、`projectFile.ts` の `restorePsdObjectFromFile`
- * （保存済みプロジェクトの復元）のみが呼び出す。R5-5 で復元経路も Rust 側へ
- * 移行したらこの関数ごと削除する。
+ * 削除待ち（R5-4 でまとめて削除予定）: R5-5 で `projectFile.ts` の
+ * `restorePsdObjectFromFile` を `parsePsdMetaFromPath` へ移行したことで、
+ * プロダクションコードからの呼び出し元は 0 件になった（`rg` で確認済み）。
+ * 残る呼び出しはテストのみ（`psdParserArrayBufferWasm.test.ts` /
+ * `psdParser.perf.test.ts` / `src/remoteDeck/remoteDeckPsdLayers.e2e.test.ts`）。
+ * 内部で `parsePsdWithWasm`（`psdWasm.ts`）を第一候補として呼ぶため、
+ * R5-4 が `psdWasm.ts`/`psdAgPsdWorker.ts` を削除するのと同じバッチで
+ * この関数と上記テストも合わせて削除する
+ * （progress/rust-source-of-truth-r5-psd-unification.md 参照）。
  */
 export const parsePsdArrayBufferAsObject = async (
   arrayBuffer: ArrayBuffer,
@@ -847,6 +852,20 @@ type RustPsdNode = {
 type RustPsdMetaNode = Omit<RustPsdNode, 'pixelOffset' | 'pixelByteLen' | 'pixelData'>;
 
 /**
+ * Injectable RPC bridge for `psd.parseMeta` (IPC channel `'parse-psd-meta'`).
+ * Mirrors the injection pattern used by `RustBackendProjectFileBridge` in
+ * `projectFile.ts` — the default implementation calls `window.ipcRenderer`
+ * directly (Electron renderer context assumed); tests substitute this.
+ */
+export interface PsdMetaRpcBridge {
+  invoke: (channel: 'parse-psd-meta', payload: { filePath: string }) => Promise<unknown>;
+}
+
+const defaultPsdMetaRpcBridge = (): PsdMetaRpcBridge => ({
+  invoke: (channel, payload) => window.ipcRenderer.invoke(channel, payload),
+});
+
+/**
  * Parse a PSD file using ONLY the Rust backend's layer-tree metadata —
  * no ag-psd, no pixel bytes crossing the IPC boundary. Display still works
  * because rust-backend's preview/native-overlay pipeline re-decodes the PSD
@@ -855,20 +874,23 @@ type RustPsdMetaNode = Omit<RustPsdNode, 'pixelOffset' | 'pixelByteLen' | 'pixel
  * is still set via `psdLayerTextureUrl` so downstream consumers resolve the
  * same way as the pixel-carrying paths.
  *
- * Requires Electron (file.path) + window.ipcRenderer. This is the only PSD
- * import path (R5-3); the caller (`parsePsdAsObject`) is responsible for
- * surfacing a clear error when either precondition is missing.
+ * Rust performs `fs::read` on `filePath` itself — callers never read the
+ * file bytes on the TS side.
+ *
+ * Used both by the import flow (`parsePsdAsObject`, via `parsePsdViaRustMeta`)
+ * and by the saved-project restore flow (`projectFile.ts`'s
+ * `restorePsdObjectFromFile`, via the exported `parsePsdMetaFromPath`, R5-5).
  */
-const parsePsdViaRustMeta = async (
-  file: File,
+const parsePsdMetaViaRust = async (
   filePath: string,
+  fileName: string,
   startTime: number,
   projectWidth: number,
-  projectHeight: number
+  projectHeight: number,
+  originalFile: File | undefined,
+  bridge: PsdMetaRpcBridge
 ): Promise<PsdParseResult> => {
-  const ipc = window.ipcRenderer;
-
-  const rustResult = await ipc.invoke('parse-psd-meta', { filePath }) as {
+  const rustResult = await bridge.invoke('parse-psd-meta', { filePath }) as {
     success: boolean;
     error?: string;
     width: number;
@@ -971,7 +993,7 @@ const parsePsdViaRustMeta = async (
   const psdObject: TimelineObject = {
     id: crypto.randomUUID(),
     type: 'psd',
-    name: file.name,
+    name: fileName,
     layer: 0,
     startTime,
     duration: 5,
@@ -990,7 +1012,7 @@ const parsePsdViaRustMeta = async (
     scaleY: 1,
     rotation: 0,
     opacity: 1,
-    file,
+    file: originalFile,
     layerTree: buildPsdLayerTree(rootNode, activeLayerIds),
     rootLayer: rootNode,
     activeLayerIds,
@@ -998,6 +1020,27 @@ const parsePsdViaRustMeta = async (
 
   return { psdObject: psdObject as PsdObject };
 };
+
+/**
+ * Parse a saved project's PSD reference (`PsdObject.filePath`) via the same
+ * `psd.parseMeta` RPC used by the import flow — no ag-psd, no TS-side file
+ * read (Rust does `fs::read` on `filePath` itself). Used by
+ * `projectFile.ts`'s `restorePsdObjectFromFile` (R5-5); `bridge` is
+ * injectable for tests, mirroring `RustBackendProjectFileBridge`.
+ *
+ * Throws on any failure (missing file, RPC error, non-Electron environment
+ * via a rejecting `bridge.invoke`) — callers are responsible for catching
+ * and falling back, same granularity as the previous ag-psd-based path.
+ */
+export const parsePsdMetaFromPath = (
+  filePath: string,
+  fileName: string,
+  startTime: number,
+  projectWidth: number,
+  projectHeight: number,
+  bridge: PsdMetaRpcBridge = defaultPsdMetaRpcBridge()
+): Promise<PsdParseResult> =>
+  parsePsdMetaViaRust(filePath, fileName, startTime, projectWidth, projectHeight, undefined, bridge);
 
 // ── Public entry points ───────────────────────────────────────────────────────
 
@@ -1033,7 +1076,15 @@ export const parsePsdAsObject = async (
   }
 
   try {
-    return await parsePsdViaRustMeta(file, filePath, startTime, projectWidth, projectHeight);
+    return await parsePsdMetaViaRust(
+      filePath,
+      file.name,
+      startTime,
+      projectWidth,
+      projectHeight,
+      file,
+      defaultPsdMetaRpcBridge()
+    );
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     throw new Error(`PSDファイルの解析に失敗しました: ${detail}`);

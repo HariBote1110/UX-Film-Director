@@ -1,5 +1,5 @@
 import { ProjectSettings, TimelineObject, PsdObject, PsdLayerNode, LayerState, SceneData, CameraState } from '../types';
-import { buildPsdLayerTree, parsePsdArrayBufferAsObject, stripPsdLayerNodeForPersistence } from './psdParser';
+import { buildPsdLayerTree, parsePsdMetaFromPath, stripPsdLayerNodeForPersistence } from './psdParser';
 import { toFileProtocolUrl } from './mediaMetadata';
 import { flushActiveIntoScenes, sanitiseStageCamera3D } from './sceneState';
 
@@ -22,10 +22,6 @@ type SaveProjectResponse =
 type OpenProjectResponse =
   | { success: true; filePath: string; data: string }
   | { success: false; cancelled?: boolean; error?: string };
-
-type ReadFileBytesResponse =
-  | { success: true; data: unknown }
-  | { success: false; error?: string };
 
 type RustBackendDeserializeResult = { success: boolean; result?: { project: unknown }; error?: string; errorCode?: number };
 type RustBackendSerializeResult = { success: boolean; result?: { json: string }; error?: string; errorCode?: number };
@@ -102,25 +98,6 @@ const sanitiseObjectForSave = (obj: TimelineObject): TimelineObject => {
   return JSON.parse(JSON.stringify(obj)) as TimelineObject;
 };
 
-const normaliseBinaryData = (value: unknown): ArrayBuffer | null => {
-  if (value instanceof ArrayBuffer) {
-    return value;
-  }
-
-  if (ArrayBuffer.isView(value)) {
-    const view = value as ArrayBufferView;
-    const copied = new Uint8Array(view.byteLength);
-    copied.set(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
-    return copied.buffer;
-  }
-
-  if (Array.isArray(value) && value.every((item) => typeof item === 'number')) {
-    return new Uint8Array(value).buffer;
-  }
-
-  return null;
-};
-
 const extractFileName = (filePath: string): string => {
   const parts = filePath.split(/[\\/]/).filter(Boolean);
   return parts.length > 0 ? parts[parts.length - 1] : 'unknown.psd';
@@ -164,16 +141,14 @@ const mergeRestoredPsdActiveLayerIds = (
   return merged;
 };
 
-const readFileBytes = async (filePath: string): Promise<ArrayBuffer | null> => {
-  try {
-    const response = await window.ipcRenderer.invoke('read-file-bytes', { filePath }) as ReadFileBytesResponse;
-    if (!response || response.success !== true) return null;
-    return normaliseBinaryData(response.data);
-  } catch {
-    return null;
-  }
-};
-
+/**
+ * `savedObject.filePath` の PSD を `psd.parseMeta` RPC（Rust が `fs::read`
+ * を自前で行う）経由で再解析する（R5-5）。ファイルが見つからない／破損して
+ * いる等、どんな理由で失敗しても呼び出し元へは `null` を返すだけに揃える
+ * （旧 `readFileBytes` 失敗時と同じ粒度）。呼び出し元 `restoreObjectFromProject`
+ * は `null` を「保存済みの静的ツリーのまま file を外して保持する」フォール
+ * バックとして扱う（プロジェクト全体のロードを失敗させない）。
+ */
 const restorePsdObjectFromFile = async (
   savedObject: PsdObject,
   projectSettings: ProjectSettings
@@ -181,12 +156,9 @@ const restorePsdObjectFromFile = async (
   const filePath = savedObject.filePath?.trim();
   if (!filePath) return null;
 
-  const psdBuffer = await readFileBytes(filePath);
-  if (!psdBuffer) return null;
-
   try {
-    const parsed = await parsePsdArrayBufferAsObject(
-      psdBuffer,
+    const parsed = await parsePsdMetaFromPath(
+      filePath,
       extractFileName(filePath),
       savedObject.startTime,
       projectSettings.width,

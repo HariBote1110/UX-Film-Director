@@ -1,15 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AsanohaPatternObject, AudioSphereObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SphericalFieldObject, SunburstObject, TartanCheckObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects, type RustBackendProjectFileBridge } from './projectFile';
-import { parsePsdWithWasm } from './psdWasm';
-
-vi.mock('./psdWasm', () => ({
-  parsePsdWithWasm: vi.fn(),
-}));
-
-const mockedParsePsdWithWasm = vi.mocked(parsePsdWithWasm);
 
 // R4-3: parseProjectPayloadV2 は Rust IPC (`window.rustBackend.deserializeProjectFile`)
 // を経由するようになった。実際のスキーマ検証・V1→V2移行は rust-core 側の責務
@@ -1058,10 +1051,6 @@ describe('buildProjectFileData', () => {
 });
 
 describe('parseProjectPayloadV2', () => {
-  beforeEach(() => {
-    mockedParsePsdWithWasm.mockReset();
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -1391,45 +1380,44 @@ describe('parseProjectPayloadV2', () => {
   // カバーする。
 
   it('maps saved PSD active layer state from legacy ids onto restored stable ids', async () => {
-    mockedParsePsdWithWasm.mockResolvedValue({
-      meta: {
+    const invoke = vi.fn(async (channel: string, payload: { filePath?: string }) => {
+      expect(channel).toBe('parse-psd-meta');
+      expect(payload.filePath).toBe('/tmp/character.psd');
+      return {
+        success: true,
         width: 64,
         height: 48,
-        depth: 8,
-        isPsb: false,
-        layers: [{
-          name: 'Character',
-          top: 0,
-          left: 0,
-          width: 64,
-          height: 48,
-          visible: true,
-          isGroup: true,
-          ownGroupId: 42,
-          parentGroupId: null,
-          pixelByteLen: 0,
-        }, {
-          name: 'Face',
-          top: 4,
-          left: 8,
-          width: 16,
-          height: 16,
-          visible: true,
-          isGroup: false,
-          ownGroupId: null,
-          parentGroupId: 42,
-          pixelByteLen: 0,
-        }],
-      },
-      pixels: [new Uint8Array(0), new Uint8Array(0)],
-    });
-    const readFileBytes = vi.fn().mockResolvedValue({
-      success: true,
-      data: new ArrayBuffer(8),
+        nodes: [
+          {
+            psdId: 42,
+            parentPsdId: null,
+            isGroup: true,
+            name: 'Character',
+            width: 64,
+            height: 48,
+            top: 0,
+            left: 0,
+            defaultVisible: true,
+            order: 0,
+          },
+          {
+            psdId: 1,
+            parentPsdId: 42,
+            isGroup: false,
+            name: 'Face',
+            width: 16,
+            height: 16,
+            top: 4,
+            left: 8,
+            defaultVisible: true,
+            order: 0,
+          },
+        ],
+      };
     });
     vi.stubGlobal('window', {
       ipcRenderer: {
-        invoke: readFileBytes,
+        invoke,
       },
     });
     const psd: PsdObject = {
@@ -1478,7 +1466,7 @@ describe('parseProjectPayloadV2', () => {
 
     const [restored] = await restoreProjectObjects([psd], projectSettings());
 
-    expect(readFileBytes).toHaveBeenCalledWith('read-file-bytes', {
+    expect(invoke).toHaveBeenCalledWith('parse-psd-meta', {
       filePath: '/tmp/character.psd',
     });
     expect(restored.type).toBe('psd');
@@ -1491,6 +1479,47 @@ describe('parseProjectPayloadV2', () => {
       'psd-layer-1': false,
     });
     expect(restored.layerTree?.[0].children[0].checked).toBe(false);
+  });
+
+  it('keeps the saved PSD tree (file cleared, no throw) when psd.parseMeta reports failure', async () => {
+    // 失敗時 UX の保持確認（項目2）: ファイル欠落・破損等で RPC が失敗しても
+    // プロジェクト全体のロードは失敗させず、保存済みの静的ツリーのまま
+    // file だけ外して保持する（旧 readFileBytes null 返却時と同じ粒度）。
+    const invoke = vi.fn(async () => ({
+      success: false,
+      error: 'ENOENT: no such file or directory',
+    }));
+    vi.stubGlobal('window', {
+      ipcRenderer: { invoke },
+    });
+
+    const psd: PsdObject = {
+      ...minimalPsdWithWorldPlacement(),
+      filePath: '/tmp/missing.psd',
+      rootLayer: {
+        id: 'root',
+        name: 'Root',
+        isGroup: true,
+        isRadio: false,
+        children: [],
+        width: 64,
+        height: 48,
+        left: 0,
+        top: 0,
+        defaultVisible: true,
+      },
+      activeLayerIds: { root: true },
+    };
+
+    const [restored] = await restoreProjectObjects([psd], projectSettings());
+
+    expect(invoke).toHaveBeenCalledWith('parse-psd-meta', { filePath: '/tmp/missing.psd' });
+    expect(restored.type).toBe('psd');
+    if (restored.type !== 'psd') throw new Error('expected psd');
+    // Stale saved tree preserved as-is; only the runtime-only `file` handle is cleared.
+    expect(restored.rootLayer).toEqual(psd.rootLayer);
+    expect(restored.activeLayerIds).toEqual(psd.activeLayerIds);
+    expect(restored.file).toBeUndefined();
   });
 
   it('round-trips a PSD-bearing project (rootLayer/layerTree/activeLayerIds) with an identical JSON shape', async () => {
