@@ -25,6 +25,7 @@ export * from './GroupControl';
 export * from './HistogramObjectFields';
 export * from './HksyAnchorPoint';
 export * from './HksyCheckerGridObjectFields';
+export * from './HologramObjectFields';
 export * from './HoundstoothObjectFields';
 export * from './ImageObjectFields';
 export * from './MediaKind';

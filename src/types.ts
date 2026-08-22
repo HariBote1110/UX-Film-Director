@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -525,16 +525,7 @@ export type DisplacementPolyObject = BaseObject & DisplacementPolyObjectFields &
 export type PlainEffectorLineObject = BaseObject & PlainEffectorLineObjectFields & { type: 'plain_effector_line' };
 
 // AviUtlPackV4 ホログラム互換の生成オブジェクト
-export interface HologramObject extends BaseObject {
-  type: 'hologram';
-  width: number;
-  height: number;
-  tileSize: number;
-  rotationDegrees: number;
-  gradientAngleDegrees: number;
-  colourMode: number;
-  tintColour: string;
-}
+export type HologramObject = BaseObject & HologramObjectFields & { type: 'hologram' };
 
 // AviUtlPackV4 分度器互換の生成オブジェクト
 export interface ProtractorObject extends BaseObject {

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HologramObjectFields",
+  "description": "`hologram` kind (`src/types.ts` の `HologramObject`) の kind 固有フィールド。\n編集モデル型は\n`BaseObject & HologramObjectFields & { type: 'hologram' }` として組み立てる。\n\n`width`/`height` は `hologramObjectFactory.ts` の\n`buildAviUtlHologramObject` の固定リテラル (800x450) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "colourMode": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "gradientAngleDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "rotationDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "tileSize": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "tintColour": {
+      "type": "string"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "tileSize",
+    "rotationDegrees",
+    "gradientAngleDegrees",
+    "colourMode",
+    "tintColour"
+  ]
+}

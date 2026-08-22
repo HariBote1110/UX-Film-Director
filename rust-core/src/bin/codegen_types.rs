@@ -19,7 +19,7 @@ use uxfd_rust_core::schema::{
     ColourPipeline, ContourTraceObjectFields, DisplacementPolyObjectFields, Easing, Effect,
     FocusLinesPlusObjectFields, Fps, GearObjectFields, GetColorDotFieldObjectFields,
     GourdObjectFields, GroupControl, HksyAnchorPoint, HksyCheckerGridObjectFields,
-    HistogramObjectFields, ImageObjectFields,
+    HistogramObjectFields, HologramObjectFields, ImageObjectFields,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
     ParticleObjectFields, PieChartLabelMode,
     PieChartObjectFields, PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe,
@@ -128,6 +128,8 @@ fn write_ts_bindings() {
         .expect("DisplacementPolyObjectFields の TS export に失敗しました");
     PlainEffectorLineObjectFields::export_all(&cfg)
         .expect("PlainEffectorLineObjectFields の TS export に失敗しました");
+    HologramObjectFields::export_all(&cfg)
+        .expect("HologramObjectFields の TS export に失敗しました");
 
     write_index(&out_dir);
 
@@ -245,6 +247,7 @@ fn write_json_schemas() {
     write_schema::<ContourTraceObjectFields>(&dir, "ContourTraceObjectFields");
     write_schema::<DisplacementPolyObjectFields>(&dir, "DisplacementPolyObjectFields");
     write_schema::<PlainEffectorLineObjectFields>(&dir, "PlainEffectorLineObjectFields");
+    write_schema::<HologramObjectFields>(&dir, "HologramObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
 

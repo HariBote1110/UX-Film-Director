@@ -27,6 +27,7 @@ pub use schema::{
     ColourPipeline, ContourTraceObjectFields, DisplacementPolyObjectFields, Easing, Effect,
     FocusLinesPlusObjectFields, Fps, GearObjectFields, GetColorDotFieldObjectFields,
     GourdObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields, HistogramObjectFields,
+    HologramObjectFields,
     ImageObjectFields, MediaKind, ColourWheelObjectFields, MediaReference,
     PaperAirplaneObjectFields, ParticleObjectFields, PieChartLabelMode, PieChartObjectFields,
     PieChartSortMode, PlainEffectorLineObjectFields, PositionKeyframe, Project, ProjectSize,
