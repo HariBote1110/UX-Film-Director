@@ -1864,6 +1864,294 @@ impl Default for SphericalFieldObjectFields {
     }
 }
 
+/// `sunburst` kind (`src/types.ts` の `SunburstObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & SunburstObjectFields & { type: 'sunburst' }` として組み立てる。
+///
+/// `width`/`height` は `sunburstObjectFactory.ts` の
+/// `buildAviUtlSunburstObject` の固定リテラル (800x450) をそのまま採用する
+/// （プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct SunburstObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "rayCount")]
+    #[ts(rename = "rayCount")]
+    pub ray_count: u32,
+    #[serde(rename = "rayCoveragePercent")]
+    #[ts(rename = "rayCoveragePercent")]
+    pub ray_coverage_percent: f32,
+    #[serde(rename = "rotationOffsetDegrees")]
+    #[ts(rename = "rotationOffsetDegrees")]
+    pub rotation_offset_degrees: f32,
+    #[serde(rename = "centreXPercent")]
+    #[ts(rename = "centreXPercent")]
+    pub centre_x_percent: f32,
+    #[serde(rename = "centreYPercent")]
+    #[ts(rename = "centreYPercent")]
+    pub centre_y_percent: f32,
+    #[serde(rename = "motifSize")]
+    #[ts(rename = "motifSize")]
+    pub motif_size: f32,
+    #[serde(rename = "motifShape")]
+    #[ts(rename = "motifShape")]
+    pub motif_shape: String,
+    #[serde(rename = "rayColour")]
+    #[ts(rename = "rayColour")]
+    pub ray_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for SunburstObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            ray_count: 10,
+            ray_coverage_percent: 50.0,
+            rotation_offset_degrees: 0.0,
+            centre_x_percent: 50.0,
+            centre_y_percent: 50.0,
+            motif_size: 200.0,
+            motif_shape: "circle".to_string(),
+            ray_colour: "#ff0000".to_string(),
+            background_colour: "#ffff00".to_string(),
+        }
+    }
+}
+
+/// `circular_arrow` kind (`src/types.ts` の `CircularArrowObject`) の kind
+/// 固有フィールド。編集モデル型は
+/// `BaseObject & CircularArrowObjectFields & { type: 'circular_arrow' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `circularArrowObjectFactory.ts` の
+/// `buildAviUtlCircularArrowObject` の固定リテラル (200x200) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct CircularArrowObjectFields {
+    pub width: f32,
+    pub height: f32,
+    pub radius: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    #[serde(rename = "headSize")]
+    #[ts(rename = "headSize")]
+    pub head_size: f32,
+    #[serde(rename = "angleDegrees")]
+    #[ts(rename = "angleDegrees")]
+    pub angle_degrees: f32,
+    #[serde(rename = "centreAngleDegrees")]
+    #[ts(rename = "centreAngleDegrees")]
+    pub centre_angle_degrees: f32,
+    #[serde(rename = "headShape")]
+    #[ts(rename = "headShape")]
+    pub head_shape: String,
+    #[serde(rename = "showTailHead")]
+    #[ts(rename = "showTailHead")]
+    pub show_tail_head: bool,
+    #[serde(rename = "flipVertical")]
+    #[ts(rename = "flipVertical")]
+    pub flip_vertical: bool,
+    #[serde(rename = "flipHorizontal")]
+    #[ts(rename = "flipHorizontal")]
+    pub flip_horizontal: bool,
+    #[serde(rename = "arrowColour")]
+    #[ts(rename = "arrowColour")]
+    pub arrow_colour: String,
+}
+
+impl Default for CircularArrowObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 200.0,
+            height: 200.0,
+            radius: 100.0,
+            line_width: 20.0,
+            head_size: 50.0,
+            angle_degrees: 260.0,
+            centre_angle_degrees: 0.0,
+            head_shape: "triangle".to_string(),
+            show_tail_head: false,
+            flip_vertical: false,
+            flip_horizontal: false,
+            arrow_colour: "#ffff00".to_string(),
+        }
+    }
+}
+
+/// `triangle_bracket` kind (`src/types.ts` の `TriangleBracketObject`) の
+/// kind 固有フィールド。編集モデル型は
+/// `BaseObject & TriangleBracketObjectFields & { type: 'triangle_bracket' }`
+/// として組み立てる。
+///
+/// `width`/`height` は `triangleBracketObjectFactory.ts` の
+/// `buildAviUtlTriangleBracketObject` の固定リテラル (160x100) をそのまま
+/// 採用する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TriangleBracketObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "bracketWidth")]
+    #[ts(rename = "bracketWidth")]
+    pub bracket_width: f32,
+    #[serde(rename = "angleDegrees")]
+    #[ts(rename = "angleDegrees")]
+    pub angle_degrees: f32,
+    #[serde(rename = "armLength")]
+    #[ts(rename = "armLength")]
+    pub arm_length: f32,
+    #[serde(rename = "offsetDistance")]
+    #[ts(rename = "offsetDistance")]
+    pub offset_distance: f32,
+    #[serde(rename = "bracketColour")]
+    #[ts(rename = "bracketColour")]
+    pub bracket_colour: String,
+}
+
+impl Default for TriangleBracketObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 160.0,
+            height: 100.0,
+            bracket_width: 100.0,
+            angle_degrees: 120.0,
+            arm_length: 50.0,
+            offset_distance: 0.0,
+            bracket_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `tartan_check` kind (`src/types.ts` の `TartanCheckObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & TartanCheckObjectFields & { type: 'tartan_check' }` として
+/// 組み立てる。
+///
+/// `width`/`height` は `tartanCheckObjectFactory.ts` の
+/// `buildAviUtlTartanCheckObject` の固定リテラル (800x450) をそのまま採用
+/// する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct TartanCheckObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "tileSize")]
+    #[ts(rename = "tileSize")]
+    pub tile_size: f32,
+    #[serde(rename = "blurRadius")]
+    #[ts(rename = "blurRadius")]
+    pub blur_radius: f32,
+    #[serde(rename = "baseColour")]
+    #[ts(rename = "baseColour")]
+    pub base_colour: String,
+    #[serde(rename = "stripeColourA")]
+    #[ts(rename = "stripeColourA")]
+    pub stripe_colour_a: String,
+    #[serde(rename = "stripeColourB")]
+    #[ts(rename = "stripeColourB")]
+    pub stripe_colour_b: String,
+    #[serde(rename = "lineColour")]
+    #[ts(rename = "lineColour")]
+    pub line_colour: String,
+}
+
+impl Default for TartanCheckObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            tile_size: 100.0,
+            blur_radius: 1.0,
+            base_colour: "#143e10".to_string(),
+            stripe_colour_a: "#a81616".to_string(),
+            stripe_colour_b: "#c9c526".to_string(),
+            line_colour: "#000000".to_string(),
+        }
+    }
+}
+
+/// `houndstooth` kind (`src/types.ts` の `HoundstoothObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & HoundstoothObjectFields & { type: 'houndstooth' }` として
+/// 組み立てる。
+///
+/// `width`/`height` は `houndstoothObjectFactory.ts` の
+/// `buildAviUtlHoundstoothObject` の固定リテラル (800x450) をそのまま採用
+/// する（プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct HoundstoothObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "patternSize")]
+    #[ts(rename = "patternSize")]
+    pub pattern_size: f32,
+    #[serde(rename = "foregroundColour")]
+    #[ts(rename = "foregroundColour")]
+    pub foreground_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for HoundstoothObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            pattern_size: 50.0,
+            foreground_colour: "#000000".to_string(),
+            background_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
+/// `yagasuri` kind (`src/types.ts` の `YagasuriObject`) の kind 固有
+/// フィールド。編集モデル型は
+/// `BaseObject & YagasuriObjectFields & { type: 'yagasuri' }` として組み立てる。
+///
+/// `width`/`height` は `yagasuriObjectFactory.ts` の
+/// `buildAviUtlYagasuriObject` の固定リテラル (800x450) をそのまま採用する
+/// （プロジェクトサイズ依存の計算値ではない）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct YagasuriObjectFields {
+    pub width: f32,
+    pub height: f32,
+    #[serde(rename = "arrowWidth")]
+    #[ts(rename = "arrowWidth")]
+    pub arrow_width: f32,
+    #[serde(rename = "arrowHeight")]
+    #[ts(rename = "arrowHeight")]
+    pub arrow_height: f32,
+    #[serde(rename = "lineWidth")]
+    #[ts(rename = "lineWidth")]
+    pub line_width: f32,
+    pub staggered: bool,
+    #[serde(rename = "foregroundColour")]
+    #[ts(rename = "foregroundColour")]
+    pub foreground_colour: String,
+    #[serde(rename = "backgroundColour")]
+    #[ts(rename = "backgroundColour")]
+    pub background_colour: String,
+}
+
+impl Default for YagasuriObjectFields {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 450.0,
+            arrow_width: 15.0,
+            arrow_height: 65.0,
+            line_width: 2.0,
+            staggered: true,
+            foreground_colour: "#000000".to_string(),
+            background_colour: "#ffffff".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct Project {
     pub id: String,

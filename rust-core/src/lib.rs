@@ -31,10 +31,11 @@ pub use schema::{
     ProjectSize, PuzzleConnectorMode, PuzzlePieceObjectFields, RegionFrameObjectFields,
     SamplingMode, ScalarKeyframe,
     ShapeGradientFill, ShapeGradientKind, ShapeGradientScope, ShapeObjectFields, ShapeType,
-    SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields,
-    SubjectCropNormKeyframe, TextAlignment, TextObjectFields, TextShadow, TextStroke,
-    ToneCurveObjectFields, Track, TrackBarObjectFields,
-    Transform, VideoObjectFields, WipeEdge,
+    CircularArrowObjectFields, HoundstoothObjectFields, SimpleTubeObjectFields,
+    SphereDotsObjectFields, SphericalFieldObjectFields, SubjectCropNormKeyframe,
+    SunburstObjectFields, TartanCheckObjectFields, TextAlignment, TextObjectFields, TextShadow,
+    TextStroke, ToneCurveObjectFields, Track, TrackBarObjectFields, TriangleBracketObjectFields,
+    Transform, VideoObjectFields, WipeEdge, YagasuriObjectFields,
 };
 pub use solid_colour_scene::{
     build_solid_colour_draw_list, build_solid_colour_vertex_scene, CanvasSize, NormalisedColour,
