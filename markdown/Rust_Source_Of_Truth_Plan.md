@@ -463,6 +463,25 @@ R4-7 で追加する。`undo(do(state)) == state` を実フィクスチャ由来
 `historySlice.ts` の書き換えは R4-8 で行う）。詳細は
 `progress/rust-source-of-truth-r4-commands.md` を参照。
 
+**進捗（R4-7・2026-08-22、stream-1B の第二歩）**: `Command` 第二層
+（構造コマンド）を実装。`AddObject`/`RemoveObject`（index 保持で
+invert 対称性を厳密に固定）、`SetLayerState`/`ReorderLayers`
+（`layerSlice.ts` のトグル系は `LayerState` 丸ごと swap、
+swap/insert/delete track 系は `layerTrackOps.ts` の複雑な object.layer
+リマップを TS 側に残したまま `SceneData` 全体を差し替える設計）、
+`AddFilter`/`RemoveFilter`/`ToggleFilterEnabled`/`MoveFilter`/
+`UpdateFilterParams`（`filterStack.ts` の 5 編集操作に 1:1 対応、
+`MoveFilter` は direction ではなく from/to index 基準で「端での
+クランプ無操作」を invert 対称に保つ）、`SetCamera`/
+`SetStageCamera3D`（丸ごと swap）を追加。`CommandError` に
+`DuplicateObjectId`/`IndexOutOfRange`/`IndexMismatch`/`FilterNotFound`/
+`InvalidFilterPatch` を追加。単体 19 件 + proptest 3 件で全 28 テスト
+green。`Command` の TS 型を再生成しロック。tsc/フル cargo test/
+codegen:types:check/fixture parity（差分ゼロ）/vitest 253 ファイル
+1832 件、全て合格。IPC 配線・`historySlice.ts`/`layerSlice.ts`/
+`filterStack.ts`/`useStore.ts` の書き換えは R4-8/R4-9 で行う。詳細は
+`progress/rust-source-of-truth-r4-commands.md` を参照。
+
 ### R5: PSD 単一実装化（推定 5-8日）
 
 - まず `psd-wasm` クレートの扱いを決める。**現在デッドコード**なので、

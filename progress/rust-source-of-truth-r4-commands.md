@@ -89,3 +89,100 @@
   構造コマンドにはそのまま使えない（フィールド単位の検証ではなく
   オブジェクトの追加/削除/並び替えという別種の妥当性検証が要る）ため、
   R4-7 では別途設計する。
+
+# R4-7: 構造コマンド（第二層）の実装
+
+## Decision
+
+- 第二層として `AddObject`/`RemoveObject`（`useStore.ts` の `addObject`/
+  `deleteObject`）、`SetLayerState`/`ReorderLayers`（`layerSlice.ts`）、
+  `AddFilter`/`RemoveFilter`/`ToggleFilterEnabled`/`MoveFilter`/
+  `UpdateFilterParams`（`filterStack.ts` の 5 編集操作）、`SetCamera`/
+  `SetStageCamera3D`（`useStore.ts` のカメラ操作）を追加した。
+- **AddObject/RemoveObject の index 対称性**: どちらも `index: usize` を
+  持ち、`invert(AddObject{object,index}) == RemoveObject{object_id,
+  removed:object,index}`、その逆も同様。`RemoveObject` は「`index` の位置に
+  `object_id` が実在すること」を検証してから削除する（`IndexMismatch` で
+  拒否）。これにより remove→undo が厳密に元の位置へ戻ることを proptest
+  （`add_object_undo_restores_scene_for_any_insert_index`/
+  `remove_object_undo_restores_scene_for_any_real_index`）で固定した。
+  TS 側の `addObject` は常に末尾追加（`index == objects.length`）、
+  `deleteObject` は id フィルタで位置を意識しないが、コマンド自体は
+  任意位置を許容する（R4-8 配線時、`addObject` は `objects.length` を、
+  `deleteObject` は削除前の `findIndex` 結果を渡せばよい）。
+- **SetLayerState vs ReorderLayers の使い分け**: `layerSlice.ts` の
+  `setLayerName`/`toggleLayerVisibility`/`toggleLayerLock` は「1 レイヤーの
+  `LayerState`（3 フィールドの軽量な値）を丸ごと差し替える」操作のため、
+  フィールド単位の汎用パスを別途設けず `SetLayerState{index,next,previous}`
+  の丸ごと swap とした。一方 `swapLayerTracks`/`insertLayerTrackAt`/
+  `deleteLayerTrackAt`（`src/utils/layerTrackOps.ts` 実装）は、レイヤー
+  入れ替え・挿入・削除のたびに全オブジェクトの `layer` フィールド（PSD の
+  lipSync ターゲットや audio_visualization の targetLayer も含む）を
+  再計算し、挿入で `MAX_LAYERS` を超えるオブジェクトを削除するといった
+  複雑な副作用を持つ。この複雑なリマップロジックを Rust 側で再実装すると
+  TS 側の実装と挙動がずれるリスクが高いため、`historySlice.ts` の
+  `pushHistory`/`undo`/`redo` が既に採用している「変更前後の全状態を
+  スナップショットして丸ごと差し替える」方式を踏襲し、
+  `ReorderLayers{previous_layers,next_layers,previous_objects,
+  next_objects}` という全 layers+objects 差し替えコマンドとした
+  （呼び出し側 TS が `layerTrackOps.ts` の計算結果をそのまま渡す前提。
+  Rust 側で `layerTrackOps.ts` 相当のロジックを再実装するのは R4-7 の
+  スコープ外と判断した）。
+- **フィルタコマンド 5 種**: `filterStack.ts` の
+  `addFilterToObject`/`removeFilterFromObject`/
+  `toggleFilterEnabledInObject`/`moveFilterInObject`/
+  `updateFilterParamsInObject` にそれぞれ対応する。
+  - `AddFilter`/`RemoveFilter` は `AddObject`/`RemoveObject` と同じ
+    index-symmetry パターン（`index` は `AddFilter` では 0..=len、
+    `RemoveFilter` では実在検証つき）。TS の `addFilterToObject` は常に
+    末尾追加だが、コマンドとしては `invert(RemoveFilter)` の復元用に
+    任意位置を許容する。
+  - `ToggleFilterEnabled` は TS の `!filter.enabled` と同じ「同じコマンドを
+    もう一度 apply すれば元に戻る」自己逆操作。`invert()` は同一の
+    `Command` を返す。
+  - `MoveFilter{object_id,filter_id,from_index,to_index}` は TS の
+    `direction: 'up'|'down'` ベースではなく、クランプ済みの具体的な
+    index 対を持つ（`SetObjectField` の「呼び出し側が最終値を明示する」
+    設計を踏襲）。理由: direction ベースだと「端で無操作にクランプされた
+    move」を invert する際に direction を単純に反転させただけでは、
+    無操作だったはずの move が実際に動いてしまい round-trip が壊れる
+    （例: index 0 で `up` が無操作のとき、素朴に invert して `down` を
+    apply すると index 1 へ動いてしまう）。**意図的なクランプ**:
+    `from_index == to_index` は「既に端で移動しない」正当な無操作として
+    許可し `CommandError` にしない（`apply_command` はシーンを変更せず
+    `Ok` を返す）。TS 側で `direction` をコマンドへ変換する際は、
+    クランプが働く場合は `to_index = from_index` を渡せばよい。
+  - `UpdateFilterParams{object_id,filter_id,next,previous}` は
+    `SetObjectField` と同じ「`next`/`previous` は変更されたキーのみを
+    含む部分パッチオブジェクト」のパターン。`params` オブジェクトへ
+    `next` をキー単位でマージしてから `ObjectFilter` へ逆直列化する
+    （`updateFilterParamsInObject` の `{ ...filter.params, ...paramsPatch }`
+    と同じマージ意味論）。
+- **SetCamera/SetStageCamera3D**: `CameraState`/`StageCamera3D` は
+  それぞれ 4 フィールド/2 フィールドの値型で、UI 側にフィールド単位の
+  部分編集ニーズがない（カメラ操作は毎フレーム全体を再計算する）ため、
+  `SetObjectField` 的な汎用パスを設けず丸ごと swap とした。
+
+## エラー種別の追加
+
+`CommandError` に `DuplicateObjectId`（Add 系の id 重複）、
+`IndexOutOfRange`（Add/Remove/SetLayerState/フィルタ系の範囲外 index）、
+`IndexMismatch`（Remove 系の index に実在する id が一致しない —
+「index はコマンド発行時点の位置」という楽観的コマンドの前提が崩れた
+ケースを検出する）、`FilterNotFound`（未知 filter_id）、
+`InvalidFilterPatch`（`UpdateFilterParams` の型不一致）を追加した。
+
+## テストカバレッジ
+
+`rust-core/tests/command_undo.rs` に単体テスト 19 件（各コマンドの
+apply→invert 往復、拒否系: 重複 id / 範囲外 index / id 不一致 / 未知
+filter_id）と proptest 3 件（AddObject の任意挿入位置、RemoveObject の
+任意実在位置、MoveFilter の任意 from/to 組）を追加。全 28 テスト green。
+
+## R4-8 への引き継ぎ
+
+- `historySlice.ts`/`useStore.ts`（addObject/deleteObject）/
+  `layerSlice.ts`/`filterStack.ts` を実際にコマンド発行へ書き換える配線
+  は R4-8/R4-9 のスコープ。特に `ReorderLayers` は `layerTrackOps.ts` の
+  計算結果をそのまま渡す設計のため、TS 側の当該ロジック自体は R4-7 では
+  一切変更していない（意図的にスコープ外）。
