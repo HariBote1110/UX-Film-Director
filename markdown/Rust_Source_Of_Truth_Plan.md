@@ -294,8 +294,21 @@ golden-frame parity 維持、既存 E2E export の画素一致。
   `focus_lines_plus` は `rust-core/src/focus_lines.rs` の
   `focus_lines_frame_bucket_from_source`（wire 文字列を直接パースする
   独立ヘルパー）とフィールド名を共有しており、wire 統一時に追随修正が
-  必要だった。残る生成系 kind は `plain_effector_line`/`hologram`/
-  `protractor`/`shaking_polygon`/`shattered_sphere` の5 kind。
+  必要だった。続けて `plain_effector_line`/`hologram`/`protractor`/
+  `shaking_polygon`/`shattered_sphere` の5 kindも2026-08-22に wire 統一
+  まで完了した（`progress/rust-source-of-truth-r3-generated-batch6.md`）。
+  5 kind ともクロスオブジェクト参照・optional フィールドが無いことを
+  確認済み。この5 kindの着手前に、batch5完了後の追記で
+  `native-wgpu-renderer`/`native-overlay` が `media.source` を独自
+  `Deserialize` 構造体で直接パースする「第六の消費者」であることが判明して
+  いたため（`hologram`/`shaking_polygon`/`shattered_sphere` の3 kind分）、
+  rust-backend側の wire 統一と同時に `native-wgpu-renderer/src/{hksy,
+  shaking_polygon,shattered_sphere}.rs` のローカル struct・fixture literal
+  も追随させた。`shattered_sphere` は TS 側の `gravityX`/`gravityY`/
+  `gravityZ` の3フィールドに対し rust-backend/native-wgpu-renderer 双方が
+  旧 `gravity: [f32; 3]` 表現を持っていたため、個別フィールドへ分解した。
+  **これでR3の生成系 kind 移送は全件完了した**
+  （`psd`/`group_control`/3D 系は未着手で残っている）。
 - 各 kind の移送で、`rustSceneSnapshot.ts` の
   `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
   対応部分が消えることを確認する。ここが消えないなら移送できていない。
