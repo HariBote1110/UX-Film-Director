@@ -22,6 +22,7 @@ export * from './GearObjectFields';
 export * from './GetColorDotFieldObjectFields';
 export * from './GourdObjectFields';
 export * from './GroupControl';
+export * from './GroupControlObjectFields';
 export * from './HistogramObjectFields';
 export * from './HksyAnchorPoint';
 export * from './HksyCheckerGridObjectFields';

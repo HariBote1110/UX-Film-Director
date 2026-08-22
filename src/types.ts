@@ -1,5 +1,5 @@
 import { EasingType } from './utils/easings';
-import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields, ShakingPolygonObjectFields, ShatteredSphereObjectFields } from './generated/rustCore';
+import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields, ShakingPolygonObjectFields, ShatteredSphereObjectFields, GroupControlObjectFields } from './generated/rustCore';
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
 export type EditorMode = '2d' | '3d_stage';
@@ -447,10 +447,7 @@ export type VideoObject = BaseObject & VideoObjectFields & { type: 'video' };
 
 export type AudioObject = BaseObject & AudioObjectFields & { type: 'audio' };
 
-export interface GroupControlObject extends BaseObject {
-  type: 'group_control';
-  targetLayerCount: number;
-}
+export type GroupControlObject = BaseObject & GroupControlObjectFields & { type: 'group_control' };
 
 // 音声波形表示オブジェクト
 export type AudioVisualizationObject = BaseObject & AudioVisualizationObjectFields & { type: 'audio_visualization' };
