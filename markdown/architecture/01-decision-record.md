@@ -170,6 +170,14 @@ preview の合成・提示は、Rust + wgpu の napi-rs addon を Electron main 
 
 renderer も sidecar に置き、IOSurface だけで描画結果を main へ渡す案は初期案から外す。CALayer overlay の ownership と `MTLDrawable` の扱いが複雑で、初期検証としては POSIX shm + main 内 present よりリスクが高い。
 
+### 改訂（2026-08-23、R6再設計に伴う位置づけ変更）
+
+Windows_Port_Plan W7 の最終設計（`progress/windows-w7-async-attach.md` stage3以降）で、Windows の動画クリップを含むシーンは nv12 パイプライン完成まで WebGPU presenter による interim 表示を継続する構成が恒久的に採用された。これに伴い、本 ADR が定めた「preview renderer を addon に置き、既存 WebGPU presenter は削除せず parity 比較用の退避路として残す」という位置づけを次のとおり改訂する。
+
+- presenter の役割は「parity 比較用の退避路」から「(1) Windows の nv12 attach 窓中の動画クリップシーン interim 表示（恒久・必須）、(2) 縮小規模での parity / 視覚検証用途」の二本立てに変更する。(1) は fallback ではなく W7 の設計上必須のコンポーネントである。
+- `sharedRendererWebGpuPresenter.ts` の全面削除は行わない。動画クリップシーンの interim 表示に必要な最小限（背景合成＋動画テクスチャ描画）へ縮小するにとどめる。詳細は `markdown/Rust_Source_Of_Truth_Plan.md` の R6 節（2026-08-23 改訂版）を参照。
+- 完全削除を再検討する条件（シェーダ再構成による attach 時間の大幅短縮など）が満たされた場合は、R6 節を再評価したうえで本 ADR も再改訂する。
+
 ## ADR-013: Native Overlay を child NSWindow として実装する
 
 **状態**: 確定（2026-07-03）

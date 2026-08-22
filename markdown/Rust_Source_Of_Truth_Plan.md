@@ -647,21 +647,51 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
 
 **R5 全体（R5-1〜R5-7）を★完了と判定する（2026-08-22）。**
 
-### R6: 描画の単一実装化（推定 5-8日）★Windows W7 完了が前提
+### R6: 描画実装の整理（presenterのinterim専用縮小、推定 6-9日）★Windows W7完了（stage7まで）が前提
 
-- `sharedRendererWebGpuPresenter.ts` (1,484行・内蔵 WGSL) を削除し、
-  preview 描画を native overlay 経路のみにする。
-- 依存している presenter 系ファイル群
-  （`sharedRendererPreviewPresenterController.ts` 1,214行、
-  `sharedRendererViewportPresenterOrchestration.ts` 426行など）の
-  presenter 分岐を畳む。
-- **前提**: macOS / Windows の両方で native overlay が既定 ON かつ 24 時間ベンチ済み
-  （Windows_Port_Plan W7）。片方でも fallback が要るなら R6 は着手しない。
-- `Viewport.tsx` (2,726行) の presenter 分岐が消えることで、
-  ADR-003 / 基本方針 8 が実装レベルで満たされる。
+- **前提の修正（2026-08-23、W7最終設計により判明）**: W7の最終設計
+  （`progress/windows-w7-async-attach.md` stage3以降）では、Windowsの動画クリップを
+  含むシーンはnv12パイプライン完成まで（essential attach解決後さらに中央値約13秒、
+  launch起点で中央値約43秒、cold cache時は最大約58秒の可能性を含む——mainpc実機3回
+  計測）WebGPU presenterでの表示を継続する設計が恒久的に採用されている
+  （`src/utils/nativeOverlayNv12Gate.ts`の`shouldRouteFrameToNativeOverlay`）。
+  これはfallbackではなく設計上必須のコンポーネントであり、原R6の前提
+  「両プラットフォームでfallback不要」は成立しない。presenterの全面削除は行わない。
+- `sharedRendererWebGpuPresenter.ts` (1,484行) を、動画クリップシーンのinterim表示に
+  必要な最小限（背景合成＋動画テクスチャ描画）へ縮小する。非video-sceneの表示分岐、
+  複雑エフェクトスタックの重複実装は削除する（native overlayが既にessential ready
+  の時点でそれらを担っているため）。
+- `sharedRendererPreviewPresenterController.ts` (1,214行) /
+  `sharedRendererViewportPresenterOrchestration.ts` (426行) はpresenter⇔overlay
+  切替ロジック（`nativeOverlayLifecycleState`と`shouldRouteFrameToNativeOverlay`
+  ゲートに整合する部分）のみ残し、それ以外のpresenter専用分岐を畳む。
+- `sharedRendererExportFrameSource.ts` / `projectExportFrameCanvas.ts` /
+  `viewportRustExportFrameSource.ts` がpresenterから型のみ
+  （`SharedRendererPresentedFrameSharedFrameTaker`）を再利用している依存を、
+  独立の型定義ファイルへ切り出して解消する（export経路のpresenter本体への実行時
+  依存はそもそも無い）。
+- `Viewport.tsx` の`nativeOverlayLifecycleState`（`'presenter'|'attaching'|'overlay'`）
+  状態機械はそのまま維持する（W7 stage3で正式化済みの恒久設計）。
+- ADR-011「presenterをparity比較用に残す」を、縮小後presenterの位置づけ
+  （Windows interim専用＋縮小規模のparity用途）に合わせて改訂する。
 
-**合格条件**: 両プラットフォームで golden-frame parity、
-`src/` 配下に WGSL 文字列が 0 件。
+**合格条件（改訂）**:
+- Windowsのnv12 attach窓中、動画クリップを含むシーンで黒フレーム・クラッシュ・
+  パニックが発生しない（既存の`nativeOverlayNv12Gate.test.ts` 6件＋実機smoke検証
+  を維持）。
+- `src/` 配下のWGSL文字列は縮小後の`sharedRendererWebGpuPresenter.ts` 1ファイル
+  のみに限定する（0件ではない。理由は上記前提修正を参照）。
+- macOSでは`nativeOverlayLifecycleState`が実質即時`'overlay'`へ遷移し、presenter
+  が表示上使われる窓が実質ゼロであることを維持する。
+- 縮小後presenterのコード量が原ファイルの概ね1/3〜1/2以下に収まっていること。
+
+**次善策として記録する未採用案**: 完全削除＋静的プレースホルダinterim
+（Windowsで動画を含むプロジェクトを開くたび最大約1分、動画プレビューが見えなくなる
+UX後退のため不採用）。シェーダ再構成によるattach<5秒化後の完全削除（nv12コンパイル
+時間短縮の見込み未確立のため着手不可。将来短縮されたら本節を再評価し原R6案へ回帰
+する余地を残す）。加えてpresenterは現状CI/CDPで視覚検証できる唯一の描画経路である
+（native overlayは別OS合成レイヤーのためCDPでは黒画面——R5-7の記録参照）ことも
+縮小維持の理由に含む。
 
 ### R7: ドキュメント正本の更新（推定 1-2日）
 
