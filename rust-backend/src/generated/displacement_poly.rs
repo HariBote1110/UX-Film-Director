@@ -12,7 +12,7 @@ pub(crate) fn build_generated_displacement_poly_source_frame(
             media.width, media.height
         ));
     }
-    let displacement: GeneratedDisplacementPolySource = serde_json::from_str(&media.source)
+    let displacement: DisplacementPolyObjectFields = serde_json::from_str(&media.source)
         .map_err(|error| {
             format!(
                 "Invalid GeneratedDisplacementPoly media '{}': {error}",
@@ -112,7 +112,7 @@ pub(crate) fn build_generated_displacement_poly_source_frame(
 fn build_displacement_poly_points(
     width: u32,
     height: u32,
-    displacement: &GeneratedDisplacementPolySource,
+    displacement: &DisplacementPolyObjectFields,
 ) -> Vec<(f32, f32)> {
     let columns = displacement.columns as usize;
     let rows = displacement.rows as usize;

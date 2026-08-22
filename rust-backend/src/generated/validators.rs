@@ -66,24 +66,23 @@ pub(crate) fn validate_generated_colour_wheel_source(
 }
 
 pub(crate) fn validate_generated_paper_airplane_source(
-    source: &GeneratedPaperAirplaneSource,
+    source: &PaperAirplaneObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "paper-airplane" {
-        return Err("generator must be paper-airplane".to_string());
-    }
-    if source.body_length == 0 || source.body_length > 2000 {
+    if !source.body_length.is_finite() || source.body_length <= 0.0 || source.body_length > 2000.0
+    {
         return Err("body_length must be 1..2000".to_string());
     }
-    if source.wing_width > 1000 {
+    if !source.wing_width.is_finite() || source.wing_width < 0.0 || source.wing_width > 1000.0 {
         return Err("wing_width must be 0..1000".to_string());
     }
-    if source.fold_height > 1000 {
+    if !source.fold_height.is_finite() || source.fold_height < 0.0 || source.fold_height > 1000.0
+    {
         return Err("fold_height must be 0..1000".to_string());
     }
-    if source.gap > 1000 {
+    if !source.gap.is_finite() || source.gap < 0.0 || source.gap > 1000.0 {
         return Err("gap must be 0..1000".to_string());
     }
-    if source.axis_mode > 1 {
+    if !source.axis_mode.is_finite() || source.axis_mode < 0.0 || source.axis_mode > 1.0 {
         return Err("axis_mode must be 0 or 1".to_string());
     }
     let _ = source.follow_motion_direction;
@@ -92,11 +91,8 @@ pub(crate) fn validate_generated_paper_airplane_source(
 }
 
 pub(crate) fn validate_generated_focus_lines_plus_source(
-    source: &GeneratedFocusLinesPlusSource,
+    source: &FocusLinesPlusObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "focus-lines-plus" {
-        return Err("generator must be focus-lines-plus".to_string());
-    }
     if !source.ray_width.is_finite() || source.ray_width < 0.1 || source.ray_width > 10.0 {
         return Err("ray_width must be 0.1..10".to_string());
     }
@@ -129,21 +125,21 @@ pub(crate) fn validate_generated_focus_lines_plus_source(
 }
 
 pub(crate) fn validate_generated_random_line_ex_source(
-    source: &GeneratedRandomLineExSource,
+    source: &RandomLineExObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "random-line-ex" {
-        return Err("generator must be random-line-ex".to_string());
-    }
     if source.line_count == 0 || source.line_count > 100 {
         return Err("line_count must be 1..100".to_string());
     }
     if !source.line_width.is_finite() || source.line_width < 0.0 || source.line_width > 2000.0 {
         return Err("line_width must be 0..2000".to_string());
     }
-    if source.threshold > 255 {
+    if !source.threshold.is_finite() || source.threshold < 0.0 || source.threshold > 255.0 {
         return Err("threshold must be 0..255".to_string());
     }
-    if source.noise_cell_size > 50 {
+    if !source.noise_cell_size.is_finite()
+        || source.noise_cell_size < 0.0
+        || source.noise_cell_size > 50.0
+    {
         return Err("noise_cell_size must be 0..50".to_string());
     }
     if !source.width_variance.is_finite()
@@ -157,11 +153,8 @@ pub(crate) fn validate_generated_random_line_ex_source(
 }
 
 pub(crate) fn validate_generated_contour_trace_source(
-    source: &GeneratedContourTraceSource,
+    source: &ContourTraceObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "contour-trace-93" {
-        return Err("generator must be contour-trace-93".to_string());
-    }
     if !source.line_width.is_finite() || source.line_width < 1.0 || source.line_width > 200.0 {
         return Err("line_width must be 1..200".to_string());
     }
@@ -185,11 +178,8 @@ pub(crate) fn validate_generated_contour_trace_source(
 }
 
 pub(crate) fn validate_generated_displacement_poly_source(
-    source: &GeneratedDisplacementPolySource,
+    source: &DisplacementPolyObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "displacement-poly-93" {
-        return Err("generator must be displacement-poly-93".to_string());
-    }
     if source.columns == 0 || source.columns > 128 {
         return Err("columns must be 1..128".to_string());
     }

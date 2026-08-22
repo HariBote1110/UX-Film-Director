@@ -45,15 +45,13 @@ pub(crate) fn validate_generated_yagasuri_source(
 }
 
 pub(crate) fn validate_generated_asanoha_pattern_source(
-    source: &GeneratedAsanohaPatternSource,
+    source: &AsanohaPatternObjectFields,
 ) -> Result<(), String> {
-    if source.generator != "asanoha-pattern" {
-        return Err("generator must be asanoha-pattern".to_string());
-    }
-    if source.pattern_size < 10 || source.pattern_size > 500 {
+    if !source.pattern_size.is_finite() || source.pattern_size < 10.0 || source.pattern_size > 500.0
+    {
         return Err("pattern_size must be 10..500".to_string());
     }
-    if source.line_width > 50 {
+    if !source.line_width.is_finite() || source.line_width < 0.0 || source.line_width > 50.0 {
         return Err("line_width must be 0..50".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;

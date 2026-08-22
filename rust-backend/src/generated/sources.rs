@@ -71,78 +71,35 @@ pub(crate) use uxfd_rust_core::HoundstoothObjectFields;
 // （正本、camelCase、`generator` タグ無し）を直接デシリアライズする。
 pub(crate) use uxfd_rust_core::YagasuriObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedPaperAirplaneSource {
-    pub(crate) generator: String,
-    pub(crate) body_length: u32,
-    pub(crate) wing_width: u32,
-    pub(crate) fold_height: u32,
-    pub(crate) gap: u32,
-    pub(crate) follow_motion_direction: bool,
-    pub(crate) axis_mode: u32,
-    pub(crate) fill_colour: String,
-}
+// `paper_airplane` kind のワイヤーソースは rust-core の
+// `PaperAirplaneObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::PaperAirplaneObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedAsanohaPatternSource {
-    pub(crate) generator: String,
-    pub(crate) pattern_size: u32,
-    pub(crate) line_width: u32,
-    pub(crate) foreground_colour: String,
-    pub(crate) background_colour: String,
-}
+// `asanoha_pattern` kind のワイヤーソースは rust-core の
+// `AsanohaPatternObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::AsanohaPatternObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedFocusLinesPlusSource {
-    pub(crate) generator: String,
-    pub(crate) ray_width: f32,
-    pub(crate) gap: f32,
-    pub(crate) centre_radius: f32,
-    pub(crate) rotation_degrees: f32,
-    pub(crate) centre_x: f32,
-    pub(crate) centre_y: f32,
-    pub(crate) centre_jitter_percent: f32,
-    pub(crate) seed: i64,
-    pub(crate) keyframe_interval: u64,
-    pub(crate) line_colour: String,
-}
+// `focus_lines_plus` kind のワイヤーソースは rust-core の
+// `FocusLinesPlusObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::FocusLinesPlusObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedRandomLineExSource {
-    pub(crate) generator: String,
-    pub(crate) line_count: u32,
-    pub(crate) line_width: f32,
-    pub(crate) threshold: u32,
-    pub(crate) noise_cell_size: u32,
-    pub(crate) width_variance: f32,
-    pub(crate) seed: i64,
-    pub(crate) line_colour: String,
-}
+// `random_line_ex` kind のワイヤーソースは rust-core の
+// `RandomLineExObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::RandomLineExObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedContourTraceSource {
-    pub(crate) generator: String,
-    pub(crate) line_width: f32,
-    pub(crate) contour_count: u32,
-    pub(crate) jitter_amount: f32,
-    pub(crate) trace_colour: String,
-    pub(crate) background_opacity: f32,
-    pub(crate) seed: i64,
-}
+// `contour_trace` kind のワイヤーソースは rust-core の
+// `ContourTraceObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::ContourTraceObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedDisplacementPolySource {
-    pub(crate) generator: String,
-    pub(crate) columns: u32,
-    pub(crate) rows: u32,
-    pub(crate) displacement_scale: f32,
-    pub(crate) depth_scale: f32,
-    pub(crate) mesh_opacity: f32,
-    pub(crate) fill_opacity: f32,
-    pub(crate) line_colour: String,
-    pub(crate) fill_colour: String,
-    pub(crate) seed: i64,
-}
+// `displacement_poly` kind のワイヤーソースは rust-core の
+// `DisplacementPolyObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::DisplacementPolyObjectFields;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedPlainEffectorLineSource {

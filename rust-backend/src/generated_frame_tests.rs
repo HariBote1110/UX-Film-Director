@@ -510,7 +510,7 @@ fn generated_paper_airplane_source_frame_contains_wings_shadow_and_transparency(
     let media = SceneMediaReference {
             id: "paper-airplane-1".to_string(),
             kind: MediaKind::GeneratedPaperAirplane,
-            source: r##"{"generator":"paper-airplane","body_length":200,"wing_width":80,"fold_height":50,"gap":50,"follow_motion_direction":false,"axis_mode":0,"fill_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":320,"height":240,"bodyLength":200,"wingWidth":80,"foldHeight":50,"gap":50,"followMotionDirection":false,"axisMode":0,"fillColour":"#ffffff"}"##.to_string(),
             width: 320,
             height: 240,
             source_rate: None,
@@ -545,7 +545,7 @@ fn generated_asanoha_pattern_source_frame_contains_foreground_background_and_opa
     let media = SceneMediaReference {
             id: "asanoha-pattern-1".to_string(),
             kind: MediaKind::GeneratedAsanohaPattern,
-            source: r##"{"generator":"asanoha-pattern","pattern_size":50,"line_width":2,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"patternSize":50,"lineWidth":2,"foregroundColour":"#000000","backgroundColour":"#ffffff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -576,7 +576,7 @@ fn generated_focus_lines_plus_source_frame_contains_rays_and_centre_hole() {
     let media = SceneMediaReference {
             id: "focus-lines-plus-1".to_string(),
             kind: MediaKind::GeneratedFocusLinesPlus,
-            source: r##"{"generator":"focus-lines-plus","ray_width":1,"gap":5,"centre_radius":100,"rotation_degrees":0,"centre_x":400,"centre_y":225,"centre_jitter_percent":20,"seed":0,"keyframe_interval":0,"line_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"rayWidth":1,"gap":5,"centreRadius":100,"rotationDegrees":0,"centreX":400,"centreY":225,"centreJitterPercent":20,"seed":0,"keyframeInterval":0,"lineColour":"#ffffff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -608,7 +608,7 @@ fn generated_random_line_ex_source_frame_contains_noisy_lines_and_transparency()
     let media = SceneMediaReference {
             id: "random-line-ex-1".to_string(),
             kind: MediaKind::GeneratedRandomLineEx,
-            source: r##"{"generator":"random-line-ex","line_count":3,"line_width":6,"threshold":128,"noise_cell_size":12,"width_variance":0,"seed":0,"line_colour":"#ffffff"}"##.to_string(),
+            source: r##"{"width":800,"height":450,"lineCount":3,"lineWidth":6,"threshold":128,"noiseCellSize":12,"widthVariance":0,"seed":0,"lineColour":"#ffffff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -637,7 +637,7 @@ fn generated_contour_trace_source_frame_contains_contour_lines_and_transparency(
     let media = SceneMediaReference {
             id: "contour-trace-1".to_string(),
             kind: MediaKind::GeneratedContourTrace,
-            source: r##"{"generator":"contour-trace-93","line_width":3,"contour_count":5,"jitter_amount":1.5,"trace_colour":"#ffffff","background_opacity":0,"seed":93}"##.to_string(),
+            source: r##"{"width":800,"height":450,"lineWidth":3,"contourCount":5,"jitterAmount":1.5,"traceColour":"#ffffff","backgroundOpacity":0,"seed":93}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -666,7 +666,7 @@ fn generated_displacement_poly_source_frame_contains_displaced_mesh_and_fill() {
     let media = SceneMediaReference {
             id: "displacement-poly-1".to_string(),
             kind: MediaKind::GeneratedDisplacementPoly,
-            source: r##"{"generator":"displacement-poly-93","columns":14,"rows":8,"displacement_scale":42,"depth_scale":18,"mesh_opacity":0.85,"fill_opacity":0.18,"line_colour":"#36c2ff","fill_colour":"#0b1020","seed":93}"##.to_string(),
+            source: r##"{"width":800,"height":450,"columns":14,"rows":8,"displacementScale":42,"depthScale":18,"meshOpacity":0.85,"fillOpacity":0.18,"lineColour":"#36c2ff","fillColour":"#0b1020","seed":93}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,

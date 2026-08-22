@@ -1574,7 +1574,7 @@ mod tests {
                 id: "focus-lines-media".to_string(),
                 kind: uxfd_rust_core::MediaKind::GeneratedFocusLinesPlus,
                 source: format!(
-                    r##"{{"generator":"focus-lines-plus","ray_width":2.5,"gap":6,"centre_radius":8,"rotation_degrees":15,"centre_x":160,"centre_y":90,"centre_jitter_percent":20,"seed":93,"keyframe_interval":{keyframe_interval},"line_colour":"#ff8000"}}"##
+                    r##"{{"width":320,"height":180,"rayWidth":2.5,"gap":6,"centreRadius":8,"rotationDegrees":15,"centreX":160,"centreY":90,"centreJitterPercent":20,"seed":93,"keyframeInterval":{keyframe_interval},"lineColour":"#ff8000"}}"##
                 ),
                 width: 320,
                 height: 180,

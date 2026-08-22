@@ -15,7 +15,7 @@ fn focus_lines_frame_bucket_changes_at_interval_boundary() {
 
 #[test]
 fn focus_lines_frame_bucket_can_be_read_from_serialised_source() {
-    let source = r#"{"generator":"focus-lines-plus","keyframe_interval":12}"#;
+    let source = r#"{"keyframeInterval":12}"#;
     assert_eq!(
         focus_lines_frame_bucket_from_source(source, 23)
             .expect("valid FocusLinesPlus source must expose its frame bucket"),
@@ -23,6 +23,6 @@ fn focus_lines_frame_bucket_can_be_read_from_serialised_source() {
     );
 
     let error = focus_lines_frame_bucket_from_source("{}", 0)
-        .expect_err("missing keyframe_interval must be rejected");
-    assert!(error.contains("keyframe_interval"));
+        .expect_err("missing keyframeInterval must be rejected");
+    assert!(error.contains("keyframeInterval"));
 }

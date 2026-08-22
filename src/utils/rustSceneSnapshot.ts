@@ -1685,75 +1685,81 @@ const serialiseGeneratedYagasuriSource = (object: YagasuriObject): string =>
 
 const serialiseGeneratedPaperAirplaneSource = (object: PaperAirplaneObject): string =>
   JSON.stringify({
-    generator: 'paper-airplane',
-    body_length: Math.min(2000, Math.max(1, Math.trunc(finiteNumberOr(object.bodyLength, 200)))),
-    wing_width: Math.min(1000, Math.max(0, Math.trunc(finiteNumberOr(object.wingWidth, 80)))),
-    fold_height: Math.min(1000, Math.max(0, Math.trunc(finiteNumberOr(object.foldHeight, 50)))),
-    gap: Math.min(1000, Math.max(0, Math.trunc(finiteNumberOr(object.gap, 50)))),
-    follow_motion_direction: object.followMotionDirection === true,
-    axis_mode: Math.trunc(finiteNumberOr(object.axisMode, 0)) === 1 ? 1 : 0,
-    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    bodyLength: object.bodyLength,
+    wingWidth: object.wingWidth,
+    foldHeight: object.foldHeight,
+    gap: object.gap,
+    followMotionDirection: object.followMotionDirection,
+    axisMode: object.axisMode,
+    fillColour: object.fillColour,
   });
 
 const serialiseGeneratedAsanohaPatternSource = (object: AsanohaPatternObject): string =>
   JSON.stringify({
-    generator: 'asanoha-pattern',
-    pattern_size: Math.min(500, Math.max(10, Math.trunc(finiteNumberOr(object.patternSize, 50)))),
-    line_width: Math.min(50, Math.max(0, Math.trunc(finiteNumberOr(object.lineWidth, 2)))),
-    foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#000000',
-    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    patternSize: object.patternSize,
+    lineWidth: object.lineWidth,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
   });
 
 const serialiseGeneratedFocusLinesPlusSource = (object: FocusLinesPlusObject): string =>
   JSON.stringify({
-    generator: 'focus-lines-plus',
-    ray_width: Math.min(10, Math.max(0.1, finiteNumberOr(object.rayWidth, 1))),
-    gap: Math.min(20, Math.max(1, finiteNumberOr(object.gap, 5))),
-    centre_radius: Math.min(800, Math.max(0, finiteNumberOr(object.centreRadius, 100))),
-    rotation_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.rotationDegrees, 0))),
-    centre_x: finiteNumberOr(object.centreX, object.width / 2),
-    centre_y: finiteNumberOr(object.centreY, object.height / 2),
-    centre_jitter_percent: Math.min(100, Math.max(0, finiteNumberOr(object.centreJitterPercent, 20))),
-    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
-    keyframe_interval: Math.max(0, Math.trunc(finiteNumberOr(object.keyframeInterval, 0))),
-    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    rayWidth: object.rayWidth,
+    gap: object.gap,
+    centreRadius: object.centreRadius,
+    rotationDegrees: object.rotationDegrees,
+    centreX: object.centreX,
+    centreY: object.centreY,
+    centreJitterPercent: object.centreJitterPercent,
+    seed: object.seed,
+    keyframeInterval: object.keyframeInterval,
+    lineColour: object.lineColour,
   });
 
 const serialiseGeneratedRandomLineExSource = (object: RandomLineExObject): string =>
   JSON.stringify({
-    generator: 'random-line-ex',
-    line_count: Math.min(100, Math.max(1, Math.trunc(finiteNumberOr(object.lineCount, 3)))),
-    line_width: Math.min(2000, Math.max(0, finiteNumberOr(object.lineWidth, 6))),
-    threshold: Math.min(255, Math.max(0, Math.trunc(finiteNumberOr(object.threshold, 128)))),
-    noise_cell_size: Math.min(50, Math.max(0, Math.trunc(finiteNumberOr(object.noiseCellSize, 12)))),
-    width_variance: Math.min(2000, Math.max(0, finiteNumberOr(object.widthVariance, 0))),
-    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
-    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+    width: object.width,
+    height: object.height,
+    lineCount: object.lineCount,
+    lineWidth: object.lineWidth,
+    threshold: object.threshold,
+    noiseCellSize: object.noiseCellSize,
+    widthVariance: object.widthVariance,
+    seed: object.seed,
+    lineColour: object.lineColour,
   });
 
 const serialiseGeneratedContourTraceSource = (object: ContourTraceObject): string =>
   JSON.stringify({
-    generator: 'contour-trace-93',
-    line_width: Math.min(200, Math.max(1, finiteNumberOr(object.lineWidth, 3))),
-    contour_count: Math.min(64, Math.max(1, Math.trunc(finiteNumberOr(object.contourCount, 5)))),
-    jitter_amount: Math.min(100, Math.max(0, finiteNumberOr(object.jitterAmount, 1.5))),
-    trace_colour: /^#[0-9a-f]{6}$/i.test(object.traceColour) ? object.traceColour : '#ffffff',
-    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0))),
-    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+    width: object.width,
+    height: object.height,
+    lineWidth: object.lineWidth,
+    contourCount: object.contourCount,
+    jitterAmount: object.jitterAmount,
+    traceColour: object.traceColour,
+    backgroundOpacity: object.backgroundOpacity,
+    seed: object.seed,
   });
 
 const serialiseGeneratedDisplacementPolySource = (object: DisplacementPolyObject): string =>
   JSON.stringify({
-    generator: 'displacement-poly-93',
-    columns: Math.min(128, Math.max(1, Math.trunc(finiteNumberOr(object.columns, 14)))),
-    rows: Math.min(128, Math.max(1, Math.trunc(finiteNumberOr(object.rows, 8)))),
-    displacement_scale: Math.min(1000, Math.max(0, finiteNumberOr(object.displacementScale, 42))),
-    depth_scale: Math.min(1000, Math.max(0, finiteNumberOr(object.depthScale, 18))),
-    mesh_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.meshOpacity, 0.85))),
-    fill_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.fillOpacity, 0.18))),
-    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#36c2ff',
-    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#0b1020',
-    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+    width: object.width,
+    height: object.height,
+    columns: object.columns,
+    rows: object.rows,
+    displacementScale: object.displacementScale,
+    depthScale: object.depthScale,
+    meshOpacity: object.meshOpacity,
+    fillOpacity: object.fillOpacity,
+    lineColour: object.lineColour,
+    fillColour: object.fillColour,
+    seed: object.seed,
   });
 
 const serialiseGeneratedPlainEffectorLineSource = (object: PlainEffectorLineObject): string =>

@@ -162,25 +162,25 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'paper-airplane-1',
   kind: 'GeneratedPaperAirplane' as RustSceneMediaReference['kind'],
-  source: '{"generator":"paper-airplane","body_length":200,"wing_width":80,"fold_height":50,"gap":50,"follow_motion_direction":false,"axis_mode":0,"fill_colour":"#ffffff"}',
+  source: '{"width":320,"height":240,"bodyLength":200,"wingWidth":80,"foldHeight":50,"gap":50,"followMotionDirection":false,"axisMode":0,"fillColour":"#ffffff"}',
   width: 320,
   height: 240,
 }, {
   id: 'asanoha-pattern-1',
   kind: 'GeneratedAsanohaPattern' as RustSceneMediaReference['kind'],
-  source: '{"generator":"asanoha-pattern","pattern_size":50,"line_width":2,"foreground_colour":"#000000","background_colour":"#ffffff"}',
+  source: '{"width":800,"height":450,"patternSize":50,"lineWidth":2,"foregroundColour":"#000000","backgroundColour":"#ffffff"}',
   width: 800,
   height: 450,
 }, {
   id: 'focus-lines-plus-1',
   kind: 'GeneratedFocusLinesPlus' as RustSceneMediaReference['kind'],
-  source: '{"generator":"focus-lines-plus","ray_width":1,"gap":5,"centre_radius":100,"rotation_degrees":0,"centre_x":400,"centre_y":225,"centre_jitter_percent":20,"seed":0,"keyframe_interval":0,"line_colour":"#ffffff"}',
+  source: '{"width":800,"height":450,"rayWidth":1,"gap":5,"centreRadius":100,"rotationDegrees":0,"centreX":400,"centreY":225,"centreJitterPercent":20,"seed":0,"keyframeInterval":0,"lineColour":"#ffffff"}',
   width: 800,
   height: 450,
 }, {
   id: 'random-line-ex-1',
   kind: 'GeneratedRandomLineEx' as RustSceneMediaReference['kind'],
-  source: '{"generator":"random-line-ex","line_count":3,"line_width":6,"threshold":128,"noise_cell_size":12,"width_variance":0,"seed":0,"line_colour":"#ffffff"}',
+  source: '{"width":800,"height":450,"lineCount":3,"lineWidth":6,"threshold":128,"noiseCellSize":12,"widthVariance":0,"seed":0,"lineColour":"#ffffff"}',
   width: 800,
   height: 450,
 }, {
@@ -492,7 +492,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'contour-trace-1',
       kind: 'GeneratedContourTrace',
-      source: '{"generator":"contour-trace-93","line_width":3,"contour_count":5,"jitter_amount":1.5,"trace_colour":"#ffffff","background_opacity":0,"seed":93}',
+      source: '{"width":800,"height":450,"lineWidth":3,"contourCount":5,"jitterAmount":1.5,"traceColour":"#ffffff","backgroundOpacity":0,"seed":93}',
       width: 800,
       height: 450,
     })).toBe(true);
@@ -500,7 +500,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'contour-trace-invalid-1',
       kind: 'GeneratedContourTrace',
-      source: '{"generator":"contour-trace-93","line_width":0,"contour_count":5,"jitter_amount":1.5,"trace_colour":"#ffffff","background_opacity":0,"seed":93}',
+      source: '{"width":800,"height":450,"lineWidth":0,"contourCount":5,"jitterAmount":1.5,"traceColour":"#ffffff","backgroundOpacity":0,"seed":93}',
       width: 800,
       height: 450,
     })).toBe(false);
@@ -510,7 +510,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'displacement-poly-1',
       kind: 'GeneratedDisplacementPoly',
-      source: '{"generator":"displacement-poly-93","columns":14,"rows":8,"displacement_scale":42,"depth_scale":18,"mesh_opacity":0.85,"fill_opacity":0.18,"line_colour":"#36c2ff","fill_colour":"#0b1020","seed":93}',
+      source: '{"width":800,"height":450,"columns":14,"rows":8,"displacementScale":42,"depthScale":18,"meshOpacity":0.85,"fillOpacity":0.18,"lineColour":"#36c2ff","fillColour":"#0b1020","seed":93}',
       width: 800,
       height: 450,
     })).toBe(true);
@@ -518,7 +518,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'displacement-poly-invalid-1',
       kind: 'GeneratedDisplacementPoly',
-      source: '{"generator":"displacement-poly-93","columns":0,"rows":8,"displacement_scale":42,"depth_scale":18,"mesh_opacity":0.85,"fill_opacity":0.18,"line_colour":"#36c2ff","fill_colour":"#0b1020","seed":93}',
+      source: '{"width":800,"height":450,"columns":0,"rows":8,"displacementScale":42,"depthScale":18,"meshOpacity":0.85,"fillOpacity":0.18,"lineColour":"#36c2ff","fillColour":"#0b1020","seed":93}',
       width: 800,
       height: 450,
     })).toBe(false);

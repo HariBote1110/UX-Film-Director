@@ -143,7 +143,7 @@ pub(crate) fn build_generated_focus_lines_plus_source_frame(
             media.width, media.height
         ));
     }
-    let focus_lines: GeneratedFocusLinesPlusSource =
+    let focus_lines: FocusLinesPlusObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedFocusLinesPlus media '{}': {error}",
@@ -182,8 +182,8 @@ pub(crate) fn build_generated_focus_lines_plus_source_frame(
         .max(media.height as f32 - focus_lines.centre_y);
     let outer_radius = (max_x * max_x + max_y * max_y).sqrt() * 1.25;
     let rotation = focus_lines.rotation_degrees.to_radians();
-    let frame_bucket =
-        uxfd_rust_core::focus_lines_frame_bucket(focus_lines.keyframe_interval, source_frame);
+    let keyframe_interval = focus_lines.keyframe_interval.max(0.0).round() as u64;
+    let frame_bucket = uxfd_rust_core::focus_lines_frame_bucket(keyframe_interval, source_frame);
     let seed =
         (focus_lines.seed as u64).wrapping_add(frame_bucket.wrapping_mul(0x517c_c1b7_2722_0a95));
     let centre_jitter_radius =
@@ -291,7 +291,7 @@ pub(crate) fn build_generated_random_line_ex_source_frame(
             media.width, media.height
         ));
     }
-    let random_line: GeneratedRandomLineExSource =
+    let random_line: RandomLineExObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedRandomLineEx media '{}': {error}",
@@ -377,7 +377,7 @@ pub(crate) fn build_generated_contour_trace_source_frame(
             media.width, media.height
         ));
     }
-    let contour: GeneratedContourTraceSource =
+    let contour: ContourTraceObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedContourTrace media '{}': {error}",
@@ -493,7 +493,7 @@ fn fill_random_line_ex_quad(
     height: u32,
     quad: [(f32, f32); 4],
     colour: [u8; 3],
-    source: &GeneratedRandomLineExSource,
+    source: &RandomLineExObjectFields,
     line_index: u32,
 ) {
     let min_x = quad
@@ -520,7 +520,8 @@ fn fill_random_line_ex_quad(
         .fold(f32::NEG_INFINITY, f32::max)
         .ceil()
         .min(height.saturating_sub(1) as f32) as u32;
-    let cell = source.noise_cell_size.max(1);
+    let cell = source.noise_cell_size.max(1.0) as u32;
+    let threshold = source.threshold.max(0.0) as u32;
 
     for y in min_y..=max_y {
         for x in min_x..=max_x {
@@ -532,7 +533,7 @@ fn fill_random_line_ex_quad(
                 let noise_index = (x / cell) ^ ((y / cell) << 8) ^ (line_index << 16);
                 let noise =
                     (deterministic_unit(source.seed as u64, noise_index, 37) * 255.0) as u32;
-                if noise >= source.threshold {
+                if noise >= threshold {
                     let offset = (y as usize * width as usize + x as usize) * 4;
                     pixels[offset..offset + 4]
                         .copy_from_slice(&[colour[0], colour[1], colour[2], 255]);

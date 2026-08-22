@@ -2,7 +2,10 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct FocusLinesFrameBucketSource {
-    keyframe_interval: u64,
+    // R3 バッチ5で `focus_lines_plus` の wire を `FocusLinesPlusObjectFields`
+    // (camelCase) へ統一したため、この補助構造体も同じ命名に揃える。
+    #[serde(rename = "keyframeInterval")]
+    keyframe_interval: f32,
 }
 
 pub fn focus_lines_frame_bucket(keyframe_interval: u64, source_frame: u64) -> u64 {
@@ -19,8 +22,6 @@ pub fn focus_lines_frame_bucket_from_source(
 ) -> Result<u64, String> {
     let parsed: FocusLinesFrameBucketSource =
         serde_json::from_str(source).map_err(|error| error.to_string())?;
-    Ok(focus_lines_frame_bucket(
-        parsed.keyframe_interval,
-        source_frame,
-    ))
+    let keyframe_interval = parsed.keyframe_interval.max(0.0).round() as u64;
+    Ok(focus_lines_frame_bucket(keyframe_interval, source_frame))
 }

@@ -74,7 +74,7 @@ pub(crate) fn build_generated_paper_airplane_source_frame(
             media.width, media.height
         ));
     }
-    let plane: GeneratedPaperAirplaneSource =
+    let plane: PaperAirplaneObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedPaperAirplane media '{}': {error}",
@@ -112,10 +112,10 @@ pub(crate) fn build_generated_paper_airplane_source_frame(
     let mut pixels = vec![0_u8; byte_len];
     let centre_x = media.width as f32 / 2.0;
     let centre_y = media.height as f32 / 2.0;
-    let half_length = (plane.body_length as f32 / 2.0).min(media.height as f32 / 2.0 - 2.0);
-    let wing_width = plane.wing_width as f32;
-    let fold_height = plane.fold_height as f32;
-    let gap = plane.gap as f32 / 2.0;
+    let half_length = (plane.body_length / 2.0).min(media.height as f32 / 2.0 - 2.0);
+    let wing_width = plane.wing_width;
+    let fold_height = plane.fold_height;
+    let gap = plane.gap / 2.0;
     let nose = (centre_x, (centre_y - half_length).max(0.0));
     let tail_y = (centre_y + half_length).min(media.height as f32 - 1.0);
     let left_tail = ((centre_x - wing_width - gap).max(0.0), tail_y);
@@ -157,7 +157,7 @@ pub(crate) fn build_generated_asanoha_pattern_source_frame(
             media.width, media.height
         ));
     }
-    let asanoha: GeneratedAsanohaPatternSource =
+    let asanoha: AsanohaPatternObjectFields =
         serde_json::from_str(&media.source).map_err(|error| {
             format!(
                 "Invalid GeneratedAsanohaPattern media '{}': {error}",
@@ -198,8 +198,8 @@ pub(crate) fn build_generated_asanoha_pattern_source_frame(
         pixel.copy_from_slice(&[background[0], background[1], background[2], 255]);
     }
 
-    let radius = asanoha.pattern_size.max(10) as f32;
-    let line_width = asanoha.line_width as f32;
+    let radius = asanoha.pattern_size.max(10.0);
+    let line_width = asanoha.line_width;
     let row_step = radius * 3.0_f32.sqrt();
     let column_step = radius * 1.5;
     let row_count = (media.height as f32 / row_step).ceil() as i32 + 3;
