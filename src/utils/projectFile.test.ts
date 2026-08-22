@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AsanohaPatternObject, AudioSphereObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SphericalFieldObject, SunburstObject, TartanCheckObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
-import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
+import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects, type RustBackendProjectFileBridge } from './projectFile';
 import { parsePsdWithWasm } from './psdWasm';
 
 vi.mock('./psdWasm', () => ({
@@ -10,6 +10,17 @@ vi.mock('./psdWasm', () => ({
 }));
 
 const mockedParsePsdWithWasm = vi.mocked(parsePsdWithWasm);
+
+// R4-3: parseProjectPayloadV2 は Rust IPC (`window.rustBackend.deserializeProjectFile`)
+// を経由するようになった。実際のスキーマ検証・V1→V2移行は rust-core 側の責務
+// （rust-core/tests/project_file_round_trip.rs 等でカバー済み）のため、この
+// テストファイルではその検証ロジックを再実装しない。ここでのモックは
+// 「JSON テキストとして一往復させても TS オブジェクトの shape が保たれるか」
+// だけを確認する薄いエコーであり、Rust の検証を代替するものではない。
+const echoProjectFileBridge = (): RustBackendProjectFileBridge => ({
+  deserializeProjectFile: async ({ json }) => ({ success: true, result: { project: JSON.parse(json) } }),
+  serializeProjectFile: async ({ project }) => ({ success: true, result: { json: JSON.stringify(project, null, 2) } }),
+});
 
 const projectSettings = (): ProjectSettings => ({
   width: 1920,
@@ -1055,7 +1066,7 @@ describe('parseProjectPayloadV2', () => {
     vi.unstubAllGlobals();
   });
 
-  it('round-trips PSD worldPlacement through JSON payload', () => {
+  it('round-trips PSD worldPlacement through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const psd = minimalPsdWithWorldPlacement();
@@ -1083,8 +1094,8 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const wire = JSON.parse(JSON.stringify(file)) as unknown;
-    const parsed = parseProjectPayloadV2(wire);
+    const wire = JSON.stringify(file);
+    const parsed = await parseProjectPayloadV2(wire, echoProjectFileBridge());
     const obj = parsed.scenes[0].objects[0];
     expect(obj.type).toBe('psd');
     if (obj.type !== 'psd') throw new Error('expected psd');
@@ -1094,7 +1105,7 @@ describe('parseProjectPayloadV2', () => {
     expect(parsed.projectSettings.editorMode).toBe('3d_stage');
   });
 
-  it('round-trips standard particle objects through JSON payload', () => {
+  it('round-trips standard particle objects through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const particle = minimalParticle();
@@ -1149,11 +1160,11 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, shatteredSphere, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField]);
   });
 
-  it('round-trips a GetColor V2R diamond dot field through JSON payload', () => {
+  it('round-trips a GetColor V2R diamond dot field through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const getColorDiamondDots: GetColorDotFieldObject = {
@@ -1185,11 +1196,11 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     expect(parsed.scenes[0].objects).toEqual([getColorDiamondDots]);
   });
 
-  it('round-trips a GetColor V2R sampled dot field through JSON payload', () => {
+  it('round-trips a GetColor V2R sampled dot field through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const getColorSampledDots: GetColorDotFieldObject = {
@@ -1225,11 +1236,11 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     expect(parsed.scenes[0].objects).toEqual([getColorSampledDots]);
   });
 
-  it('round-trips an hksy diamond pattern object through JSON payload', () => {
+  it('round-trips an hksy diamond pattern object through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const hksyDiamond: HksyCheckerGridObject = {
@@ -1268,11 +1279,11 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     expect(parsed.scenes[0].objects).toEqual([hksyDiamond]);
   });
 
-  it('round-trips an hksy measured grid pattern object through JSON payload', () => {
+  it('round-trips an hksy measured grid pattern object through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const hksyMeasuredGrid: HksyCheckerGridObject = {
@@ -1313,11 +1324,11 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     expect(parsed.scenes[0].objects).toEqual([hksyMeasuredGrid]);
   });
 
-  it('round-trips an hksy anchor line pattern object through JSON payload', () => {
+  it('round-trips an hksy anchor line pattern object through JSON payload', async () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
     const hksyAnchorLine: HksyCheckerGridObject = {
@@ -1363,36 +1374,21 @@ describe('parseProjectPayloadV2', () => {
       stageCamera3D: defaultStage()
     });
 
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     expect(parsed.scenes[0].objects).toEqual([hksyAnchorLine]);
   });
 
-  it('rejects invalid worldPlacement on psd objects', () => {
-    const bad = {
-      format: 'uxfd-project',
-      version: 2,
-      savedAt: new Date().toISOString(),
-      projectSettings: projectSettings(),
-      activeSceneId: 's1',
-      scenes: [
-        {
-          id: 's1',
-          name: 'One',
-          duration: 10,
-          layers: createDefaultLayers(),
-          camera: createDefaultCamera(),
-          stageCamera3D: defaultStage(),
-          objects: [
-            {
-              ...minimalPsdWithWorldPlacement(),
-              worldPlacement: { enabled: 'yes' }
-            }
-          ]
-        }
-      ]
-    };
-    expect(() => parseProjectPayloadV2(bad)).toThrow();
-  });
+  // 「worldPlacement.enabled に文字列が渡された場合に拒否する」ような
+  // フィールド単位の型検証は、この置き換え (R4-3) で rust-core の
+  // serde::Deserialize に一本化された（手書き validator は削除済み）。
+  // serde の型検証は各 TimelineObject variant の構造そのものに由来する
+  // ため個別の否定テストを持つ必要がなく、
+  // rust-core/tests/timeline_object_schema.rs の round_trips_psd_kind
+  // （および他の round_trips_*_kind 群）が肯定的経路として構造を
+  // 固定していることで間接的にカバーされている。境界層での拒否経路は
+  // rust-core/tests/project_file_boundary.rs (rejects_malformed_json /
+  // rejects_wrong_format_string / rejects_unsupported_version) が
+  // カバーする。
 
   it('maps saved PSD active layer state from legacy ids onto restored stable ids', async () => {
     mockedParsePsdWithWasm.mockResolvedValue({
@@ -1625,7 +1621,7 @@ describe('parseProjectPayloadV2', () => {
       defaultVisible: true,
     });
 
-    const parsed = parseProjectPayloadV2(wire);
+    const parsed = await parseProjectPayloadV2(JSON.stringify(wire), echoProjectFileBridge());
     const restoredObj = parsed.scenes[0].objects[0];
     expect(restoredObj.type).toBe('psd');
     if (restoredObj.type !== 'psd') throw new Error('expected psd');

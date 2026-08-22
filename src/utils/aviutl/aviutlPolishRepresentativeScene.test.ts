@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { buildProjectFileData, parseProjectPayloadV2 } from '../projectFile';
+import { buildProjectFileData, parseProjectPayloadV2, type RustBackendProjectFileBridge } from '../projectFile';
 import { buildRustSceneSnapshotForTimeline } from '../rustSceneSnapshot';
 import { isSharedRendererNativeMediaReferenceSupported } from '../sharedRendererNativeMediaSupport';
 import { buildAviUtlPackPolishRepresentativeScene } from './aviutlPolishRepresentativeScene';
+
+// R4-3: parseProjectPayloadV2 は Rust IPC 経由になったため、rust-core の
+// 検証を再実装しない薄いエコー bridge でモックする
+// （src/utils/projectFile.test.ts の echoProjectFileBridge と同じ意図）。
+const echoProjectFileBridge = (): RustBackendProjectFileBridge => ({
+  deserializeProjectFile: async ({ json }) => ({ success: true, result: { project: JSON.parse(json) } }),
+  serializeProjectFile: async ({ project }) => ({ success: true, result: { json: JSON.stringify(project, null, 2) } }),
+});
 
 describe('AviUtlPack polish representative scene', () => {
   it('builds a GetColor / hksy / 93 mixed scene for polish regression checks', () => {
@@ -52,7 +60,7 @@ describe('AviUtlPack polish representative scene', () => {
     expect(result.snapshot.clips.length).toBeGreaterThanOrEqual(6);
   });
 
-  it('round-trips through the project file format without losing polish objects', () => {
+  it('round-trips through the project file format without losing polish objects', async () => {
     const scene = buildAviUtlPackPolishRepresentativeScene();
     const file = buildProjectFileData({
       projectSettings: scene.settings,
@@ -72,7 +80,7 @@ describe('AviUtlPack polish representative scene', () => {
       camera: scene.camera,
       stageCamera3D: scene.stageCamera3D,
     });
-    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    const parsed = await parseProjectPayloadV2(JSON.stringify(file), echoProjectFileBridge());
     const restoredObjects = parsed.scenes[0].objects;
 
     expect(restoredObjects.map((object) => object.id)).toEqual(scene.objects.map((object) => object.id));
