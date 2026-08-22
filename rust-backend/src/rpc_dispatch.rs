@@ -15,6 +15,7 @@ use crate::native_render::{
     handle_native_render_shared_frame,
 };
 use crate::native_shared::handle_release_native_render_shared_frame;
+use crate::project_file::{handle_project_deserialize, handle_project_serialize};
 use crate::proxy::handle_proxy_generate;
 use crate::rpc::{HealthResult, RpcError, RpcRequest, RpcResponse};
 use crate::scene::{handle_scene_evaluate, handle_scene_replace};
@@ -82,6 +83,8 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "scene.replace" => handle_scene_replace(request.id, request.params, state),
         "scene.evaluate" => handle_scene_evaluate(request.id, request.params, state),
         "proxy.generate" => handle_proxy_generate(request.id, request.params),
+        "project.deserialize" => handle_project_deserialize(request.id, request.params),
+        "project.serialize" => handle_project_serialize(request.id, request.params),
         _ => RpcResponse {
             id: request.id,
             ok: false,

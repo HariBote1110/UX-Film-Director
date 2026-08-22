@@ -9,6 +9,7 @@ mod media;
 mod native_render;
 mod native_shared;
 mod params;
+mod project_file;
 mod proxy;
 mod psd_fast;
 mod psd_layer_cache;
