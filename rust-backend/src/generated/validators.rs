@@ -209,9 +209,6 @@ pub(crate) fn validate_generated_displacement_poly_source(
 pub(crate) fn validate_generated_plain_effector_line_source(
     source: &GeneratedPlainEffectorLineSource,
 ) -> Result<(), String> {
-    if source.generator != "plain-effector-line-93" {
-        return Err("generator must be plain-effector-line-93".to_string());
-    }
     if !source.radius.is_finite() || source.radius < 1.0 || source.radius > 2000.0 {
         return Err("radius must be 1..2000".to_string());
     }

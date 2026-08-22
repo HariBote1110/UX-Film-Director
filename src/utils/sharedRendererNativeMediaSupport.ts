@@ -1142,21 +1142,19 @@ const isSharedRendererNativeGeneratedHologramSourceSupported = (source: string):
 const isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
-      generator?: unknown;
       radius?: unknown;
       strength?: unknown;
       randomness?: unknown;
       zoom?: unknown;
       invert?: unknown;
-      line_count?: unknown;
-      line_width?: unknown;
+      lineCount?: unknown;
+      lineWidth?: unknown;
       colour?: unknown;
-      colour_amount?: unknown;
+      colourAmount?: unknown;
       seed?: unknown;
     };
     return (
-      parsed.generator === 'plain-effector-line-93'
-      && typeof parsed.radius === 'number'
+      typeof parsed.radius === 'number'
       && Number.isFinite(parsed.radius)
       && parsed.radius >= 1
       && parsed.radius <= 2000
@@ -1173,20 +1171,20 @@ const isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported = (source:
       && parsed.zoom >= -2
       && parsed.zoom <= 5
       && typeof parsed.invert === 'boolean'
-      && typeof parsed.line_count === 'number'
-      && Number.isInteger(parsed.line_count)
-      && parsed.line_count >= 1
-      && parsed.line_count <= 128
-      && typeof parsed.line_width === 'number'
-      && Number.isFinite(parsed.line_width)
-      && parsed.line_width >= 0.25
-      && parsed.line_width <= 200
+      && typeof parsed.lineCount === 'number'
+      && Number.isInteger(parsed.lineCount)
+      && parsed.lineCount >= 1
+      && parsed.lineCount <= 128
+      && typeof parsed.lineWidth === 'number'
+      && Number.isFinite(parsed.lineWidth)
+      && parsed.lineWidth >= 0.25
+      && parsed.lineWidth <= 200
       && typeof parsed.colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
-      && typeof parsed.colour_amount === 'number'
-      && Number.isFinite(parsed.colour_amount)
-      && parsed.colour_amount >= 0
-      && parsed.colour_amount <= 1
+      && typeof parsed.colourAmount === 'number'
+      && Number.isFinite(parsed.colourAmount)
+      && parsed.colourAmount >= 0
+      && parsed.colourAmount <= 1
       && typeof parsed.seed === 'number'
       && Number.isInteger(parsed.seed)
     );

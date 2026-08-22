@@ -701,7 +701,7 @@ fn generated_plain_effector_line_source_frame_contains_coloured_field_lines_and_
     let media = SceneMediaReference {
             id: "plain-effector-line-1".to_string(),
             kind: MediaKind::GeneratedPlainEffectorLine,
-            source: r##"{"generator":"plain-effector-line-93","radius":100,"strength":1,"randomness":0,"zoom":1,"invert":false,"line_count":24,"line_width":2,"colour":"#f74d52","colour_amount":1,"seed":93}"##.to_string(),
+            source: r##"{"width":800,"height":450,"radius":100,"strength":1,"randomness":0,"zoom":1,"invert":false,"lineCount":24,"lineWidth":2,"colour":"#f74d52","colourAmount":1,"seed":93}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,

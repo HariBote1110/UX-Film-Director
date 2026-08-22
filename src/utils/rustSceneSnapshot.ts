@@ -1764,16 +1764,17 @@ const serialiseGeneratedDisplacementPolySource = (object: DisplacementPolyObject
 
 const serialiseGeneratedPlainEffectorLineSource = (object: PlainEffectorLineObject): string =>
   JSON.stringify({
-    generator: 'plain-effector-line-93',
+    width: object.width,
+    height: object.height,
     radius: Math.min(2000, Math.max(1, finiteNumberOr(object.radius, 100))),
     strength: Math.min(10, Math.max(-10, finiteNumberOr(object.strength, 1))),
     randomness: Math.min(1000, Math.max(-1000, finiteNumberOr(object.randomness, 0))),
     zoom: Math.min(5, Math.max(-2, finiteNumberOr(object.zoom, 1))),
     invert: object.invert === true,
-    line_count: Math.min(128, Math.max(1, Math.trunc(finiteNumberOr(object.lineCount, 24)))),
-    line_width: Math.min(200, Math.max(0.25, finiteNumberOr(object.lineWidth, 2))),
+    lineCount: Math.min(128, Math.max(1, Math.trunc(finiteNumberOr(object.lineCount, 24)))),
+    lineWidth: Math.min(200, Math.max(0.25, finiteNumberOr(object.lineWidth, 2))),
     colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#f74d52',
-    colour_amount: Math.min(1, Math.max(0, finiteNumberOr(object.colourAmount, 1))),
+    colourAmount: Math.min(1, Math.max(0, finiteNumberOr(object.colourAmount, 1))),
     seed: Math.trunc(finiteNumberOr(object.seed, 93)),
   });
 

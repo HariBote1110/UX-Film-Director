@@ -101,20 +101,10 @@ pub(crate) use uxfd_rust_core::ContourTraceObjectFields;
 // 直接デシリアライズする。
 pub(crate) use uxfd_rust_core::DisplacementPolyObjectFields;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct GeneratedPlainEffectorLineSource {
-    pub(crate) generator: String,
-    pub(crate) radius: f32,
-    pub(crate) strength: f32,
-    pub(crate) randomness: f32,
-    pub(crate) zoom: f32,
-    pub(crate) invert: bool,
-    pub(crate) line_count: u32,
-    pub(crate) line_width: f32,
-    pub(crate) colour: String,
-    pub(crate) colour_amount: f32,
-    pub(crate) seed: i64,
-}
+// `plain_effector_line` kind のワイヤーソースは rust-core の
+// `PlainEffectorLineObjectFields`（正本、camelCase、`generator` タグ無し）を
+// 直接デシリアライズする。
+pub(crate) use uxfd_rust_core::PlainEffectorLineObjectFields as GeneratedPlainEffectorLineSource;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedHologramSource {
