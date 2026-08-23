@@ -209,3 +209,10 @@ renderer 側で「preview に重なる可能性のある UI が開いた」を**
 
 - [Native_Overlay_Plan.md](./Native_Overlay_Plan.md): 本計画の親
 - [architecture/01-decision-record.md](./architecture/01-decision-record.md): ADR-013 追記先
+
+## 状態（2026-08-24）
+
+本計画の obstructed トグル方式（メニュー/モーダル表示中だけ overlay を背面へ下げる設計）は、
+常時前面の HTML 駆動 UI（preview-mode トグル等）をカバーできないため却下し、hole-punch 方式へ
+移行した。詳細は [`progress/native-overlay-hole-punch.md`](../progress/native-overlay-hole-punch.md)
+を参照。
