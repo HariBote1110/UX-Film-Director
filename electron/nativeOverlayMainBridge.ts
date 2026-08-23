@@ -20,15 +20,6 @@ export interface NativeOverlayDetachPayload {
   windowId: number
 }
 
-/**
- * Bug E（Native_Overlay_Bug_E_Plan.md §4 Phase E2）— `ui:preview-obstruction-changed`
- * を受けた main が child NSWindow の z-order を切り替えるための payload。
- */
-export interface NativeOverlaySetObstructedPayload {
-  windowId: number
-  obstructed: boolean
-}
-
 export interface NativeOverlayAddonDetachPayload extends NativeOverlayDetachPayload {
   nativeWindowHandle: Uint8Array
 }
@@ -37,7 +28,7 @@ export interface NativeOverlayAddonDetachPayload extends NativeOverlayDetachPayl
  * 選択デコレーション — renderer（Viewport.tsx）が `getObjectWorldCorners` の
  * world 座標 quad（project 座標系・回転込みの四隅）を送る payload。
  * 空配列はデコレーション解除。native_window_handle は不要
- * （clearSurface / setObstructed と同じく addon 側の registry lookup で完結する）。
+ * （clearSurface と同じく addon 側の registry lookup で完結する）。
  */
 export interface NativeOverlaySelectionDecorationQuad {
   topLeftX: number
@@ -133,7 +124,6 @@ export interface NativeOverlayAddon {
   prepareNativeOverlaySources?: (payload: NativeOverlayScenePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   presentNativeOverlaySharedFrame?: (payload: NativeOverlayAddonSharedFramePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   clearNativeOverlayLiveSurface?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
-  setNativeOverlayObstructed?: (payload: NativeOverlaySetObstructedPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   setNativeOverlaySelectionDecoration?: (payload: NativeOverlaySelectionDecorationPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
   /**
@@ -166,7 +156,6 @@ export interface NativeOverlayMainBridge {
   presentScene: (payload: NativeOverlayScenePayload) => Promise<NativeOverlayResponse>
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
-  setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
   setSelectionDecoration: (payload: NativeOverlaySelectionDecorationPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
   /** Phase 7 (W7) 需要駆動staged attach（Phase 2）: `NativeOverlayAddon.isNv12PipelineReady`参照。 */
@@ -246,7 +235,6 @@ export const createNativeOverlayMainBridge = ({
         || typeof addon.presentNativeOverlayScene === 'function'
         || typeof addon.presentNativeOverlaySharedFrame === 'function'
         || typeof addon.clearNativeOverlayLiveSurface === 'function'
-        || typeof addon.setNativeOverlayObstructed === 'function'
         || typeof addon.setNativeOverlaySelectionDecoration === 'function'
         || typeof addon.getNativeOverlayCapabilities === 'function'
         ? addon
@@ -447,31 +435,9 @@ export const createNativeOverlayMainBridge = ({
         return fallbackResponse(getErrorMessage(error))
       }
     },
-    async setObstructed(payload) {
-      // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed を受けた
-      // main が child NSWindow の z-order を切り替える。clearSurface と同じく
-      // native_window_handle は不要（addon 側の registry lookup で完結する）。
-      if (!nativeOverlayEnabled(env)) {
-        return fallbackResponse('Native overlay preview is disabled.')
-      }
-
-      const addon = loadAddon()
-      if (!addon || typeof addon.setNativeOverlayObstructed !== 'function') {
-        return fallbackResponse('Native overlay addon is unavailable.')
-      }
-
-      try {
-        return await addon.setNativeOverlayObstructed({
-          windowId: payload.windowId,
-          obstructed: payload.obstructed,
-        })
-      } catch (error) {
-        return fallbackResponse(getErrorMessage(error))
-      }
-    },
     async setSelectionDecoration(payload) {
       // 選択デコレーション — 選択枠・リサイズハンドルの見た目を addon 側で
-      // scene present に上乗せ描画する。clearSurface / setObstructed と同じく
+      // scene present に上乗せ描画する。clearSurface と同じく
       // native_window_handle は不要（addon 側の registry lookup で完結する）。
       if (!nativeOverlayEnabled(env)) {
         return fallbackResponse('Native overlay preview is disabled.')

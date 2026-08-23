@@ -631,76 +631,10 @@ describe('createNativeOverlayMainBridge', () => {
     });
   });
 
-  it('toggles the child NSWindow z-order through the addon setNativeOverlayObstructed entry point', async () => {
-    // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed を受けた
-    // main が `bridge.setObstructed({ windowId, obstructed })` を呼ぶと、
-    // addon の setNativeOverlayObstructed が window_id + obstructed で
-    // 呼ばれる。clearSurface と同じく native_window_handle 不要（registry
-    // lookup で完結する）。
-    const nativeAddon = {
-      setNativeOverlayObstructed: vi.fn(() => ({ success: true, attached: true })),
-    };
-    const bridge = createNativeOverlayMainBridge({
-      env: { UXFD_NATIVE_OVERLAY: '1' },
-      cwd: '/repo',
-      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
-      requireModule: vi.fn(() => nativeAddon),
-      resolveNativeWindowHandle: vi.fn(() => null),
-    });
-
-    await expect(bridge.setObstructed({ windowId: 7, obstructed: true })).resolves.toEqual({
-      success: true,
-      attached: true,
-    });
-    expect(nativeAddon.setNativeOverlayObstructed).toHaveBeenCalledWith({
-      windowId: 7,
-      obstructed: true,
-    });
-  });
-
-  it('falls back to the WebGPU presenter when setObstructed is invoked with the native overlay flag disabled', async () => {
-    const nativeAddon = {
-      setNativeOverlayObstructed: vi.fn(),
-    };
-    const bridge = createNativeOverlayMainBridge({
-      env: { UXFD_NATIVE_OVERLAY: '0' },
-      cwd: '/repo',
-      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
-      requireModule: vi.fn(() => nativeAddon),
-    });
-
-    await expect(bridge.setObstructed({ windowId: 7, obstructed: true })).resolves.toEqual({
-      success: false,
-      attached: false,
-      fallback: 'webgpuPresenter',
-      reason: 'Native overlay preview is disabled.',
-    });
-    expect(nativeAddon.setNativeOverlayObstructed).not.toHaveBeenCalled();
-  });
-
-  it('falls back to the WebGPU presenter when the addon lacks a setNativeOverlayObstructed entry point', async () => {
-    const nativeAddon = {
-      attachNativeOverlay: vi.fn(),
-    };
-    const bridge = createNativeOverlayMainBridge({
-      env: { UXFD_NATIVE_OVERLAY: '1' },
-      cwd: '/repo',
-      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
-      requireModule: vi.fn(() => nativeAddon),
-    });
-
-    await expect(bridge.setObstructed({ windowId: 7, obstructed: false })).resolves.toEqual({
-      success: false,
-      attached: false,
-      fallback: 'webgpuPresenter',
-      reason: 'Native overlay addon is unavailable.',
-    });
-  });
-
   it('sets the selection decoration through the addon setNativeOverlaySelectionDecoration entry point', async () => {
     // 選択デコレーション — bridge.setSelectionDecoration が addon の
     // setNativeOverlaySelectionDecoration を windowId + canvas + quads で呼ぶ。
-    // clearSurface / setObstructed と同じく native_window_handle 不要。
+    // clearSurface と同じく native_window_handle 不要。
     const nativeAddon = {
       setNativeOverlaySelectionDecoration: vi.fn(() => ({ success: true, attached: true })),
     };

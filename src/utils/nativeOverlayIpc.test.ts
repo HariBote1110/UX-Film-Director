@@ -14,9 +14,6 @@ describe('nativeOverlayIpc', () => {
     // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状を
     // 潰すため、`clear-surface` を独立 IPC channel として固定する。
     expect(nativeOverlayIpcChannels.clearSurface).toBe('native-overlay-clear-surface');
-    // Bug E（計画書 §3・§4 Phase E2）— renderer の previewObstructionDetector.ts
-    // が転送する ui:preview-obstruction-changed を受ける channel。
-    expect(nativeOverlayIpcChannels.previewObstructionChanged).toBe('ui:preview-obstruction-changed');
     // 選択デコレーション — 選択枠・リサイズハンドルの見た目を native overlay
     // 側で描くための quad 送信 channel。
     expect(nativeOverlayIpcChannels.setSelectionDecoration).toBe('native-overlay-set-selection-decoration');
@@ -44,8 +41,8 @@ describe('nativeOverlayIpc', () => {
     registerNativeOverlayIpcHandlers(ipcMain, bridge as any);
 
     // scene-only direct present channel・isNv12PipelineReady channelを
-    // 含め、登録される channel は 9 個。
-    expect(ipcMain.handle).toHaveBeenCalledTimes(9);
+    // 含め、登録される channel は 8 個。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
@@ -214,49 +211,13 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(9);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(8);
     await expect(handlers.get(nativeOverlayIpcChannels.clearSurface)?.({ sender: 'webContents' }, {})).resolves.toEqual({
       success: true,
       attached: true,
       payload: { windowId: 11 },
     });
     expect(bridge.clearSurface).toHaveBeenCalledWith({ windowId: 11 });
-  });
-
-  it('registers a preview-obstruction-changed handler that routes to bridge.setObstructed with the resolved windowId', async () => {
-    // Bug E（計画書 §3・§4 Phase E2）— renderer の
-    // subscribeStoreToPreviewObstructionIpc が送る { obstructed, reason, rect? }
-    // を受け、resolveWindowIdFromEvent で解決した windowId とともに
-    // bridge.setObstructed へ委譲する契約。
-    const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
-    const ipcMain = {
-      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
-        handlers.set(channel, handler);
-      }),
-    };
-    const bridge = {
-      attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
-      detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
-      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
-      clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
-      setObstructed: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
-      getCapabilities: vi.fn(() => ({ available: true })),
-    };
-
-    registerNativeOverlayIpcHandlers(ipcMain, bridge as any, {
-      resolveWindowIdFromEvent: vi.fn(() => 11),
-    });
-
-    expect(ipcMain.handle).toHaveBeenCalledTimes(9);
-    await expect(handlers.get(nativeOverlayIpcChannels.previewObstructionChanged)?.(
-      { sender: 'webContents' },
-      { obstructed: true, reason: 'export-modal' },
-    )).resolves.toEqual({
-      success: true,
-      attached: true,
-      payload: { windowId: 11, obstructed: true },
-    });
-    expect(bridge.setObstructed).toHaveBeenCalledWith({ windowId: 11, obstructed: true });
   });
 
   it('registers a set-selection-decoration handler that routes quads to bridge.setSelectionDecoration with the resolved windowId', async () => {
@@ -274,7 +235,6 @@ describe('nativeOverlayIpc', () => {
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
       presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
-      setObstructed: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       setSelectionDecoration: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
     };

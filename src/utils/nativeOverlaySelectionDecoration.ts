@@ -1,12 +1,14 @@
 /**
  * 選択デコレーション（選択枠・リサイズハンドル）の native overlay 送信ロジック。
  *
- * 実機バグ: SceneSelectionOverlay（HTML/SVG）は child NSWindow 化された
- * native overlay（CAMetalLayer）より常に下にあり、オブジェクトが現在フレームに
- * 描画されている間は選択枠が不透明ピクセルに隠れて見えない（obstruction 検知時
- * のみ z-order を下げる ADR-013 の設計上、SVG を上へ持ってくることはできない）。
- * そこで選択枠・ハンドルの「見た目」を native overlay 側（Rust/wgpu）が scene
- * present の最後に上乗せ描画し、renderer はここで world 座標 quad を IPC で送る。
+ * 実機バグ: hole-punch方式移行前は、SceneSelectionOverlay（HTML/SVG）は
+ * child NSWindow 化された native overlay（CAMetalLayer）より常に下にあり、
+ * オブジェクトが現在フレームに描画されている間は選択枠が不透明ピクセルに
+ * 隠れて見えなかった。hole-punch方式（overlayを常に親の下に配置し、親側の
+ * preview矩形を透過させる設計）移行後もSVGを直接そこへ重ねると描画順の
+ * 制御が複雑になるため、選択枠・ハンドルの「見た目」は引き続き native
+ * overlay 側（Rust/wgpu）が scene present の最後に上乗せ描画し、renderer は
+ * ここで world 座標 quad を IPC で送る。
  *
  * 送信条件（Viewport.tsx から利用）:
  * - 選択変更・ドラッグ中の毎 pointermove・時間変化で update を呼ぶ

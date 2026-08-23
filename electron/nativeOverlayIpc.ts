@@ -4,7 +4,6 @@ import type {
   NativeOverlayResponse,
   NativeOverlayScenePayload,
   NativeOverlaySelectionDecorationPayload,
-  NativeOverlaySetObstructedPayload,
   NativeOverlaySharedFramePayload,
 } from './nativeOverlayMainBridge'
 
@@ -18,10 +17,6 @@ export const nativeOverlayIpcChannels = {
   // 潰すための独立 channel。scene 空遷移 / unmount / project 切替の
   // 3 経路から window 単位で呼ばれる。
   clearSurface: 'native-overlay-clear-surface',
-  // Bug E（Native_Overlay_Bug_E_Plan.md §3・§4 Phase E2）— renderer の
-  // previewObstructionDetector.ts（subscribeStoreToPreviewObstructionIpc）が
-  // 転送する channel。payload は { obstructed, reason, rect? }。
-  previewObstructionChanged: 'ui:preview-obstruction-changed',
   // 選択デコレーション — SceneSelectionOverlay（SVG）が child NSWindow 化された
   // native overlay に隠れるため、選択枠・リサイズハンドルの見た目を addon 側
   // （Rust/wgpu）で描く。renderer が world 座標 quad を送る channel。
@@ -49,7 +44,6 @@ export interface NativeOverlayIpcBridge {
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   presentScene: (payload: NativeOverlayScenePayload) => Promise<NativeOverlayResponse>
   clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
-  setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
   setSelectionDecoration: (payload: NativeOverlaySelectionDecorationPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
   isNv12PipelineReady: (payload: NativeOverlayDetachPayload) => Promise<boolean>
@@ -102,21 +96,6 @@ export const registerNativeOverlayIpcHandlers = (
     bridge.isNv12PipelineReady(
       withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload,
     ))
-  ipcMain.handle(nativeOverlayIpcChannels.previewObstructionChanged, async (event, payload) => {
-    const obstructed = typeof payload === 'object' && payload !== null && 'obstructed' in payload
-      ? Boolean((payload as { obstructed?: unknown }).obstructed)
-      : false
-    const windowId = resolveWindowId(event, options.resolveWindowIdFromEvent)
-    return bridge.setObstructed({ windowId, obstructed })
-  })
-}
-
-const resolveWindowId = (
-  event: unknown,
-  resolveWindowIdFromEvent?: (event: unknown) => number | null,
-): number => {
-  const windowId = resolveWindowIdFromEvent?.(event) ?? null
-  return typeof windowId === 'number' ? windowId : -1
 }
 
 const withWindowId = (

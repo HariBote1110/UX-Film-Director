@@ -190,7 +190,6 @@ const formatRustFrameSourceBlockedReason = (
 const ExportProgressModal: React.FC = () => {
   const {
     isExporting, exportProgress, lastExportDiagnostics, exportCancelRequested, requestExportCancel, language,
-    setPreviewObstructed, clearPreviewObstructed,
   } = useStore((state) => ({
     isExporting: state.isExporting,
     exportProgress: state.exportProgress,
@@ -198,8 +197,6 @@ const ExportProgressModal: React.FC = () => {
     exportCancelRequested: state.exportCancelRequested,
     requestExportCancel: state.requestExportCancel,
     language: state.language,
-    setPreviewObstructed: state.setPreviewObstructed,
-    clearPreviewObstructed: state.clearPreviewObstructed,
   }), shallow);
 
   const t = useTranslation(language);
@@ -210,17 +207,6 @@ const ExportProgressModal: React.FC = () => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 500);
     return () => window.clearInterval(intervalId);
   }, [isExporting]);
-
-  // Bug E（Native_Overlay_Bug_E_Plan.md §4 Phase E1）— 書き出し進捗モーダルは
-  // preview pane 全体を覆いうる全画面 overlay のため、native overlay の
-  // child NSWindow より確実に上に出るよう明示的に通知する。
-  React.useEffect(() => {
-    if (isExporting) {
-      setPreviewObstructed('export-progress-modal', null);
-    } else {
-      clearPreviewObstructed('export-progress-modal');
-    }
-  }, [isExporting, setPreviewObstructed, clearPreviewObstructed]);
 
   if (!isExporting) {
     const lastDiagnostics = formatLastExportDiagnosticsSummary(lastExportDiagnostics, language);

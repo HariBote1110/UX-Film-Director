@@ -27,7 +27,6 @@ const Timeline: React.FC = () => {
     layers, setLayerName, toggleLayerVisibility, toggleLayerLock,
     swapLayerTracks, insertLayerTrackAt, deleteLayerTrackAt,
     beginProxyGeneration, endProxyGeneration,
-    setPreviewObstructed, clearPreviewObstructed
   } = useStore((state) => ({
     duration: state.duration,
     setTime: state.setTime,
@@ -48,8 +47,6 @@ const Timeline: React.FC = () => {
     deleteLayerTrackAt: state.deleteLayerTrackAt,
     beginProxyGeneration: state.beginProxyGeneration,
     endProxyGeneration: state.endProxyGeneration,
-    setPreviewObstructed: state.setPreviewObstructed,
-    clearPreviewObstructed: state.clearPreviewObstructed,
   }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -227,27 +224,6 @@ const Timeline: React.FC = () => {
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, [contextMenu.visible, layerTrackMenu]);
-
-  // Bug E（Native_Overlay_Bug_E_Plan.md §4 Phase E1）— タイムラインの
-  // 右クリックコンテキストメニューが preview pane に重なる native overlay
-  // より上に出るよう、開閉を明示的に store へ通知する。実際の overlay
-  // overlap 判定・z-order 切替は main 側（Phase E2）が行う。
-  useEffect(() => {
-    if (contextMenu.visible) {
-      setPreviewObstructed('timeline-context-menu', { x: contextMenu.x, y: contextMenu.y, w: 1, h: 1 });
-    } else {
-      clearPreviewObstructed('timeline-context-menu');
-    }
-  }, [contextMenu.visible, contextMenu.x, contextMenu.y, setPreviewObstructed, clearPreviewObstructed]);
-
-  // レイヤートラックメニュー（レイヤー挿入/削除/入れ替え）も同様に通知する。
-  useEffect(() => {
-    if (layerTrackMenu) {
-      setPreviewObstructed('timeline-layer-track-menu', { x: layerTrackMenu.x, y: layerTrackMenu.y, w: 1, h: 1 });
-    } else {
-      clearPreviewObstructed('timeline-layer-track-menu');
-    }
-  }, [layerTrackMenu, setPreviewObstructed, clearPreviewObstructed]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => { if (isScrubbing) setTime(calculateTimeFromEvent(e.clientX)); };
