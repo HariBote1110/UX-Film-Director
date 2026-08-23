@@ -5994,17 +5994,26 @@ mod tests {
     }
 
     #[test]
-    fn set_native_overlay_obstructed_returns_err_when_no_renderer_is_registered() {
-        // Bug E（計画書 §4 Phase E2）— attach されていない window_id に対して
-        // set_native_overlay_obstructed を呼んだ場合、clear_native_overlay_live_surface
-        // と同じ Fail Safe 方針で明示的な Err を返す。
+    fn set_native_overlay_obstructed_records_flag_even_when_not_attached() {
+        // Bug 2 — 段階的/デマンド駆動の attach（開発時の再 attach を含む）では、
+        // 既に開いている modal の遮蔽フラグを attach 前に受け取ることがある。
+        // 以前は renderer が未登録だと Err を返し、フラグ自体が失われていた。
+        // 今は必ずフラグを記録して Ok を返し、renderer が未接続でもエラーには
+        // しない（後続の attach 完了時にレジストリから読み出して適用する）。
         let unused_window_id = u32::MAX - 4242;
-        let error = set_native_overlay_obstructed(unused_window_id, true)
-            .expect_err("toggling obstruction on an unattached window must not silently succeed");
-        assert!(
-            error.contains("Native overlay live surface"),
-            "error message should point at the live surface registry, got: {error}",
+        set_native_overlay_obstructed(unused_window_id, true)
+            .expect("recording the obstructed flag must succeed even when nothing is attached");
+        assert_eq!(
+            native_overlay_desired_obstructed(unused_window_id),
+            Some(true),
+            "the desired-obstructed flag must be readable from the registry after being set",
         );
+    }
+
+    #[test]
+    fn native_overlay_desired_obstructed_defaults_to_none_for_unknown_window() {
+        let unknown_window_id = u32::MAX - 9999;
+        assert_eq!(native_overlay_desired_obstructed(unknown_window_id), None);
     }
 
     #[test]
