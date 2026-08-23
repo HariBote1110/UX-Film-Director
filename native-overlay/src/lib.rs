@@ -6091,9 +6091,24 @@ mod tests {
             source.contains("addChildWindow") && source.contains("ordered"),
             "attach must addChildWindow:ordered: the overlay child NSWindow onto the parent",
         );
+        let fn_start = source
+            .find("fn attach_overlay_view_to_parent")
+            .expect("attach_overlay_view_to_parent must exist");
+        let fn_source = &source[fn_start..];
+        let fn_end = fn_source
+            .find("\n}\n")
+            .map(|end| end + 3)
+            .unwrap_or(fn_source.len());
+        let fn_body = &fn_source[..fn_end];
         assert!(
-            source.contains("NSWindowAbove"),
-            "attach must order the child NSWindow above the parent by default (steady state)",
+            fn_body.contains("ordered: NS_WINDOW_BELOW"),
+            "attach_overlay_view_to_parent must order the child NSWindow below the parent \
+             (hole-punch design) so HTML 駆動 UI always renders above the video",
+        );
+        assert!(
+            !fn_body.contains("NS_WINDOW_ABOVE"),
+            "attach_overlay_view_to_parent must not order the child NSWindow above the parent; \
+             the obstructed NSWindowAbove toggle was removed in favour of hole-punch",
         );
         assert!(
             source.contains("NSWindowStyleMaskBorderless") || source.contains("styleMask"),
