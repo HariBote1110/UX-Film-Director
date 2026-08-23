@@ -23,10 +23,16 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* hole-punch方式: BrowserWindow を透明化し（electron/main.ts）、preview 矩形の
+ * 祖先チェーン（body → #root → .app-container → .workspace-main →
+ * .preview-area → Viewport.tsx 内部の各層）をすべて透明にすることで、native
+ * overlay (child NSWindow) の映像を素通しする。その他の領域（ヘッダー、
+ * side panel、timeline）はそれぞれ独自の背景色を持つ（.properties-area /
+ * .timeline-area 等）ので、見た目は従来どおり不透明に保たれる。 */
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg-app);
+  background-color: transparent;
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
@@ -174,9 +180,10 @@ input[type="range"] {
 }
 
 /* Layout classes */
-.workspace-main {
-  background: var(--bg-app);
-}
+/* .workspace-main は .preview-area (= native overlay 矩形) の祖先なので
+ * hole-punch のため意図的に背景を持たせない（透明のまま）。以前はここに
+ * var(--bg-app) を敷いていたが、その分の背景は Viewport.tsx 側の
+ * resolvePreviewPaneBackground（未attach/フォールバック時のみ）が担う。 */
 
 .properties-area {
   background: var(--bg-panel) !important;

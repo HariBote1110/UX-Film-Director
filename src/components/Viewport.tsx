@@ -78,6 +78,7 @@ import { resolveSharedRendererPresenterRestartSession } from '../utils/sharedRen
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import { resolveNativeOverlayEnabled } from '../utils/nativeOverlayPlatformGate';
 import { createNativeOverlayAttachLifecycle } from '../utils/nativeOverlayAttachLifecycle';
+import { resolvePreviewPaneBackground } from '../utils/previewPaneBackground';
 import { shouldRouteFrameToNativeOverlay } from '../utils/nativeOverlayNv12Gate';
 import { waitForNativeOverlayAttachGate } from '../utils/nativeOverlayAttachGateWait';
 import { psdImportTraceCollector } from '../perf/psdImportTrace';
@@ -2677,7 +2678,13 @@ const Viewport: React.FC = () => {
         width: '100%',
         height: '100%',
         position: 'relative',
-        background: 'var(--bg-app)',
+        // hole-punch方式: native overlay (child NSWindow) が親ウィンドウの下に
+        // 常駐するため、この祖先チェーン（viewport-container → 内側の flex
+        // wrapper → preview-canvas-container → containerRef）はすべて透明に
+        // し、preview 矩形の背後にある映像をそのまま透過させる。レターボックス
+        // 領域（プレビュー矩形の外側）もこのチェーン上にあるため、ここでは
+        // 意図的に --bg-app を持たせない。
+        background: 'transparent',
         overflow: previewDisplayMode === 'pixelPerfect' ? 'auto' : 'hidden',
       }}
     >
@@ -2818,6 +2825,10 @@ const Viewport: React.FC = () => {
               height: '100%',
               visibility: editorMode === '3d_stage' ? 'hidden' : 'visible',
               pointerEvents: editorMode === '3d_stage' ? 'none' : 'auto',
+              // native overlay attach 済みなら透明にして下の child NSWindow の
+              // 映像を透過させる。attach 前 / フォールバック presenter 使用時は
+              // 従来どおりのダーク背景を保つ（resolvePreviewPaneBackground 参照）。
+              background: resolvePreviewPaneBackground(nativeOverlayReady),
             }}
           />
           {editorMode !== '3d_stage' && (
