@@ -16,11 +16,28 @@ hole-punch 方式を採用する：overlay の child NSWindow は常に `addChil
 preview 要素の祖先チェーン（`body` / `.workspace-main` / `.viewport-container` /
 `.preview-canvas-container`）をすべて透過にする（commit 230cb7f7, c0a66988）。内側の preview
 コンテナ背景は `nativeOverlayLifecycleState === 'overlay'` のときだけ `transparent`、それ以外は
-`var(--bg-app)`（`src/utils/previewPaneBackground.ts`）。child NSWindow 自体は `setOpaque: YES` +
-`blackColor` とし、wgpu surface が透過クリアした部分は child window 自身の黒背景で塗り、
-デスクトップが透けないようにする（commit 138a443b）。この切替に伴い obstructed トグル機構一式
-（store state、IPC `ui:preview-obstruction-changed`、napi `setNativeOverlayObstructed`、Rust側
-トグル）を削除した（commit 1a5ea251, a428414a）。
+`var(--bg-app)`（`src/utils/previewPaneBackground.ts`）。
+
+この方式では祖先チェーン全体の透過により大きなウィンドウ（最大化時）でデスクトップが複数の隙間
+（window edges、timeline 行の下など）から透けてしまう問題が発生した。
+
+**修正：Full-viewport opaque backdrop 方式（commit 812fb1df〜88069296）**
+
+`src/components/PreviewHoleBackdrop.tsx` に position:fixed の背景を追加し、`#root { isolation:isolate }` で
+stack context を限定する。backdrop は `inset:0` + `z-index:-1` + `background:var(--bg-app)` で全視点を不透明に塗り、
+`clip-path: polygon(evenodd)` で preview 矩形だけ穴を開ける。穴のパス座標は `src/utils/previewHoleClipPath.ts` で生成し、
+store の `previewHoleRect` (Viewport.attach() 時に発行・attach-key dedupe 前に publish、lifecycle state が `'overlay'` でない時と
+unmount 時に消去) から読む。この方式により祖先チェーン全体の透過が不要になり、panel ごとの background 規則を持たずに
+全ての隙間をふさぐことができた。
+
+子 NSWindow 自体は `setOpaque: NO` + `clearColor` に変更し、black fill は layer-backed container contentView
+（`wantsLayer`、black `backgroundColor`）で行うようにした（commit 52939809, db0a5804）。以前の `setOpaque: YES` + `blackColor`
+方式は child window を不透明黒で塗っており（commit 138a443b）、overlay が re-attach される際（例：NSOpenPanel が閉じた後）に
+アプリが deactivate する問題が発生していた。Stage Manager 環境下では app が side strip へ押しやられる副作用もあったため、
+layer-backed container 方式に改訂した。
+
+この変更に伴い obstructed トグル機構一式（store state、IPC `ui:preview-obstruction-changed`、napi `setNativeOverlayObstructed`、
+Rust側トグル）を削除した（commit 1a5ea251, a428414a）。
 
 実 Electron macOS（2026-08-24）で動画クリップを用いて検証：トグル・context menu・export modal・
 tooltip はいずれも動画の上に表示され、動画自体も表示され続けることを確認した。
@@ -47,3 +64,13 @@ tooltip はいずれも動画の上に表示され、動画自体も表示され
   hole-punch は未検証。別途対応が必要。
 - `SceneSelectionDecorationLayer`（HTML）が動画より前面に描画されるようになったため、native
   side の selection decoration は冗長になっており削除候補。
+- Re-attach（ウィンドウリサイズなど）後、overlay が黒いままで次フレーム呈示（シーク/再生）を待つまで
+  表示が戻らない現象を観測。修正未実施、既存の問題の可能性も含め原因は未特定。
+- NSOpenPanel を使った import 後の app deactivation シナリオは、container view 方式での修正後に再検証できなかった。
+  変更内容（動画表示OK・app 活性状態維持）の部分検証は済み（CDP 駆動 file input 経由）だが、全体シナリオは継続監視対象。
+- Computer-use hit-test ツールが transparent 子 window 上のクリックを正しく判定できないため、
+  検証手段が CDP（`UXFD_REMOTE_DEBUG_PORT`）に限定される。
+
+## Verified
+
+- 最大化ウィンドウで隙間の透けなし（2026-08-24）
