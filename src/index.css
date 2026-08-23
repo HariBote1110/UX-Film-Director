@@ -40,6 +40,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* PreviewHoleBackdrop（src/components/PreviewHoleBackdrop.tsx）は
+ * z-index: -1 の全画面divとしてアプリ最背面に描画される。isolationで
+ * #root を独立したstacking contextにすることで、他要素の描画順（DOM順や
+ * position指定）に関わらず、負のz-indexが確実に #root 内最背面になる
+ * ことを保証する。 */
+#root {
+  isolation: isolate;
+}
+
 /* Glassmorphism utility */
 .glass {
   background: var(--bg-surface);

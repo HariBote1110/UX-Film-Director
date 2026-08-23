@@ -760,6 +760,15 @@ const Viewport: React.FC = () => {
   // 1セッション中に false → true（attach成功）→ false（トグルOFF/失敗）と
   // 遷移しうる。
   const nativeOverlayReady = nativeOverlayLifecycleState === 'overlay';
+  // hole-punch backdrop（PreviewHoleBackdrop.tsx）が参照する attach 矩形の
+  // 最新lifecycle stateを、長寿命の attach effect（deps: [nativeOverlayPreviewEnabled]）
+  // 内のクロージャからも参照できるようにするref。attach() 自体は resize等の
+  // イベントで頻繁に再実行されるが、そのたびに effect を作り直したくないため
+  // state を直接 deps に含めず ref 経由で最新値を読む。
+  const nativeOverlayLifecycleStateRef = useRef(nativeOverlayLifecycleState);
+  useEffect(() => {
+    nativeOverlayLifecycleStateRef.current = nativeOverlayLifecycleState;
+  }, [nativeOverlayLifecycleState]);
   // Phase 7 (W7) 需要駆動staged attach（Phase 2）: nativeOverlayReady
   // （essential ready、attach解決）とは独立に、支配的コストのnv12
   // パイプラインがバックグラウンド構築を終えたかどうかを追跡する。
@@ -932,6 +941,20 @@ const Viewport: React.FC = () => {
         viewportOffsetTop: visualViewport?.offsetTop ?? 0,
       });
       const nextAttachKey = buildNativeOverlayAttachKey(nextAttachRect);
+      // hole-punch backdrop用のrect publishはdedupeの前に行う——
+      // attach矩形のkeyが不変でもCSSピクセルでの見た目のrectがresize等で
+      // 変わっている可能性があり、鍵一致による早期returnでbackdropの穴が
+      // 追従しなくなるのを防ぐ。overlayが実際にpresent中でないとき
+      // （'attaching'/'presenter'）はここでは発行しない——その場合は
+      // 上のlifecycle effectがnullへ戻す。
+      if (nativeOverlayLifecycleStateRef.current === 'overlay') {
+        setPreviewHoleRect({
+          x: viewportRect.left,
+          y: viewportRect.top,
+          width: viewportRect.width,
+          height: viewportRect.height,
+        });
+      }
       // build_overlay_layer_contract（Rust）と同じ丸めで drawable ピクセルサイズを保持し、
       // preview decode edge を drawable 長辺に追従させる。
       nativeOverlayDrawableSizeRef.current = {
@@ -1090,6 +1113,7 @@ const Viewport: React.FC = () => {
     setPreviewDisplayMode,
     visionDetectionPreviewEnabled,
     visionDetectionOverlay,
+    setPreviewHoleRect,
     projectId
   } = useStore((state) => ({
     objects: state.objects,
@@ -1116,6 +1140,7 @@ const Viewport: React.FC = () => {
     setPreviewDisplayMode: state.setPreviewDisplayMode,
     visionDetectionPreviewEnabled: state.visionDetectionPreviewEnabled,
     visionDetectionOverlay: state.visionDetectionOverlay,
+    setPreviewHoleRect: state.setPreviewHoleRect,
     // Bug D case (iii) — project 切替を検知して Native Overlay drawable を
     // transparent clear するため、store の activeSceneId を projectId として
     // effect の deps に載せる。
@@ -1126,6 +1151,24 @@ const Viewport: React.FC = () => {
   // 再レンダーされてしまう。currentTime への追従は onCurrentTimeTickRef
   // （renderScene 定義直後）が useStore.subscribe + ref 経由で行う
   // （SceneSelectionDecorationLayer / TimelineCurrentTimeIndicator と同じ方針）。
+
+  // overlayへ遷移した瞬間（またはoverlayでなくなった瞬間）のpreviewHoleRect
+  // 発行/クリア。resize中の追従は attach() 側（Native Overlay attach effect
+  // 内）が担い、こちらは「overlayになった」「overlayでなくなった
+  // （presenterフォールバック）」という状態遷移そのものをトリガーにする。
+  useEffect(() => {
+    if (nativeOverlayLifecycleState !== 'overlay') {
+      setPreviewHoleRect(null);
+      return;
+    }
+    const previewElement = containerRef.current;
+    if (!previewElement) return;
+    const rect = previewElement.getBoundingClientRect();
+    setPreviewHoleRect({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+  }, [nativeOverlayLifecycleState, setPreviewHoleRect]);
+
+  // unmount時は確実に穴を閉じる（バックドロップを全面不透明に戻す）。
+  useEffect(() => () => setPreviewHoleRect(null), [setPreviewHoleRect]);
 
   useVisionRealtimeDetection();
 

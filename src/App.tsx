@@ -14,6 +14,7 @@ import { buildExportAudioMixWav } from './utils/audioMixdown';
 import { useTranslation } from './i18n';
 import { FolderOpen, Save, Camera } from 'lucide-react';
 import { RendererTraceProfiler } from './components/RendererTraceProfiler';
+import PreviewHoleBackdrop from './components/PreviewHoleBackdrop';
 import './index.css';
 
 const { ipcRenderer } = window;
@@ -137,22 +138,27 @@ const App: React.FC = () => {
 
   if (!isProjectLoaded) {
     return (
-      <div className="app-container" style={{ height: '100vh' }}>
-        <header className="title-bar">
-          <span className="app-title-text">{t('appTitle')}</span>
-          <div className="title-bar-actions">
-            <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}>
-              <option value="ja">日本語</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-        </header>
-        <ProjectSetup onOpenProject={handleOpenProject} isProjectIoBusy={isProjectIoBusy} />
-      </div>
+      <>
+        <PreviewHoleBackdrop />
+        <div className="app-container" style={{ height: '100vh' }}>
+          <header className="title-bar">
+            <span className="app-title-text">{t('appTitle')}</span>
+            <div className="title-bar-actions">
+              <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}>
+                <option value="ja">日本語</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </header>
+          <ProjectSetup onOpenProject={handleOpenProject} isProjectIoBusy={isProjectIoBusy} />
+        </div>
+      </>
     );
   }
 
   return (
+    <>
+    <PreviewHoleBackdrop />
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
       <header className="title-bar">
@@ -216,6 +222,7 @@ const App: React.FC = () => {
       <ExportProgressModal />
       <ProxyGenerationIndicator />
     </div>
+    </>
   );
 };
 
