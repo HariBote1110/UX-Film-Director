@@ -107,6 +107,15 @@ mod platform {
     /// seek can take longer than 200ms, so use the same correctness budget as
     /// the initial hardware decode instead of failing an export prematurely.
     const RING_WAIT_TIMEOUT: Duration = FIRST_FRAME_TIMEOUT;
+    /// How long `request_nv12_frame_exact` (export path only) will wait for
+    /// the decoder to actually reach the requested pts, per
+    /// [`frame_ready_for_exact`]. Unlike `RING_WAIT_TIMEOUT` this is not
+    /// just "wait for the ring's first frame after a seek" -- it covers the
+    /// whole seek-then-decode-to-target span, which can legitimately take
+    /// several seconds for a large HEVC file on a slow (e.g. external)
+    /// drive. It only guards against a genuinely hung decoder, so it is set
+    /// generously rather than tuned to a "typical" seek.
+    const EXACT_FRAME_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
     /// A forward gap larger than this triggers a `seek()` (cheap: an
     /// AVAssetReader restart, no subprocess) instead of discard-decoding
     /// every frame in between. Generous relative to the ~400ms ring so a
@@ -410,6 +419,46 @@ mod platform {
             &self,
             target_pts_seconds: f64,
         ) -> Result<InProcessNv12Frame, String> {
+            self.request_nv12_frame_with(target_pts_seconds, RING_WAIT_TIMEOUT, |ring| {
+                nearest_frame(&ring.frames, target_pts_seconds)
+            })
+        }
+
+        /// Export-only counterpart to [`request_nv12_frame`]: waits (up to
+        /// [`EXACT_FRAME_WAIT_TIMEOUT`]) until the ring proves decoding has
+        /// actually reached `target_pts_seconds` (see
+        /// [`frame_ready_for_exact`]) before serving a frame, rather than
+        /// immediately handing back whatever `nearest_frame` finds. The
+        /// export path (`collect_resident_video_nv12_sources` in
+        /// `native_render.rs`) issues requests for a strictly increasing,
+        /// tightly-spaced pts sequence far faster than real-time playback,
+        /// so the eager `nearest_frame` fallback that is correct for
+        /// preview/playback would otherwise silently serve stale frames.
+        pub(crate) fn request_nv12_frame_exact(
+            &self,
+            target_pts_seconds: f64,
+            frame_duration_seconds: f64,
+        ) -> Result<InProcessNv12Frame, String> {
+            self.request_nv12_frame_with(target_pts_seconds, EXACT_FRAME_WAIT_TIMEOUT, |ring| {
+                frame_ready_for_exact(
+                    &ring.frames,
+                    target_pts_seconds,
+                    frame_duration_seconds,
+                    ring.eof,
+                )
+            })
+        }
+
+        /// Shared seek/trim/wait loop behind both [`request_nv12_frame`] and
+        /// [`request_nv12_frame_exact`]; the two differ only in how long
+        /// they are willing to wait and which frame (if any) is acceptable
+        /// to serve right now, both captured by `pick`.
+        fn request_nv12_frame_with<'a>(
+            &'a self,
+            target_pts_seconds: f64,
+            timeout: Duration,
+            pick: impl Fn(&RingState) -> Option<&RingFrame>,
+        ) -> Result<InProcessNv12Frame, String> {
             {
                 let mut ring = self.shared.ring.lock().expect("ring mutex poisoned");
                 if should_seek(&ring, target_pts_seconds) {
@@ -422,13 +471,13 @@ mod platform {
             }
             self.shared.condvar.notify_all();
 
-            let deadline = Instant::now() + RING_WAIT_TIMEOUT;
+            let deadline = Instant::now() + timeout;
             let mut ring = self.shared.ring.lock().expect("ring mutex poisoned");
             loop {
                 if let Some(error) = &ring.fatal_error {
                     return Err(error.clone());
                 }
-                if let Some(frame) = nearest_frame(&ring.frames, target_pts_seconds) {
+                if let Some(frame) = pick(&ring) {
                     let Some(entry) = frame.nv12.as_ref() else {
                         return Err("decoded frame is not IOSurface-backed NV12".to_string());
                     };
@@ -539,6 +588,33 @@ mod platform {
             .rev()
             .find(|frame| frame.pts_seconds <= target_pts_seconds)
             .or_else(|| frames.front())
+    }
+
+    /// Export-only counterpart to [`nearest_frame`]: only returns a frame
+    /// once the ring itself proves decoding has actually reached
+    /// `target_pts_seconds`, instead of eagerly returning a stale
+    /// hold-last-frame fallback the way `nearest_frame` does for
+    /// low-latency preview/playback. "Proves reached" means the newest
+    /// buffered frame's pts plus one `frame_duration_seconds` exceeds the
+    /// target -- i.e. the decoder has produced (or is about to produce) the
+    /// very next frame after the target, so the frame `nearest_frame` would
+    /// pick is not simply an old one the caller ran ahead of. At `eof` no
+    /// further frames will ever arrive, so the nearest buffered frame is
+    /// accepted regardless of how far short it falls.
+    fn frame_ready_for_exact(
+        frames: &VecDeque<RingFrame>,
+        target_pts_seconds: f64,
+        frame_duration_seconds: f64,
+        eof: bool,
+    ) -> Option<&RingFrame> {
+        if eof {
+            return nearest_frame(frames, target_pts_seconds);
+        }
+        let newest_pts = frames.back()?.pts_seconds;
+        if newest_pts + frame_duration_seconds <= target_pts_seconds {
+            return None;
+        }
+        nearest_frame(frames, target_pts_seconds)
     }
 
     /// Drops frames that playback has already moved past, keeping exactly
@@ -1142,21 +1218,36 @@ mod repro_export_ring {
     use std::path::Path;
     use std::time::Instant;
 
+    /// Exercises `request_nv12_frame_exact` against a real video file with
+    /// the same sequential, faster-than-real-time request pattern the
+    /// export path (`collect_resident_video_nv12_sources`) uses, and
+    /// asserts every served frame's lag behind its requested pts stays
+    /// within one frame duration -- i.e. no stale frames and no seek
+    /// storms. Run with:
+    /// `UXFD_REPRO_VIDEO='/path/to/file.mp4' cargo test --release --bin
+    /// uxfd-rust-backend export_sequential_requests_stay_within_one_frame_of_target
+    /// -- --ignored --nocapture`
     #[test]
     #[ignore]
-    fn repro_sequential_export_requests() {
+    fn export_sequential_requests_stay_within_one_frame_of_target() {
         let path = std::env::var("UXFD_REPRO_VIDEO").expect("UXFD_REPRO_VIDEO");
         let session = InProcessDecodeSession::open_nv12_only(Path::new(&path), 1920, 1080).unwrap();
+        let frame_duration_seconds = 1.0 / 60.0;
         let start = Instant::now();
         for frame in 0..3000u64 {
-            let pts = frame as f64 / 60.0;
+            let pts = frame as f64 * frame_duration_seconds;
             let t = Instant::now();
-            match session.request_nv12_frame(pts) {
+            match session.request_nv12_frame_exact(pts, frame_duration_seconds) {
                 Ok(f) => {
                     let lag = pts - f.pts_seconds;
                     if t.elapsed().as_millis() > 200 || (frame % 60 == 0) {
                         eprintln!("frame {frame} target {pts:.3} served {:.3} lag {lag:.3} took {:?}", f.pts_seconds, t.elapsed());
                     }
+                    assert!(
+                        lag.abs() < frame_duration_seconds + 1e-6,
+                        "frame {frame}: target {pts:.3} served {:.3}, lag {lag:.3} exceeds one frame duration",
+                        f.pts_seconds
+                    );
                 }
                 Err(e) => panic!("frame {frame} pts {pts}: {e} (after {:?})", start.elapsed()),
             }

@@ -1159,7 +1159,10 @@ fn collect_resident_video_nv12_sources(
             .resident_video_decoders
             .get(&decoder_key)
             .expect("resident decoder must exist after insertion")
-            .request_nv12_frame(target_pts_seconds)
+            .request_nv12_frame_exact(
+                target_pts_seconds,
+                request.source_rate.denominator as f64 / request.source_rate.numerator as f64,
+            )
             .map_err(|error| {
                 format!(
                     "Failed to decode resident NV12 frame for {}: {error}",
