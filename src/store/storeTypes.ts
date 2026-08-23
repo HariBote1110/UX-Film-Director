@@ -85,6 +85,14 @@ export interface AppState {
   visionDetectionRealtimeEnabled: boolean;
   visionDetectionOverlay: VisionDetectionOverlayState | null;
 
+  /**
+   * hole-punch方式のnative overlay attach矩形（viewport相対、CSSピクセル）。
+   * PreviewHoleBackdrop がこの矩形と同じ大きさの穴を不透明バックドロップに
+   * 開けることで、attach矩形以外の透明領域にmacOSデスクトップが透けるのを防ぐ。
+   * overlayがpresenterフォールバック中（未attach）はnull。
+   */
+  previewHoleRect: { x: number; y: number; width: number; height: number } | null;
+
   currentTime: number;
   duration: number;
   isPlaying: boolean;
@@ -152,6 +160,7 @@ export interface AppState {
   setVisionDetectionPreviewEnabled: (enabled: boolean) => void;
   setVisionDetectionRealtimeEnabled: (enabled: boolean) => void;
   setVisionDetectionOverlay: (overlay: VisionDetectionOverlayState | null) => void;
+  setPreviewHoleRect: (rect: { x: number; y: number; width: number; height: number } | null) => void;
 
   /**
    * command stack へ `Command` を積む。呼び出し側がコミット時点で

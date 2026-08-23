@@ -14,6 +14,7 @@ type WorkspaceSlice = Pick<
   | 'visionDetectionPreviewEnabled'
   | 'visionDetectionRealtimeEnabled'
   | 'visionDetectionOverlay'
+  | 'previewHoleRect'
   | 'setLanguage'
   | 'requestSnapshot'
   | 'finishSnapshot'
@@ -23,6 +24,7 @@ type WorkspaceSlice = Pick<
   | 'setVisionDetectionPreviewEnabled'
   | 'setVisionDetectionRealtimeEnabled'
   | 'setVisionDetectionOverlay'
+  | 'setPreviewHoleRect'
 >;
 
 type SetState = StoreApi<AppState>['setState'];
@@ -35,6 +37,7 @@ export const createWorkspaceSlice = (set: SetState): WorkspaceSlice => ({
   visionDetectionPreviewEnabled: false,
   visionDetectionRealtimeEnabled: false,
   visionDetectionOverlay: null,
+  previewHoleRect: null,
 
   setLanguage: (lang) => set({ language: lang }),
 
@@ -65,4 +68,6 @@ export const createWorkspaceSlice = (set: SetState): WorkspaceSlice => ({
   setVisionDetectionRealtimeEnabled: (enabled) => set({ visionDetectionRealtimeEnabled: enabled }),
 
   setVisionDetectionOverlay: (overlay) => set({ visionDetectionOverlay: overlay }),
+
+  setPreviewHoleRect: (rect) => set({ previewHoleRect: rect }),
 });
