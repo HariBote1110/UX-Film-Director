@@ -6081,8 +6081,10 @@ mod tests {
         // 階層」と「複数 NSWindow 間の window order」が独立軸であり、subview の
         //ままでは HTML 側 UI を一律 overlay より上に置けない構造的制約があるため。
         //
-        // 契約: parent NSWindow を取得し、borderless / transparent な child
-        // NSWindow を new して addChildWindow:ordered: で attach すること。
+        // 契約: parent NSWindow を取得し、borderless / opaque black な child
+        // NSWindow を new して addChildWindow:ordered: で attach すること
+        // （透過するのは CAMetalLayer 側であり、window 自体は hole-punch の
+        // 黒背景として不透明である）。
         let source = include_str!("macos_overlay.rs");
 
         assert!(
@@ -6098,9 +6100,10 @@ mod tests {
             "the overlay child NSWindow must be created borderless (no titlebar/chrome)",
         );
         assert!(
-            source.contains("setOpaque") && source.contains("clearColor"),
-            "the overlay child NSWindow must be transparent (opaque=NO, background=clearColor) \
-             so it does not paint over the parent window when uncovered by live surface content",
+            source.contains("setOpaque") && source.contains("blackColor"),
+            "the overlay child NSWindow must be opaque with a black background \
+             (opaque=YES, background=blackColor) so the hole-punch region outside live \
+             surface content renders as opaque black instead of the desktop showing through",
         );
     }
 

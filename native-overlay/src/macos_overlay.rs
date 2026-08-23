@@ -556,9 +556,11 @@ fn attach_overlay_view_to_parent(
         apply_overlay_layer_contents_scale(overlay_view, contract.contents_scale);
         // Bug D — Metal layer は既定 `opaque = YES` で、これでは
         // `clear_native_overlay_live_surface` が drawable を全 pixel alpha=0
-        // に塗り替えても compositor が overlay 層を不透明扱いし、下層
-        // WebView / WebGPU presenter は常時不可視になる。opaque=NO を明示して
-        // transparent clear が下層まで抜けるようにする。
+        // に塗り替えても compositor が overlay 層を不透明扱いし、下層が
+        // 常時不可視になる。opaque=NO を明示して transparent clear が
+        // 下層まで抜けるようにする（hole-punch 方式では、抜けた先は
+        // child window 自身の不透明・黒背景 — `create_overlay_child_window`
+        // 参照）。
         apply_overlay_layer_opaque(overlay_view, false);
 
         let child_window = create_overlay_child_window(parent_view, contract)?;
@@ -662,11 +664,15 @@ unsafe fn create_overlay_child_window(
 
     let identifier = ns_string(NATIVE_OVERLAY_CHILD_WINDOW_IDENTIFIER)?;
     let () = msg_send![child_window, setIdentifier: identifier];
-    // 動画再生中の preview は不透明部分と透明部分が混在するため、window 自体を
-    // 非不透明・背景透明にしないと overlay に覆われていない領域が黒く塗られる。
-    let () = msg_send![child_window, setOpaque: NO];
-    let clear_colour: *mut Object = msg_send![class!(NSColor), clearColor];
-    let () = msg_send![child_window, setBackgroundColor: clear_colour];
+    // hole-punch 方式: この child NSWindow は透過 Electron parent window の
+    // 下層（below）に配置される。CAMetalLayer 自体は非不透明のまま
+    // （Bug D／`apply_overlay_layer_opaque`）で wgpu surface の
+    // `Color::TRANSPARENT` クリアを保つが、その透明ピクセルが抜けた先は
+    // デスクトップではなく、この child window 自身の不透明・黒背景でなければ
+    // ならない。そのため window 自体は setOpaque: YES + blackColor にする。
+    let () = msg_send![child_window, setOpaque: YES];
+    let black_colour: *mut Object = msg_send![class!(NSColor), blackColor];
+    let () = msg_send![child_window, setBackgroundColor: black_colour];
     let () = msg_send![child_window, setHasShadow: NO];
     // preview の操作（クリック/ドラッグ/スクラブ）は下層 WebView 側 React UI が
     // 一貫して処理する設計。既存 NSView の hitTest: nil 返しに加え、window
@@ -742,9 +748,11 @@ pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
 /// Bug D — Metal layer の `opaque` プロパティを反映する。
 /// `false` を渡すと `setOpaque: NO` が発行され、compositor は overlay 層の
 /// alpha を尊重するようになり、`LoadOp::Clear(TRANSPARENT)` の結果が
-/// 実際に下層まで抜ける。ただし `contentsScale` と同じく wgpu が layer を
-/// 差し替えるため、surface 構築後に `set_overlay_view_opaque` で再適用する
-/// 必要がある（Bug E）。attach 直後の一度きりの設定だけでは不十分。
+/// 実際に下層まで抜ける（hole-punch 方式では、抜けた先は child window
+/// 自身の不透明・黒背景 — `create_overlay_child_window` 参照）。ただし
+/// `contentsScale` と同じく wgpu が layer を差し替えるため、surface 構築後に
+/// `set_overlay_view_opaque` で再適用する必要がある（Bug E）。attach 直後の
+/// 一度きりの設定だけでは不十分。
 unsafe fn apply_overlay_layer_opaque(view: *mut Object, opaque: bool) {
     if view.is_null() {
         return;
