@@ -51,6 +51,7 @@ import {
 } from './remoteDeckServer';
 import { remoteDeckIpcChannels } from '../shared/remoteDeckProtocol';
 import { resolveRemoteDeckStaticDir } from './remoteDeckStaticDir';
+import { buildMainWindowOptions } from './mainWindowOptions';
 import { DEFAULT_REMOTE_DECK_LAYOUT } from '../shared/remoteDeckLayout';
 import {
   createRustScenePlaybackController,
@@ -480,22 +481,11 @@ function createWindow() {
   }
 
   const isExportTest = process.env['VITE_EXPORT_TEST'] === '1';
-  win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    icon: iconPath,
-    show: !isExportTest, // テスト実行時はウィンドウを非表示（2窓防止）
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: false,
-      webSecurity: false,
-      webviewTag: true,
-      devTools: !isExportTest,
-    },
-    titleBarStyle: 'hiddenInset',
-  })
+  win = new BrowserWindow(buildMainWindowOptions({
+    isExportTest,
+    iconPath,
+    preloadPath: path.join(__dirname, 'preload.js'),
+  }))
 
   // Enable SharedArrayBuffer for WASM Worker parallel PSD decompression.
   // SharedArrayBuffer requires Cross-Origin-Opener-Policy: same-origin and
