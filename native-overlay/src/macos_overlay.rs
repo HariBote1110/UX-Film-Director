@@ -5,6 +5,7 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 use objc::{class, msg_send, sel, sel_impl, Encode, Encoding};
 use std::collections::HashMap;
+use std::os::raw::c_void;
 use std::sync::Mutex;
 
 use crate::OverlayLayerContract;
@@ -59,6 +60,10 @@ const NS_BACKING_STORE_BUFFERED: usize = 2;
 /// 置く。parent 側が preview 矩形を透過するため、HTML 駆動 UI は一律
 /// overlay より前面になる。
 const NS_WINDOW_BELOW: isize = -1;
+/// `NSViewWidthSizable`（`NSAutoresizingMaskOptions`、値 2）。
+const NS_VIEW_WIDTH_SIZABLE: usize = 2;
+/// `NSViewHeightSizable`（`NSAutoresizingMaskOptions`、値 16）。
+const NS_VIEW_HEIGHT_SIZABLE: usize = 16;
 
 #[repr(C)]
 struct ObjcPoint {
@@ -564,7 +569,22 @@ fn attach_overlay_view_to_parent(
         apply_overlay_layer_opaque(overlay_view, false);
 
         let child_window = create_overlay_child_window(parent_view, contract)?;
-        let () = msg_send![child_window, setContentView: overlay_view];
+        // overlay（Metal）view は child window の contentView を直接置き換える
+        // のではなく、黒背景の layer-backed container view（contentView、
+        // `create_overlay_child_window` 参照）の subview として追加する。
+        // container の bounds いっぱいに追従させるため、frame は container
+        // 全体を覆う local_frame のまま、autoresizing mask で
+        // width/height sizable にする（geometry resync は container を
+        // 抱える window 自体の `setFrame:display:` で行われる）。
+        let container_view: *mut Object = msg_send![child_window, contentView];
+        if container_view.is_null() {
+            return Err("Native overlay child NSWindow contentView is unavailable.");
+        }
+        let () = msg_send![
+            overlay_view,
+            setAutoresizingMask: NS_VIEW_WIDTH_SIZABLE | NS_VIEW_HEIGHT_SIZABLE
+        ];
+        let () = msg_send![container_view, addSubview: overlay_view];
 
         let parent_window: *mut Object = msg_send![parent_view, window];
         if parent_window.is_null() {
@@ -668,12 +688,38 @@ unsafe fn create_overlay_child_window(
     // 下層（below）に配置される。Metal layer 自体は非不透明のまま
     // （Bug D／`apply_overlay_layer_opaque`）で wgpu surface の
     // `Color::TRANSPARENT` クリアを保つが、その透明ピクセルが抜けた先は
-    // デスクトップではなく、この child window 自身の不透明・黒背景でなければ
-    // ならない。そのため window 自体は setOpaque: YES + blackColor にする。
-    let () = msg_send![child_window, setOpaque: YES];
-    let black_colour: *mut Object = msg_send![class!(NSColor), blackColor];
-    let () = msg_send![child_window, setBackgroundColor: black_colour];
+    // デスクトップではなく不透明・黒でなければならない。
+    //
+    // 実機リグレッション: この黒塗りを window 自体の `setOpaque: YES` +
+    // `blackColor` で行うと、`addChildWindow:ordered:NSWindowBelow` された
+    // borderless child window が opaque になった途端、parent（Electron）
+    // window が overlay を再アタッチする場面（例: NSOpenPanel クローズ後）で
+    // app が deactivate し（key を失いメニューバーが暗くなる）、Stage Manager
+    // 環境では app がサイドストリップへ押し出される不具合が実機で観測された。
+    // window 自体は非不透明・透明背景のまま維持し（元の設計）、黒塗りは
+    // contentView（layer-backed な container view）の layer.backgroundColor
+    // で行う（下の container view 設定を参照）。
+    let () = msg_send![child_window, setOpaque: NO];
+    let clear_colour: *mut Object = msg_send![class!(NSColor), clearColor];
+    let () = msg_send![child_window, setBackgroundColor: clear_colour];
     let () = msg_send![child_window, setHasShadow: NO];
+
+    // window の既定 contentView を layer-backed な container view として使い、
+    // その layer.backgroundColor を黒にする。overlay（Metal）view はこの
+    // container の subview として追加され（`attach_overlay_view_to_parent`
+    // 参照）、透明な surface ピクセルはこの container の不透明・黒 layer まで
+    // 抜けるが、その先のデスクトップまでは抜けない。
+    let container_view: *mut Object = msg_send![child_window, contentView];
+    if !container_view.is_null() {
+        let () = msg_send![container_view, setWantsLayer: YES];
+        let container_layer: *mut Object = msg_send![container_view, layer];
+        if !container_layer.is_null() {
+            let black_colour: *mut Object = msg_send![class!(NSColor), blackColor];
+            let black_layer_colour: *mut c_void = msg_send![black_colour, CGColor];
+            let () = msg_send![container_layer, setBackgroundColor: black_layer_colour];
+            let () = msg_send![container_layer, setOpaque: YES];
+        }
+    }
     // preview の操作（クリック/ドラッグ/スクラブ）は下層 WebView 側 React UI が
     // 一貫して処理する設計。既存 NSView の hitTest: nil 返しに加え、window
     // レベルでもマウスイベントを無視させ、child window 自身がイベントを奪う
