@@ -665,7 +665,7 @@ unsafe fn create_overlay_child_window(
     let identifier = ns_string(NATIVE_OVERLAY_CHILD_WINDOW_IDENTIFIER)?;
     let () = msg_send![child_window, setIdentifier: identifier];
     // hole-punch 方式: この child NSWindow は透過 Electron parent window の
-    // 下層（below）に配置される。CAMetalLayer 自体は非不透明のまま
+    // 下層（below）に配置される。Metal layer 自体は非不透明のまま
     // （Bug D／`apply_overlay_layer_opaque`）で wgpu surface の
     // `Color::TRANSPARENT` クリアを保つが、その透明ピクセルが抜けた先は
     // デスクトップではなく、この child window 自身の不透明・黒背景でなければ
