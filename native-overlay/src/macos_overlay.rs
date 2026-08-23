@@ -1036,41 +1036,39 @@ mod obstruction_order_tests {
     use super::*;
 
     #[test]
-    fn obstructed_orders_child_below_relative_to_parent_window_number() {
-        // `orderWindow:NSWindowBelow relativeTo:0` は「parent の背後」ではなく
-        // 「画面上の全ウィンドウの最背面」への移動になる（AppKit 仕様）。
-        // Stage Manager 環境ではこの全域リオーダーが「アプリが退いた」と
-        // 解釈され、他アプリのステージが前面に出てしまう。遮蔽時の order は
-        // 必ず parent window の windowNumber を基準にすること。
-        assert_eq!(
-            resolve_obstruction_order(true, 42),
-            Some((NS_WINDOW_BELOW, 42)),
-        );
+    fn obstructed_resolves_to_order_below() {
+        // AppKit は `addChildWindow:ordered:` の際に記憶した order を、parent が
+        // 前面化・key 化されるたびに再適用する。`orderWindow:relativeTo:` で
+        // 一時的に順序を変えても、この再適用で覆されてしまう（実機で右クリック
+        // メニュー表示のたびに overlay が最前面へ戻るリグレッションを確認済み）。
+        // そのため遮蔽時は `removeChildWindow:` → `addChildWindow:ordered:
+        // NSWindowBelow` で親子関係そのものを NSWindowBelow で再登録し、AppKit
+        // が記憶する order 自体を書き換える。
+        assert_eq!(resolve_obstruction_order(true, 42), Some(NS_WINDOW_BELOW));
     }
 
     #[test]
-    fn unobstructed_orders_child_above_relative_to_parent_window_number() {
-        // 復帰側も relativeTo:0（= orderFront 相当、全ウィンドウの最前面）では
-        // なく parent の直上に留める。他アプリより前へ出る必要はない。
-        assert_eq!(
-            resolve_obstruction_order(false, 42),
-            Some((NS_WINDOW_ABOVE, 42)),
-        );
+    fn unobstructed_resolves_to_order_above() {
+        // 復帰側も同様に、記憶される order を NSWindowAbove（steady state）へ
+        // 書き換える。
+        assert_eq!(resolve_obstruction_order(false, 42), Some(NS_WINDOW_ABOVE));
     }
 
     #[test]
     fn missing_parent_window_number_skips_reordering_entirely() {
-        // parent の windowNumber が取れない（0 以下）場合に 0 のまま
-        // orderWindow: を呼ぶと全域リオーダーへ退化する。順序変更を
-        // 行わない（None）ことを Fail Safe として固定する。
+        // parent の windowNumber が取れない（0 以下）場合は、parent 自体が
+        // まだ確立していない可能性が高く、child の再登録を行わない（None）
+        // ことを Fail Safe として固定する。
         assert_eq!(resolve_obstruction_order(true, 0), None);
         assert_eq!(resolve_obstruction_order(false, -3), None);
     }
 
     #[test]
-    fn set_overlay_view_obstructed_must_not_hardcode_relative_to_zero() {
+    fn set_overlay_view_obstructed_reestablishes_child_relationship_via_add_child_window() {
         // ソースレベル固定: set_overlay_view_obstructed の本体が
-        // `relativeTo: 0` を直書きするリグレッションを防ぐ。
+        // `orderWindow:relativeTo:`（AppKit が記憶する order に上書きされ、
+        // parent の前面化のたびに元へ戻される）ではなく、`removeChildWindow:` →
+        // `addChildWindow:ordered:` で親子関係を再登録することを固定する。
         let source = include_str!("macos_overlay.rs");
         let fn_start = source
             .find("pub fn set_overlay_view_obstructed")
@@ -1079,10 +1077,22 @@ mod obstruction_order_tests {
         let fn_end = fn_source.find("\n}\n").map(|end| end + 3).unwrap_or(fn_source.len());
         let fn_body = &fn_source[..fn_end];
         assert!(
-            !fn_body.contains("relativeTo: 0"),
-            "set_overlay_view_obstructed must order the child window relative to the parent \
-             window's windowNumber (via resolve_obstruction_order), never relative to 0 — \
-             a global reorder makes Stage Manager bring other applications forward",
+            !fn_body.contains("orderWindow:"),
+            "set_overlay_view_obstructed must not use orderWindow:relativeTo: — AppKit \
+             re-applies the order it remembered from addChildWindow:ordered: every time the \
+             parent is ordered front / made key, undoing a temporary orderWindow: call",
+        );
+        assert!(
+            fn_body.contains("removeChildWindow:"),
+            "set_overlay_view_obstructed must call removeChildWindow: before re-adding the \
+             child, so the parent/child relationship (and AppKit's remembered order) is \
+             actually re-established rather than only temporarily reordered",
+        );
+        assert!(
+            fn_body.contains("addChildWindow:") && fn_body.contains("ordered:"),
+            "set_overlay_view_obstructed must re-add the child window via \
+             addChildWindow:ordered: so AppKit remembers the new order across future \
+             parent front/key events",
         );
         assert!(
             fn_body.contains("resolve_obstruction_order("),
