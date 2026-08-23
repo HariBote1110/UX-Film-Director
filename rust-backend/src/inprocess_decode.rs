@@ -1060,3 +1060,32 @@ mod platform {
         }
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod repro_export_ring {
+    use super::InProcessDecodeSession;
+    use std::path::Path;
+    use std::time::Instant;
+
+    #[test]
+    #[ignore]
+    fn repro_sequential_export_requests() {
+        let path = std::env::var("UXFD_REPRO_VIDEO").expect("UXFD_REPRO_VIDEO");
+        let session = InProcessDecodeSession::open_nv12_only(Path::new(&path), 1920, 1080).unwrap();
+        let start = Instant::now();
+        for frame in 0..3000u64 {
+            let pts = frame as f64 / 60.0;
+            let t = Instant::now();
+            match session.request_nv12_frame(pts) {
+                Ok(f) => {
+                    let lag = pts - f.pts_seconds;
+                    if t.elapsed().as_millis() > 200 || (frame % 60 == 0) {
+                        eprintln!("frame {frame} target {pts:.3} served {:.3} lag {lag:.3} took {:?}", f.pts_seconds, t.elapsed());
+                    }
+                }
+                Err(e) => panic!("frame {frame} pts {pts}: {e} (after {:?})", start.elapsed()),
+            }
+        }
+        eprintln!("ok in {:?}", start.elapsed());
+    }
+}
