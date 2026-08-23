@@ -1671,6 +1671,13 @@ fn attach_native_overlay_prepare_sync(
         {
             return AttachNativeOverlayPreparedState::Done(failure(&reason));
         }
+        // Bug 2 — attach 前に受け取っていた希望する遮蔽状態（例: 既に開いている
+        // modal）をここで再適用する。記録が無い、または false の場合は既定の
+        // NSWindowAbove（attach_overlay_view 内の addChildWindow:ordered:）の
+        // ままでよい。
+        if native_overlay_desired_obstructed(window_id) == Some(true) {
+            macos_overlay::set_overlay_view_obstructed(view_handle, true);
+        }
         return AttachNativeOverlayPreparedState::Done(NativeOverlayResponse {
             success: true,
             attached: true,
@@ -2998,14 +3005,51 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
 /// （`clear_native_overlay_live_surface` と同じ Fail Safe 方針）。
 /// GPU の live surface present はこの呼び出しの影響を受けず、動画再生は
 /// 継続する（§9 設計判断 3: orderOut ではなく order 下げを採用）。
+/// window_id → 「HTML 駆動 UI に遮蔽されている状態を希望するか」の
+/// 最新フラグのレジストリ。Bug 2 対応 — demand-driven attach（および開発時の
+/// 繰り返し attach）では、既に開いている modal の遮蔽フラグを renderer の
+/// attach 完了より先に受け取ることがある。renderer 未接続時にフラグを
+/// 捨ててしまうと、後続の attach が常定の `NSWindowAbove` で追加してしまい、
+/// 既に開いている modal の保護が失われる。detach 時にこのエントリを消す
+/// 必要はない（modal は attach 跨ぎで開いたままのことがあるため）。
+static NATIVE_OVERLAY_OBSTRUCTED_FLAGS: OnceLock<Mutex<HashMap<u32, bool>>> = OnceLock::new();
+
+fn native_overlay_obstructed_flags() -> &'static Mutex<HashMap<u32, bool>> {
+    NATIVE_OVERLAY_OBSTRUCTED_FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// `window_id` の希望する遮蔽状態を記録する。renderer が未接続でも常に記録
+/// する（Bug 2 — フラグを Fail Safe で捨てないため）。
+fn record_native_overlay_obstructed_flag(window_id: u32, obstructed: bool) {
+    if let Ok(mut flags) = native_overlay_obstructed_flags().lock() {
+        flags.insert(window_id, obstructed);
+    }
+}
+
+/// `window_id` について記録済みの希望する遮蔽状態を読み出す純粋な参照用
+/// ヘルパー。レジストリが存在しない、またはまだ何も記録されていない場合は
+/// `None`。
+fn native_overlay_desired_obstructed(window_id: u32) -> Option<bool> {
+    native_overlay_obstructed_flags()
+        .lock()
+        .ok()
+        .and_then(|flags| flags.get(&window_id).copied())
+}
+
 pub fn set_native_overlay_obstructed(window_id: u32, obstructed: bool) -> Result<(), String> {
+    // Bug 2 — renderer がまだ attach されていなくても、希望する遮蔽状態は
+    // 必ず記録する。attach 完了時にこのレジストリから読み出して適用する
+    // （下の attach_native_overlay_prepare_sync 参照）。
+    record_native_overlay_obstructed_flag(window_id, obstructed);
+
     let renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
-    let renderer = renderers
-        .get(&window_id)
-        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    let Some(renderer) = renderers.get(&window_id) else {
+        // renderer が未接続でもフラグは既に記録済みなので Err にしない。
+        return Ok(());
+    };
     #[cfg(target_os = "macos")]
     {
         macos_overlay::set_overlay_view_obstructed(renderer.view_handle, obstructed);
