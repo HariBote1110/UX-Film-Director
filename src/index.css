@@ -425,9 +425,13 @@ input[type="range"] {
 }
 
 .preview-canvas-container {
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8), 
+  /* hole-punch方式では native overlay（child NSWindow）が親ウィンドウの背面に
+     あり、プレビュー矩形の祖先は全て透明でなければ動画が透けない。
+     フォールバック時のダーク背景は containerRef の inline style
+     (resolvePreviewPaneBackground)で適用される。*/
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8),
               0 0 0 1px var(--border-subtle);
-  background: #000;
+  background: transparent;
 }
 
 .shared-renderer-preview-diagnostics {
