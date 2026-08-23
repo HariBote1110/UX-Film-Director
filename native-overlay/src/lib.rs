@@ -6038,6 +6038,21 @@ mod tests {
     }
 
     #[test]
+    fn native_overlay_no_longer_exports_set_obstructed_through_napi() {
+        // hole-punch 方式への切替により、旧 obstructed トグル API
+        // （HTML UI が preview に重なったときだけ overlay を最前面から下げる
+        // 方式）は廃止する。overlay は常に parent の背後にあり、HTML UI は
+        // 常に前面なので、この napi export 自体が不要になった。
+        let source = include_str!("lib.rs");
+
+        assert!(
+            !source.contains("setNativeOverlayObstructed"),
+            "lib.rs must no longer export setNativeOverlayObstructed now that the overlay is \
+             always ordered below the parent window (hole-punch design)",
+        );
+    }
+
+    #[test]
     fn set_native_overlay_obstructed_records_flag_even_when_not_attached() {
         // Bug 2 — 段階的/デマンド駆動の attach（開発時の再 attach を含む）では、
         // 既に開いている modal の遮蔽フラグを attach 前に受け取ることがある。

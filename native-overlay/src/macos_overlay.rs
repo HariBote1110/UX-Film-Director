@@ -1039,6 +1039,38 @@ mod geometry_resync_teardown_safety_tests {
 }
 
 #[cfg(test)]
+mod hole_punch_order_tests {
+    // hole-punch 方式（parent BrowserWindow が preview 矩形を透過し、overlay は
+    // 常に parent の背後に置かれる設計）への切替を固定する契約テスト。旧
+    // obstructed トグル（NSWindowAbove を steady state とし、HTML UI が重なる
+    // ときだけ NSWindowBelow へ切り替える方式）はもう存在しない。
+
+    #[test]
+    fn attach_overlay_view_to_parent_orders_child_below_parent() {
+        // hole-punch 方式では overlay child NSWindow は常に parent の背後に
+        // 置かれ、HTML 駆動 UI が常に前面に来る。旧来の "既定は最前面"
+        // （NSWindowAbove）ではなく、addChildWindow:ordered: へ渡す値そのものが
+        // NSWindowBelow であることをソースレベルで固定する。
+        let source = include_str!("macos_overlay.rs");
+        let fn_start = source
+            .find("fn attach_overlay_view_to_parent")
+            .expect("attach_overlay_view_to_parent must exist");
+        let fn_source = &source[fn_start..];
+        let fn_end = fn_source
+            .find("\n}\n")
+            .map(|end| end + 3)
+            .unwrap_or(fn_source.len());
+        let fn_body = &fn_source[..fn_end];
+
+        assert!(
+            fn_body.contains("addChildWindow: child_window ordered: NS_WINDOW_BELOW"),
+            "attach_overlay_view_to_parent must addChildWindow with NS_WINDOW_BELOW so the \
+             overlay always stays behind the parent BrowserWindow (hole-punch design)",
+        );
+    }
+}
+
+#[cfg(test)]
 mod obstruction_order_tests {
     use super::*;
 
