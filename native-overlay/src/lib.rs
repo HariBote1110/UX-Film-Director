@@ -6105,6 +6105,32 @@ mod tests {
     }
 
     #[test]
+    fn macos_overlay_child_window_paints_opaque_black_behind_hole_punch_surface() {
+        // hole-punch 方式（child NSWindow を透過 Electron parent の下層に配置）
+        // では、preview 領域外（wgpu surface が `Color::TRANSPARENT` へクリアする
+        // 部分）を child window 自身が黒で塗らないと、デスクトップがそのまま
+        // 透けて見えてしまう。CAMetalLayer 側の `setOpaque: NO`（Bug D）は維持した
+        // まま、child NSWindow 自体は不透明・黒背景にする契約を固定する。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("setOpaque: YES"),
+            "the overlay child NSWindow must be opaque (setOpaque: YES) so it paints black \
+             behind the transparent wgpu surface instead of letting the desktop show through",
+        );
+        assert!(
+            source.contains("blackColor"),
+            "the overlay child NSWindow background must be blackColor so the hole-punch \
+             region outside live video content renders as opaque black, not transparent",
+        );
+        assert!(
+            !source.contains("clearColor"),
+            "the overlay child NSWindow must no longer use clearColor now that it sits \
+             below the transparent Electron parent window in the hole-punch design",
+        );
+    }
+
+    #[test]
     fn macos_overlay_child_window_ignores_mouse_events_for_hit_through() {
         // preview の操作（クリック/ドラッグ/スクラブ）はすべて下層 WebView 側の
         // React UI が処理する設計であるため、child NSWindow 自身がマウスイベントを
