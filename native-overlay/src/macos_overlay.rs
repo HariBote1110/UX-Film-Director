@@ -728,34 +728,34 @@ pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
     }
 }
 
-/// Bug E（計画書 §4 Phase E2・§9 設計判断 3）— overlay の child NSWindow の
-/// z-order を切り替える。`obstructed=true` で `NSWindowBelow`（parent の
-/// 背後）、`obstructed=false` で `NSWindowAbove`（steady state、最前面）に
-/// `orderWindow:relativeTo:` する。`orderOut:`（完全非表示化）は使わない —
-/// GPU の live surface present はこの呼び出しの影響を受けず、動画再生は
-/// 継続する（表示位置だけが変わる）。
+/// Bug E（計画書 §4 Phase E2・§9 設計判断 3・ADR 追記）— overlay の child
+/// NSWindow の z-order を切り替える。`obstructed=true` で `NSWindowBelow`
+/// （parent の背後）、`obstructed=false` で `NSWindowAbove`（steady state、
+/// 最前面）にする。`orderOut:`（完全非表示化）は使わない — GPU の live
+/// surface present はこの呼び出しの影響を受けず、動画再生は継続する
+/// （表示位置だけが変わる）。
+///
+/// AppKit は `addChildWindow:ordered:` で渡した order を parent 側で記憶し、
+/// parent が前面化・key 化されるたびにその order を再適用する（右クリック
+/// メニュー表示のたびに overlay が最前面へ戻るリグレッションを実機で確認
+/// 済み）。そのため一時的な順序変更 API ではなく、`removeChildWindow:` →
+/// `addChildWindow:ordered:` で親子関係そのものを再登録し、AppKit が記憶
+/// する order 自体を書き換える。
 ///
 /// `view_handle` は attach が返した overlay NSView のハンドルで、
 /// `set_overlay_view_contents_scale` / `set_overlay_view_opaque` と同じ
 /// 引数形。実際に order を切り替えるのは overlay NSView の `window`
 /// （= attach が addChildWindow した child NSWindow）である。
-/// 遮蔽状態に応じた `orderWindow:relativeTo:` の引数を解決する純関数。
+/// 遮蔽状態に応じた order（`NSWindowBelow` / `NSWindowAbove`）を解決する
+/// 純関数。
 ///
-/// `relativeTo:` は常に parent window の `windowNumber` を指す。0 を渡すと
-/// AppKit は「全ウィンドウ基準」（Below=最背面 / Above=最前面）として解釈し、
-/// Stage Manager 環境では全域リオーダーが「アプリの後退」と見なされて他アプリの
-/// ステージが前面に出てしまう（TL 右クリックメニュー表示でアプリが背面に落ちる
-/// 実害を確認済み）。parent の windowNumber が取得できない場合（0 以下）は
-/// 順序変更そのものを行わない（`None`）。
-fn resolve_obstruction_order(
-    obstructed: bool,
-    parent_window_number: isize,
-) -> Option<(isize, isize)> {
+/// parent の `windowNumber` が取得できない場合（0 以下）は、parent 自体が
+/// まだ確立していない可能性が高く、順序変更そのものを行わない（`None`）。
+fn resolve_obstruction_order(obstructed: bool, parent_window_number: isize) -> Option<isize> {
     if parent_window_number <= 0 {
         return None;
     }
-    let order = if obstructed { NS_WINDOW_BELOW } else { NS_WINDOW_ABOVE };
-    Some((order, parent_window_number))
+    Some(if obstructed { NS_WINDOW_BELOW } else { NS_WINDOW_ABOVE })
 }
 
 pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool) {
@@ -780,11 +780,18 @@ pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool) {
             return;
         }
         let parent_window_number: isize = msg_send![parent_window, windowNumber];
-        let Some((order, relative_to)) = resolve_obstruction_order(obstructed, parent_window_number)
-        else {
+        let Some(order) = resolve_obstruction_order(obstructed, parent_window_number) else {
             return;
         };
-        let () = msg_send![child_window, orderWindow: order relativeTo: relative_to];
+        // AppKit は addChildWindow:ordered: で渡した order を parent 側で記憶し、
+        // parent が前面化・key 化されるたびにその order を再適用してしまう
+        // （右クリックメニュー表示のたびに overlay が最前面へ戻るリグレッション
+        // を実機で確認済み）。ウィンドウ順序を一時的に変更するだけの API では
+        // この再適用で覆されるため、親子関係そのものを removeChildWindow: →
+        // addChildWindow:ordered: で再登録し、AppKit が記憶する order 自体を
+        // 書き換える。
+        let () = msg_send![parent_window, removeChildWindow: child_window];
+        let () = msg_send![parent_window, addChildWindow: child_window ordered: order];
     }
 }
 
