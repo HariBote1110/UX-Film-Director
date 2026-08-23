@@ -67,14 +67,6 @@ pub struct NativeOverlayDetachPayload {
     pub native_window_handle: Option<Buffer>,
 }
 
-/// Bug E（計画書 §4 Phase E2）— `ui:preview-obstruction-changed` を受けた
-/// main が呼ぶ z-order toggle の payload。
-#[napi(object)]
-pub struct NativeOverlaySetObstructedPayload {
-    pub window_id: u32,
-    pub obstructed: bool,
-}
-
 /// 選択デコレーション（選択枠・リサイズハンドル）— renderer（Viewport.tsx）が
 /// `getObjectWorldCorners` の world 座標 quad（project 座標系・回転込みの四隅）を
 /// 送る payload。空配列はデコレーション解除。
@@ -1671,13 +1663,6 @@ fn attach_native_overlay_prepare_sync(
         {
             return AttachNativeOverlayPreparedState::Done(failure(&reason));
         }
-        // Bug 2 — attach 前に受け取っていた希望する遮蔽状態（例: 既に開いている
-        // modal）をここで再適用する。記録が無い、または false の場合は既定の
-        // NSWindowAbove（attach_overlay_view 内の addChildWindow:ordered:）の
-        // ままでよい。
-        if native_overlay_desired_obstructed(window_id) == Some(true) {
-            macos_overlay::set_overlay_view_obstructed(view_handle, true);
-        }
         return AttachNativeOverlayPreparedState::Done(NativeOverlayResponse {
             success: true,
             attached: true,
@@ -2100,41 +2085,6 @@ fn clear_native_overlay_live_surface_inner(
             reason: None,
             release_frame: None,
             live_prepared_clip_count: Some(0.0),
-            live_readback_non_transparent_pixels: None,
-            live_readback_checksum: None,
-            live_readback_export_max_channel_delta: None,
-        },
-        Err(reason) => failure(&reason),
-    }
-}
-
-/// Bug E（計画書 §4 Phase E2）— electron/nativeOverlayMainBridge.ts の
-/// `setObstructed` から呼ばれる napi export。`ui:preview-obstruction-changed`
-/// の debounce・overlay overlap 最終判定は main 側（TypeScript）の責務で、
-/// ここでは受け取った `obstructed` をそのまま child NSWindow の z-order
-/// 切替へ反映するだけにする。
-#[napi(js_name = "setNativeOverlayObstructed")]
-pub fn set_native_overlay_obstructed_napi(
-    payload: NativeOverlaySetObstructedPayload,
-) -> NativeOverlayResponse {
-    match catch_unwind(AssertUnwindSafe(|| {
-        set_native_overlay_obstructed_inner(payload)
-    })) {
-        Ok(response) => response,
-        Err(_) => failure("Native overlay set obstructed panicked."),
-    }
-}
-
-fn set_native_overlay_obstructed_inner(
-    payload: NativeOverlaySetObstructedPayload,
-) -> NativeOverlayResponse {
-    match set_native_overlay_obstructed(payload.window_id, payload.obstructed) {
-        Ok(()) => NativeOverlayResponse {
-            success: true,
-            attached: true,
-            reason: None,
-            release_frame: None,
-            live_prepared_clip_count: None,
             live_readback_non_transparent_pixels: None,
             live_readback_checksum: None,
             live_readback_export_max_channel_delta: None,
@@ -2995,73 +2945,6 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
             .map_err(|error| {
                 format!("Native overlay live surface transparent clear failed: {error}")
             })?;
-    }
-    Ok(())
-}
-
-/// Bug E（計画書 §4 Phase E2・ADR-013）— `ui:preview-obstruction-changed` を
-/// main で受けた結果として、attach 済みの overlay child NSWindow の z-order
-/// を切り替える。attach されていない `window_id` は明示的な Err を返す
-/// （`clear_native_overlay_live_surface` と同じ Fail Safe 方針）。
-/// GPU の live surface present はこの呼び出しの影響を受けず、動画再生は
-/// 継続する（§9 設計判断 3: orderOut ではなく order 下げを採用）。
-/// window_id → 「HTML 駆動 UI に遮蔽されている状態を希望するか」の
-/// 最新フラグのレジストリ。Bug 2 対応 — demand-driven attach（および開発時の
-/// 繰り返し attach）では、既に開いている modal の遮蔽フラグを renderer の
-/// attach 完了より先に受け取ることがある。renderer 未接続時にフラグを
-/// 捨ててしまうと、後続の attach が常定の `NSWindowAbove` で追加してしまい、
-/// 既に開いている modal の保護が失われる。detach 時にこのエントリを消す
-/// 必要はない（modal は attach 跨ぎで開いたままのことがあるため）。
-static NATIVE_OVERLAY_OBSTRUCTED_FLAGS: OnceLock<Mutex<HashMap<u32, bool>>> = OnceLock::new();
-
-fn native_overlay_obstructed_flags() -> &'static Mutex<HashMap<u32, bool>> {
-    NATIVE_OVERLAY_OBSTRUCTED_FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-/// `window_id` の希望する遮蔽状態を記録する。renderer が未接続でも常に記録
-/// する（Bug 2 — フラグを Fail Safe で捨てないため）。
-fn record_native_overlay_obstructed_flag(window_id: u32, obstructed: bool) {
-    if let Ok(mut flags) = native_overlay_obstructed_flags().lock() {
-        flags.insert(window_id, obstructed);
-    }
-}
-
-/// `window_id` について記録済みの希望する遮蔽状態を読み出す純粋な参照用
-/// ヘルパー。レジストリが存在しない、またはまだ何も記録されていない場合は
-/// `None`。
-fn native_overlay_desired_obstructed(window_id: u32) -> Option<bool> {
-    native_overlay_obstructed_flags()
-        .lock()
-        .ok()
-        .and_then(|flags| flags.get(&window_id).copied())
-}
-
-pub fn set_native_overlay_obstructed(window_id: u32, obstructed: bool) -> Result<(), String> {
-    // Bug 2 — renderer がまだ attach されていなくても、希望する遮蔽状態は
-    // 必ず記録する。attach 完了時にこのレジストリから読み出して適用する
-    // （下の attach_native_overlay_prepare_sync 参照）。
-    record_native_overlay_obstructed_flag(window_id, obstructed);
-
-    let renderers = LIVE_OVERLAY_RENDERERS
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
-    let Some(renderer) = renderers.get(&window_id) else {
-        // renderer が未接続でもフラグは既に記録済みなので Err にしない。
-        return Ok(());
-    };
-    #[cfg(target_os = "macos")]
-    {
-        macos_overlay::set_overlay_view_obstructed(renderer.view_handle, obstructed);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        win32_overlay::set_overlay_window_obstructed(renderer.overlay_hwnd, obstructed);
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        let _ = renderer;
-        let _ = obstructed;
     }
     Ok(())
 }
@@ -6044,47 +5927,16 @@ mod tests {
         // 方式）は廃止する。overlay は常に parent の背後にあり、HTML UI は
         // 常に前面なので、この napi export 自体が不要になった。
         let source = include_str!("lib.rs");
+        // 素直な文字列リテラルで書くとこのテスト自身の assert メッセージが
+        // include_str! の自己参照に一致してしまうため、実行時に連結して
+        // needle を組み立てる。
+        let removed_export_name = ["setNative", "OverlayObstructed"].concat();
 
         assert!(
-            !source.contains("setNativeOverlayObstructed"),
-            "lib.rs must no longer export setNativeOverlayObstructed now that the overlay is \
-             always ordered below the parent window (hole-punch design)",
+            !source.contains(&removed_export_name),
+            "lib.rs must no longer export the removed obstructed-toggle napi function now that \
+             the overlay is always ordered below the parent window (hole-punch design)",
         );
-    }
-
-    #[test]
-    fn set_native_overlay_obstructed_records_flag_even_when_not_attached() {
-        // Bug 2 — 段階的/デマンド駆動の attach（開発時の再 attach を含む）では、
-        // 既に開いている modal の遮蔽フラグを attach 前に受け取ることがある。
-        // 以前は renderer が未登録だと Err を返し、フラグ自体が失われていた。
-        // 今は必ずフラグを記録して Ok を返し、renderer が未接続でもエラーには
-        // しない（後続の attach 完了時にレジストリから読み出して適用する）。
-        let unused_window_id = u32::MAX - 4242;
-        set_native_overlay_obstructed(unused_window_id, true)
-            .expect("recording the obstructed flag must succeed even when nothing is attached");
-        assert_eq!(
-            native_overlay_desired_obstructed(unused_window_id),
-            Some(true),
-            "the desired-obstructed flag must be readable from the registry after being set",
-        );
-    }
-
-    #[test]
-    fn native_overlay_desired_obstructed_defaults_to_none_for_unknown_window() {
-        let unknown_window_id = u32::MAX - 9999;
-        assert_eq!(native_overlay_desired_obstructed(unknown_window_id), None);
-    }
-
-    #[test]
-    fn native_overlay_exports_set_obstructed_through_napi() {
-        // Bug E（計画書 §4 Phase E2）— electron/nativeOverlayMainBridge.ts の
-        // setObstructed から呼べる napi export
-        // `setNativeOverlayObstructed(payload: { windowId, obstructed })` を
-        // 用意する契約を固定する。
-        let source = include_str!("lib.rs");
-
-        assert!(source.contains("#[napi(js_name = \"setNativeOverlayObstructed\")]"));
-        assert!(source.contains("pub fn set_native_overlay_obstructed"));
     }
 
     #[test]
@@ -6306,37 +6158,6 @@ mod tests {
             "detach must call removeChildWindow: to sever the parent/child NSWindow relationship \
              that attach established via addChildWindow:ordered:",
         );
-    }
-
-    #[test]
-    fn macos_overlay_exposes_set_overlay_view_obstructed_public_api() {
-        // Bug E（計画書 §4 Phase E2）— HTML 駆動 UI（modal 等）が preview に
-        // 重なって開いたとき、child NSWindow の z-order を下げる（`order`
-        // 下げ）ための公開 API。GPU present は止めず、表示位置（z-order）
-        // だけを切り替える設計（計画書 §9 の設計判断 3: 再生継続性を優先し
-        // orderOut ではなく order 下げを採用）。
-        let source = include_str!("macos_overlay.rs");
-
-        assert!(
-            source.contains("pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool)"),
-            "macos_overlay must expose set_overlay_view_obstructed(view_handle, obstructed) so \
-             callers can toggle the child NSWindow z-order when a preview-overlapping HTML UI opens",
-        );
-    }
-
-    #[test]
-    fn macos_overlay_obstructed_toggle_uses_order_below_not_order_out() {
-        // 計画書 §9 設計判断 3 の確定: modal open 時は `orderOut:`（完全隠し）
-        // ではなく `NSWindowBelow` への order 変更を使う。再生継続性を優先し、
-        // GPU present を止めないため。
-        let source = include_str!("macos_overlay.rs");
-
-        assert!(
-            source.contains("NSWindowBelow"),
-            "the obstructed toggle must lower the child window with NSWindowBelow (not orderOut:), \
-             so live surface present keeps running while the child window is simply behind the parent",
-        );
-        assert!(source.contains("fn set_overlay_view_obstructed"),);
     }
 
     #[test]

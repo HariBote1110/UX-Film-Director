@@ -54,13 +54,10 @@ const RESYNC_OBSERVER_IVAR_VALID: &str = "valid";
 const NS_WINDOW_STYLE_MASK_BORDERLESS: usize = 0;
 /// `NSBackingStoreBuffered`（AppKit 定数、値 2）。
 const NS_BACKING_STORE_BUFFERED: usize = 2;
-/// `NSWindowAbove`（`NSWindowOrderingMode`、値 1）。steady state での既定 order。
-const NS_WINDOW_ABOVE: isize = 1;
-/// `NSWindowBelow`（`NSWindowOrderingMode`、値 -1）。
-/// Bug E（計画書 §4 Phase E2・§9 設計判断 3）— preview に重なる HTML UI が
-/// 開いている間、child NSWindow をこの order で parent の背後に下げる。
-/// `orderOut:`（完全に非表示化）ではなく order 下げを使うのは、GPU の
-/// live surface present を止めずに再生を継続させるため。
+/// `NSWindowBelow`（`NSWindowOrderingMode`、値 -1）。hole-punch 方式（ADR
+/// 追記）— overlay の child NSWindow は常にこの order で parent の背後に
+/// 置く。parent 側が preview 矩形を透過するため、HTML 駆動 UI は一律
+/// overlay より前面になる。
 const NS_WINDOW_BELOW: isize = -1;
 
 #[repr(C)]
@@ -577,9 +574,16 @@ fn attach_overlay_view_to_parent(
         // window order」が独立軸のため、subview のままでは HTML 駆動 UI
         // （context menu / popover / tooltip / modal / dropdown）を一律 overlay より
         // 上に置くことが構造的に不可能だった。child window 化により OS 任せの
-        // z-order 切替（Phase E2 の order 下げ/上げ）が可能になる。
-        // 既定 order は `NSWindowAbove`（steady state。overlay は最前面）。
-        let () = msg_send![parent_window, addChildWindow: child_window ordered: NS_WINDOW_ABOVE];
+        // z-order 制御が可能になる。
+        //
+        // hole-punch 方式（ADR 追記）— parent BrowserWindow 側が preview 矩形を
+        // 透過（背景色を transparent、レイアウト上その領域を空ける）し、overlay
+        // の child NSWindow は常に parent の背後（`NS_WINDOW_BELOW`）に置く。
+        // HTML 駆動 UI は常に parent 側の通常の view 階層に描かれるため、
+        // z-order を切り替えなくても一律 overlay より前面になる。旧来の
+        // 「既定は最前面、HTML UI と重なるときだけ order を下げる」トグル方式
+        // （obstructed API・Bug E の Phase E2）は本設計により不要になった。
+        let () = msg_send![parent_window, addChildWindow: child_window ordered: NS_WINDOW_BELOW];
 
         // Bug E（ADR-013・計画書 §6 リスク退避）— addChildWindow の既定追従を
         // 過信せず、parent window の移動・リサイズ通知を監視して child window
@@ -669,6 +673,13 @@ unsafe fn create_overlay_child_window(
     // レベルでもマウスイベントを無視させ、child window 自身がイベントを奪う
     // 経路を完全に断つ。
     let () = msg_send![child_window, setIgnoresMouseEvents: YES];
+    // key/main を奪わないことの確認（hole-punch 方式でも重要 — overlay は常に
+    // parent の背後にあるが、万一 key window になるとメニュー/ショートカット
+    // の受け手が overlay 側へ奪われる）。この child window は素の `NSWindow`
+    // （styleMask は `NS_WINDOW_STYLE_MASK_BORDERLESS` のみ）で、独自の
+    // `canBecomeKeyWindow` オーバーライドは持たない。AppKit の既定実装は
+    // borderless window に対して `canBecomeKeyWindow`/`canBecomeMainWindow`
+    // ともに `NO` を返すため、追加のオーバーライドは不要。
     // Mission Control / Spaces 切替時に parent window に追従させる。
     let parent_collection_behavior: usize = msg_send![parent_window, collectionBehavior];
     let () = msg_send![child_window, setCollectionBehavior: parent_collection_behavior];
@@ -725,73 +736,6 @@ pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
             return;
         }
         apply_overlay_layer_opaque(view, opaque);
-    }
-}
-
-/// Bug E（計画書 §4 Phase E2・§9 設計判断 3・ADR 追記）— overlay の child
-/// NSWindow の z-order を切り替える。`obstructed=true` で `NSWindowBelow`
-/// （parent の背後）、`obstructed=false` で `NSWindowAbove`（steady state、
-/// 最前面）にする。`orderOut:`（完全非表示化）は使わない — GPU の live
-/// surface present はこの呼び出しの影響を受けず、動画再生は継続する
-/// （表示位置だけが変わる）。
-///
-/// AppKit は `addChildWindow:ordered:` で渡した order を parent 側で記憶し、
-/// parent が前面化・key 化されるたびにその order を再適用する（右クリック
-/// メニュー表示のたびに overlay が最前面へ戻るリグレッションを実機で確認
-/// 済み）。そのため一時的な順序変更 API ではなく、`removeChildWindow:` →
-/// `addChildWindow:ordered:` で親子関係そのものを再登録し、AppKit が記憶
-/// する order 自体を書き換える。
-///
-/// `view_handle` は attach が返した overlay NSView のハンドルで、
-/// `set_overlay_view_contents_scale` / `set_overlay_view_opaque` と同じ
-/// 引数形。実際に order を切り替えるのは overlay NSView の `window`
-/// （= attach が addChildWindow した child NSWindow）である。
-/// 遮蔽状態に応じた order（`NSWindowBelow` / `NSWindowAbove`）を解決する
-/// 純関数。
-///
-/// parent の `windowNumber` が取得できない場合（0 以下）は、parent 自体が
-/// まだ確立していない可能性が高く、順序変更そのものを行わない（`None`）。
-fn resolve_obstruction_order(obstructed: bool, parent_window_number: isize) -> Option<isize> {
-    if parent_window_number <= 0 {
-        return None;
-    }
-    Some(if obstructed { NS_WINDOW_BELOW } else { NS_WINDOW_ABOVE })
-}
-
-pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool) {
-    if view_handle == 0 {
-        return;
-    }
-    let view = view_handle as *mut Object;
-    if view.is_null() {
-        return;
-    }
-    unsafe {
-        let is_main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
-        if is_main_thread == NO {
-            return;
-        }
-        let child_window: *mut Object = msg_send![view, window];
-        if child_window.is_null() {
-            return;
-        }
-        let parent_window: *mut Object = msg_send![child_window, parentWindow];
-        if parent_window.is_null() {
-            return;
-        }
-        let parent_window_number: isize = msg_send![parent_window, windowNumber];
-        let Some(order) = resolve_obstruction_order(obstructed, parent_window_number) else {
-            return;
-        };
-        // AppKit は addChildWindow:ordered: で渡した order を parent 側で記憶し、
-        // parent が前面化・key 化されるたびにその order を再適用してしまう
-        // （右クリックメニュー表示のたびに overlay が最前面へ戻るリグレッション
-        // を実機で確認済み）。ウィンドウ順序を一時的に変更するだけの API では
-        // この再適用で覆されるため、親子関係そのものを removeChildWindow: →
-        // addChildWindow:ordered: で再登録し、AppKit が記憶する order 自体を
-        // 書き換える。
-        let () = msg_send![parent_window, removeChildWindow: child_window];
-        let () = msg_send![parent_window, addChildWindow: child_window ordered: order];
     }
 }
 
@@ -1066,77 +1010,6 @@ mod hole_punch_order_tests {
             fn_body.contains("addChildWindow: child_window ordered: NS_WINDOW_BELOW"),
             "attach_overlay_view_to_parent must addChildWindow with NS_WINDOW_BELOW so the \
              overlay always stays behind the parent BrowserWindow (hole-punch design)",
-        );
-    }
-}
-
-#[cfg(test)]
-mod obstruction_order_tests {
-    use super::*;
-
-    #[test]
-    fn obstructed_resolves_to_order_below() {
-        // AppKit は `addChildWindow:ordered:` の際に記憶した order を、parent が
-        // 前面化・key 化されるたびに再適用する。`orderWindow:relativeTo:` で
-        // 一時的に順序を変えても、この再適用で覆されてしまう（実機で右クリック
-        // メニュー表示のたびに overlay が最前面へ戻るリグレッションを確認済み）。
-        // そのため遮蔽時は `removeChildWindow:` → `addChildWindow:ordered:
-        // NSWindowBelow` で親子関係そのものを NSWindowBelow で再登録し、AppKit
-        // が記憶する order 自体を書き換える。
-        assert_eq!(resolve_obstruction_order(true, 42), Some(NS_WINDOW_BELOW));
-    }
-
-    #[test]
-    fn unobstructed_resolves_to_order_above() {
-        // 復帰側も同様に、記憶される order を NSWindowAbove（steady state）へ
-        // 書き換える。
-        assert_eq!(resolve_obstruction_order(false, 42), Some(NS_WINDOW_ABOVE));
-    }
-
-    #[test]
-    fn missing_parent_window_number_skips_reordering_entirely() {
-        // parent の windowNumber が取れない（0 以下）場合は、parent 自体が
-        // まだ確立していない可能性が高く、child の再登録を行わない（None）
-        // ことを Fail Safe として固定する。
-        assert_eq!(resolve_obstruction_order(true, 0), None);
-        assert_eq!(resolve_obstruction_order(false, -3), None);
-    }
-
-    #[test]
-    fn set_overlay_view_obstructed_reestablishes_child_relationship_via_add_child_window() {
-        // ソースレベル固定: set_overlay_view_obstructed の本体が
-        // `orderWindow:relativeTo:`（AppKit が記憶する order に上書きされ、
-        // parent の前面化のたびに元へ戻される）ではなく、`removeChildWindow:` →
-        // `addChildWindow:ordered:` で親子関係を再登録することを固定する。
-        let source = include_str!("macos_overlay.rs");
-        let fn_start = source
-            .find("pub fn set_overlay_view_obstructed")
-            .expect("set_overlay_view_obstructed must exist");
-        let fn_source = &source[fn_start..];
-        let fn_end = fn_source.find("\n}\n").map(|end| end + 3).unwrap_or(fn_source.len());
-        let fn_body = &fn_source[..fn_end];
-        assert!(
-            !fn_body.contains("orderWindow:"),
-            "set_overlay_view_obstructed must not use orderWindow:relativeTo: — AppKit \
-             re-applies the order it remembered from addChildWindow:ordered: every time the \
-             parent is ordered front / made key, undoing a temporary orderWindow: call",
-        );
-        assert!(
-            fn_body.contains("removeChildWindow:"),
-            "set_overlay_view_obstructed must call removeChildWindow: before re-adding the \
-             child, so the parent/child relationship (and AppKit's remembered order) is \
-             actually re-established rather than only temporarily reordered",
-        );
-        assert!(
-            fn_body.contains("addChildWindow:") && fn_body.contains("ordered:"),
-            "set_overlay_view_obstructed must re-add the child window via \
-             addChildWindow:ordered: so AppKit remembers the new order across future \
-             parent front/key events",
-        );
-        assert!(
-            fn_body.contains("resolve_obstruction_order("),
-            "set_overlay_view_obstructed must resolve its ordering through \
-             resolve_obstruction_order so the pure-function tests cover the actual behaviour",
         );
     }
 }

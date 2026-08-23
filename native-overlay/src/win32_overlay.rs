@@ -34,7 +34,7 @@ use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVE
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, SetWindowPos, ShowWindow, CS_HREDRAW,
-    CS_VREDRAW, EVENT_OBJECT_LOCATIONCHANGE, HWND_BOTTOM, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE,
+    CS_VREDRAW, EVENT_OBJECT_LOCATIONCHANGE, SWP_NOACTIVATE, SWP_NOMOVE,
     SWP_NOSIZE, SWP_NOZORDER, SW_SHOWNOACTIVATE, WINEVENT_OUTOFCONTEXT, WNDCLASSW,
     WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
 };
@@ -255,36 +255,6 @@ unsafe fn unregister_geometry_resync_hook(owner: HWND) {
     };
     if let Some(state) = registry.remove(&(owner.0 as usize)) {
         let _ = UnhookWinEvent(HWINEVENTHOOK(state.hook as *mut c_void));
-    }
-}
-
-/// Bug E 相当（`markdown/Windows_Port_Plan.md` Phase 6）— overlay に隠れる
-/// HTML UI を前面に出したいとき、overlay の z-order を一時的に下げる。
-/// macOS の `set_overlay_view_obstructed`（child NSWindow の
-/// `orderWindow:relativeTo:`）に対応する Win32 版。
-///
-/// `WS_POPUP` ウィンドウは `SetWindowPos` の `hWndInsertAfter` に
-/// `HWND_BOTTOM`/`HWND_TOP` を渡すだけで z-order を切り替えられる
-/// （owner に対する子孫関係は `CreateWindowExW` の `hWndParent` 引数で
-/// 既に確立済みなので、`HWND_TOP`/`HWND_BOTTOM` は owner の子ウィンドウ群
-/// の中での相対順として扱われる）。macOS 版のように「対象ウィンドウの
-/// windowNumber を明示的に relativeTo: へ渡す」必要は Win32 には無い。
-pub fn set_overlay_window_obstructed(overlay_hwnd: usize, obstructed: bool) {
-    if overlay_hwnd == 0 {
-        return;
-    }
-    let overlay = HWND(overlay_hwnd as *mut c_void);
-    let insert_after = if obstructed { HWND_BOTTOM } else { HWND_TOP };
-    unsafe {
-        let _ = SetWindowPos(
-            overlay,
-            insert_after,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        );
     }
 }
 
