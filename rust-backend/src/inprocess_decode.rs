@@ -1058,6 +1058,81 @@ mod platform {
                  otherwise the worker's fullness check never resumes decoding"
             );
         }
+
+        #[test]
+        fn frame_ready_for_exact_is_none_while_decoding_has_not_reached_the_target() {
+            let mut frames = VecDeque::new();
+            frames.push_back(RingFrame {
+                pts_seconds: 0.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            frames.push_back(RingFrame {
+                pts_seconds: 1.0 / 60.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            // Newest pts (1/60) + frame_duration (1/60) is 2/60, which does
+            // not exceed the target 3/60 -- decoding has not caught up yet.
+            assert!(
+                frame_ready_for_exact(&frames, 3.0 / 60.0, 1.0 / 60.0, false).is_none(),
+                "must not serve a stale frame while the decoder is still behind the target"
+            );
+        }
+
+        #[test]
+        fn frame_ready_for_exact_serves_the_newest_frame_at_or_before_target_once_caught_up() {
+            let mut frames = VecDeque::new();
+            frames.push_back(RingFrame {
+                pts_seconds: 0.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            frames.push_back(RingFrame {
+                pts_seconds: 1.0 / 60.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            frames.push_back(RingFrame {
+                pts_seconds: 2.0 / 60.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            // Newest pts (2/60) + frame_duration (1/60) = 3/60, which now
+            // exceeds the target 1/60 -- decoding has proven it progressed
+            // past the target, so the frame nearest (<=) the target is safe
+            // to serve.
+            let served = frame_ready_for_exact(&frames, 1.0 / 60.0, 1.0 / 60.0, false)
+                .expect("decoding has caught up to the target");
+            assert_eq!(served.pts_seconds, 1.0 / 60.0);
+        }
+
+        #[test]
+        fn frame_ready_for_exact_accepts_nearest_frame_at_eof_even_if_short_of_target() {
+            let mut frames = VecDeque::new();
+            frames.push_back(RingFrame {
+                pts_seconds: 0.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            frames.push_back(RingFrame {
+                pts_seconds: 1.0 / 60.0,
+                rgba: Some(vec![]),
+                nv12: None,
+            });
+            // Target is far ahead of anything decoded, but eof=true means no
+            // more frames will ever arrive, so the nearest frame must be
+            // accepted rather than waited on forever.
+            let served = frame_ready_for_exact(&frames, 10.0, 1.0 / 60.0, true)
+                .expect("must accept nearest frame at eof");
+            assert_eq!(served.pts_seconds, 1.0 / 60.0);
+        }
+
+        #[test]
+        fn frame_ready_for_exact_returns_none_for_empty_ring_before_eof() {
+            let frames: VecDeque<RingFrame> = VecDeque::new();
+            assert!(frame_ready_for_exact(&frames, 0.0, 1.0 / 60.0, false).is_none());
+        }
     }
 }
 
