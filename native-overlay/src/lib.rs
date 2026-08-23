@@ -6115,10 +6115,12 @@ mod tests {
             "the overlay child NSWindow must be created borderless (no titlebar/chrome)",
         );
         assert!(
-            source.contains("setOpaque") && source.contains("blackColor"),
-            "the overlay child NSWindow must be opaque with a black background \
-             (opaque=YES, background=blackColor) so the hole-punch region outside live \
-             surface content renders as opaque black instead of the desktop showing through",
+            source.contains("setOpaque: NO") && source.contains("clearColor"),
+            "the overlay child NSWindow itself must stay non-opaque with a clear background \
+             (opaque=NO, background=clearColor); an opaque borderless child window ordered \
+             NSWindowBelow was observed on real hardware to deactivate the parent app \
+             (lost key window, Stage Manager pushed the app to the side strip) when the \
+             parent re-attaches the overlay",
         );
     }
 
@@ -6126,25 +6128,42 @@ mod tests {
     fn macos_overlay_child_window_paints_opaque_black_behind_hole_punch_surface() {
         // hole-punch 方式（child NSWindow を透過 Electron parent の下層に配置）
         // では、preview 領域外（wgpu surface が `Color::TRANSPARENT` へクリアする
-        // 部分）を child window 自身が黒で塗らないと、デスクトップがそのまま
-        // 透けて見えてしまう。CAMetalLayer 側の `setOpaque: NO`（Bug D）は維持した
-        // まま、child NSWindow 自体は不透明・黒背景にする契約を固定する。
+        // 部分）を黒で塗らないと、デスクトップがそのまま透けて見えてしまう。
+        //
+        // 実機リグレッション: この黒塗りを window 自体の setOpaque:YES +
+        // blackColor で行うと、addChildWindow:ordered:NSWindowBelow の
+        // borderless child window が opaque になった途端、parent（Electron）
+        // window の再アタッチ（例: NSOpenPanel クローズ後）で app が
+        // deactivate し、Stage Manager では app がサイドストリップへ
+        // 押し出される不具合が発生した。window 自体は setOpaque: NO +
+        // clearColor のまま維持し、黒塗りは contentView（container view）を
+        // layer-backed にして layer.backgroundColor を黒にすることで行う。
+        // CAMetalLayer 側の overlay view は setOpaque: NO（Bug D）のまま、
+        // その subview として container view の bounds いっぱいに配置される。
         let source = include_str!("macos_overlay.rs");
 
         assert!(
-            source.contains("setOpaque: YES"),
-            "the overlay child NSWindow must be opaque (setOpaque: YES) so it paints black \
-             behind the transparent wgpu surface instead of letting the desktop show through",
+            source.contains("setOpaque: NO"),
+            "the overlay child NSWindow itself must stay non-opaque (setOpaque: NO); \
+             painting black must happen via the container view's layer, not the window",
         );
         assert!(
-            source.contains("blackColor"),
-            "the overlay child NSWindow background must be blackColor so the hole-punch \
-             region outside live video content renders as opaque black, not transparent",
+            source.contains("clearColor"),
+            "the overlay child NSWindow background must stay clearColor; an opaque black \
+             window background caused a real-hardware regression (app deactivation / \
+             Stage Manager side-strip push) on re-attach",
         );
         assert!(
-            !source.contains("clearColor"),
-            "the overlay child NSWindow must no longer use clearColor now that it sits \
-             below the transparent Electron parent window in the hole-punch design",
+            source.contains("setWantsLayer") && source.contains("setBackgroundColor: black_layer_colour"),
+            "the child window's contentView must be a layer-backed container view whose \
+             layer.backgroundColor is black, so transparent overlay-surface pixels fall \
+             through to an opaque black container instead of the desktop",
+        );
+        assert!(
+            source.contains("NSViewWidthSizable") && source.contains("NSViewHeightSizable"),
+            "the overlay (Metal) view must be added as a subview of the container view with \
+             a width+height sizable autoresizing mask so it fills the container bounds as \
+             the window is resynced via setFrame:display:",
         );
     }
 
