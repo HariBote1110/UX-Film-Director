@@ -71,6 +71,29 @@ tooltip はいずれも動画の上に表示され、動画自体も表示され
 - Computer-use hit-test ツールが transparent 子 window 上のクリックを正しく判定できないため、
   検証手段が CDP（`UXFD_REMOTE_DEBUG_PORT`）に限定される。
 
+## ドラッグ残像レグレッション（ドラッグゴースト）
+
+プレビュー内オブジェクトのドラッグ後、旧位置に残像が残る現象が発生した。
+
+**原因**
+
+WebGPU プレゼンター `<canvas data-shared-renderer-preview-surface>`（Viewport.tsx）が最後に描いたフレーム
+（ドラッグ開始時の旧位置）を保持したまま可視している状態。可視性ゲートが `editorMode==='2d' && sharedRendererPreviewEnabled`
+のみで native overlay を考慮していなかった。hole-punch 以前は overlay child NSWindow が最前面で canvas を覆い隠していたため、
+この潜在バグは無害だった。hole-punch 方式への移行により child NSWindow が背面に固定されたため顕在化した。
+
+**修正**
+
+`resolveSharedRendererPresenterCanvasVisibility`（src/utils/sharedRendererPresenterCanvasVisibility.ts）を新設し、
+`nativeOverlayReady===true` の場合は canvas を常に hidden にする。フォールバック presenter（Windows interim および
+`UXFD_NATIVE_OVERLAY=0`）では従来通り表示。修正対象コミット：de2a66fe / e4acdf60、境界テスト更新 e72bbf0c。
+実機（2026-08-24）でドラッグを再現し残像なし・ドラッグ追従正常を確認した。
+
+**Gotcha**
+
+「overlay が上にいたから見えなかった」系の stale HTML 描画は他にも顕在化しうる。特に canvas 系の要素は要注意。
+
 ## Verified
 
 - 最大化ウィンドウで隙間の透けなし（2026-08-24）
+- ドラッグ後の残像なし、ドラッグ追従正常（2026-08-24）
