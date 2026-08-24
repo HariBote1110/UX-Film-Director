@@ -92,6 +92,7 @@ import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDe
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 import { shouldPresentSharedRendererEmptyScenePresentation } from '../utils/sharedRendererViewportEmptyScenePresentation';
 import { rendererSceneRpcCollector } from '../perf/rendererSceneRpcTrace';
+import { resolveSharedRendererPresenterCanvasVisibility } from '../utils/sharedRendererPresenterCanvasVisibility';
 
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
 // 一時停止時にヘッドを表示フレームへスナップする最小デルタ（秒）。これ未満は
@@ -2927,7 +2928,11 @@ const Viewport: React.FC = () => {
                   width: '100%',
                   height: '100%',
                   pointerEvents: 'none',
-                  visibility: editorMode === '2d' && sharedRendererPreviewEnabled ? 'visible' : 'hidden',
+                  visibility: resolveSharedRendererPresenterCanvasVisibility({
+                    editorMode,
+                    sharedRendererPreviewEnabled,
+                    nativeOverlayReady,
+                  }),
                 }}
               />
               {sharedRendererDiagnosticSwatchEnabled && (
