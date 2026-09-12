@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [layer-track-reorder-to-rust.md](layer-track-reorder-to-rust.md) — 責務台帳 item 3 を解消。`SwapLayerTracks`/`InsertLayerTrack`/`DeleteLayerTrack`をrust-core Commandに追加し、layer補完・objectのlayer・PSD lipSync/audio visualization targetLayer再マップ・insert overflow削除・delete時reset をRustのapplyだけで計算、`layerTrackOps.ts`を削除。スナップショット差し替えの`ReorderLayers`は利用箇所ゼロのため廃止。undoは変更前layers/objectsを持つ`RestoreLayerTracks`で厳密復元（自己逆元で履歴に積まない前提、Gotchaに記録）。storeは全layers/objectsを送り、応答待ち中に変更があれば結果・履歴を破棄、往復中はlayer操作とundo/redoを停止。vitest 261/1856、rust-core/rust-backend cargo test green、codegen安定（0.1.1-Beta-519c）
+
 - [filter-stack-forward-path-to-rust.md](filter-stack-forward-path-to-rust.md) — 責務台帳 item 2 を解消。フィルタスタック編集5コマンド（Add/Remove/ToggleEnabled/Move/UpdateParams）のstack変更・legacyミラー同期・パラメータ正規化を`rust-core::apply_command`へ移管し、`filterStack.ts`の往路mutation関数5つを削除。storeは対象オブジェクト1件の最小SceneDataを`command.apply`へ送り、応答の対象オブジェクトのfilter関連フィールドだけを現在stateへマージ。オブジェクト単位直列キュー＋未開始パラメータ更新のcoalesceで、IPC往復中の同時編集上書きとドラッグ中プレビュー停止を防止。Rustテスト10件（64フィルタstress含む）、vitest 262/1861、codegen差分なし（0.1.1-Beta-519b）
 
 - [native-overlay-reattach-black-frame.md](native-overlay-reattach-black-frame.md) — macOS native overlay の再attach（resize/visibility/focus/NSOpenPanel閉了）後に次のseek/playまで黒画面になる不具合を修正。原因は再attachで renderer が置換され直前 scene/NV12/生成レイヤー状態が破棄され、新CAMetalLayerへpresentしていなかったこと。旧rendererの呈示状態を新rendererへ移管し、元sceneとcanvasサイズを保持して新drawableへ再fitしてから即時再呈示。再呈示失敗はログのみでattachは成功させる。TS/IPC変更なし（再attach経路はdetachを先行しないと確認）。cargo test(native-overlay) 102 passed（0.1.1-Beta-519a）

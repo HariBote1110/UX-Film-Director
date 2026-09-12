@@ -766,6 +766,8 @@ R6完了時点でも、「TSはUIに徹しRustが描画・状態を単一実装�
 3. **`layerTrackOps.ts`のreorder計算**: レイヤー/トラックの並べ替え時の
    インデックス再計算をTS側で行っている。Rustスナップショットの
    並べ替えAPIが無いための暫定実装。
+   **→ 解消（2026-09-13）**: swap/insert/delete をrust-coreのCommandとして実装し、
+   `layerTrackOps.ts`と`ReorderLayers`を削除した（`progress/layer-track-reorder-to-rust.md`）。
 4. **interim presenterの最小実装（プラットフォーム強制）**:
    本R6節で扱った`sharedRendererWebGpuPresenter.ts`本体。Windowsのnv12
    attach窓という設計上の制約により恒久的にTS側描画コードが残る
