@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StoreApi } from 'zustand';
 import {
   TimelineObject,
   VideoObject,
@@ -17,14 +17,10 @@ import {
   sanitiseStageCamera3D
 } from '../utils/sceneState';
 import {
-  addFilterToObject,
+  createDefaultFilter,
   getObjectFiltersInOrder,
-  moveFilterInObject,
-  removeFilterFromObject,
   syncFiltersFromLegacyValues,
   syncLegacyEffectsWithFilters,
-  toggleFilterEnabledInObject,
-  updateFilterParamsInObject
 } from '../utils/filterStack';
 import {
   evaluateObjectPositionAtTime,
@@ -71,7 +67,10 @@ import {
   buildRemoveFilterCommand,
   buildRemoveObjectCommand,
   buildToggleFilterEnabledCommand,
+  buildUpdateFilterParamsCommand,
 } from './commandBuilders';
+import type { FilterCommand } from './commandBuilders';
+import { getCommandBridge } from '../utils/rustBackendCommandBridge';
 
 export type {
   ExportDiagnostics,
@@ -79,6 +78,130 @@ export type {
   ExportProgress,
   VisionDetectionOverlayState,
 } from './storeTypes';
+
+const filterCommandQueues = new Map<string, Promise<void>>();
+const filterParamRequestTokens = new Map<string, number>();
+const FILTER_MIRROR_KEYS = ['colorCorrection', 'customClipping', 'vibration', 'shadow', 'gradient'] as const;
+
+const mergeFilterCommandObject = (currentObject: TimelineObject, appliedObject: TimelineObject): TimelineObject => {
+  const merged = { ...currentObject, filters: appliedObject.filters } as TimelineObject;
+  const mergedRecord = merged as unknown as Record<string, unknown>;
+  const appliedRecord = appliedObject as unknown as Record<string, unknown>;
+  for (const key of FILTER_MIRROR_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(appliedRecord, key)) {
+      mergedRecord[key] = appliedRecord[key];
+    } else {
+      delete mergedRecord[key];
+    }
+  }
+  return merged;
+};
+
+const filterStateKey = (object: TimelineObject): string => {
+  const record = object as unknown as Record<string, unknown>;
+  return JSON.stringify({
+    filters: record.filters ?? null,
+    ...Object.fromEntries(FILTER_MIRROR_KEYS.map((key) => [key, record[key] ?? null])),
+  });
+};
+
+const applyFilterCommandNow = async (
+  set: StoreApi<AppState>['setState'],
+  get: StoreApi<AppState>['getState'],
+  command: FilterCommand,
+  recordHistory: boolean,
+  paramRequestToken?: number,
+): Promise<void> => {
+  const bridge = getCommandBridge();
+  if (!bridge) return;
+
+  const state = get();
+  const objectId = command.objectId;
+  const targetObject = state.objects.find((object) => object.id === objectId);
+  if (!targetObject || isLayerLocked(state.layers, clampLayerIndex(targetObject.layer))) return;
+  const paramTokenKey = command.kind === 'updateFilterParams'
+    ? `${objectId}:${command.filterId}`
+    : null;
+  if (paramRequestToken !== undefined
+    && paramTokenKey !== null
+    && filterParamRequestTokens.get(paramTokenKey) !== paramRequestToken) return;
+
+  const activeScene = state.scenes.find((scene) => scene.id === state.activeSceneId);
+  if (!activeScene) return;
+
+  const filterStateAtRequest = filterStateKey(targetObject);
+  try {
+    const response = await bridge.applyCommand({
+      // Filter commands only inspect the target object. Keeping the existing
+      // SceneData envelope while sending a one-object scene makes slider edits
+      // independent of the size of the rest of the project.
+      scene: {
+        id: activeScene.id,
+        name: activeScene.name,
+        objects: [targetObject] as unknown as import('../generated/rustCore/SceneData').SceneData['objects'],
+        layers: [],
+        duration: state.duration,
+        camera: state.camera,
+        stageCamera3D: state.stageCamera3D,
+      },
+      command,
+    });
+    if (!response.success || !response.result) {
+      console.error('filter command.apply failed', response.error, response.errorCode);
+      return;
+    }
+
+    const appliedObject = response.result.scene.objects.find((object) => object.id === objectId);
+    if (!appliedObject) return;
+
+    let merged = false;
+    set((current) => {
+      const currentObject = current.objects.find((object) => object.id === objectId);
+      if (!currentObject || isLayerLocked(current.layers, clampLayerIndex(currentObject.layer))) return {};
+      // A concurrent history operation may have changed this object's filters
+      // (for example, undo). Do not replay the stale response over that state.
+      // Changes to another object or another property do not fail this check.
+      if (filterStateKey(currentObject) !== filterStateAtRequest) return {};
+
+      merged = true;
+      return {
+        objects: current.objects.map((object) => object.id === objectId
+          ? mergeFilterCommandObject(currentObject, appliedObject as unknown as TimelineObject)
+          : object),
+      };
+    });
+    if (merged && recordHistory) get().pushHistoryCommand(command);
+  } catch (error) {
+    console.error('filter command.apply failed', error);
+  }
+};
+
+const applyFilterCommand = (
+  set: StoreApi<AppState>['setState'],
+  get: StoreApi<AppState>['getState'],
+  command: FilterCommand,
+  recordHistory: boolean,
+): Promise<void> => {
+  const objectId = command.objectId;
+  const previous = filterCommandQueues.get(objectId);
+  let paramRequestToken: number | undefined;
+  if (command.kind === 'updateFilterParams') {
+    const key = `${objectId}:${command.filterId}`;
+    paramRequestToken = (filterParamRequestTokens.get(key) ?? 0) + 1;
+    filterParamRequestTokens.set(key, paramRequestToken);
+  }
+
+  const task = previous
+    ? previous.catch(() => undefined)
+      .then(() => applyFilterCommandNow(set, get, command, recordHistory, paramRequestToken))
+    : applyFilterCommandNow(set, get, command, recordHistory, paramRequestToken);
+  const tracked = task.catch(() => undefined);
+  filterCommandQueues.set(objectId, tracked);
+  void tracked.then(() => {
+    if (filterCommandQueues.get(objectId) === tracked) filterCommandQueues.delete(objectId);
+  });
+  return task;
+};
 
 export const useStore = create<AppState>((set, get) => ({
   ...createWorkspaceSlice(set),
@@ -513,44 +636,27 @@ export const useStore = create<AppState>((set, get) => ({
     };
   }),
 
-  addObjectFilter: (objectId, filterType) => {
+  addObjectFilter: async (objectId, filterType) => {
     const targetObject = get().objects.find((obj) => obj.id === objectId);
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
-    const previousFilterCount = getObjectFiltersInOrder(targetObject).length;
-    const updatedObject = addFilterToObject(targetObject, filterType);
-    const addedFilter = getObjectFiltersInOrder(updatedObject)[previousFilterCount];
-    // 追加された filter は末尾に積まれる(`addFilterToObject`の実装どおり)。
-    get().pushHistoryCommand(buildAddFilterCommand(objectId, addedFilter, previousFilterCount));
-    set((state) => {
-      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
-      if (targetIndex < 0) return {};
-      const nextObjects = state.objects.slice();
-      nextObjects[targetIndex] = updatedObject;
-      return { objects: nextObjects };
-    });
+    const index = getObjectFiltersInOrder(targetObject).length;
+    const command = buildAddFilterCommand(objectId, createDefaultFilter(filterType), index);
+    await applyFilterCommand(set, get, command, true);
   },
 
-  toggleObjectFilter: (objectId, filterId) => {
+  toggleObjectFilter: async (objectId, filterId) => {
     const targetObject = get().objects.find((obj) => obj.id === objectId);
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
     const filterExists = getObjectFiltersInOrder(targetObject).some((filter) => filter.id === filterId);
-    if (filterExists) {
-      get().pushHistoryCommand(buildToggleFilterEnabledCommand(objectId, filterId));
-    }
-    set((state) => {
-      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
-      if (targetIndex < 0) return {};
-      const nextObjects = state.objects.slice();
-      nextObjects[targetIndex] = toggleFilterEnabledInObject(nextObjects[targetIndex], filterId);
-      return { objects: nextObjects };
-    });
+    if (!filterExists) return;
+    await applyFilterCommand(set, get, buildToggleFilterEnabledCommand(objectId, filterId), true);
   },
 
-  moveObjectFilter: (objectId, filterId, direction) => {
+  moveObjectFilter: async (objectId, filterId, direction) => {
     const targetObject = get().objects.find((obj) => obj.id === objectId);
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
@@ -564,46 +670,48 @@ export const useStore = create<AppState>((set, get) => ({
       const toIndex = rawTargetIndex < 0 || rawTargetIndex >= currentFilters.length
         ? fromIndex
         : rawTargetIndex;
-      get().pushHistoryCommand(buildMoveFilterCommand(objectId, filterId, fromIndex, toIndex));
+      await applyFilterCommand(
+        set,
+        get,
+        buildMoveFilterCommand(objectId, filterId, fromIndex, toIndex),
+        true,
+      );
     }
-    set((state) => {
-      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
-      if (targetIndex < 0) return {};
-      const nextObjects = state.objects.slice();
-      nextObjects[targetIndex] = moveFilterInObject(nextObjects[targetIndex], filterId, direction);
-      return { objects: nextObjects };
-    });
   },
 
-  removeObjectFilter: (objectId, filterId) => {
+  removeObjectFilter: async (objectId, filterId) => {
     const targetObject = get().objects.find((obj) => obj.id === objectId);
     if (!targetObject) return;
     if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
 
     const currentFilters = getObjectFiltersInOrder(targetObject);
     const removeIndex = currentFilters.findIndex((filter) => filter.id === filterId);
-    if (removeIndex >= 0) {
-      get().pushHistoryCommand(buildRemoveFilterCommand(objectId, currentFilters[removeIndex], removeIndex));
-    }
-    set((state) => {
-      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
-      if (targetIndex < 0) return {};
-      const nextObjects = state.objects.slice();
-      nextObjects[targetIndex] = removeFilterFromObject(nextObjects[targetIndex], filterId);
-      return { objects: nextObjects };
-    });
+    if (removeIndex < 0) return;
+    await applyFilterCommand(
+      set,
+      get,
+      buildRemoveFilterCommand(objectId, currentFilters[removeIndex], removeIndex),
+      true,
+    );
   },
 
-  updateObjectFilterParams: (objectId, filterId, params) => set((state) => {
-    const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
-    if (targetIndex < 0) return {};
-    const targetObject = state.objects[targetIndex];
-    if (isLayerLocked(state.layers, clampLayerIndex(targetObject.layer))) return {};
+  updateObjectFilterParams: async (objectId, filterId, params) => {
+    const state = get();
+    const targetObject = state.objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(state.layers, clampLayerIndex(targetObject.layer))) return;
 
-    const nextObjects = state.objects.slice();
-    nextObjects[targetIndex] = updateFilterParamsInObject(nextObjects[targetIndex], filterId, params);
-    return { objects: nextObjects };
-  }),
+    const filter = getObjectFiltersInOrder(targetObject).find((entry) => entry.id === filterId);
+    if (!filter) return;
+    const filterParams = filter.params as unknown as Record<string, unknown>;
+    const previous = Object.fromEntries(
+      Object.keys(params).map((key) => [key, filterParams[key] ?? null]),
+    );
+    const command = buildUpdateFilterParamsCommand(objectId, filterId, params, previous);
+    // パラメータ変更は従来どおり履歴へ積まない（スライダーの各入力を
+    // 1 undo step にしない）。適用結果だけは Rust から受け取る。
+    await applyFilterCommand(set, get, command, false);
+  },
 
   deleteObject: (id) => {
     const currentObject = get().objects.find((obj) => obj.id === id);

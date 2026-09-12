@@ -2,6 +2,10 @@ import type { TimelineObject, ObjectFilter, LayerState, CameraState, StageCamera
 import type { Command } from '../generated/rustCore/Command';
 import type { JsonValue } from '../generated/rustCore/serde_json/JsonValue';
 
+export type FilterCommand = Extract<Command, {
+  kind: 'addFilter' | 'removeFilter' | 'toggleFilterEnabled' | 'moveFilter' | 'updateFilterParams';
+}>;
+
 /**
  * R4-8 group c: `useStore.ts` の呼び出し箇所が `Command` を組み立てるための
  * 共通ヘルパー。`src/utils/invertCommand.ts` と同じ理由（ts-rs 生成の
@@ -31,14 +35,14 @@ export const buildRemoveObjectCommand = (object: TimelineObject, index: number):
   index,
 });
 
-export const buildAddFilterCommand = (objectId: string, filter: ObjectFilter, index: number): Command => ({
+export const buildAddFilterCommand = (objectId: string, filter: ObjectFilter, index: number): FilterCommand => ({
   kind: 'addFilter',
   objectId,
   filter: toCommandFilter(filter),
   index,
 });
 
-export const buildRemoveFilterCommand = (objectId: string, filter: ObjectFilter, index: number): Command => ({
+export const buildRemoveFilterCommand = (objectId: string, filter: ObjectFilter, index: number): FilterCommand => ({
   kind: 'removeFilter',
   objectId,
   filterId: filter.id,
@@ -46,7 +50,7 @@ export const buildRemoveFilterCommand = (objectId: string, filter: ObjectFilter,
   index,
 });
 
-export const buildToggleFilterEnabledCommand = (objectId: string, filterId: string): Command => ({
+export const buildToggleFilterEnabledCommand = (objectId: string, filterId: string): FilterCommand => ({
   kind: 'toggleFilterEnabled',
   objectId,
   filterId,
@@ -57,12 +61,25 @@ export const buildMoveFilterCommand = (
   filterId: string,
   fromIndex: number,
   toIndex: number,
-): Command => ({
+): FilterCommand => ({
   kind: 'moveFilter',
   objectId,
   filterId,
   fromIndex,
   toIndex,
+});
+
+export const buildUpdateFilterParamsCommand = (
+  objectId: string,
+  filterId: string,
+  next: Record<string, unknown>,
+  previous: Record<string, unknown>,
+): FilterCommand => ({
+  kind: 'updateFilterParams',
+  objectId,
+  filterId,
+  next: next as JsonValue,
+  previous: previous as JsonValue,
 });
 
 /**

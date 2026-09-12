@@ -180,11 +180,11 @@ export interface AppState {
 
   addObject: (obj: TimelineObject) => void;
   updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
-  addObjectFilter: (objectId: string, filterType: FilterType) => void;
-  toggleObjectFilter: (objectId: string, filterId: string) => void;
-  moveObjectFilter: (objectId: string, filterId: string, direction: 'up' | 'down') => void;
-  removeObjectFilter: (objectId: string, filterId: string) => void;
-  updateObjectFilterParams: (objectId: string, filterId: string, params: Record<string, unknown>) => void;
+  addObjectFilter: (objectId: string, filterType: FilterType) => Promise<void>;
+  toggleObjectFilter: (objectId: string, filterId: string) => Promise<void>;
+  moveObjectFilter: (objectId: string, filterId: string, direction: 'up' | 'down') => Promise<void>;
+  removeObjectFilter: (objectId: string, filterId: string) => Promise<void>;
+  updateObjectFilterParams: (objectId: string, filterId: string, params: Record<string, unknown>) => Promise<void>;
   deleteObject: (id: string) => void;
   deleteSelectedObjects: () => void;
   /** 指定オブジェクトを削除し、同一レイヤーの後続クリップを尺ぶん左へ詰める（YMM の「削除して左寄せ」相当）。 */
