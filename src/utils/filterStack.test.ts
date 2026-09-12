@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ObjectFilter, ShapeObject, TimelineObject } from '../types';
 import {
-  addFilterToObject,
   createDefaultFilter,
   getEnabledObjectFiltersInOrder,
   getFadeOpacityMultiplier,
   getObjectFiltersInOrder,
   getPrimaryWipeFilter,
-  moveFilterInObject,
   normaliseObjectFilters,
-  removeFilterFromObject,
   syncFiltersFromLegacyValues,
   syncLegacyEffectsWithFilters,
-  toggleFilterEnabledInObject,
-  updateFilterParamsInObject
 } from './filterStack';
 
 const minimalShape = (): ShapeObject => ({
@@ -272,54 +267,5 @@ describe('syncFiltersFromLegacyValues', () => {
     const synced = syncFiltersFromLegacyValues(shape);
     const gradient = getEnabledObjectFiltersInOrder(synced).find((f) => f.type === 'gradient');
     expect(gradient?.type).toBe('gradient');
-  });
-});
-
-describe('filter mutations on object', () => {
-  it('adds a new filter to the end', () => {
-    const shape = minimalShape();
-    const next = addFilterToObject(shape, 'blur');
-    expect(getObjectFiltersInOrder(next).some((f) => f.type === 'blur')).toBe(true);
-  });
-
-  it('toggles enabled flag for matching id', () => {
-    const fade = createDefaultFilter('fade');
-    const shape = { ...minimalShape(), filters: [fade] };
-    const toggled = toggleFilterEnabledInObject(shape, fade.id);
-    const updated = getObjectFiltersInOrder(toggled)[0];
-    expect(updated.enabled).toBe(false);
-  });
-
-  it('removes filter by id', () => {
-    const fade = createDefaultFilter('fade');
-    const shape = { ...minimalShape(), filters: [fade] };
-    const next = removeFilterFromObject(shape, fade.id);
-    expect(getObjectFiltersInOrder(next)).toHaveLength(0);
-  });
-
-  it('moves filter up and down', () => {
-    const a = { ...createDefaultFilter('fade'), id: 'fa' };
-    const b = { ...createDefaultFilter('blur'), id: 'fb' };
-    const shape: TimelineObject = { ...minimalShape(), filters: [a, b] };
-    const movedUp = moveFilterInObject(shape, 'fb', 'up');
-    expect(getObjectFiltersInOrder(movedUp).map((f) => f.id)).toEqual(['fb', 'fa']);
-    const movedDown = moveFilterInObject(movedUp, 'fb', 'down');
-    expect(getObjectFiltersInOrder(movedDown).map((f) => f.id)).toEqual(['fa', 'fb']);
-  });
-
-  it('no-ops move when already at boundary', () => {
-    const a = { ...createDefaultFilter('fade'), id: 'fa' };
-    const shape: TimelineObject = { ...minimalShape(), filters: [a] };
-    const same = moveFilterInObject(shape, 'fa', 'up');
-    expect(getObjectFiltersInOrder(same).map((f) => f.id)).toEqual(['fa']);
-  });
-
-  it('patches filter params with normalisation', () => {
-    const fade = createDefaultFilter('fade');
-    const shape: TimelineObject = { ...minimalShape(), filters: [fade] };
-    const next = updateFilterParamsInObject(shape, fade.id, { opacity: -1 });
-    const updated = getObjectFiltersInOrder(next)[0];
-    if (updated.type !== 'fade') throw new Error('expected fade');
-    expect(updated.params.opacity).toBe(0);
   });
 });

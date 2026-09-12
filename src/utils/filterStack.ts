@@ -398,8 +398,10 @@ const normaliseGradientParams = (params: unknown): Omit<GradientFill, 'enabled'>
     return Math.max(0, Math.min(1, typeof value === 'number' ? value : fallback));
   });
 
+  const scope = source.scope === 'group' || source.scope === 'connected' ? source.scope : undefined;
   return {
     type,
+    ...(scope ? { scope } : {}),
     colours,
     stops,
     direction: toNumber(source.direction, DEFAULT_GRADIENT.direction)
@@ -946,63 +948,5 @@ export const syncFiltersFromLegacyValues = <T extends TimelineObject>(object: T)
       : null);
   }
 
-  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
-};
-
-export const addFilterToObject = (object: TimelineObject, type: FilterType): TimelineObject => {
-  const currentFilters = getObjectFiltersInOrder(object);
-  const nextFilters = [...currentFilters, createDefaultFilter(type)];
-  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
-};
-
-export const toggleFilterEnabledInObject = (object: TimelineObject, filterId: string): TimelineObject => {
-  const currentFilters = getObjectFiltersInOrder(object);
-  const nextFilters = currentFilters.map((filter) => {
-    if (filter.id !== filterId) return filter;
-    return { ...filter, enabled: !filter.enabled };
-  });
-  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
-};
-
-export const removeFilterFromObject = (object: TimelineObject, filterId: string): TimelineObject => {
-  const currentFilters = getObjectFiltersInOrder(object);
-  const nextFilters = currentFilters.filter((filter) => filter.id !== filterId);
-  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
-};
-
-export const moveFilterInObject = (object: TimelineObject, filterId: string, direction: 'up' | 'down'): TimelineObject => {
-  const currentFilters = getObjectFiltersInOrder(object);
-  const index = currentFilters.findIndex((filter) => filter.id === filterId);
-  if (index < 0) return materialiseSyncedObject({ ...object, filters: currentFilters }, currentFilters);
-
-  const targetIndex = direction === 'up' ? index - 1 : index + 1;
-  if (targetIndex < 0 || targetIndex >= currentFilters.length) {
-    return materialiseSyncedObject({ ...object, filters: currentFilters }, currentFilters);
-  }
-
-  const nextFilters = currentFilters.slice();
-  const [moved] = nextFilters.splice(index, 1);
-  nextFilters.splice(targetIndex, 0, moved);
-  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
-};
-
-export const updateFilterParamsInObject = (
-  object: TimelineObject,
-  filterId: string,
-  paramsPatch: Record<string, unknown>
-): TimelineObject => {
-  const currentFilters = getObjectFiltersInOrder(object);
-  const nextFilters = currentFilters.map((filter) => {
-    if (filter.id !== filterId) return filter;
-    const nextCandidate = {
-      ...filter,
-      params: {
-        ...filter.params,
-        ...paramsPatch
-      }
-    };
-    const normalised = normaliseFilter(nextCandidate);
-    return normalised ?? filter;
-  });
   return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };

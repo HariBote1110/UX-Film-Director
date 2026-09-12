@@ -1,26 +1,22 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FilterType, PositionKeyframe, ShapeObject } from '../types';
 import { useStore } from '../store/useStore';
 import { easingFunctions, type EasingType } from '../utils/easings';
 import {
-  addFilterToObject,
   createDefaultFilter,
   getEnabledObjectFiltersInOrder,
   getFadeOpacityMultiplier,
   getObjectFiltersInOrder,
   getPrimaryWipeFilter,
-  moveFilterInObject,
-  removeFilterFromObject,
   syncFiltersFromLegacyValues,
   syncLegacyEffectsWithFilters,
-  toggleFilterEnabledInObject,
-  updateFilterParamsInObject,
 } from '../utils/filterStack';
 import {
   evaluateObjectPositionAtTime,
   normaliseKeyframesForObject,
   shiftKeyframesForObject,
 } from '../utils/keyframes';
+import { setCommandBridgeForTests } from '../utils/rustBackendCommandBridge';
 
 const ALL_FILTER_TYPES: FilterType[] = [
   'color_correction',
@@ -77,7 +73,10 @@ const stackFilters = (object: ShapeObject, rounds: number): ShapeObject => {
   let next: ShapeObject = object;
   for (let r = 0; r < rounds; r += 1) {
     const type = ALL_FILTER_TYPES[r % ALL_FILTER_TYPES.length];
-    next = addFilterToObject(next, type) as ShapeObject;
+    next = {
+      ...next,
+      filters: [...getObjectFiltersInOrder(next), createDefaultFilter(type)]
+    };
   }
   return syncLegacyEffectsWithFilters(next) as ShapeObject;
 };
@@ -112,19 +111,16 @@ describe('heavy effects stress (filter stack + keyframes)', () => {
   });
 
   it('chains dozens of heterogeneous filters and keeps query helpers coherent', () => {
+    // フィルタ編集コマンドの add/toggle/move/remove/update ストレスは
+    // rust-core/tests/filter_stack_forward.rs へ移管した。このケースは
+    // TS 側に残る読み取りヘルパーと既存の legacy 同期の整合性を確認する。
     let object: ShapeObject = baseShape('fat-filters');
     object = stackFilters(object, 64);
 
     expect(getObjectFiltersInOrder(object)).toHaveLength(64);
 
-    for (let i = 0; i < 120; i += 1) {
-      const filters = getObjectFiltersInOrder(object);
-      const id = filters[i % filters.length].id;
-      object = toggleFilterEnabledInObject(object, id) as ShapeObject;
-    }
-
     const enabled = getEnabledObjectFiltersInOrder(object);
-    expect(enabled.length).toBeGreaterThan(0);
+    expect(enabled.length).toBe(64);
     expect(getFadeOpacityMultiplier(object)).toBeGreaterThanOrEqual(0);
     expect(getFadeOpacityMultiplier(object)).toBeLessThanOrEqual(1);
 
@@ -133,29 +129,13 @@ describe('heavy effects stress (filter stack + keyframes)', () => {
       expect(wipe.type).toBe('wipe');
     }
 
-    for (let m = 0; m < 80; m += 1) {
-      const filters = getObjectFiltersInOrder(object);
-      const idx = (m * 3) % Math.max(1, filters.length - 1);
-      const id = filters[idx].id;
-      object = moveFilterInObject(object, id, m % 2 === 0 ? 'down' : 'up') as ShapeObject;
-    }
-
     const blur = getObjectFiltersInOrder(object).find((f) => f.type === 'blur');
     expect(blur).toBeDefined();
     if (blur) {
-      object = updateFilterParamsInObject(object, blur.id, { strength: 12, quality: 4 }) as ShapeObject;
-      const updated = getObjectFiltersInOrder(object).find((f) => f.id === blur.id);
-      expect(updated && updated.type === 'blur' ? updated.params.strength : 0).toBeGreaterThanOrEqual(0);
+      expect(blur.params.strength).toBeGreaterThanOrEqual(0);
     }
 
-    for (let r = 0; r < 24; r += 1) {
-      const filters = getObjectFiltersInOrder(object);
-      if (filters.length <= 8) break;
-      const victim = filters[r % filters.length];
-      object = removeFilterFromObject(object, victim.id) as ShapeObject;
-    }
-
-    expect(getObjectFiltersInOrder(object).length).toBeGreaterThan(10);
+    expect(getObjectFiltersInOrder(object).length).toBe(64);
   });
 
   it('normalises and shifts very large keyframe lists repeatedly', () => {
@@ -233,9 +213,31 @@ describe('heavy effects stress (Zustand store)', () => {
       fps: 60,
       sampleRate: 48_000,
     });
+    setCommandBridgeForTests({
+      applyCommand: async ({ scene, command }) => {
+        const nextScene = JSON.parse(JSON.stringify(scene));
+        if (command.kind === 'updateFilterParams') {
+          const rawScene = nextScene as {
+            objects: Array<{
+              id: string;
+              filters?: Array<{ id: string; params: Record<string, unknown> }>;
+            }>;
+          };
+          const object = rawScene.objects.find((entry) => entry.id === command.objectId);
+          const filter = object?.filters?.find((entry) => entry.id === command.filterId);
+          if (filter) {
+            const patch = command.next as Record<string, unknown>;
+            filter.params = { ...filter.params, ...patch };
+          }
+        }
+        return { success: true, result: { scene: nextScene } };
+      },
+    });
   });
 
-  it('applies thousands of filter param patches on a pre-stacked object without corrupting state', () => {
+  afterEach(() => setCommandBridgeForTests(null));
+
+  it('applies thousands of filter param patches on a pre-stacked object without corrupting state', async () => {
     const { addObject, updateObjectFilterParams, setTime } = useStore.getState();
 
     let fat: ShapeObject = stackFilters(baseShape('store-fat'), 40);
@@ -253,12 +255,12 @@ describe('heavy effects stress (Zustand store)', () => {
 
     for (let i = 0; i < 2_800; i += 1) {
       const blurId = blurIds[i % blurIds.length];
-      updateObjectFilterParams(live.id, blurId, {
+      await updateObjectFilterParams(live.id, blurId, {
         strength: 1 + (i % 18),
         quality: 1 + (i % 4),
       });
       const fadeId = fadeIds[i % fadeIds.length];
-      updateObjectFilterParams(live.id, fadeId, {
+      await updateObjectFilterParams(live.id, fadeId, {
         opacity: 0.35 + ((i % 50) / 100),
       });
       if (i % 200 === 0) {
