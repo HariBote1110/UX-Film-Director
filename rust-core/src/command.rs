@@ -34,11 +34,25 @@ use std::collections::BTreeSet;
 
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use ts_rs::TS;
 
 use crate::schema::{
-    BaseObject, CameraState, ClippingParams, ColorCorrection, LayerState, ObjectFilter, ShadowEffect, ShapeGradientFill, SceneData, StageCamera3D, TimelineObject, Vibration, AsanohaPatternObjectFields, AudioObjectFields, AudioSphereObjectFields, AudioVisualizationObjectFields, BarcodeObjectFields, CircularArrowObjectFields, ColourWheelObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, FocusLinesPlusObjectFields, GearObjectFields, GetColorDotFieldObjectFields, GourdObjectFields, GroupControlObjectFields, HistogramObjectFields, HksyCheckerGridObjectFields, HologramObjectFields, HoundstoothObjectFields, ImageObjectFields, PaperAirplaneObjectFields, ParticleObjectFields, PieChartObjectFields, PlainEffectorLineObjectFields, ProtractorObjectFields, PsdObjectFields, PuzzlePieceObjectFields, RandomLineExObjectFields, RegionFrameObjectFields, ShakingPolygonObjectFields, ShapeObjectFields, ShatteredSphereObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, TartanCheckObjectFields, TextObjectFields, ToneCurveObjectFields, TrackBarObjectFields, TriangleBracketObjectFields, VideoObjectFields, YagasuriObjectFields,
+    AsanohaPatternObjectFields, AudioObjectFields, AudioSphereObjectFields,
+    AudioVisualizationObjectFields, BarcodeObjectFields, BaseObject, CameraState,
+    CircularArrowObjectFields, ClippingParams, ColorCorrection, ColourWheelObjectFields,
+    ContourTraceObjectFields, DisplacementPolyObjectFields, FocusLinesPlusObjectFields,
+    GearObjectFields, GetColorDotFieldObjectFields, GourdObjectFields, GradientFilterParams,
+    GroupControlObjectFields, HistogramObjectFields, HksyCheckerGridObjectFields,
+    HologramObjectFields, HoundstoothObjectFields, ImageObjectFields, LayerState, ObjectFilter,
+    PaperAirplaneObjectFields, ParticleObjectFields, PieChartObjectFields,
+    PlainEffectorLineObjectFields, ProtractorObjectFields, PsdObjectFields,
+    PuzzlePieceObjectFields, RandomLineExObjectFields, RegionFrameObjectFields, SceneData,
+    ShadowEffect, ShakingPolygonObjectFields, ShapeGradientFill, ShapeObjectFields,
+    ShatteredSphereObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields,
+    SphericalFieldObjectFields, StageCamera3D, SunburstObjectFields, TartanCheckObjectFields,
+    TextObjectFields, TimelineObject, ToneCurveObjectFields, TrackBarObjectFields,
+    TriangleBracketObjectFields, Vibration, VideoObjectFields, YagasuriObjectFields,
 };
 
 /// 編集コマンド。第一層（本バッチ）は 42 kind 共通の汎用フィールド編集
@@ -456,7 +470,27 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                     context: "AddFilter".to_string(),
                 });
             }
-            filters.insert(*index, filter.clone());
+            let filter_value =
+                serde_json::to_value(filter).map_err(|error| CommandError::InvalidFilterPatch {
+                    object_id: object_id.clone(),
+                    filter_id: filter_id_of(filter),
+                    reason: format!("フィルタの直列化に失敗しました: {error}"),
+                })?;
+            let normalised_value = normalise_filter_value(filter_value).ok_or_else(|| {
+                CommandError::InvalidFilterPatch {
+                    object_id: object_id.clone(),
+                    filter_id: filter_id_of(filter),
+                    reason: "未知のフィルタ種別です".to_string(),
+                }
+            })?;
+            let normalised_filter = serde_json::from_value(normalised_value).map_err(|error| {
+                CommandError::InvalidFilterPatch {
+                    object_id: object_id.clone(),
+                    filter_id: filter_id_of(filter),
+                    reason: format!("正規化後のフィルタが無効です: {error}"),
+                }
+            })?;
+            filters.insert(*index, normalised_filter);
             sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
 
@@ -467,7 +501,10 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
             ..
         } => {
             let object_index = find_object_index(&next_scene, object_id)?;
-            let filters = filters_mut(&mut next_scene.objects[object_index]);
+            let filters = filters_mut_with_preferred_id(
+                &mut next_scene.objects[object_index],
+                Some(filter_id),
+            );
             let len = filters.len();
             if *index >= len {
                 return Err(CommandError::IndexOutOfRange {
@@ -493,7 +530,10 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
             filter_id,
         } => {
             let object_index = find_object_index(&next_scene, object_id)?;
-            let filters = filters_mut(&mut next_scene.objects[object_index]);
+            let filters = filters_mut_with_preferred_id(
+                &mut next_scene.objects[object_index],
+                Some(filter_id),
+            );
             let filter = filters
                 .iter_mut()
                 .find(|filter| filter_id_of(filter) == *filter_id)
@@ -512,7 +552,10 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
             to_index,
         } => {
             let object_index = find_object_index(&next_scene, object_id)?;
-            let filters = filters_mut(&mut next_scene.objects[object_index]);
+            let filters = filters_mut_with_preferred_id(
+                &mut next_scene.objects[object_index],
+                Some(filter_id),
+            );
             let len = filters.len();
             if *from_index >= len {
                 return Err(CommandError::IndexOutOfRange {
@@ -552,7 +595,10 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
             ..
         } => {
             let object_index = find_object_index(&next_scene, object_id)?;
-            let filters = filters_mut(&mut next_scene.objects[object_index]);
+            let filters = filters_mut_with_preferred_id(
+                &mut next_scene.objects[object_index],
+                Some(filter_id),
+            );
             let filter_index = filters
                 .iter()
                 .position(|filter| filter_id_of(filter) == *filter_id)
@@ -561,22 +607,31 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                     filter_id: filter_id.clone(),
                 })?;
 
-            let mut patched_value = serde_json::to_value(&filters[filter_index]).map_err(|error| {
-                CommandError::InvalidFilterPatch {
-                    object_id: object_id.clone(),
-                    filter_id: filter_id.clone(),
-                    reason: format!("フィルタの直列化に失敗しました: {error}"),
-                }
-            })?;
+            let mut patched_value =
+                serde_json::to_value(&filters[filter_index]).map_err(|error| {
+                    CommandError::InvalidFilterPatch {
+                        object_id: object_id.clone(),
+                        filter_id: filter_id.clone(),
+                        reason: format!("フィルタの直列化に失敗しました: {error}"),
+                    }
+                })?;
             merge_json_object(&mut patched_value, "params", next);
 
-            let patched_filter: ObjectFilter = serde_json::from_value(patched_value).map_err(|error| {
+            let normalised_value = normalise_filter_value(patched_value).ok_or_else(|| {
                 CommandError::InvalidFilterPatch {
                     object_id: object_id.clone(),
                     filter_id: filter_id.clone(),
-                    reason: format!("パッチ適用後の値がフィルタとして無効です: {error}"),
+                    reason: "未知のフィルタ種別です".to_string(),
                 }
             })?;
+            let patched_filter: ObjectFilter =
+                serde_json::from_value(normalised_value).map_err(|error| {
+                    CommandError::InvalidFilterPatch {
+                        object_id: object_id.clone(),
+                        filter_id: filter_id.clone(),
+                        reason: format!("パッチ適用後の値がフィルタとして無効です: {error}"),
+                    }
+                })?;
             filters[filter_index] = patched_filter;
             sync_legacy_effects_with_filters(&mut next_scene.objects[object_index]);
         }
@@ -621,13 +676,103 @@ fn find_object_index(scene: &SceneData, object_id: &str) -> Result<usize, Comman
 }
 
 /// 対象オブジェクトの `BaseObject.filters` への可変参照を返す。
-/// `filters` は `Option<Vec<ObjectFilter>>` なので未設定時は空 `Vec` を
-/// 差し込んでから返す（`filterStack.ts` 側の `getObjectFiltersInOrder` は
-/// `filters` 未設定時にレガシー effect から構築するが、R4-7 のコマンド層は
-/// 「既に `filters` へ正規化済みの `SceneData`」のみを対象とするため、
-/// レガシー effect との同期は呼び出し側 (R4-8/9) の責務のまま維持する）。
+/// `filters` が未設定なら、`filterStack.ts` の
+/// `buildFiltersFromLegacyEffects` と同じ順序で legacy effect を stack 化する。
 fn filters_mut(object: &mut TimelineObject) -> &mut Vec<ObjectFilter> {
+    filters_mut_with_preferred_id(object, None)
+}
+
+fn filters_mut_with_preferred_id<'a>(
+    object: &'a mut TimelineObject,
+    preferred_filter_id: Option<&str>,
+) -> &'a mut Vec<ObjectFilter> {
+    if base_of(object).filters.is_none() {
+        let legacy_filters = build_filters_from_legacy_effects(object, preferred_filter_id);
+        base_of_mut(object).filters = Some(legacy_filters);
+    }
     base_of_mut(object).filters.get_or_insert_with(Vec::new)
+}
+
+fn legacy_filter_id(filter_type: &str, preferred_filter_id: Option<&str>) -> String {
+    preferred_filter_id
+        .filter(|id| id.starts_with(&format!("{filter_type}-")))
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("legacy-{filter_type}"))
+}
+
+fn build_filters_from_legacy_effects(
+    object: &TimelineObject,
+    preferred_filter_id: Option<&str>,
+) -> Vec<ObjectFilter> {
+    let base = base_of(object);
+    let mut filters = Vec::new();
+
+    if let Some(value) = base.color_correction {
+        filters.push(ObjectFilter::ColorCorrection {
+            id: legacy_filter_id("color_correction", preferred_filter_id),
+            enabled: value.enabled,
+            params: crate::schema::ColorCorrectionParams {
+                brightness: value.brightness,
+                contrast: value.contrast,
+                saturation: value.saturation,
+                hue: value.hue,
+            },
+        });
+    }
+    if let Some(value) = base.custom_clipping {
+        filters.push(ObjectFilter::Clipping {
+            id: legacy_filter_id("clipping", preferred_filter_id),
+            enabled: value.enabled,
+            params: crate::schema::ClippingFilterParams {
+                top: value.top,
+                bottom: value.bottom,
+                left: value.left,
+                right: value.right,
+                angle: value.angle,
+                radius: value.radius,
+            },
+        });
+    }
+    if let Some(value) = base.vibration {
+        filters.push(ObjectFilter::Vibration {
+            id: legacy_filter_id("vibration", preferred_filter_id),
+            enabled: value.enabled,
+            params: crate::schema::VibrationParams {
+                strength: value.strength,
+                speed: value.speed,
+            },
+        });
+    }
+    if let Some(value) = base.shadow.as_ref() {
+        filters.push(ObjectFilter::Shadow {
+            id: legacy_filter_id("shadow", preferred_filter_id),
+            enabled: value.enabled,
+            params: crate::schema::ShadowFilterParams {
+                colour: value.colour.clone(),
+                blur: value.blur,
+                offset_x: value.offset_x,
+                offset_y: value.offset_y,
+                opacity: value.opacity,
+            },
+        });
+    }
+    if let TimelineObject::Shape { fields, .. } = object {
+        if let Some(value) = fields.gradient.as_ref() {
+            filters.push(ObjectFilter::Gradient {
+                id: legacy_filter_id("gradient", preferred_filter_id),
+                enabled: value.enabled,
+                params: GradientFilterParams {
+                    kind: value.kind,
+                    scope: value.scope,
+                    colours: value.colours.clone(),
+                    stops: value.stops.clone(),
+                    direction: value.direction,
+                },
+            });
+        }
+    }
+
+    filters
 }
 
 /// `src/utils/filterStack.ts` の `materialiseSyncedObject` を Rust 側へ移植
@@ -854,11 +999,224 @@ fn set_filter_enabled(filter: &mut ObjectFilter, value: bool) {
     }
 }
 
+fn finite_number(params: &serde_json::Map<String, Value>, key: &str, fallback: f32) -> f32 {
+    params
+        .get(key)
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(fallback)
+}
+
+fn boolean(params: &serde_json::Map<String, Value>, key: &str, fallback: bool) -> bool {
+    params.get(key).and_then(Value::as_bool).unwrap_or(fallback)
+}
+
+fn string(params: &serde_json::Map<String, Value>, key: &str, fallback: &str) -> String {
+    params
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(fallback)
+        .to_string()
+}
+
+fn clamp(value: f32, minimum: f32, maximum: f32) -> f32 {
+    value.max(minimum).min(maximum)
+}
+
+fn normalised_gradient_params(params: &serde_json::Map<String, Value>) -> Value {
+    let mut colours: Vec<String> = params
+        .get("colours")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .take(8)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if colours.is_empty() {
+        colours = vec!["#ffffff".to_string(), "#000000".to_string()];
+    }
+    if colours.len() == 1 {
+        colours.push(colours[0].clone());
+    }
+
+    let raw_stops = params.get("stops").and_then(Value::as_array);
+    let stops: Vec<f32> = (0..colours.len())
+        .map(|index| {
+            let fallback = index as f32 / (colours.len() - 1) as f32;
+            let value = raw_stops
+                .and_then(|values| values.get(index))
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite())
+                .map(|value| value as f32)
+                .filter(|value| value.is_finite())
+                .unwrap_or(fallback);
+            clamp(value, 0.0, 1.0)
+        })
+        .collect();
+
+    let mut normalised = json!({
+        "type": if params.get("type").and_then(Value::as_str) == Some("radial") { "radial" } else { "linear" },
+        "colours": colours,
+        "stops": stops,
+        "direction": finite_number(params, "direction", 0.0),
+    });
+    if matches!(params.get("scope").and_then(Value::as_str), Some("group" | "connected")) {
+        normalised["scope"] = params["scope"].clone();
+    }
+    normalised
+}
+
+/// `filterStack.ts` の `normaliseFilter` と同じく、部分パッチ後の params を
+/// filter 種別ごとの完全な形へ戻す。`ObjectFilter` は Rust では型付きなので、
+/// この境界で正規化してから再 deserialize する。
+fn normalise_filter_value(value: Value) -> Option<Value> {
+    let object = value.as_object()?;
+    let filter_type = object.get("type")?.as_str()?;
+    let id = object.get("id")?.as_str()?.to_string();
+    let enabled = object
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let params = object
+        .get("params")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let normalised = match filter_type {
+        "color_correction" => json!({
+            "brightness": finite_number(&params, "brightness", 1.0),
+            "contrast": finite_number(&params, "contrast", 1.0),
+            "saturation": finite_number(&params, "saturation", 1.0),
+            "hue": finite_number(&params, "hue", 0.0),
+        }),
+        "colour_aberration" => json!({
+            "offsetX": finite_number(&params, "offsetX", 3.0).max(0.0),
+            "offsetY": finite_number(&params, "offsetY", 0.0).max(0.0),
+        }),
+        "outline" => json!({
+            "colour": string(&params, "colour", "#000000"),
+            "thickness": finite_number(&params, "thickness", 3.0).max(0.0),
+            "opacity": clamp(finite_number(&params, "opacity", 0.85), 0.0, 1.0),
+        }),
+        "clipping" => json!({
+            "top": finite_number(&params, "top", 0.0),
+            "bottom": finite_number(&params, "bottom", 0.0),
+            "left": finite_number(&params, "left", 0.0),
+            "right": finite_number(&params, "right", 0.0),
+            "angle": finite_number(&params, "angle", 0.0),
+            "radius": finite_number(&params, "radius", 0.0),
+        }),
+        "vibration" => json!({
+            "strength": finite_number(&params, "strength", 0.0),
+            "speed": finite_number(&params, "speed", 1.0),
+        }),
+        "shadow" => json!({
+            "colour": string(&params, "colour", "#000000"),
+            "blur": finite_number(&params, "blur", 4.0),
+            "offsetX": finite_number(&params, "offsetX", 2.0),
+            "offsetY": finite_number(&params, "offsetY", 2.0),
+            "opacity": finite_number(&params, "opacity", 0.5),
+        }),
+        "gradient" => normalised_gradient_params(&params),
+        "blur" => json!({
+            "strength": finite_number(&params, "strength", 4.0).max(0.0),
+            "quality": clamp(finite_number(&params, "quality", 3.0).round(), 1.0, 4.0),
+        }),
+        "fade" => json!({
+            "opacity": clamp(finite_number(&params, "opacity", 1.0), 0.0, 1.0),
+        }),
+        "wipe" => json!({
+            "edge": match params.get("edge").and_then(Value::as_str) {
+                Some("right") => "right",
+                Some("top") => "top",
+                Some("bottom") => "bottom",
+                _ => "left",
+            },
+            "reverse": boolean(&params, "reverse", false),
+        }),
+        "spot_light" => json!({
+            "centreX": clamp(finite_number(&params, "centreX", 0.5), 0.0, 1.0),
+            "centreY": clamp(finite_number(&params, "centreY", 0.5), 0.0, 1.0),
+            "radius": finite_number(&params, "radius", 0.65).max(0.0),
+            "intensity": finite_number(&params, "intensity", 0.75).max(0.0),
+            "colour": string(&params, "colour", "#fff4c2"),
+        }),
+        "displacement_map" => json!({
+            "amountX": finite_number(&params, "amountX", 24.0).max(0.0),
+            "amountY": finite_number(&params, "amountY", 12.0).max(0.0),
+            "size": finite_number(&params, "size", 128.0).max(1.0),
+            "strength": clamp(finite_number(&params, "strength", 1.0), 0.0, 1.0),
+        }),
+        "fake_dof" => json!({
+            "focusX": clamp(finite_number(&params, "focusX", 0.5), 0.0, 1.0),
+            "focusY": clamp(finite_number(&params, "focusY", 0.5), 0.0, 1.0),
+            "focusRadius": clamp(finite_number(&params, "focusRadius", 0.25), 0.01, 1.0),
+            "blur": finite_number(&params, "blur", 8.0).max(0.0),
+            "strength": clamp(finite_number(&params, "strength", 1.0), 0.0, 1.0),
+        }),
+        "auto_blur" => json!({
+            "blur": finite_number(&params, "blur", 10.0).max(0.0),
+            "speed": finite_number(&params, "speed", 1.0).max(0.0),
+            "strength": clamp(finite_number(&params, "strength", 1.0), 0.0, 1.0),
+            "colourShift": clamp(finite_number(&params, "colourShift", 0.0), 0.0, 1.0),
+        }),
+        "stretch" => json!({
+            "angle": finite_number(&params, "angle", 0.0),
+            "amount": finite_number(&params, "amount", 1.0).max(0.0),
+            "strength": clamp(finite_number(&params, "strength", 1.0), 0.0, 1.0),
+        }),
+        "multi_slicer" => json!({
+            "angle": finite_number(&params, "angle", 45.0),
+            "offset": finite_number(&params, "offset", 16.0).max(0.0),
+            "slices": finite_number(&params, "slices", 18.0).round().max(2.0),
+            "expansion": finite_number(&params, "expansion", 0.0).max(0.0),
+            "strength": clamp(finite_number(&params, "strength", 1.0), 0.0, 1.0),
+        }),
+        "oct_transform" => json!({
+            "scale": finite_number(&params, "scale", 1.0).max(0.01),
+            "rotation": finite_number(&params, "rotation", 0.0),
+            "vertexCount": finite_number(&params, "vertexCount", 8.0).round().max(3.0),
+            "warp": finite_number(&params, "warp", 0.2).max(0.0),
+            "strength": clamp(finite_number(&params, "strength", 1.0), 0.0, 1.0),
+        }),
+        "area_expand" => json!({
+            "top": finite_number(&params, "top", 0.0).max(0.0),
+            "bottom": finite_number(&params, "bottom", 0.0).max(0.0),
+            "left": finite_number(&params, "left", 0.0).max(0.0),
+            "right": finite_number(&params, "right", 32.0).max(0.0),
+            "fill": boolean(&params, "fill", true),
+        }),
+        "smart_clipping" => json!({
+            "top": finite_number(&params, "top", 0.0).max(0.0),
+            "bottom": finite_number(&params, "bottom", 0.0).max(0.0),
+            "left": finite_number(&params, "left", 0.0).max(0.0),
+            "right": finite_number(&params, "right", 0.0).max(0.0),
+            "linkAxes": boolean(&params, "linkAxes", false),
+            "mode": clamp(finite_number(&params, "mode", 0.0).round(), 0.0, 5.0),
+            "amount": finite_number(&params, "amount", 1.0).max(0.0),
+            "seed": finite_number(&params, "seed", 1.0).round(),
+            "reverse": boolean(&params, "reverse", false),
+        }),
+        _ => return None,
+    };
+    Some(json!({ "id": id, "type": filter_type, "enabled": enabled, "params": normalised }))
+}
+
 /// `target["key"]` を `patch` の各キーで部分マージする（`patch` が object
 /// でなければ何もしない）。`SetObjectField` の「単一フィールド上書き」を
 /// 拡張し、`UpdateFilterParams` では「`params` オブジェクトの部分マージ」
 /// を表す（`updateFilterParamsInObject` の `{ ...filter.params,
 /// ...paramsPatch }` と同じ意味論）。
+/// patch 値が `null` の key は、undo 時に元々 absent だった任意 key を
+/// 削除するための印として扱う。
 fn merge_json_object(target: &mut Value, key: &str, patch: &Value) {
     let Some(patch_object) = patch.as_object() else {
         return;
@@ -873,7 +1231,11 @@ fn merge_json_object(target: &mut Value, key: &str, patch: &Value) {
         .as_object_mut()
         .expect("params は常に JSON object");
     for (patch_key, patch_value) in patch_object {
-        existing_object.insert(patch_key.clone(), patch_value.clone());
+        if patch_value.is_null() {
+            existing_object.remove(patch_key);
+        } else {
+            existing_object.insert(patch_key.clone(), patch_value.clone());
+        }
     }
 }
 
