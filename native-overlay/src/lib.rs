@@ -888,6 +888,12 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     /// が `RgbaFrame`（フルHDで約8MBのピクセルバッファ）を含む `HashMap` の
     /// deep clone を一切発生させない（参照カウントのコピーのみ）。
     last_scene: Option<Arc<(SceneSnapshot, NativeOverlaySharedSources)>>,
+    /// `last_scene` は直前の drawable に contain-fit 済みであるため、再attachで
+    /// drawable サイズが変わった場合に再評価できるよう、元の scene も保持する。
+    last_scene_unfitted: Option<Arc<SceneSnapshot>>,
+    /// `last_scene_unfitted` の project canvas サイズ。`None` は upload frame
+    /// 経路のように元 scene の寸法が得られない cached snapshot を表す。
+    last_scene_canvas_size: Option<(u32, u32)>,
     /// `last_scene` の世代カウンタ。`present_upload_frame` で新しい scene が
     /// 来るたびにインクリメントし、native-wgpu-renderer 側の prepared clip
     /// キャッシュ（`prepare_base_scene_clips_cached`）のキーとして渡す。
@@ -924,9 +930,73 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     renderer: NativeWgpuLiveSurfaceRenderer,
 }
 
+#[cfg(target_os = "macos")]
+struct NativeOverlayRetainedPresentation {
+    last_scene: Option<Arc<(SceneSnapshot, NativeOverlaySharedSources)>>,
+    last_scene_unfitted: Option<Arc<SceneSnapshot>>,
+    last_scene_canvas_size: Option<(u32, u32)>,
+    scene_generation: u64,
+    last_scene_content_revisions: HashMap<String, u64>,
+    last_nv12_sources: HashMap<String, Nv12IoSurfaceRef>,
+    last_particle_sources: HashMap<String, NativeParticleSource>,
+    last_audio_reactive_sources: HashMap<String, NativeAudioReactiveSource>,
+    last_getcolor_sources: HashMap<String, NativeGetColorSource>,
+    last_hksy_sources: HashMap<String, NativeHksySource>,
+    last_simple_tube_sources: HashMap<String, NativeSimpleTubeSource>,
+    last_focus_lines_sources: HashMap<String, NativeFocusLinesSource>,
+    last_shaking_polygon_sources: HashMap<String, NativeShakingPolygonSource>,
+    last_shattered_sphere_sources: HashMap<String, NativeShatteredSphereSource>,
+    #[cfg(target_os = "macos")]
+    video_decoders: HashMap<String, NativeOverlayResidentVideoDecoder>,
+}
+
 unsafe impl Send for NativeOverlayLiveSurfaceRenderer {}
 
 impl NativeOverlayLiveSurfaceRenderer {
+    #[cfg(target_os = "macos")]
+    fn take_retained_presentation(&mut self) -> NativeOverlayRetainedPresentation {
+        NativeOverlayRetainedPresentation {
+            last_scene: self.last_scene.take(),
+            last_scene_unfitted: self.last_scene_unfitted.take(),
+            last_scene_canvas_size: self.last_scene_canvas_size.take(),
+            scene_generation: self.scene_generation,
+            last_scene_content_revisions: std::mem::take(&mut self.last_scene_content_revisions),
+            last_nv12_sources: std::mem::take(&mut self.last_nv12_sources),
+            last_particle_sources: std::mem::take(&mut self.last_particle_sources),
+            last_audio_reactive_sources: std::mem::take(&mut self.last_audio_reactive_sources),
+            last_getcolor_sources: std::mem::take(&mut self.last_getcolor_sources),
+            last_hksy_sources: std::mem::take(&mut self.last_hksy_sources),
+            last_simple_tube_sources: std::mem::take(&mut self.last_simple_tube_sources),
+            last_focus_lines_sources: std::mem::take(&mut self.last_focus_lines_sources),
+            last_shaking_polygon_sources: std::mem::take(&mut self.last_shaking_polygon_sources),
+            last_shattered_sphere_sources: std::mem::take(&mut self.last_shattered_sphere_sources),
+            #[cfg(target_os = "macos")]
+            video_decoders: std::mem::take(&mut self.video_decoders),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn restore_retained_presentation(&mut self, presentation: NativeOverlayRetainedPresentation) {
+        self.last_scene = presentation.last_scene;
+        self.last_scene_unfitted = presentation.last_scene_unfitted;
+        self.last_scene_canvas_size = presentation.last_scene_canvas_size;
+        self.scene_generation = presentation.scene_generation;
+        self.last_scene_content_revisions = presentation.last_scene_content_revisions;
+        self.last_nv12_sources = presentation.last_nv12_sources;
+        self.last_particle_sources = presentation.last_particle_sources;
+        self.last_audio_reactive_sources = presentation.last_audio_reactive_sources;
+        self.last_getcolor_sources = presentation.last_getcolor_sources;
+        self.last_hksy_sources = presentation.last_hksy_sources;
+        self.last_simple_tube_sources = presentation.last_simple_tube_sources;
+        self.last_focus_lines_sources = presentation.last_focus_lines_sources;
+        self.last_shaking_polygon_sources = presentation.last_shaking_polygon_sources;
+        self.last_shattered_sphere_sources = presentation.last_shattered_sphere_sources;
+        #[cfg(target_os = "macos")]
+        {
+            self.video_decoders = presentation.video_decoders;
+        }
+    }
+
     /// Phase 7 (W7) stage6 — `finish_pipelines`（`wgpu::Device`/`Queue`のみ
     /// 使うDXCコンパイル区間、worker スレッドで呼んでよい）の結果を
     /// `NativeOverlayLiveSurfaceRenderer`へ組み立てる共通部分。HashMap
@@ -950,6 +1020,8 @@ impl NativeOverlayLiveSurfaceRenderer {
             drawable_height: contract.drawable_height,
             contents_scale: contract.contents_scale,
             last_scene: None,
+            last_scene_unfitted: None,
+            last_scene_canvas_size: None,
             scene_generation: 0,
             last_scene_content_revisions: HashMap::new(),
             last_nv12_sources: HashMap::new(),
@@ -983,6 +1055,8 @@ impl NativeOverlayLiveSurfaceRenderer {
             drawable_height: contract.drawable_height,
             contents_scale: contract.contents_scale,
             last_scene: None,
+            last_scene_unfitted: None,
+            last_scene_canvas_size: None,
             scene_generation: 0,
             last_scene_content_revisions: HashMap::new(),
             last_nv12_sources: HashMap::new(),
@@ -1070,6 +1144,16 @@ impl NativeOverlayLiveSurfaceRenderer {
         let content_revisions = scene
             .map(native_overlay_source_content_revisions_for_scene)
             .unwrap_or_default();
+        // shared frame は proxy decode の縮小を補正した後で drawable に fit する。
+        // 再attachの新 drawable でも同じ補正済み scene を fit し直せるよう保持する。
+        let unfitted_scene = scene.map(|scene| {
+            Arc::new(compensate_upload_decode_downscale(
+                &scene.snapshot,
+                scene,
+                upload,
+            ))
+        });
+        let scene_canvas_size = scene.map(|scene| (scene.canvas_width, scene.canvas_height));
         let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
             upload,
             scene,
@@ -1082,6 +1166,8 @@ impl NativeOverlayLiveSurfaceRenderer {
         // Arc に包むことで、この代入自体は参照カウントのコピーのみで
         // RgbaFrame ピクセルバッファの deep clone を伴わない。
         self.last_scene = Some(Arc::new((snapshot, sources)));
+        self.last_scene_unfitted = unfitted_scene;
+        self.last_scene_canvas_size = scene_canvas_size;
         self.last_scene_content_revisions = content_revisions;
         self.scene_generation += 1;
         let (base_snapshot, base_sources) = self
@@ -1232,6 +1318,8 @@ impl NativeOverlayLiveSurfaceRenderer {
         let shaking_polygon_sources = native_overlay_shaking_polygon_sources_for_scene(scene)?;
         let shattered_sphere_sources = native_overlay_shattered_sphere_sources_for_scene(scene)?;
         self.last_scene = Some(Arc::new((snapshot, sources)));
+        self.last_scene_unfitted = Some(Arc::new(scene.snapshot.clone()));
+        self.last_scene_canvas_size = Some((scene.canvas_width, scene.canvas_height));
         self.last_scene_content_revisions = content_revisions;
         self.last_nv12_sources = nv12_sources;
         self.last_particle_sources = particle_sources;
@@ -1355,9 +1443,27 @@ impl NativeOverlayLiveSurfaceRenderer {
     ) -> Result<(), String> {
         let trace_start = overlay_trace_enabled().then(Instant::now);
         let cached = self.last_scene.clone();
+        let unfitted = self.last_scene_unfitted.clone();
+        let canvas_size = self.last_scene_canvas_size;
         let owned_empty: (SceneSnapshot, NativeOverlaySharedSources);
+        let owned_refitted: SceneSnapshot;
         let (base_snapshot, base_sources) = match cached.as_deref() {
-            Some((snapshot, sources)) => (snapshot, sources),
+            Some((snapshot, sources)) => {
+                if let (Some(unfitted), Some((canvas_width, canvas_height))) =
+                    (unfitted.as_deref(), canvas_size)
+                {
+                    owned_refitted = fit_scene_snapshot_to_drawable(
+                        unfitted,
+                        canvas_width,
+                        canvas_height,
+                        self.drawable_width,
+                        self.drawable_height,
+                    );
+                    (&owned_refitted, sources)
+                } else {
+                    (snapshot, sources)
+                }
+            }
             None => {
                 let (snapshot, _) = build_empty_scene_snapshot_for_transparent_clear();
                 owned_empty = (snapshot, HashMap::new());
@@ -2293,13 +2399,36 @@ fn register_live_overlay_renderer(
 }
 
 #[cfg(target_os = "macos")]
+fn take_live_overlay_presentation_state(
+    window_id: u32,
+) -> Result<Option<NativeOverlayRetainedPresentation>, String> {
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    Ok(renderers
+        .remove(&window_id)
+        .map(|mut renderer| renderer.take_retained_presentation()))
+}
+
+#[cfg(target_os = "macos")]
 fn attach_live_overlay_surface_renderer(
     window_id: u32,
     view_handle: usize,
     contract: &OverlayLayerContract,
 ) -> Result<(), String> {
-    let renderer =
+    let mut renderer =
         NativeOverlayLiveSurfaceRenderer::from_appkit_view(window_id, view_handle, contract)?;
+    if let Some(presentation) = take_live_overlay_presentation_state(window_id)? {
+        let should_represent = presentation.last_scene.is_some();
+        renderer.restore_retained_presentation(presentation);
+        if should_represent {
+            let decoration = stored_native_overlay_selection_decoration(window_id);
+            if let Err(error) = renderer.present_cached_scene_with_decoration(decoration.as_ref()) {
+                eprintln!("[uxfd-overlay] cached re-present after reattach failed: {error}");
+            }
+        }
+    }
     register_live_overlay_renderer(window_id, renderer)
 }
 
@@ -2911,6 +3040,8 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
     renderer.last_scene = None;
+    renderer.last_scene_unfitted = None;
+    renderer.last_scene_canvas_size = None;
     renderer.last_nv12_sources.clear();
     renderer.last_particle_sources.clear();
     renderer.last_getcolor_sources.clear();
@@ -6842,6 +6973,105 @@ mod tests {
             ),
             "decoration-only re-present must reuse the exact same pixel buffer allocation, \
              not a deep copy",
+        );
+    }
+
+    #[test]
+    fn macos_reattach_preserves_and_represents_the_previous_live_presentation() {
+        // Reattach creates a fresh CAMetalLayer surface, so the previous scene and
+        // video sources must move out of the old renderer before the cached scene
+        // is immediately presented on the fresh surface.
+        let source = include_str!("lib.rs");
+        let attach_start = source
+            .find("fn attach_live_overlay_surface_renderer(")
+            .expect("macOS live surface attach helper must exist");
+        let attach_end = source[attach_start..]
+            .find("\nfn detach_live_overlay_surface_renderer(")
+            .map(|offset| attach_start + offset)
+            .expect("macOS live surface attach helper must end before the detach helper");
+        let attach_source = &source[attach_start..attach_end];
+        let transfer_position = attach_source
+            .find("take_live_overlay_presentation_state(window_id)")
+            .expect("reattach must retain the previous presentation state");
+        let represent_position = attach_source
+            .find("present_cached_scene_with_decoration")
+            .expect("reattach must immediately present the retained frame");
+
+        assert!(
+            transfer_position < represent_position,
+            "reattach must restore the previous presentation state before re-presenting it",
+        );
+    }
+
+    #[test]
+    fn macos_reattach_registers_the_renderer_when_cached_represent_fails() {
+        // 再 present は新しい CAMetalLayer へ直前フレームを早く戻すための最善努力で
+        // あり、失敗しても attach 自体を失敗させてはならない。後続の通常 present が
+        // 回復できるよう、新 renderer は必ず registry に登録する。
+        let source = include_str!("lib.rs");
+        let attach_start = source
+            .find("fn attach_live_overlay_surface_renderer(")
+            .expect("macOS live surface attach helper must exist");
+        let attach_end = source[attach_start..]
+            .find("\nfn detach_live_overlay_surface_renderer(")
+            .map(|offset| attach_start + offset)
+            .expect("macOS live surface attach helper must end before the detach helper");
+        let attach_source = &source[attach_start..attach_end];
+        let represent_failure_position = attach_source
+            .find("if let Err(error) = renderer.present_cached_scene_with_decoration")
+            .expect("cached re-present failure must be handled without returning from attach");
+        let log_position = attach_source[represent_failure_position..]
+            .find("[uxfd-overlay] cached re-present after reattach failed")
+            .map(|offset| represent_failure_position + offset)
+            .expect("cached re-present failure must be logged");
+        let register_position = attach_source
+            .find("register_live_overlay_renderer(window_id, renderer)")
+            .expect("reattach must register the new renderer");
+
+        assert!(
+            represent_failure_position < log_position && log_position < register_position,
+            "a failed cached re-present must be logged before the renderer is registered",
+        );
+        assert!(
+            !attach_source.contains("renderer.present_cached_scene_with_decoration(decoration.as_ref())?"),
+            "cached re-present must not propagate an error out of attach",
+        );
+    }
+
+    #[test]
+    fn cached_scene_is_refit_for_the_new_drawable_after_reattach() {
+        // `last_scene` は直前の drawable に fit 済みなので、そのまま新 surface へ
+        // 渡すと resize 後に letterbox/clip の大きさが古いままになる。元 scene と
+        // canvas サイズを保持して、新 drawable 寸法で再 fit する構造を固定する。
+        let source = include_str!("lib.rs");
+        let cached_start = source
+            .find("fn present_cached_scene_with_decoration(")
+            .expect("cached scene present helper must exist");
+        let cached_end = source[cached_start..]
+            .find("\n}\n\n/// Phase 7")
+            .map(|offset| cached_start + offset)
+            .expect("cached scene present helper must end before the next section");
+        let cached_source = &source[cached_start..cached_end];
+
+        assert!(
+            source.contains("last_scene_unfitted") && source.contains("last_scene_canvas_size"),
+            "the retained presentation must include the unfitted scene and its canvas size",
+        );
+        assert!(
+            cached_source.contains("fit_scene_snapshot_to_drawable("),
+            "cached re-present must fit the original scene to the current drawable",
+        );
+        let upload_start = source
+            .find("fn present_upload_frame(")
+            .expect("upload frame present helper must exist");
+        let upload_end = source[upload_start..]
+            .find("\n    #[cfg(target_os = \"macos\")]\n    fn resolve_video_sources")
+            .map(|offset| upload_start + offset)
+            .expect("upload frame present helper must end before video source resolution");
+        let upload_source = &source[upload_start..upload_end];
+        assert!(
+            upload_source.contains("compensate_upload_decode_downscale"),
+            "shared-frame re-present must retain the pre-fit compensated scene",
         );
     }
 
