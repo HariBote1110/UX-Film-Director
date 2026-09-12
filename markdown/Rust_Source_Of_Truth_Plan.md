@@ -761,6 +761,8 @@ R6完了時点でも、「TSはUIに徹しRustが描画・状態を単一実装�
    追加・削除・並べ替え操作をTS側で計算してからRustへ送る往路ロジックが
    残る。Rust側に同等の編集APIを実装すればTSは呼び出しのみになるが、
    フィルタ編集APIの新設はR6のスコープ外。
+   **→ 解消（2026-09-13）**: 5つのフィルタ編集コマンドのapplyをrust-coreの単一実装とし、
+   TS往路関数を削除した（`progress/filter-stack-forward-path-to-rust.md`）。
 3. **`layerTrackOps.ts`のreorder計算**: レイヤー/トラックの並べ替え時の
    インデックス再計算をTS側で行っている。Rustスナップショットの
    並べ替えAPIが無いための暫定実装。
