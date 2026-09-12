@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [cross-object-wiring-to-rust.md](cross-object-wiring-to-rust.md) — 責務台帳 item 1（audio_visualization/audio_sphere/getcolor_dot_field/group_controlのオブジェクト間参照解決）のRust移管を調査し、今回は移管しないと判断。Rustが受け取る`scene.replace`のProject/SceneMediaReferenceも旧snapshot経路も、TSが解決済みの値だけを持ち、音声object・候補image/PSD・targetLayerCount等の解決入力が失われているため、Rustに純粋関数を置いても呼び出し元がなく第二実装になるだけ。推奨案は「編集用object graphをRustへ渡しRustが評価用Project/mediaを構築する」大規模再設計（447フレームparity再取得を含む）。ID優先時は時間外でも採用・layer fallbackのみ時間窓を要求する非対称規約等の移植時注意点を記録。コード変更なし（2026-09-13）
+
 - [layer-track-reorder-to-rust.md](layer-track-reorder-to-rust.md) — 責務台帳 item 3 を解消。`SwapLayerTracks`/`InsertLayerTrack`/`DeleteLayerTrack`をrust-core Commandに追加し、layer補完・objectのlayer・PSD lipSync/audio visualization targetLayer再マップ・insert overflow削除・delete時reset をRustのapplyだけで計算、`layerTrackOps.ts`を削除。スナップショット差し替えの`ReorderLayers`は利用箇所ゼロのため廃止。undoは変更前layers/objectsを持つ`RestoreLayerTracks`で厳密復元（自己逆元で履歴に積まない前提、Gotchaに記録）。storeは全layers/objectsを送り、応答待ち中に変更があれば結果・履歴を破棄、往復中はlayer操作とundo/redoを停止。vitest 261/1856、rust-core/rust-backend cargo test green、codegen安定（0.1.1-Beta-519c）
 
 - [filter-stack-forward-path-to-rust.md](filter-stack-forward-path-to-rust.md) — 責務台帳 item 2 を解消。フィルタスタック編集5コマンド（Add/Remove/ToggleEnabled/Move/UpdateParams）のstack変更・legacyミラー同期・パラメータ正規化を`rust-core::apply_command`へ移管し、`filterStack.ts`の往路mutation関数5つを削除。storeは対象オブジェクト1件の最小SceneDataを`command.apply`へ送り、応答の対象オブジェクトのfilter関連フィールドだけを現在stateへマージ。オブジェクト単位直列キュー＋未開始パラメータ更新のcoalesceで、IPC往復中の同時編集上書きとドラッグ中プレビュー停止を防止。Rustテスト10件（64フィルタstress含む）、vitest 262/1861、codegen差分なし（0.1.1-Beta-519b）
