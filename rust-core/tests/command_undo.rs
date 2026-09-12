@@ -19,7 +19,8 @@ const FIXTURES_DIR: &str = "tests/fixtures/uxfd";
 
 fn read_fixture(name: &str) -> String {
     let path = Path::new(FIXTURES_DIR).join(name);
-    fs::read_to_string(&path).unwrap_or_else(|err| panic!("フィクスチャの読込に失敗: {path:?}: {err}"))
+    fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("フィクスチャの読込に失敗: {path:?}: {err}"))
 }
 
 /// 実フィクスチャ（R2/R3 で使ってきた `realistic-heavy-edit-v2.uxfd.json`）の
@@ -223,7 +224,10 @@ fn add_object_inserts_at_index_and_remove_restores_exact_position() {
     };
     let after_add = apply_command(&scene, &add).expect("AddObject は成功するはず");
     assert_eq!(after_add.objects.len(), scene.objects.len() + 1);
-    assert_eq!(object_id_of(&after_add.objects[insert_index]), "brand-new-object");
+    assert_eq!(
+        object_id_of(&after_add.objects[insert_index]),
+        "brand-new-object"
+    );
 
     let undo_add = invert(&add);
     let after_undo = apply_command(&after_add, &undo_add).expect("undo(AddObject) は成功するはず");
@@ -241,16 +245,23 @@ fn add_object_inserts_at_index_and_remove_restores_exact_position() {
     assert_eq!(after_remove.objects.len(), scene.objects.len() - 1);
 
     let undo_remove = invert(&remove);
-    let restored = apply_command(&after_remove, &undo_remove).expect("undo(RemoveObject) は成功するはず");
+    let restored =
+        apply_command(&after_remove, &undo_remove).expect("undo(RemoveObject) は成功するはず");
     assert_eq!(restored, scene);
-    assert_eq!(object_id_of(&restored.objects[remove_index]), object_id_of(&removed_object));
+    assert_eq!(
+        object_id_of(&restored.objects[remove_index]),
+        object_id_of(&removed_object)
+    );
 }
 
 #[test]
 fn add_object_rejects_duplicate_id() {
     let scene = fixture_scene();
     let duplicate = scene.objects[0].clone();
-    let command = Command::AddObject { object: duplicate, index: 0 };
+    let command = Command::AddObject {
+        object: duplicate,
+        index: 0,
+    };
 
     let error = apply_command(&scene, &command).expect_err("重複 id は拒否されるはず");
     assert!(matches!(error, CommandError::DuplicateObjectId { .. }));
@@ -261,7 +272,8 @@ fn add_object_rejects_out_of_range_index() {
     let scene = fixture_scene();
     let mut object_json = serde_json::to_value(&scene.objects[0]).unwrap();
     object_json["id"] = Value::from("another-new-object");
-    let object: uxfd_rust_core::schema::TimelineObject = serde_json::from_value(object_json).unwrap();
+    let object: uxfd_rust_core::schema::TimelineObject =
+        serde_json::from_value(object_json).unwrap();
 
     let command = Command::AddObject {
         object,
@@ -284,7 +296,7 @@ fn remove_object_rejects_index_mismatch() {
 }
 
 // ---------------------------------------------------------------------
-// R4-7: レイヤーコマンド (SetLayerState/ReorderLayers)
+// レイヤートラック再配置コマンド
 // ---------------------------------------------------------------------
 
 #[test]
@@ -295,7 +307,11 @@ fn set_layer_state_replaces_single_layer_and_inverts() {
     next.visible = !next.visible;
     next.name = "Renamed".to_string();
 
-    let command = Command::SetLayerState { index: 2, next: next.clone(), previous: previous.clone() };
+    let command = Command::SetLayerState {
+        index: 2,
+        next: next.clone(),
+        previous: previous.clone(),
+    };
     let applied = apply_command(&scene, &command).expect("SetLayerState は成功するはず");
     assert_eq!(applied.layers[2], next);
     assert_eq!(applied.layers.len(), scene.layers.len());
@@ -318,25 +334,95 @@ fn set_layer_state_rejects_out_of_range_index() {
 }
 
 #[test]
-fn reorder_layers_swaps_whole_layers_and_objects_and_inverts() {
+fn layer_track_commands_remap_references_and_invert_exactly() {
     let scene = fixture_scene();
-    let mut next_layers = scene.layers.clone();
-    next_layers.swap(0, 1);
-    let mut next_objects = scene.objects.clone();
-    next_objects.reverse();
-
-    let command = Command::ReorderLayers {
+    let command = Command::SwapLayerTracks {
+        index_a: 0,
+        index_b: 1,
         previous_layers: scene.layers.clone(),
-        next_layers: next_layers.clone(),
         previous_objects: scene.objects.clone(),
-        next_objects: next_objects.clone(),
     };
-    let applied = apply_command(&scene, &command).expect("ReorderLayers は成功するはず");
-    assert_eq!(applied.layers, next_layers);
-    assert_eq!(applied.objects, next_objects);
+    let applied = apply_command(&scene, &command).expect("SwapLayerTracks は成功するはず");
+    assert_eq!(applied.layers[0], scene.layers[1]);
+    assert_eq!(applied.layers[1], scene.layers[0]);
 
     let restored = apply_command(&applied, &invert(&command)).expect("undo は成功するはず");
     assert_eq!(restored, scene);
+}
+
+#[test]
+fn insert_and_delete_layer_tracks_drop_or_reset_then_restore_exactly() {
+    let scene = fixture_scene();
+    let insert = Command::InsertLayerTrack {
+        insert_at: 0,
+        previous_layers: scene.layers.clone(),
+        previous_objects: scene.objects.clone(),
+    };
+    let inserted = apply_command(&scene, &insert).expect("InsertLayerTrack は成功するはず");
+    assert_eq!(inserted.layers.len(), 100);
+    assert_eq!(apply_command(&inserted, &invert(&insert)).unwrap(), scene);
+
+    let delete = Command::DeleteLayerTrack {
+        delete_at: 0,
+        previous_layers: scene.layers.clone(),
+        previous_objects: scene.objects.clone(),
+    };
+    let deleted = apply_command(&scene, &delete).expect("DeleteLayerTrack は成功するはず");
+    assert_eq!(deleted.layers.len(), 100);
+    assert_eq!(apply_command(&deleted, &invert(&delete)).unwrap(), scene);
+}
+
+#[test]
+fn layer_track_commands_remap_audio_visualization_and_lip_sync_targets() {
+    let mut scene = fixture_scene();
+    let mut psd_value = serde_json::to_value(&scene.objects[0]).unwrap();
+    psd_value["id"] = Value::from("layer-track-psd");
+    psd_value["type"] = Value::from("psd");
+    psd_value["src"] = Value::from("");
+    psd_value["width"] = Value::from(1.0);
+    psd_value["height"] = Value::from(1.0);
+    psd_value["scale"] = Value::from(1.0);
+    psd_value["lipSync"] = serde_json::json!({
+        "enabled": true, "sourceMode": "layer", "targetLayer": 3,
+        "audioId": null, "mapping": { "a": "", "i": "", "u": "", "e": "", "o": "", "n": "" }
+    });
+    let psd = serde_json::from_value(psd_value).unwrap();
+    scene.objects.push(psd);
+
+    let swap = Command::SwapLayerTracks {
+        index_a: 2,
+        index_b: 5,
+        previous_layers: scene.layers.clone(),
+        previous_objects: scene.objects.clone(),
+    };
+    let swapped = apply_command(&scene, &swap).unwrap();
+    let audio = serde_json::to_value(
+        &swapped
+            .objects
+            .iter()
+            .find(|object| object_id_of(object) == "realistic-main-audio-waveform")
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(audio["targetLayer"], 5);
+
+    let delete = Command::DeleteLayerTrack {
+        delete_at: 3,
+        previous_layers: scene.layers.clone(),
+        previous_objects: scene.objects.clone(),
+    };
+    let deleted = apply_command(&scene, &delete).unwrap();
+    let psd = serde_json::to_value(
+        &deleted
+            .objects
+            .iter()
+            .find(|object| object_id_of(object) == "layer-track-psd")
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(psd["lipSync"]["enabled"], false);
+    assert_eq!(psd["lipSync"]["targetLayer"], 0);
+    assert_eq!(apply_command(&deleted, &invert(&delete)).unwrap(), scene);
 }
 
 // ---------------------------------------------------------------------
@@ -349,13 +435,14 @@ const FILTER_OBJECT_ID: &str = "realistic-main-video-a";
 #[test]
 fn add_filter_then_remove_filter_round_trips() {
     let scene = fixture_scene();
-    let new_filter: uxfd_rust_core::schema::ObjectFilter = serde_json::from_value(serde_json::json!({
-        "type": "blur",
-        "id": "new-blur-filter",
-        "enabled": true,
-        "params": { "strength": 4.0, "quality": 3.0 }
-    }))
-    .unwrap();
+    let new_filter: uxfd_rust_core::schema::ObjectFilter =
+        serde_json::from_value(serde_json::json!({
+            "type": "blur",
+            "id": "new-blur-filter",
+            "enabled": true,
+            "params": { "strength": 4.0, "quality": 3.0 }
+        }))
+        .unwrap();
 
     let add = Command::AddFilter {
         object_id: FILTER_OBJECT_ID.to_string(),
@@ -363,7 +450,11 @@ fn add_filter_then_remove_filter_round_trips() {
         index: 1,
     };
     let applied = apply_command(&scene, &add).expect("AddFilter は成功するはず");
-    let object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     assert_eq!(filters_of(object).as_array().unwrap().len(), 4);
     assert_eq!(filters_of(object)[1]["id"], Value::from("new-blur-filter"));
 
@@ -374,7 +465,11 @@ fn add_filter_then_remove_filter_round_trips() {
 #[test]
 fn remove_filter_rejects_index_mismatch() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let removed = filters_of(object)[0].clone();
     let removed: uxfd_rust_core::schema::ObjectFilter = serde_json::from_value(removed).unwrap();
 
@@ -391,7 +486,11 @@ fn remove_filter_rejects_index_mismatch() {
 #[test]
 fn toggle_filter_enabled_is_self_inverse() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let filter_id = filters_of(object)[0]["id"].as_str().unwrap().to_string();
     let original_enabled = filters_of(object)[0]["enabled"].as_bool().unwrap();
 
@@ -400,8 +499,15 @@ fn toggle_filter_enabled_is_self_inverse() {
         filter_id: filter_id.clone(),
     };
     let applied = apply_command(&scene, &command).expect("ToggleFilterEnabled は成功するはず");
-    let toggled_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
-    assert_eq!(filters_of(toggled_object)[0]["enabled"], Value::from(!original_enabled));
+    let toggled_object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
+    assert_eq!(
+        filters_of(toggled_object)[0]["enabled"],
+        Value::from(!original_enabled)
+    );
 
     // invert() は同一コマンドを返し、もう一度 apply すれば元に戻る。
     let inverted = invert(&command);
@@ -424,7 +530,11 @@ fn toggle_filter_enabled_rejects_unknown_filter() {
 #[test]
 fn move_filter_reorders_and_inverts() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let filter_id = filters_of(object)[0]["id"].as_str().unwrap().to_string();
 
     let command = Command::MoveFilter {
@@ -434,17 +544,29 @@ fn move_filter_reorders_and_inverts() {
         to_index: 2,
     };
     let applied = apply_command(&scene, &command).expect("MoveFilter は成功するはず");
-    let moved_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
-    assert_eq!(filters_of(moved_object)[2]["id"], Value::from(filter_id.as_str()));
+    let moved_object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
+    assert_eq!(
+        filters_of(moved_object)[2]["id"],
+        Value::from(filter_id.as_str())
+    );
 
-    let restored = apply_command(&applied, &invert(&command)).expect("undo(MoveFilter) は成功するはず");
+    let restored =
+        apply_command(&applied, &invert(&command)).expect("undo(MoveFilter) は成功するはず");
     assert_eq!(restored, scene);
 }
 
 #[test]
 fn move_filter_clamped_no_op_at_boundary_is_ok_and_leaves_scene_unchanged() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let filter_id = filters_of(object)[0]["id"].as_str().unwrap().to_string();
 
     // 既に先頭にあるフィルタを「上へ」動かそうとする無操作 (from == to)。
@@ -461,7 +583,11 @@ fn move_filter_clamped_no_op_at_boundary_is_ok_and_leaves_scene_unchanged() {
 #[test]
 fn update_filter_params_patches_and_inverts() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let filter_id = filters_of(object)[0]["id"].as_str().unwrap().to_string();
     let previous_brightness = filters_of(object)[0]["params"]["brightness"].clone();
 
@@ -472,12 +598,23 @@ fn update_filter_params_patches_and_inverts() {
         previous: serde_json::json!({ "brightness": previous_brightness }),
     };
     let applied = apply_command(&scene, &command).expect("UpdateFilterParams は成功するはず");
-    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
-    assert_eq!(filters_of(patched_object)[0]["params"]["brightness"], Value::from(0.5));
+    let patched_object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
+    assert_eq!(
+        filters_of(patched_object)[0]["params"]["brightness"],
+        Value::from(0.5)
+    );
     // 他パラメータは維持される。
-    assert_eq!(filters_of(patched_object)[0]["params"]["contrast"], filters_of(object)[0]["params"]["contrast"]);
+    assert_eq!(
+        filters_of(patched_object)[0]["params"]["contrast"],
+        filters_of(object)[0]["params"]["contrast"]
+    );
 
-    let restored = apply_command(&applied, &invert(&command)).expect("undo(UpdateFilterParams) は成功するはず");
+    let restored = apply_command(&applied, &invert(&command))
+        .expect("undo(UpdateFilterParams) は成功するはず");
     assert_eq!(restored, scene);
 }
 
@@ -490,13 +627,20 @@ fn update_filter_params_patches_and_inverts() {
 #[test]
 fn update_filter_params_resyncs_legacy_color_correction_mirror() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let filter_id = filters_of(object)[0]["id"].as_str().unwrap().to_string();
     assert_eq!(filter_id, "realistic-main-video-a-colour");
     // フィクスチャの前提: legacy colorCorrection は filters[0] とすでに一致している。
     let object_value = serde_json::to_value(object).unwrap();
     let original_brightness = object_value["colorCorrection"]["brightness"].clone();
-    assert_eq!(object_value["filters"][0]["params"]["brightness"], original_brightness);
+    assert_eq!(
+        object_value["filters"][0]["params"]["brightness"],
+        original_brightness
+    );
 
     let command = Command::UpdateFilterParams {
         object_id: FILTER_OBJECT_ID.to_string(),
@@ -505,26 +649,45 @@ fn update_filter_params_resyncs_legacy_color_correction_mirror() {
         previous: serde_json::json!({ "brightness": original_brightness }),
     };
     let applied = apply_command(&scene, &command).expect("UpdateFilterParams は成功するはず");
-    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let patched_object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let patched_value = serde_json::to_value(patched_object).unwrap();
     // filters 配列だけでなく legacy ミラーフィールドも同期しているはず。
-    assert_eq!(patched_value["colorCorrection"]["brightness"], Value::from(0.5));
+    assert_eq!(
+        patched_value["colorCorrection"]["brightness"],
+        Value::from(0.5)
+    );
 
     let restored = apply_command(&applied, &invert(&command)).expect("undo は成功するはず");
-    let restored_object = restored.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let restored_object = restored
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let restored_value = serde_json::to_value(restored_object).unwrap();
-    assert_eq!(restored_value["colorCorrection"]["brightness"], original_brightness);
+    assert_eq!(
+        restored_value["colorCorrection"]["brightness"],
+        original_brightness
+    );
     assert_eq!(restored, scene);
 }
 
 #[test]
 fn remove_filter_clears_legacy_mirror_when_last_matching_filter_removed() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let original_value = serde_json::to_value(object).unwrap();
     let original_brightness = original_value["colorCorrection"]["brightness"].clone();
     let removed_value = filters_of(object)[0].clone();
-    let removed: uxfd_rust_core::schema::ObjectFilter = serde_json::from_value(removed_value).unwrap();
+    let removed: uxfd_rust_core::schema::ObjectFilter =
+        serde_json::from_value(removed_value).unwrap();
 
     let command = Command::RemoveFilter {
         object_id: FILTER_OBJECT_ID.to_string(),
@@ -533,23 +696,39 @@ fn remove_filter_clears_legacy_mirror_when_last_matching_filter_removed() {
         index: 0,
     };
     let applied = apply_command(&scene, &command).expect("RemoveFilter は成功するはず");
-    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let patched_object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let patched_value = serde_json::to_value(patched_object).unwrap();
     // 対応する filter が無くなったので legacy ミラーフィールドは undefined (キー自体が省略) になるはず。
     assert!(patched_value.get("colorCorrection").is_none());
 
     // undo (invert(RemoveFilter) == AddFilter) で legacy ミラーも復元される。
-    let restored = apply_command(&applied, &invert(&command)).expect("undo(RemoveFilter) は成功するはず");
-    let restored_object = restored.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let restored =
+        apply_command(&applied, &invert(&command)).expect("undo(RemoveFilter) は成功するはず");
+    let restored_object = restored
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let restored_value = serde_json::to_value(restored_object).unwrap();
-    assert_eq!(restored_value["colorCorrection"]["brightness"], original_brightness);
+    assert_eq!(
+        restored_value["colorCorrection"]["brightness"],
+        original_brightness
+    );
     assert_eq!(restored, scene);
 }
 
 #[test]
 fn add_filter_populates_legacy_mirror_for_new_filter_type() {
     let scene = fixture_scene();
-    let object = scene.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let object = scene
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let object_value = serde_json::to_value(object).unwrap();
     assert!(object_value.get("customClipping").is_none());
 
@@ -566,12 +745,20 @@ fn add_filter_populates_legacy_mirror_for_new_filter_type() {
         index: 3,
     };
     let applied = apply_command(&scene, &command).expect("AddFilter は成功するはず");
-    let patched_object = applied.objects.iter().find(|o| object_id_of(o) == FILTER_OBJECT_ID).unwrap();
+    let patched_object = applied
+        .objects
+        .iter()
+        .find(|o| object_id_of(o) == FILTER_OBJECT_ID)
+        .unwrap();
     let patched_value = serde_json::to_value(patched_object).unwrap();
     assert_eq!(patched_value["customClipping"]["top"], Value::from(1.0));
-    assert_eq!(patched_value["customClipping"]["enabled"], Value::from(true));
+    assert_eq!(
+        patched_value["customClipping"]["enabled"],
+        Value::from(true)
+    );
 
-    let restored = apply_command(&applied, &invert(&command)).expect("undo(AddFilter) は成功するはず");
+    let restored =
+        apply_command(&applied, &invert(&command)).expect("undo(AddFilter) は成功するはず");
     assert_eq!(restored, scene);
 }
 
@@ -649,6 +836,36 @@ fn numeric_field_samples() -> Vec<FieldSample> {
 }
 
 proptest! {
+    #[test]
+    fn layer_track_commands_undo_restore_randomised_indices(
+        operation in 0u8..3,
+        first in 0usize..140,
+        second in 0usize..140,
+    ) {
+        let scene = fixture_scene();
+        let command = match operation {
+            0 => Command::SwapLayerTracks {
+                index_a: first,
+                index_b: second,
+                previous_layers: scene.layers.clone(),
+                previous_objects: scene.objects.clone(),
+            },
+            1 => Command::InsertLayerTrack {
+                insert_at: first,
+                previous_layers: scene.layers.clone(),
+                previous_objects: scene.objects.clone(),
+            },
+            _ => Command::DeleteLayerTrack {
+                delete_at: first,
+                previous_layers: scene.layers.clone(),
+                previous_objects: scene.objects.clone(),
+            },
+        };
+        let applied = apply_command(&scene, &command).expect("layer-track command は成功するはず");
+        let restored = apply_command(&applied, &invert(&command)).expect("undo は成功するはず");
+        prop_assert_eq!(restored, scene);
+    }
+
     /// `apply(invert(apply(scene, cmd))) == scene`
     /// 実フィクスチャに実在する数値フィールドを、有界な値域でランダムに
     /// 変異させても、undo で必ず元の `SceneData` に戻ることを検証する。
@@ -844,7 +1061,10 @@ fn batch_apply_and_undo_round_trip_removes_multiple_objects() {
     assert_eq!(undo_commands.len(), 3);
 
     let restored = apply_command(&applied, &undo_batch).expect("undo(Batch) は成功するはず");
-    assert_eq!(restored, scene, "元の SceneData に厳密に一致するはず（順序・位置含む）");
+    assert_eq!(
+        restored, scene,
+        "元の SceneData に厳密に一致するはず（順序・位置含む）"
+    );
 }
 
 #[test]
@@ -871,12 +1091,15 @@ fn batch_apply_is_all_or_nothing_on_mid_batch_failure() {
 
     // apply_command は失敗時に scene を一切書き換えない
     // （呼び出し側は元の `scene` をそのまま使い続けられる）。
-    let unrelated_probe = apply_command(&scene, &Command::SetObjectField {
-        object_id: "realistic-main-video-a".to_string(),
-        field: "opacity".to_string(),
-        next: Value::from(1.0),
-        previous: Value::from(1.0),
-    })
+    let unrelated_probe = apply_command(
+        &scene,
+        &Command::SetObjectField {
+            object_id: "realistic-main-video-a".to_string(),
+            field: "opacity".to_string(),
+            next: Value::from(1.0),
+            previous: Value::from(1.0),
+        },
+    )
     .expect("scene は Batch 失敗の影響を受けていないはず");
     let probed_opacity = serde_json::to_value(
         unrelated_probe
@@ -887,7 +1110,11 @@ fn batch_apply_is_all_or_nothing_on_mid_batch_failure() {
     )
     .unwrap()["opacity"]
         .clone();
-    assert_eq!(probed_opacity, Value::from(1.0), "Batch の1番目の SetObjectField(opacity=0.25) は適用されていないはず");
+    assert_eq!(
+        probed_opacity,
+        Value::from(1.0),
+        "Batch の1番目の SetObjectField(opacity=0.25) は適用されていないはず"
+    );
 }
 
 #[test]

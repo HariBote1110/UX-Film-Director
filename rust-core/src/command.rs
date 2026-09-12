@@ -116,33 +116,57 @@ pub enum Command {
         previous: LayerState,
     },
 
-    /// `SceneData.layers` と `SceneData.objects` を丸ごと差し替える。
-    /// `layerSlice.ts` の `swapLayerTracks`/`insertLayerTrackAt`/
-    /// `deleteLayerTrackAt`（`src/utils/layerTrackOps.ts` 実装）は、
-    /// レイヤー入れ替え・挿入・削除のたびに全オブジェクトの `layer`
-    /// フィールド（および PSD の lipSync ターゲットや audio_visualization の
-    /// targetLayer）を再計算し、挿入で `MAX_LAYERS` を超えるオブジェクトを
-    /// 削除するなど、単純な配列操作では表現できない副作用を持つ。この
-    /// 複雑なリマップロジックを Rust 側で再実装すると TS 側の実装と
-    /// 挙動がずれるリスクがあるため、`historySlice.ts` の
-    /// `pushHistory`/`undo`/`redo` が既に採用している「変更前後の全状態を
-    /// スナップショットして丸ごと差し替える」方式をこのコマンドでも踏襲する
-    /// （呼び出し側の TS が `layerTrackOps.ts` で計算した結果をそのまま
-    /// `next_layers`/`next_objects` として渡す）。
-    #[serde(rename = "reorderLayers")]
-    ReorderLayers {
+    /// レイヤー2本を入れ替え、全 object の layer 参照と関連 targetLayer を Rust
+    /// で再マップする。変更前の状態は、完全な undo 用だけに保持する。
+    #[serde(rename = "swapLayerTracks")]
+    SwapLayerTracks {
+        #[serde(rename = "indexA")]
+        #[ts(rename = "indexA")]
+        index_a: usize,
+        #[serde(rename = "indexB")]
+        #[ts(rename = "indexB")]
+        index_b: usize,
         #[serde(rename = "previousLayers")]
         #[ts(rename = "previousLayers")]
         previous_layers: Vec<LayerState>,
-        #[serde(rename = "nextLayers")]
-        #[ts(rename = "nextLayers")]
-        next_layers: Vec<LayerState>,
         #[serde(rename = "previousObjects")]
         #[ts(rename = "previousObjects")]
         previous_objects: Vec<TimelineObject>,
-        #[serde(rename = "nextObjects")]
-        #[ts(rename = "nextObjects")]
-        next_objects: Vec<TimelineObject>,
+    },
+
+    /// 指定位置へ空レイヤーを挿入する。overflow object の削除も Rust が行う。
+    #[serde(rename = "insertLayerTrack")]
+    InsertLayerTrack {
+        #[serde(rename = "insertAt")]
+        #[ts(rename = "insertAt")]
+        insert_at: usize,
+        #[serde(rename = "previousLayers")]
+        #[ts(rename = "previousLayers")]
+        previous_layers: Vec<LayerState>,
+        #[serde(rename = "previousObjects")]
+        #[ts(rename = "previousObjects")]
+        previous_objects: Vec<TimelineObject>,
+    },
+
+    /// 指定レイヤーを削除し、当該 object の削除と targetLayer の reset を Rust が行う。
+    #[serde(rename = "deleteLayerTrack")]
+    DeleteLayerTrack {
+        #[serde(rename = "deleteAt")]
+        #[ts(rename = "deleteAt")]
+        delete_at: usize,
+        #[serde(rename = "previousLayers")]
+        #[ts(rename = "previousLayers")]
+        previous_layers: Vec<LayerState>,
+        #[serde(rename = "previousObjects")]
+        #[ts(rename = "previousObjects")]
+        previous_objects: Vec<TimelineObject>,
+    },
+
+    /// layer-track command の逆操作専用。forward command が保持した完全な状態を復元する。
+    #[serde(rename = "restoreLayerTracks")]
+    RestoreLayerTracks {
+        layers: Vec<LayerState>,
+        objects: Vec<TimelineObject>,
     },
 
     /// `object_id` の `BaseObject.filters` の `index`（0..=len）位置へ
@@ -315,7 +339,10 @@ pub enum CommandError {
         index: usize,
     },
     /// `filter_id` を持つフィルタが対象オブジェクトの `filters` に存在しない。
-    FilterNotFound { object_id: String, filter_id: String },
+    FilterNotFound {
+        object_id: String,
+        filter_id: String,
+    },
     /// パッチ適用後の `ObjectFilter`/`LayerState`/`CameraState`/
     /// `StageCamera3D` の値が型として無効（deserialize 失敗）。
     InvalidFilterPatch {
@@ -347,8 +374,9 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                 return Err(CommandError::InvalidFieldPatch {
                     object_id: object_id.clone(),
                     field: field.clone(),
-                    reason: "type フィールドは構造コマンド専用のため SetObjectField では変更できません"
-                        .to_string(),
+                    reason:
+                        "type フィールドは構造コマンド専用のため SetObjectField では変更できません"
+                            .to_string(),
                 });
             }
 
@@ -369,22 +397,26 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
                 });
             }
 
-            let mut patched_value = serde_json::to_value(&next_scene.objects[index])
-                .map_err(|error| CommandError::InvalidFieldPatch {
-                    object_id: object_id.clone(),
-                    field: field.clone(),
-                    reason: format!("オブジェクトの直列化に失敗しました: {error}"),
+            let mut patched_value =
+                serde_json::to_value(&next_scene.objects[index]).map_err(|error| {
+                    CommandError::InvalidFieldPatch {
+                        object_id: object_id.clone(),
+                        field: field.clone(),
+                        reason: format!("オブジェクトの直列化に失敗しました: {error}"),
+                    }
                 })?;
             patched_value
                 .as_object_mut()
                 .expect("TimelineObject は常に JSON object へ直列化される")
                 .insert(field.clone(), next.clone());
 
-            let patched_object: TimelineObject = serde_json::from_value(patched_value)
-                .map_err(|error| CommandError::InvalidFieldPatch {
-                    object_id: object_id.clone(),
-                    field: field.clone(),
-                    reason: format!("パッチ適用後の値が対象 kind として無効です: {error}"),
+            let patched_object: TimelineObject =
+                serde_json::from_value(patched_value).map_err(|error| {
+                    CommandError::InvalidFieldPatch {
+                        object_id: object_id.clone(),
+                        field: field.clone(),
+                        reason: format!("パッチ適用後の値が対象 kind として無効です: {error}"),
+                    }
                 })?;
 
             next_scene.objects[index] = patched_object;
@@ -411,9 +443,7 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
         }
 
         Command::RemoveObject {
-            object_id,
-            index,
-            ..
+            object_id, index, ..
         } => {
             let len = next_scene.objects.len();
             if *index >= len {
@@ -446,13 +476,23 @@ pub fn apply_command(scene: &SceneData, command: &Command) -> Result<SceneData, 
             next_scene.layers[*index] = next.clone();
         }
 
-        Command::ReorderLayers {
-            next_layers,
-            next_objects,
-            ..
+        Command::SwapLayerTracks {
+            index_a, index_b, ..
         } => {
-            next_scene.layers = next_layers.clone();
-            next_scene.objects = next_objects.clone();
+            apply_swap_layer_tracks(&mut next_scene, *index_a, *index_b);
+        }
+
+        Command::InsertLayerTrack { insert_at, .. } => {
+            apply_insert_layer_track(&mut next_scene, *insert_at);
+        }
+
+        Command::DeleteLayerTrack { delete_at, .. } => {
+            apply_delete_layer_track(&mut next_scene, *delete_at);
+        }
+
+        Command::RestoreLayerTracks { layers, objects } => {
+            next_scene.layers = layers.clone();
+            next_scene.objects = objects.clone();
         }
 
         Command::AddFilter {
@@ -822,7 +862,9 @@ fn sync_legacy_effects_with_filters(object: &mut TimelineObject) {
 
     let base = base_of_mut(object);
     base.color_correction = match last_color_correction {
-        Some(ObjectFilter::ColorCorrection { enabled, params, .. }) => Some(ColorCorrection {
+        Some(ObjectFilter::ColorCorrection {
+            enabled, params, ..
+        }) => Some(ColorCorrection {
             enabled: *enabled,
             brightness: params.brightness,
             contrast: params.contrast,
@@ -832,7 +874,9 @@ fn sync_legacy_effects_with_filters(object: &mut TimelineObject) {
         _ => None,
     };
     base.custom_clipping = match last_clipping {
-        Some(ObjectFilter::Clipping { enabled, params, .. }) => Some(ClippingParams {
+        Some(ObjectFilter::Clipping {
+            enabled, params, ..
+        }) => Some(ClippingParams {
             enabled: *enabled,
             top: params.top,
             bottom: params.bottom,
@@ -844,7 +888,9 @@ fn sync_legacy_effects_with_filters(object: &mut TimelineObject) {
         _ => None,
     };
     base.vibration = match last_vibration {
-        Some(ObjectFilter::Vibration { enabled, params, .. }) => Some(Vibration {
+        Some(ObjectFilter::Vibration {
+            enabled, params, ..
+        }) => Some(Vibration {
             enabled: *enabled,
             strength: params.strength,
             speed: params.speed,
@@ -852,7 +898,9 @@ fn sync_legacy_effects_with_filters(object: &mut TimelineObject) {
         _ => None,
     };
     base.shadow = match last_shadow {
-        Some(ObjectFilter::Shadow { enabled, params, .. }) => Some(ShadowEffect {
+        Some(ObjectFilter::Shadow {
+            enabled, params, ..
+        }) => Some(ShadowEffect {
             enabled: *enabled,
             colour: params.colour.clone(),
             blur: params.blur,
@@ -867,7 +915,9 @@ fn sync_legacy_effects_with_filters(object: &mut TimelineObject) {
     // TS 側 `materialiseSyncedObject` の `object.type !== 'shape'` ガードと同じ。
     if let TimelineObject::Shape { fields, .. } = object {
         fields.gradient = match last_gradient {
-            Some(ObjectFilter::Gradient { enabled, params, .. }) => Some(ShapeGradientFill {
+            Some(ObjectFilter::Gradient {
+                enabled, params, ..
+            }) => Some(ShapeGradientFill {
                 enabled: *enabled,
                 kind: params.kind,
                 scope: params.scope,
@@ -925,6 +975,155 @@ fn base_of_mut(object: &mut TimelineObject) -> &mut BaseObject {
         TimelineObject::ShakingPolygon { base, .. } => base,
         TimelineObject::ShatteredSphere { base, .. } => base,
     }
+}
+
+const MAX_LAYER_TRACKS: usize = 100;
+
+fn clamp_layer_track_index(value: f32) -> usize {
+    value.round().clamp(0.0, (MAX_LAYER_TRACKS - 1) as f32) as usize
+}
+
+fn default_layer_state(index: usize) -> LayerState {
+    LayerState {
+        name: format!("Layer {}", index + 1),
+        visible: true,
+        locked: false,
+    }
+}
+
+fn layers_with_minimum_tracks(layers: &[LayerState]) -> Vec<LayerState> {
+    let mut result = layers.to_vec();
+    while result.len() < MAX_LAYER_TRACKS {
+        result.push(default_layer_state(result.len()));
+    }
+    result
+}
+
+fn patch_special_layer_references(
+    object: &mut TimelineObject,
+    mut map: impl FnMut(usize) -> usize,
+) {
+    match object {
+        TimelineObject::Psd { fields, .. } => {
+            if let Some(lip_sync) = fields.lip_sync.as_mut() {
+                if lip_sync.source_mode == crate::schema::LipSyncSourceMode::Layer {
+                    lip_sync.target_layer = map(lip_sync.target_layer as usize) as u32;
+                }
+            }
+        }
+        TimelineObject::AudioVisualization { fields, .. } => {
+            if let Some(target_layer) = fields.target_layer.as_mut() {
+                *target_layer = map(*target_layer as usize) as i32;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn apply_swap_layer_tracks(scene: &mut SceneData, index_a: usize, index_b: usize) {
+    let a = index_a.min(MAX_LAYER_TRACKS - 1);
+    let b = index_b.min(MAX_LAYER_TRACKS - 1);
+    if a == b {
+        return;
+    }
+    let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+    let mut layers = layers_with_minimum_tracks(&scene.layers);
+    layers.swap(lo, hi);
+    scene.layers = layers;
+    for object in &mut scene.objects {
+        let layer = clamp_layer_track_index(base_of(object).layer);
+        base_of_mut(object).layer = if layer == lo {
+            hi as f32
+        } else if layer == hi {
+            lo as f32
+        } else {
+            layer as f32
+        };
+        patch_special_layer_references(object, |target| {
+            let target = target.min(MAX_LAYER_TRACKS - 1);
+            if target == lo {
+                hi
+            } else if target == hi {
+                lo
+            } else {
+                target
+            }
+        });
+    }
+}
+
+fn apply_insert_layer_track(scene: &mut SceneData, insert_at: usize) {
+    let k = insert_at.min(MAX_LAYER_TRACKS - 1);
+    let mut layers = layers_with_minimum_tracks(&scene.layers);
+    layers.insert(k, default_layer_state(k));
+    layers.truncate(MAX_LAYER_TRACKS);
+    scene.layers = layers;
+    scene.objects.retain_mut(|object| {
+        let layer = clamp_layer_track_index(base_of(object).layer);
+        if layer >= k && layer + 1 >= MAX_LAYER_TRACKS {
+            return false;
+        }
+        base_of_mut(object).layer = if layer >= k {
+            (layer + 1) as f32
+        } else {
+            layer as f32
+        };
+        patch_special_layer_references(object, |target| {
+            let target = target.min(MAX_LAYER_TRACKS - 1);
+            if target >= k {
+                (target + 1).min(MAX_LAYER_TRACKS - 1)
+            } else {
+                target
+            }
+        });
+        true
+    });
+}
+
+fn apply_delete_layer_track(scene: &mut SceneData, delete_at: usize) {
+    let k = delete_at.min(MAX_LAYER_TRACKS - 1);
+    let mut layers = layers_with_minimum_tracks(&scene.layers);
+    layers.remove(k);
+    layers.push(default_layer_state(MAX_LAYER_TRACKS - 1));
+    scene.layers = layers;
+    scene.objects.retain_mut(|object| {
+        let layer = clamp_layer_track_index(base_of(object).layer);
+        if layer == k {
+            return false;
+        }
+        base_of_mut(object).layer = if layer > k {
+            (layer - 1) as f32
+        } else {
+            layer as f32
+        };
+        match object {
+            TimelineObject::Psd { fields, .. } => {
+                if let Some(lip_sync) = fields.lip_sync.as_mut() {
+                    if lip_sync.source_mode == crate::schema::LipSyncSourceMode::Layer {
+                        let target = (lip_sync.target_layer as usize).min(MAX_LAYER_TRACKS - 1);
+                        if target == k {
+                            lip_sync.enabled = false;
+                            lip_sync.target_layer = 0;
+                        } else if target > k {
+                            lip_sync.target_layer = (target - 1) as u32;
+                        }
+                    }
+                }
+            }
+            TimelineObject::AudioVisualization { fields, .. } => {
+                if let Some(target_layer) = fields.target_layer.as_mut() {
+                    let target = (*target_layer).max(0) as usize;
+                    if target == k {
+                        *target_layer = 0;
+                    } else if target > k {
+                        *target_layer = (target - 1) as i32;
+                    }
+                }
+            }
+            _ => {}
+        }
+        true
+    });
 }
 
 fn filter_id_of(filter: &ObjectFilter) -> String {
@@ -1068,7 +1267,10 @@ fn normalised_gradient_params(params: &serde_json::Map<String, Value>) -> Value 
         "stops": stops,
         "direction": finite_number(params, "direction", 0.0),
     });
-    if matches!(params.get("scope").and_then(Value::as_str), Some("group" | "connected")) {
+    if matches!(
+        params.get("scope").and_then(Value::as_str),
+        Some("group" | "connected")
+    ) {
         normalised["scope"] = params["scope"].clone();
     }
     normalised
@@ -1227,9 +1429,7 @@ fn merge_json_object(target: &mut Value, key: &str, patch: &Value) {
     let existing = target_object
         .entry(key.to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let existing_object = existing
-        .as_object_mut()
-        .expect("params は常に JSON object");
+    let existing_object = existing.as_object_mut().expect("params は常に JSON object");
     for (patch_key, patch_value) in patch_object {
         if patch_value.is_null() {
             existing_object.remove(patch_key);
@@ -1262,9 +1462,7 @@ pub fn invert(command: &Command) -> Command {
             index: *index,
         },
 
-        Command::RemoveObject {
-            removed, index, ..
-        } => Command::AddObject {
+        Command::RemoveObject { removed, index, .. } => Command::AddObject {
             object: removed.clone(),
             index: *index,
         },
@@ -1279,16 +1477,28 @@ pub fn invert(command: &Command) -> Command {
             previous: next.clone(),
         },
 
-        Command::ReorderLayers {
+        Command::SwapLayerTracks {
             previous_layers,
-            next_layers,
             previous_objects,
-            next_objects,
-        } => Command::ReorderLayers {
-            previous_layers: next_layers.clone(),
-            next_layers: previous_layers.clone(),
-            previous_objects: next_objects.clone(),
-            next_objects: previous_objects.clone(),
+            ..
+        }
+        | Command::InsertLayerTrack {
+            previous_layers,
+            previous_objects,
+            ..
+        }
+        | Command::DeleteLayerTrack {
+            previous_layers,
+            previous_objects,
+            ..
+        } => Command::RestoreLayerTracks {
+            layers: previous_layers.clone(),
+            objects: previous_objects.clone(),
+        },
+
+        Command::RestoreLayerTracks { layers, objects } => Command::RestoreLayerTracks {
+            layers: layers.clone(),
+            objects: objects.clone(),
         },
 
         Command::AddFilter {
