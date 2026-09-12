@@ -83,13 +83,6 @@ export const buildUpdateFilterParamsCommand = (
 });
 
 /**
- * `swapLayerTracks`/`insertLayerTrackAt`/`deleteLayerTrackAt`
- * (`src/utils/layerTrackOps.ts`)向け。R4-7 の設計どおり、複雑な
- * リマップロジック(全オブジェクトの`layer`フィールド再計算等)は
- * Rust 側で再実装せず、変更前後の layers+objects を丸ごと差し替える
- * `reorderLayers` Command として表現する。
- */
-/**
  * `setCamera`/`setStageCamera3D`(`useStore.ts`)向け。カメラ状態は
  * フィールド数が少なく丸ごと swap の設計(R4-7)のため、呼び出し側で
  * merge ロジックを複製せず、実際に`setCamera`/`setStageCamera3D`を
@@ -111,17 +104,38 @@ export const buildSetStageCamera3DCommand = (previous: StageCamera3D, next: Stag
   };
 };
 
-export const buildReorderLayersCommand = (
-  previousLayers: LayerState[],
-  nextLayers: LayerState[],
-  previousObjects: TimelineObject[],
-  nextObjects: TimelineObject[],
-): Command => ({
-  kind: 'reorderLayers',
-  previousLayers: previousLayers.map((layer) => ({ ...layer })),
-  nextLayers: nextLayers.map((layer) => ({ ...layer })),
-  previousObjects: previousObjects.map(toCommandObject),
-  nextObjects: nextObjects.map(toCommandObject),
+export type LayerTrackCommand = Extract<Command, {
+  kind: 'swapLayerTracks' | 'insertLayerTrack' | 'deleteLayerTrack';
+}>;
+
+const layerTrackUndoPayload = (layers: LayerState[], objects: TimelineObject[]) => ({
+  previousLayers: layers.map((layer) => ({ ...layer })),
+  previousObjects: objects.map(toCommandObject),
+});
+
+export const buildSwapLayerTracksCommand = (
+  indexA: number,
+  indexB: number,
+  layers: LayerState[],
+  objects: TimelineObject[],
+): LayerTrackCommand => ({
+  kind: 'swapLayerTracks', indexA, indexB, ...layerTrackUndoPayload(layers, objects),
+});
+
+export const buildInsertLayerTrackCommand = (
+  insertAt: number,
+  layers: LayerState[],
+  objects: TimelineObject[],
+): LayerTrackCommand => ({
+  kind: 'insertLayerTrack', insertAt, ...layerTrackUndoPayload(layers, objects),
+});
+
+export const buildDeleteLayerTrackCommand = (
+  deleteAt: number,
+  layers: LayerState[],
+  objects: TimelineObject[],
+): LayerTrackCommand => ({
+  kind: 'deleteLayerTrack', deleteAt, ...layerTrackUndoPayload(layers, objects),
 });
 
 /**

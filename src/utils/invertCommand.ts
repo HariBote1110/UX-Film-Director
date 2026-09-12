@@ -52,14 +52,17 @@ export const invertCommand = (command: Command): Command => {
         previous: command.next,
       };
 
-    case 'reorderLayers':
+    case 'swapLayerTracks':
+    case 'insertLayerTrack':
+    case 'deleteLayerTrack':
       return {
-        kind: 'reorderLayers',
-        previousLayers: command.nextLayers,
-        nextLayers: command.previousLayers,
-        previousObjects: command.nextObjects,
-        nextObjects: command.previousObjects,
+        kind: 'restoreLayerTracks',
+        layers: command.previousLayers,
+        objects: command.previousObjects,
       };
+
+    case 'restoreLayerTracks':
+      return { ...command };
 
     case 'addFilter':
       return {
