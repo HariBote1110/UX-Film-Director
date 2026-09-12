@@ -62,8 +62,12 @@ tooltip はいずれも動画の上に表示され、動画自体も表示され
   黒い child window 側で塗られるようになった。
 - Windows（`win32_overlay.rs`, `WS_EX_NOREDIRECTIONBITMAP`）は z-order の扱いが異なり、
   hole-punch は未検証。別途対応が必要。
-- `SceneSelectionDecorationLayer`（HTML）が動画より前面に描画されるようになったため、native
-  side の selection decoration は冗長になっており削除候補。
+- `SceneSelectionDecorationLayer`（HTML）は動画より前面に描画されるようになったが、native
+  selection decoration の送信成功時に `nativeSelectionDecorationActive` → `SceneSelectionOverlay`
+  の `visualsHidden` で HTML 側の枠・ハンドルを透明化しているため、overlay 有効中に実際に
+  選択枠を描いているのは native 側である（2026-09-13 確認）。native 側を削除するには HTML 側の
+  描画を常時有効にする UI 変更（見た目・動画との同期の確認を含む）が前提となり、単純な死コード
+  削除ではない。
 - Re-attach（ウィンドウリサイズなど）後、overlay が黒いままで次フレーム呈示（シーク/再生）を待つまで
   表示が戻らない現象を観測。修正未実施、既存の問題の可能性も含め原因は未特定。
 - NSOpenPanel を使った import 後の app deactivation シナリオは、container view 方式での修正後に再検証できなかった。
