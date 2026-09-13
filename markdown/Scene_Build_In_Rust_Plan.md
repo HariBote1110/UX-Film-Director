@@ -151,11 +151,15 @@ wire cut-over は行っていない。詳細と残作業は
 移植した。fixture generator は各 realistic scene の TS editable Project/media と
 raw graph も保存し、Rust 側で 3 scene / 447 frame の構造 parity（診断ゼロ）を検証
 する。別 fixture の全42型 coverage scene で TS canonical media と Rust の
-Project/media を構造比較し、全42型を verified とした。verified は
+Project/media を構造比較し、全42型を verified とした。coverage の Project 期待値は
+手書きではなく、実際の TS `buildEditableRustScene({ sceneId, projectSettings, layers, objects })`
+の出力を使って Rust と比較する（現行 TS builder が受理する V1 対象と group control）。
+42型全体については canonical media を比較する。verified は
 `text、shape、image、video、audio、psd、group_control、audio_visualization、audio_sphere、particle、barcode、puzzle_piece、colour_wheel、gourd、gear、track_bar、pie_chart、histogram、tone_curve、hksy_checker_grid、getcolor_dot_field、region_frame、simple_tube、sphere_dots、spherical_field、sunburst、circular_arrow、triangle_bracket、tartan_check、houndstooth、yagasuri、paper_airplane、asanoha_pattern、focus_lines_plus、random_line_ex、contour_trace、displacement_poly、plain_effector_line、hologram、protractor、shaking_polygon、shattered_sphere`、still-diagnosed は空集合である。runtime の dual-run/cut-overは未完了である。
-未対応 feature は clip を返さず明示診断を
-返す。特殊 clamp を持つ一部 generated serializer と smart_clipping/auto_blur 等は
-未確認のため diagnostic として拒否する。
+未対応 feature は clip を返さず明示診断を返す。coverage では generated 27型ごとに
+境界値・空値を投入し、clamp/default/colour fallback/空配列を確認した。残る未確認は
+smart_clipping/auto_blur/vibration/dynamic gradient の resident effect と、TS builder
+がまだ Project 化しない generated 27型の editable Project parity である。
 
 - **Scope**: `rust-core` に `EditableSceneGraph` / runtime media context と純粋 `build_evaluation_scene` を追加する。42 kind の raw graph を入力に、visible layer の clip/track、media、group control を作る。`rust-backend::scene` は flag 下で raw graph を受け、旧 TS `project/media` と Rust build 結果を比較してから旧結果を常用する。
 - **主なファイル**: `rust-core/src/schema.rs`、新規 `rust-core/src/editable_scene_builder.rs`、`rust-core/src/lib.rs`、`rust-backend/src/scene.rs`、`rust-backend/src/state.rs`、`src/utils/rustBackendSceneControl.ts`、`src/utils/editableRustScenePreviewController.ts`、生成型 / schema。

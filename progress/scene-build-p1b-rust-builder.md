@@ -41,7 +41,17 @@
   に維持する。別 fixture `all-object-types.json` は全42 typeを各1オブジェクト含み、
   TS canonical media と Rust の Project/media を比較する。verified は
   `text、shape、image、video、audio、psd、group_control、audio_visualization、audio_sphere、particle、barcode、puzzle_piece、colour_wheel、gourd、gear、track_bar、pie_chart、histogram、tone_curve、hksy_checker_grid、getcolor_dot_field、region_frame、simple_tube、sphere_dots、spherical_field、sunburst、circular_arrow、triangle_bracket、tartan_check、houndstooth、yagasuri、paper_airplane、asanoha_pattern、focus_lines_plus、random_line_ex、contour_trace、displacement_poly、plain_effector_line、hologram、protractor、shaking_polygon、shattered_sphere` の42種、still-diagnosed は空集合である。
-- 特殊 clamp/default/rename を持つ generated serializer（GetColor、shaking polygon、
-  shattered sphere、plain effector line、hologram、protractor を含む）を coverage
-  assertion が固定する。残作業は `smart_clipping`/`auto_blur`/`vibration`/dynamic
-  gradient の resident effect 移植であり、これらは引き続き明示 diagnostic とする。
+- Project parity は手書き期待値ではなく、実際の TS `buildEditableRustScene` の出力を
+  fixture に保存して Rust と比較する（現行 TS builder が受理する V1 対象と group
+  control）。42 型全体の media は同じ TS canonical serializer で別比較する。
+- 27 generated type には境界値・空値を投入した。particle、barcode、puzzle piece、
+  colour wheel、gourd、gear は最小値、track bar と tone curve は空配列、pie chart、
+  histogram、sphere dots、spherical field、sunburst、circular arrow、triangle
+  bracket、tartan check、houndstooth、yagasuri、paper airplane、asanoha、focus lines
+  plus、random line EX、contour trace、displacement poly は最小値・ゼロ値、plain
+  effector line / hologram / protractor は範囲外値と不正 colour を投入した。これに
+  より明示 clamp、既定値、colour fallback、空配列 wire shape を検証する。
+- coverage fixture の drift test も追加した。未検証として残るのは
+  `smart_clipping`/`auto_blur`/`vibration`/dynamic gradient の resident effect、
+  および TS editable builder 自体がまだ Project 化しない generated 27 型の
+  editable Project parity である。
