@@ -146,6 +146,15 @@ builder/wire の変更はまだ行っていない。
 wire cut-over は行っていない。詳細と残作業は
 `progress/scene-build-p1b-rust-builder.md` を参照する。
 
+**追補（2026-09-13）**: builder の canonical media dispatch を全 generated kind
+へ拡張し、resident の対応済み effects、position keyframes、wipe、subject crop、fade を
+移植した。fixture generator は各 realistic scene の TS editable Project/media と
+raw graph も保存し、Rust 側で 3 scene / 447 frame の構造 parity（診断ゼロ）を検証
+する。ただし既存 fixture は 42 kind を網羅しておらず、runtime の dual-run/cut-over
+と全 kind coverage scene は未完了である。未対応 feature は clip を返さず明示診断を
+返す。特殊 clamp を持つ一部 generated serializer と smart_clipping/auto_blur 等は
+未確認のため diagnostic として拒否する。
+
 - **Scope**: `rust-core` に `EditableSceneGraph` / runtime media context と純粋 `build_evaluation_scene` を追加する。42 kind の raw graph を入力に、visible layer の clip/track、media、group control を作る。`rust-backend::scene` は flag 下で raw graph を受け、旧 TS `project/media` と Rust build 結果を比較してから旧結果を常用する。
 - **主なファイル**: `rust-core/src/schema.rs`、新規 `rust-core/src/editable_scene_builder.rs`、`rust-core/src/lib.rs`、`rust-backend/src/scene.rs`、`rust-backend/src/state.rs`、`src/utils/rustBackendSceneControl.ts`、`src/utils/editableRustScenePreviewController.ts`、生成型 / schema。
 - **テスト**: P0 fixture、schema deserialize/round-trip、`scene.replace` stale revision test、PSD/media path case、`cargo test -p rust-core -p rust-backend`。
