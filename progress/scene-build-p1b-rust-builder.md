@@ -8,9 +8,12 @@
 - 常駐 builder の resolver 時刻は、現行 `buildEditableRustScene` と同じく各 object の
   `startTime` とした。`evaluationTimeSeconds` は P1c の direct 経路を受けるための
   context に予約しており、P1b の常駐出力には使わない。
-- 未移植 feature は `unsupportedFeature` diagnostic を返し、media/clip を静かに
-  捏造しない。全42 object type の canonical media serializer parity は coverage
-  fixture で検証済みであり、object type 診断は残っていない。
+- resident eligibility は TS と同じ15 visual typeとfeature guardで判定し、診断コードは
+  `unsupportedObjectType` / `unsupportedGroup` / `unsupportedVideoMode` /
+  `unsupportedMask` / `unsupportedFilter` / `unsupportedGetColorSampleSource` を使う。
+  `BuiltEvaluationScene.residentEligible`（診断が空の場合true）はTSの`ok`に対応する。
+  一方、canonical `media` は42種の全visual objectについて生成し、resident eligibilityと
+  media availabilityを別の結果として扱う。不適格objectはmediaを保持したままclipを作らない。
 
 ## Alternatives
 
@@ -41,9 +44,10 @@
   に維持する。別 fixture `all-object-types.json` は全42 typeを各1オブジェクト含み、
   TS canonical media と Rust の Project/media を比較する。verified は
   `text、shape、image、video、audio、psd、group_control、audio_visualization、audio_sphere、particle、barcode、puzzle_piece、colour_wheel、gourd、gear、track_bar、pie_chart、histogram、tone_curve、hksy_checker_grid、getcolor_dot_field、region_frame、simple_tube、sphere_dots、spherical_field、sunburst、circular_arrow、triangle_bracket、tartan_check、houndstooth、yagasuri、paper_airplane、asanoha_pattern、focus_lines_plus、random_line_ex、contour_trace、displacement_poly、plain_effector_line、hologram、protractor、shaking_polygon、shattered_sphere` の42種、still-diagnosed は空集合である。
-- Project parity は手書き期待値ではなく、実際の TS `buildEditableRustScene` の出力を
-  fixture に保存して Rust と比較する（現行 TS builder が受理する V1 対象と group
-  control）。42 型全体の media は同じ TS canonical serializer で別比較する。
+- coverage fixture は全42型のTS `ok:false`とissues、常駐可能subsetのProject、全42型の
+  mediaを別々に保存し、Rustのresident eligibility/diagnostics、subset Project、全mediaを
+  それぞれ比較する。診断の比較はTSの順序を仕様化していないため、object IDとcodeの組を
+  ソートした構造比較とする。
 - 27 generated type には境界値・空値を投入した。particle、barcode、puzzle piece、
   colour wheel、gourd、gear は最小値、track bar と tone curve は空配列、pie chart、
   histogram、sphere dots、spherical field、sunburst、circular arrow、triangle

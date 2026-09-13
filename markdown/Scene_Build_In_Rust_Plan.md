@@ -151,10 +151,13 @@ wire cut-over は行っていない。詳細と残作業は
 移植した。fixture generator は各 realistic scene の TS editable Project/media と
 raw graph も保存し、Rust 側で 3 scene / 447 frame の構造 parity（診断ゼロ）を検証
 する。別 fixture の全42型 coverage scene で TS canonical media と Rust の
-Project/media を構造比較し、全42型を verified とした。coverage の Project 期待値は
+Project/media を構造比較した。42型のmedia coverageとresident eligibilityは別に扱う。coverage の Project 期待値は
 手書きではなく、実際の TS `buildEditableRustScene({ sceneId, projectSettings, layers, objects })`
 の出力を使って Rust と比較する（現行 TS builder が受理する V1 対象と group control）。
-42型全体については canonical media を比較する。verified は
+常駐適格性（15 visual type + feature guards）と media coverage（42 visual type）は別概念で
+あり、42型全体については canonical media を比較する。full graph の resident 結果は
+TS の `ok: false` と issues をRustの `residentEligible` / diagnostics と比較し、subsetの
+Project parityも別に検証する。P1cでは両方の適格性判定と出力をdual-runする。verified は
 `text、shape、image、video、audio、psd、group_control、audio_visualization、audio_sphere、particle、barcode、puzzle_piece、colour_wheel、gourd、gear、track_bar、pie_chart、histogram、tone_curve、hksy_checker_grid、getcolor_dot_field、region_frame、simple_tube、sphere_dots、spherical_field、sunburst、circular_arrow、triangle_bracket、tartan_check、houndstooth、yagasuri、paper_airplane、asanoha_pattern、focus_lines_plus、random_line_ex、contour_trace、displacement_poly、plain_effector_line、hologram、protractor、shaking_polygon、shattered_sphere`、still-diagnosed は空集合である。runtime の dual-run/cut-overは未完了である。
 未対応 feature は clip を返さず明示診断を返す。coverage では generated 27型ごとに
 境界値・空値を投入し、clamp/default/colour fallback/空配列を確認した。残る未確認は
