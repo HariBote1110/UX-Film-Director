@@ -1,8 +1,11 @@
+import type { EditableSceneGraph } from '../generated/rustCore';
+
 export interface RustBackendSceneReplacePayload {
   sceneId: string;
   revision: number;
   project: unknown;
   media: readonly unknown[];
+  editableScene?: EditableSceneGraph;
 }
 
 export interface RustBackendSceneEvaluatePayload {
@@ -14,6 +17,16 @@ export interface RustBackendSceneEvaluatePayload {
 export interface RustBackendSceneReplaceResult {
   sceneId: string;
   revision: number;
+  dualRun?: RustBackendSceneDualRunDiagnostics;
+}
+
+export interface RustBackendSceneDualRunDiagnostics {
+  matched: boolean;
+  eligibilityMatched: boolean;
+  diffPaths: string[];
+  rustDiagnostics: readonly unknown[];
+  buildMicros: number;
+  payloadBytes: number;
 }
 
 export interface RustBackendSceneEvaluation {
@@ -84,6 +97,7 @@ const isReplaceResult = (value: unknown): value is RustBackendSceneReplaceResult
   && typeof value.sceneId === 'string'
   && typeof value.revision === 'number'
   && Number.isSafeInteger(value.revision)
+  && (!('dualRun' in value) || isRecord(value.dualRun))
 );
 
 const isEvaluation = (value: unknown): value is RustBackendSceneEvaluation => (

@@ -25,6 +25,7 @@ export interface SharedRendererScenePreviewSchedulerDiagnostics {
   stale: number;
   coalesced: number;
   failed: number;
+  dualRun?: unknown;
 }
 
 export interface SharedRendererScenePreviewScheduler {
@@ -140,6 +141,7 @@ export const createSharedRendererScenePreviewScheduler = ({
           blockAfterFailure({ operation: 'replace', ...result });
           return;
         }
+        if (result.value.dualRun) diagnostics.dualRun = result.value.dualRun;
         remoteReadyRevision = result.value;
         const isStillDesired = desiredRevision?.sceneId === result.value.sceneId
           && desiredRevision.revision === result.value.revision;

@@ -69,8 +69,30 @@ describe('editableRustScenePreviewController', () => {
 
     expect(sceneScheduler.submitRevision).toHaveBeenCalledTimes(2);
     expect(sceneScheduler.submitRevision.mock.calls.map(([payload]) => payload.revision)).toEqual([41, 42]);
+    expect(sceneScheduler.submitRevision.mock.calls[0][0]).not.toHaveProperty('editableScene');
     expect(sceneScheduler.requestFrame).toHaveBeenCalledWith(75);
     expect(sceneScheduler.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('renderer flagが有効なときだけ同じZustand入力からeditableSceneを追加する', () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      includeEditableScene: true,
+      initialRevision: 40,
+    });
+
+    controller.replaceScene({ projectSettings, layers, objects: [shape()] });
+    const payload = sceneScheduler.submitRevision.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      editableScene: {
+        settings: projectSettings,
+        layers,
+        objects: [shape()],
+        mediaContext: { purpose: 'previewProxy' },
+      },
+    });
   });
 
   it('未対応編集は旧sceneを無効化し、問題を呼び出し側へ返す', () => {

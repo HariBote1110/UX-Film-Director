@@ -24,6 +24,7 @@ use uxfd_rust_core::schema::{
     GearObjectFields, GetColorDotFieldObjectFields,
     GourdObjectFields, GroupControl, GroupControlObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields,
     HistogramObjectFields, HologramObjectFields, ImageObjectFields,
+    EditableSceneGraph, EditableSceneMediaContext, EditableSceneMediaPurpose,
     LayerState, LipSyncMapping, LipSyncSetting, LipSyncSourceMode,
     PsdLayerNodeFields, PsdObjectFields,
     ColourWheelObjectFields, MediaKind, MediaReference, PaperAirplaneObjectFields,
@@ -76,6 +77,9 @@ fn write_ts_bindings() {
     EvaluatedClip::export_all(&cfg).expect("EvaluatedClip の TS export に失敗しました");
     BuiltEvaluationScene::export_all(&cfg).expect("BuiltEvaluationScene の TS export に失敗しました");
     EditableSceneDiagnostic::export_all(&cfg).expect("EditableSceneDiagnostic の TS export に失敗しました");
+    EditableSceneGraph::export_all(&cfg).expect("EditableSceneGraph の TS export に失敗しました");
+    EditableSceneMediaContext::export_all(&cfg).expect("EditableSceneMediaContext の TS export に失敗しました");
+    EditableSceneMediaPurpose::export_all(&cfg).expect("EditableSceneMediaPurpose の TS export に失敗しました");
     ShapeObjectFields::export_all(&cfg).expect("ShapeObjectFields の TS export に失敗しました");
     TextObjectFields::export_all(&cfg).expect("TextObjectFields の TS export に失敗しました");
     ImageObjectFields::export_all(&cfg).expect("ImageObjectFields の TS export に失敗しました");

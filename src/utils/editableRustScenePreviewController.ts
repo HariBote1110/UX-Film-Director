@@ -1,4 +1,5 @@
 import type { LayerState, ProjectSettings, TimelineObject } from '../types';
+import type { EditableSceneGraph } from '../generated/rustCore';
 import {
   buildEditableRustScene,
   type EditableRustSceneIssue,
@@ -12,7 +13,7 @@ export type EditableRustScenePreviewReplaceResult =
 
 export interface EditableRustScenePreviewController {
   replaceScene: (input: {
-    projectSettings: Pick<ProjectSettings, 'width' | 'height' | 'fps'>;
+    projectSettings: ProjectSettings;
     layers: LayerState[];
     objects: TimelineObject[];
   }) => EditableRustScenePreviewReplaceResult;
@@ -24,10 +25,12 @@ export const createEditableRustScenePreviewController = ({
   sceneId,
   scheduler,
   initialRevision = Date.now(),
+  includeEditableScene = false,
 }: {
   sceneId: string;
   scheduler: SharedRendererScenePreviewScheduler;
   initialRevision?: number;
+  includeEditableScene?: boolean;
 }): EditableRustScenePreviewController => {
   let revision = Number.isSafeInteger(initialRevision) && initialRevision >= 0
     ? initialRevision
@@ -42,12 +45,22 @@ export const createEditableRustScenePreviewController = ({
       }
 
       revision += 1;
-      scheduler.submitRevision({
+      const payload: Parameters<typeof scheduler.submitRevision>[0] = {
         sceneId,
         revision,
         project: result.project,
         media: result.media,
-      });
+      };
+      if (includeEditableScene) {
+        const editableScene: EditableSceneGraph = {
+          settings: input.projectSettings,
+          layers: input.layers,
+          objects: input.objects,
+          mediaContext: { purpose: 'previewProxy' },
+        };
+        payload.editableScene = editableScene;
+      }
+      scheduler.submitRevision(payload);
       return { ok: true, revision };
     },
     requestTime: (timeSeconds, fps) => {

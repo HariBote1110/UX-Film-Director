@@ -103,7 +103,9 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scene::handle_scene_replace_with_dual_run;
     use serde_json::{json, Value};
+    use uxfd_rust_core::build_evaluation_scene;
 
     fn request(id: u64, method: &str, params: Value) -> RpcRequest {
         RpcRequest {
@@ -161,6 +163,92 @@ mod tests {
                 "height": 180
             }]
         })
+    }
+
+    fn editable_replace_params(scene_id: &str, revision: u64) -> Value {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../rust-core/tests/fixtures/editable-scene-builder/cross-object-resolution.json"
+        ))
+        .expect("editable scene fixture");
+        let graph = fixture["cases"][0]["graph"].clone();
+        let graph: uxfd_rust_core::EditableSceneGraph = serde_json::from_value(graph).unwrap();
+        let built = build_evaluation_scene(&graph);
+        json!({
+            "sceneId": scene_id,
+            "revision": revision,
+            "project": built.project,
+            "media": built.media,
+            "editableScene": graph,
+        })
+    }
+
+    #[test]
+    fn scene_replace_omitted_editable_scene_keeps_legacy_response_shape() {
+        let mut state = BackendState::default();
+        let response = handle_request(
+            request(1, "scene.replace", replace_params("legacy", 1, "#112233")),
+            &mut state,
+        );
+        assert_eq!(response.result.unwrap(), json!({ "sceneId": "legacy", "revision": 1 }));
+    }
+
+    #[test]
+    fn scene_replace_flag_off_does_not_run_builder_or_add_diagnostics() {
+        let mut state = BackendState::default();
+        let response = handle_scene_replace_with_dual_run(
+            1,
+            editable_replace_params("flag-off", 1),
+            &mut state,
+            false,
+        );
+        assert_eq!(response.result.unwrap(), json!({ "sceneId": "flag-off", "revision": 1 }));
+    }
+
+    #[test]
+    fn scene_replace_matching_editable_scene_reports_dual_run_match() {
+        let mut state = BackendState::default();
+        let response = handle_scene_replace_with_dual_run(
+            1,
+            editable_replace_params("matching", 1),
+            &mut state,
+            true,
+        );
+        let dual_run = response.result.unwrap()["dualRun"].clone();
+        assert_eq!(dual_run["matched"], true);
+        assert_eq!(dual_run["eligibilityMatched"], true);
+        assert!(dual_run["buildMicros"].is_number());
+        assert!(dual_run["payloadBytes"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn scene_replace_mismatch_reports_diff_paths_without_changing_resident_scene() {
+        let mut params = editable_replace_params("mismatch", 1);
+        params["project"]["tracks"][0]["clips"][0]["opacity"] = json!(0.5);
+        let mut state = BackendState::default();
+        let response = handle_scene_replace_with_dual_run(1, params, &mut state, true);
+        let dual_run = response.result.unwrap()["dualRun"].clone();
+        assert_eq!(dual_run["matched"], false);
+        assert!(dual_run["diffPaths"].as_array().unwrap().iter().any(|path| path == "project.tracks[0].clips[0].opacity"));
+        assert_eq!(
+            state.scene_sessions["mismatch"].project.tracks[0].clips[0].opacity,
+            0.5
+        );
+    }
+
+    #[test]
+    fn scene_replace_reports_eligibility_mismatch_for_ineligible_rust_graph() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
+        )).unwrap();
+        let graph: uxfd_rust_core::EditableSceneGraph = serde_json::from_value(fixture["graph"].clone()).unwrap();
+        let built = build_evaluation_scene(&graph);
+        assert!(!built.resident_eligible, "coverage graph must contain resident diagnostics");
+        let params = json!({ "sceneId": "eligibility", "revision": 1, "project": built.project, "media": built.media, "editableScene": graph });
+        let response = handle_scene_replace_with_dual_run(1, params, &mut BackendState::default(), true);
+        let dual_run = response.result.unwrap()["dualRun"].clone();
+        assert_eq!(dual_run["matched"], false);
+        assert_eq!(dual_run["eligibilityMatched"], false);
+        assert!(!dual_run["rustDiagnostics"].as_array().unwrap().is_empty());
     }
 
     #[test]
