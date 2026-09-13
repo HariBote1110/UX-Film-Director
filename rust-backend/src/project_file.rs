@@ -8,7 +8,9 @@
 use crate::rpc::{response_error, RpcResponse};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use uxfd_rust_core::project_file::{project_file_from_json, project_file_to_json_pretty};
+use uxfd_rust_core::project_file::{
+    project_file_from_json, project_file_to_json_pretty, project_file_to_json_string,
+};
 use uxfd_rust_core::schema::ProjectFile;
 
 /// `.uxfd.json` の内容として不正（format/version 不一致・壊れた JSON・
@@ -44,12 +46,21 @@ pub(crate) fn handle_project_deserialize(id: u64, params: Value) -> RpcResponse 
     };
 
     match project_file_from_json(&parsed.json) {
-        Ok(project) => RpcResponse {
-            id,
-            ok: true,
-            result: Some(json!({ "project": project })),
-            error: None,
-        },
+        Ok(project) => {
+            // `json!({ "project": project })` は ProjectFile の f32 を
+            // serde_json::Value の f64 として保持するため、RPC 応答の
+            // JSON 化時に 1.03 などが単精度の内部値の展開表現へ変わる。
+            // 型付き構造体から短い JSON 表現を作ってから Value 境界へ渡す。
+            let project_json = project_file_to_json_string(&project);
+            let project_value: Value = serde_json::from_str(&project_json)
+                .expect("ProjectFile の JSON Value 変換に失敗しました");
+            RpcResponse {
+                id,
+                ok: true,
+                result: Some(json!({ "project": project_value })),
+                error: None,
+            }
+        }
         Err(message) => response_error(id, PROJECT_FILE_INVALID_CODE, &message),
     }
 }
@@ -140,5 +151,21 @@ mod tests {
             reparsed.result.expect("result should be present")["project"],
             project
         );
+    }
+
+    #[test]
+    fn deserialize_rpc_response_preserves_f32_json_numbers() {
+        let response = handle_project_deserialize(1, json!({ "json": V2_SAMPLE }));
+        assert!(response.ok, "{response:?}");
+
+        // main.rs が実際に行う RPC 応答の JSON 化まで通し、f32 の最短表現を
+        // `serde_json::Value` 経由の f64 拡大で失わないことを検証する。
+        let response_json = serde_json::to_string(&response).expect("RPC 応答を JSON 化できるべき");
+        assert!(response_json.contains("1.03"), "1.03 が保持されるべき: {response_json}");
+        assert!(response_json.contains("0.65"), "0.65 が保持されるべき: {response_json}");
+        assert!(response_json.contains("0.94"), "0.94 が保持されるべき: {response_json}");
+        assert!(!response_json.contains("1.0299999713897705"));
+        assert!(!response_json.contains("0.6499999761581421"));
+        assert!(!response_json.contains("0.9399999976158142"));
     }
 }
