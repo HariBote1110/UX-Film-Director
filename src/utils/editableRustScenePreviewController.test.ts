@@ -90,7 +90,8 @@ describe('editableRustScenePreviewController', () => {
         settings: projectSettings,
         layers,
         objects: [shape()],
-        mediaContext: { purpose: 'previewProxy' },
+        // Rust builder は mediaContext.sceneId を Project.id に使うため、TS の sceneId と揃える。
+        mediaContext: { purpose: 'previewProxy', sceneId: 'preview:project-1' },
       },
     });
   });

@@ -56,7 +56,7 @@ export const createEditableRustScenePreviewController = ({
           settings: input.projectSettings,
           layers: input.layers,
           objects: input.objects,
-          mediaContext: { purpose: 'previewProxy' },
+          mediaContext: { purpose: 'previewProxy', sceneId },
         };
         payload.editableScene = editableScene;
       }
