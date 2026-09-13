@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [export-resident-audio-waveform-missing-source.md](export-resident-audio-waveform-missing-source.md) — resident exportがaudio waveform / audio sphereのPCMを渡さずNative WGPUの`MissingSource`で停止する原因を、TS/Rust経路と履歴で調査。常駐RPC内で評価済みmediaからPCMを取得して`audioWaveforms`へ供給するよう修正し、waveform・sphere双方をRust unit testで固定。導入時からの潜在欠落である可能性が高いが、過去のresident export payload記録がないため分類は仮説。Electron E2E未実行、cargo sandbox制約3件を除く検証結果を記録（2026-09-13）
+
 - [export-nv12-ring-regression-2026-09-13.md](export-nv12-ring-regression-2026-09-13.md) — NV12 exact exportの約15秒タイムアウトを、要求PTSより古いフレームで満杯になったworkerがcondvar待機し続けるリング停止としてコードと純粋単体テストで立証。前回の100ms seek着地許容仮説は、実Electron E2Eが同じ失敗を再現したため反証し、変更を巻き戻した。0.5秒開始・約0.3秒ジャンプのUXFD_REPRO_VIDEO ignoredテストを追加。Electron E2E未実行（2026-09-13）
 
 - [project-file-f32-roundtrip-precision.md](project-file-f32-roundtrip-precision.md) — 重量編集E2Eの`roundTrip.ok=false`を3原因に切り分けて解消。(1) `project.deserialize`が型付き`ProjectFile`を`json!`へ直接埋め込みf32がf64展開表現（`1.03`→`1.0299999713897705`）へ広がる退行（`d4171976`由来）、(2) `command.apply`の`SceneData`応答も同じ退行でUndo/フィルター/レイヤートラック操作のたびにZustandへ単精度ノイズを注入、(3) harness fingerprintがRust復元後のキー順（alphabetical）に依存。rust-backendに共有ヘルパー`typed_to_value_preserving_f32`（文字列化→Value）を追加し`command.apply`/`project.deserialize`/`agent.buildProjectFile`へ適用、他RPC応答は描画用/診断のみで対応不要と監査。fingerprintはオブジェクトキーを正規化（配列順は維持）。実機でseed後・編集操作後とも差分0、E2E `roundTrip.ok=true`（fingerprint一致）を確認（2026-09-13）

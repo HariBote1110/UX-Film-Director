@@ -6,6 +6,7 @@ use crate::cpu_simple_video::{
     try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
 };
 use crate::encode::write_rgba_frame_to_encoder;
+use crate::media::read_audio_waveform_samples;
 use crate::inprocess_decode::InProcessDecodeSession;
 use crate::params::{
     EncodeWriteNativeFrameParams, EncodeWriteResidentSceneFrameParams,
@@ -133,6 +134,11 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
     native_object.insert("snapshot".to_string(), json!(snapshot));
     native_object.insert("media".to_string(), json!(media));
     native_object.insert("nv12Sources".to_string(), json!(nv12_sources));
+    let audio_waveforms = match collect_resident_audio_waveforms(&snapshot, &media) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
+    native_object.insert("audioWaveforms".to_string(), json!(audio_waveforms));
     native_object
         .entry("sources".to_string())
         .or_insert_with(|| Value::Array(Vec::new()));
@@ -772,6 +778,85 @@ fn collect_native_render_audio_waveforms(
         .collect()
 }
 
+const NATIVE_AUDIO_WAVEFORM_SAMPLE_RATE: u32 = 8_000;
+const TIMELINE_SOURCE_FRAME_RATE: f64 = 60.0;
+
+struct ResidentAudioWaveformSampleRequest {
+    media_id: String,
+    source: String,
+    target_source: String,
+    start_seconds: f64,
+    duration_seconds: f64,
+    width: u32,
+    height: u32,
+}
+
+fn build_resident_audio_waveform_sample_requests(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+) -> Result<Vec<ResidentAudioWaveformSampleRequest>, String> {
+    let mut requests = Vec::new();
+    for media in media_items.iter().filter(|media| matches!(
+        media.kind,
+        MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere
+    )) {
+        let source = AudioWaveformSource::from_json(&media.source).map_err(|error| {
+            format!("Invalid resident audio-reactive source '{}': {error:?}", media.id)
+        })?;
+        let mut source_frames = snapshot.clips.iter()
+            .filter(|clip| clip.media_id == media.id)
+            .map(|clip| clip.source_frame);
+        let source_frame = source_frames.next().unwrap_or(snapshot.frame_index);
+        if source_frames.any(|candidate| candidate != source_frame) {
+            return Err(format!(
+                "Resident export cannot sample audio-reactive media '{}' at multiple source frames in one scene",
+                media.id
+            ));
+        }
+        requests.push(ResidentAudioWaveformSampleRequest {
+            media_id: media.id.clone(),
+            source: media.source.clone(),
+            target_source: source.target_source,
+            start_seconds: source_frame as f64 / TIMELINE_SOURCE_FRAME_RATE,
+            duration_seconds: source.sample_window_seconds as f64,
+            width: media.width,
+            height: media.height,
+        });
+    }
+    Ok(requests)
+}
+
+fn collect_resident_audio_waveforms(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+) -> Result<Vec<NativeRenderAudioWaveformSource>, String> {
+    build_resident_audio_waveform_sample_requests(snapshot, media_items)?
+        .into_iter()
+        .map(|request| {
+            let samples = read_audio_waveform_samples(
+                &request.target_source,
+                NATIVE_AUDIO_WAVEFORM_SAMPLE_RATE,
+                (request.duration_seconds * f64::from(NATIVE_AUDIO_WAVEFORM_SAMPLE_RATE))
+                    .ceil().max(1.0) as u32,
+                request.start_seconds,
+                request.duration_seconds,
+                None,
+            ).map_err(|error| format!(
+                "Failed to collect resident audio-reactive PCM for '{}': {error}",
+                request.media_id
+            ))?;
+            Ok(NativeRenderAudioWaveformSource {
+                media_id: request.media_id,
+                source: request.source,
+                samples,
+                sample_rate: NATIVE_AUDIO_WAVEFORM_SAMPLE_RATE,
+                width: request.width,
+                height: request.height,
+            })
+        })
+        .collect()
+}
+
 fn validate_resident_video_source_frames(
     requests: &[(&str, &str, u64)],
 ) -> Result<(), String> {
@@ -1239,6 +1324,49 @@ pub(crate) fn get_or_create_native_wgpu_renderer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resident_scene_collects_pcm_requests_for_waveform_and_sphere_media() {
+        let snapshot = uxfd_rust_core::SceneSnapshot {
+            frame_index: 0,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![
+                uxfd_rust_core::EvaluatedClip {
+                    clip_id: "waveform-clip".to_string(), track_id: "track".to_string(),
+                    media_id: "waveform-media".to_string(), source_frame: 120, z_index: 0,
+                    transform: uxfd_rust_core::Transform::identity(), opacity: 1.0, effects: Vec::new(),
+                },
+                uxfd_rust_core::EvaluatedClip {
+                    clip_id: "sphere-clip".to_string(), track_id: "track".to_string(),
+                    media_id: "sphere-media".to_string(), source_frame: 180, z_index: 1,
+                    transform: uxfd_rust_core::Transform::identity(), opacity: 1.0, effects: Vec::new(),
+                },
+            ],
+        };
+        let media = vec![
+            uxfd_rust_core::SceneMediaReference {
+                id: "waveform-media".to_string(), kind: uxfd_rust_core::MediaKind::GeneratedAudioWaveform,
+                source: r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}"##.to_string(),
+                width: 320, height: 180, source_rate: None, active_layer_ids: Vec::new(),
+            },
+            uxfd_rust_core::SceneMediaReference {
+                id: "sphere-media".to_string(), kind: uxfd_rust_core::MediaKind::GeneratedAudioSphere,
+                source: r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.5,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}"##.to_string(),
+                width: 320, height: 180, source_rate: None, active_layer_ids: Vec::new(),
+            },
+        ];
+
+        let requests = build_resident_audio_waveform_sample_requests(&snapshot, &media)
+            .expect("resident export must request PCM for every active audio-reactive media");
+
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].media_id, "waveform-media");
+        assert_eq!(requests[0].start_seconds, 2.0);
+        assert_eq!(requests[0].duration_seconds, 1.0);
+        assert_eq!(requests[1].media_id, "sphere-media");
+        assert_eq!(requests[1].start_seconds, 3.0);
+        assert_eq!(requests[1].duration_seconds, 0.5);
+    }
 
     #[test]
     fn resident_video_sources_reject_one_media_at_conflicting_source_frames() {

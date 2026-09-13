@@ -137,65 +137,23 @@ pub(crate) fn handle_audio_waveform_samples(id: u64, params: Value) -> RpcRespon
         return response_error(id, -32602, "maxSamples must be positive");
     }
 
-    let ffmpeg_path = parsed
-        .ffmpeg_path
-        .or_else(|| std::env::var("UXFD_FFMPEG_BIN").ok())
-        .unwrap_or_else(|| "ffmpeg".to_string());
     let start_seconds = parsed.start_seconds.unwrap_or(0.0).max(0.0);
     let duration_seconds = parsed
         .duration_seconds
         .unwrap_or_else(|| parsed.max_samples as f64 / parsed.sample_rate as f64)
         .max(0.0);
 
-    let mut command = Command::new(&ffmpeg_path);
-    command
-        .arg("-hide_banner")
-        .arg("-loglevel")
-        .arg("error")
-        .arg("-ss")
-        .arg(format!("{start_seconds:.6}"))
-        .arg("-t")
-        .arg(format!("{duration_seconds:.6}"))
-        .arg("-i")
-        .arg(&parsed.source)
-        .arg("-vn")
-        .arg("-ac")
-        .arg("1")
-        .arg("-ar")
-        .arg(parsed.sample_rate.to_string())
-        .arg("-f")
-        .arg("f32le")
-        .arg("pipe:1")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let output = match command.output() {
+    let samples = match read_audio_waveform_samples(
+        &parsed.source,
+        parsed.sample_rate,
+        parsed.max_samples,
+        start_seconds,
+        duration_seconds,
+        parsed.ffmpeg_path.as_deref(),
+    ) {
         Ok(value) => value,
-        Err(error) => {
-            return response_error(
-                id,
-                -32080,
-                &format!("Failed to start audio waveform ffmpeg ({ffmpeg_path}): {error}"),
-            );
-        }
+        Err(message) => return response_error(id, -32081, &message),
     };
-    if !output.status.success() {
-        return response_error(
-            id,
-            -32081,
-            &format!(
-                "audio waveform ffmpeg exited with code {:?}: {}",
-                output.status.code(),
-                String::from_utf8_lossy(&output.stderr).trim()
-            ),
-        );
-    }
-
-    let max_bytes = parsed.max_samples as usize * std::mem::size_of::<f32>();
-    let mut samples = Vec::with_capacity(parsed.max_samples as usize);
-    for chunk in output.stdout[..output.stdout.len().min(max_bytes)].chunks_exact(4) {
-        samples.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-    }
 
     RpcResponse {
         id,
@@ -208,6 +166,61 @@ pub(crate) fn handle_audio_waveform_samples(id: u64, params: Value) -> RpcRespon
         })),
         error: None,
     }
+}
+
+pub(crate) fn read_audio_waveform_samples(
+    source: &str,
+    sample_rate: u32,
+    max_samples: u32,
+    start_seconds: f64,
+    duration_seconds: f64,
+    ffmpeg_path: Option<&str>,
+) -> Result<Vec<f32>, String> {
+    let ffmpeg_path = ffmpeg_path
+        .map(str::to_owned)
+        .or_else(|| std::env::var("UXFD_FFMPEG_BIN").ok())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+
+    let mut command = Command::new(&ffmpeg_path);
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-ss")
+        .arg(format!("{start_seconds:.6}"))
+        .arg("-t")
+        .arg(format!("{duration_seconds:.6}"))
+        .arg("-i")
+        .arg(source)
+        .arg("-vn")
+        .arg("-ac")
+        .arg("1")
+        .arg("-ar")
+        .arg(sample_rate.to_string())
+        .arg("-f")
+        .arg("f32le")
+        .arg("pipe:1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let output = command.output().map_err(|error| {
+        format!("Failed to start audio waveform ffmpeg ({ffmpeg_path}): {error}")
+    })?;
+    if !output.status.success() {
+        return Err(format!(
+            "audio waveform ffmpeg exited with code {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    let max_bytes = max_samples as usize * std::mem::size_of::<f32>();
+    let mut samples = Vec::with_capacity(max_samples as usize);
+    for chunk in output.stdout[..output.stdout.len().min(max_bytes)].chunks_exact(4) {
+        samples.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    }
+
+    Ok(samples)
 }
 
 /// Metadata-only counterpart to `psd.parse`: returns the same layer-tree

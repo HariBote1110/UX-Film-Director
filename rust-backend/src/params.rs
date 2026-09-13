@@ -222,7 +222,7 @@ pub(crate) struct NativeRenderSharedFrameSource {
     pub(crate) frame: SharedFrame,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NativeRenderAudioWaveformSource {
     pub(crate) media_id: String,
