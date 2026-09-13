@@ -1157,6 +1157,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
             upload,
             scene,
+            unfitted_scene.as_deref(),
             self.drawable_width,
             self.drawable_height,
             &mut self.native_source_cache,
@@ -3317,6 +3318,7 @@ pub fn upload_frame_to_scene_sources(
     let (snapshot, sources) = upload_frame_to_scene_sources_with_cache(
         upload,
         scene,
+        None,
         drawable_width,
         drawable_height,
         &mut source_cache,
@@ -3327,6 +3329,7 @@ pub fn upload_frame_to_scene_sources(
 fn upload_frame_to_scene_sources_with_cache(
     upload: &OverlayUploadFrame,
     scene: Option<&NativeOverlaySceneSource>,
+    compensated_snapshot: Option<&SceneSnapshot>,
     drawable_width: u32,
     drawable_height: u32,
     source_cache: &mut NativeOverlaySourceCache,
@@ -3345,10 +3348,17 @@ fn upload_frame_to_scene_sources_with_cache(
         // 前提の値なので、decode 縮小比（media 宣言サイズ / upload 実寸）を掛け直して
         // シーン座標系での表示サイズを復元する。rust-backend の CPU fast path
         // （cpu_simple_video.rs の fit_scale_x = media.width / source.width）と同じ補正。
-        let compensated_snapshot =
-            compensate_upload_decode_downscale(&scene.snapshot, scene, upload);
+        let owned_compensated_snapshot;
+        let compensated_snapshot = match compensated_snapshot {
+            Some(snapshot) => snapshot,
+            None => {
+                owned_compensated_snapshot =
+                    compensate_upload_decode_downscale(&scene.snapshot, scene, upload);
+                &owned_compensated_snapshot
+            }
+        };
         let fitted_snapshot = fit_scene_snapshot_to_drawable(
-            &compensated_snapshot,
+            compensated_snapshot,
             scene.canvas_width,
             scene.canvas_height,
             drawable_width,
@@ -6539,6 +6549,85 @@ mod tests {
             (clip.transform.translation_y - expected_offset_y).abs() < 0.5,
             "expected vertical letterbox offset ~{expected_offset_y}, got {}",
             clip.transform.translation_y
+        );
+    }
+
+    #[test]
+    fn upload_frame_fit_reuses_the_retained_compensated_scene() {
+        let upload = OverlayUploadFrame {
+            media_id: "video-1".to_string(),
+            width: 720,
+            height: 405,
+            generation: 1,
+            pts_frame: 0,
+            pixels: vec![0_u8; 720 * 405 * 4],
+        };
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-1".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform {
+                        translation_x: 0.0,
+                        translation_y: 0.0,
+                        scale_x: 1.0,
+                        scale_y: 1.0,
+                        rotation_degrees: 0.0,
+                        sampling: SamplingMode::Bilinear,
+                    },
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "video-1".to_string(),
+                kind: "Video".to_string(),
+                source: "/tmp/example.mp4".to_string(),
+                width: 1920,
+                height: 1080,
+                source_rate: None,
+                active_layer_ids: Vec::new(),
+            }],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+        let retained_unfitted = Arc::new(compensate_upload_decode_downscale(
+            &scene.snapshot,
+            &scene,
+            &upload,
+        ));
+        let expected_fitted = fit_scene_snapshot_to_drawable(
+            retained_unfitted.as_ref(),
+            scene.canvas_width,
+            scene.canvas_height,
+            1564,
+            880,
+        );
+        let mut source_cache = NativeOverlaySourceCache::default();
+
+        let (fitted, _) = upload_frame_to_scene_sources_with_cache(
+            &upload,
+            Some(&scene),
+            Some(retained_unfitted.as_ref()),
+            1564,
+            880,
+            &mut source_cache,
+        )
+        .expect("the retained compensated scene must be fitted successfully");
+
+        assert_eq!(
+            retained_unfitted.as_ref(),
+            &compensate_upload_decode_downscale(&scene.snapshot, &scene, &upload),
+            "the retained unfitted scene must be the compensated snapshot used for the fit",
+        );
+        assert_eq!(
+            fitted, expected_fitted,
+            "the fitted scene must be derived from the retained compensated snapshot",
         );
     }
 
