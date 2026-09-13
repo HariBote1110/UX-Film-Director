@@ -16,6 +16,12 @@
 既知の残存であり、これらは基本方針の逸脱ではなく別フェーズ扱いの将来課題として
 台帳化されている。
 
+> **訂正（2026-09-13）**: 本書および R7 総括の「R0-R7 全フェーズ完了」は実態より進んだ表現だった。
+> R2 は評価差 3 クラスの解消（447 frame parity 一致）までで、R2 節の削除対象
+> （`keyframes.ts`/`easings.ts`/`objectVisibility.ts`/`sceneTransforms.ts`/`subjectCropKeyframes.ts`
+> と `rustSceneSnapshot.ts` 内の TS 評価経路）は残っており、基本方針 1・8 は評価と snapshot 構築の
+> 部分で未達である。残作業は `Scene_Build_In_Rust_Plan.md`（§7 に対応表）で扱う。
+
 `Windows_Port_Plan.md` と同時期に走る計画であり、両者の順序関係は §3 で定める。
 
 Single Source of Truth: 本ファイル。設計判断は確定し次第
@@ -236,6 +242,9 @@ wire format は不変で R0 の fixture は byte 一致。`npm run codegen:types
 **合格条件**: `npx tsc --noEmit` が現状と同じ、R0 ハーネスが緑。
 
 ### R2: 評価ロジックの一本化（推定 8-12日）
+
+> **状態（2026-09-13 確認）: 部分完了。** 評価差 3 クラスの解消（下記 1〜3、447 frame parity 一致）は完了。
+> 経路 B の削除（下記「削除対象」）は未実施で、`Scene_Build_In_Rust_Plan.md` §7 へ引き継いだ。
 
 経路 B を消す。本計画で最も行数が動くフェーズ。
 
