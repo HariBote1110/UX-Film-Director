@@ -150,8 +150,14 @@ wire cut-over は行っていない。詳細と残作業は
 へ拡張し、resident の対応済み effects、position keyframes、wipe、subject crop、fade を
 移植した。fixture generator は各 realistic scene の TS editable Project/media と
 raw graph も保存し、Rust 側で 3 scene / 447 frame の構造 parity（診断ゼロ）を検証
-する。ただし既存 fixture は 42 kind を網羅しておらず、runtime の dual-run/cut-over
-と全 kind coverage scene は未完了である。未対応 feature は clip を返さず明示診断を
+する。ただし object type のTS parity検証は15/42に限られる。未検証の27型
+（asanoha_pattern、barcode、circular_arrow、colour_wheel、contour_trace、
+displacement_poly、focus_lines_plus、gear、gourd、histogram、houndstooth、
+paper_airplane、particle、pie_chart、plain_effector_line、protractor、psd、
+puzzle_piece、random_line_ex、sphere_dots、spherical_field、sunburst、tartan_check、
+tone_curve、track_bar、triangle_bracket、yagasuri）は `unverifiedObjectType` として
+clip/mediaを返さない。runtime の dual-run/cut-overと全42型coverage sceneは未完了である。
+未対応 feature は clip を返さず明示診断を
 返す。特殊 clamp を持つ一部 generated serializer と smart_clipping/auto_blur 等は
 未確認のため diagnostic として拒否する。
 

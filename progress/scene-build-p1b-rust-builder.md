@@ -39,12 +39,17 @@
   したがって空の crop/active IDs を省略する変更は既存 consumer と互換である。
 - `npm run fixture:evaluation-parity` は 3 scene / 447 frame を生成し、各 fixture に
   TS `buildEditableRustScene` の graph・Project・media を保存する。Rust parity test
-  は 3 scene、34 kind（重複を除く）を比較し、診断ゼロを要求する。現在の generator
-  は既存 realistic シーンで 42 kind を網羅していないため、42 kind 全 coverage
-  scene と P1c の runtime cut-over は未完了である。
-- 残作業は、TS serializer の clamp/default まで含む全42 kindの厳密なcanonical
+  は既存3 scene / 447 frameを維持する。object typeのTS parity検証済みは15/42
+  （text、shape、image、video、audio、group_control、audio_visualization、audio_sphere、
+  getcolor_dot_field、hksy_checker_grid、region_frame、simple_tube、hologram、
+  shaking_polygon、shattered_sphere）である。残る27型は `unverifiedObjectType` として
+  clip/mediaを出力しない（asanoha_pattern、barcode、circular_arrow、colour_wheel、
+  contour_trace、displacement_poly、focus_lines_plus、gear、gourd、histogram、
+  houndstooth、paper_airplane、particle、pie_chart、plain_effector_line、protractor、
+  psd、puzzle_piece、random_line_ex、sphere_dots、spherical_field、sunburst、
+  tartan_check、tone_curve、track_bar、triangle_bracket、yagasuri）。42型coverage sceneは未完了である。
+- 残作業は、残る27型についてTS serializerのclamp/default/renameを含むcanonical
   source（現在は schema fields の直接 JSON 化で、特殊 clamp を要する一部kindは
   未確認）、`smart_clipping`/`auto_blur`/`vibration`/dynamic gradient の resident
-  effect移植、および42 kind coverage scene の追加である。これらは現在
-  `unsupportedFeature` diagnostic として clip を出力しないため、未確認の値が
-  valid-looking output に混入することはない。
+  effect移植、および42型coverage sceneの追加である。未検証型は
+  `unverifiedObjectType` としてclipを出力しない。
