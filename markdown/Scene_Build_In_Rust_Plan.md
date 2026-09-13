@@ -123,6 +123,8 @@ direct caller は raw graph と目的（`PreviewProxy` / `ExportOriginal`）を 
 
 ### P0: 契約固定と差分ハーネス拡張（小、2–4日）
 
+**進捗（2026-09-13）**: TS 現行実装から生成・drift 検証する cross-object 契約 fixture と、Rust 側の構造 JSON 比較器・fixture 妥当性テストを追加した。Rust builder 比較は P1 実装まで ignore の pending test とし、production wire / runtime の変更は行っていない。
+
 - **Scope**: raw graph builder の入出力を fixture 化し、現 TS serializer と将来 Rust builder の `Project` / media の構造比較器を作る。audio direct-ID の時間外選択、layer fallback の時間内限定、GetColor の path 優先・ID 不一致時 non-fallback・PSD sorted active layer、group-control の `0` / 同一 layer / hidden object を表にして固定する。
 - **主なファイル**: `rust-core/tests/ts_evaluation_parity.rs`、新規 `rust-core/tests/editable_scene_builder_parity.rs`、`src/utils/rustSceneEvaluationParityFixture.ts`、`src/utils/rustSceneSnapshot.test.ts`、新しい fixture directory。
 - **受入条件**: 447 frame snapshot parity に加え、各非対称規則の builder unit test が Rust で赤→緑になる。TS serializer の出力と fixture の全 media が byte 比較ではなく JSON 構造比較で一致する（JSON key order は仕様化前のため）。
@@ -151,6 +153,14 @@ direct caller は raw graph と目的（`PreviewProxy` / `ExportOriginal`）を 
 - **テスト**: `rg` による削除対象 import / serializer 残存チェック、type generation drift、Rust builder tests、447-frame fixture、native/export E2E。
 - **受入条件**: TS が `SceneSnapshot` / `SceneMediaReference` の値を組み立てず、4つのクロスオブジェクト規則の実装は Rust に一箇所だけ存在する。責務台帳の第1項目を解消済みにできる。
 - **rollback**: P2 で旧経路を完全削除する前に release を一度挟む。削除後の rollback は P2 時点の互換 wire を復元するリリース revert とする。
+
+### P4: UI 評価値の Rust 評価結果への付け替えと TS 評価関数の削除（中、5–8日、2026-09-13 決定で追加）
+
+- **Scope**: §7 の表にある UI 側の TS 評価利用（`PropertyPanel.tsx` の現在値表示、`SceneSelectionDecorationLayer.tsx` の選択枠位置、`visionTrackingKeyframes.ts`、`storeHelpers.ts` / `useStore.ts` の位置評価）を、常駐 session の `scene.evaluate` 結果の購読へ付け替える。その後 `keyframes.ts` の評価関数、`easings.ts` の `easingFunctions`、`objectVisibility.ts`、`sceneTransforms.ts` の `getGroupTransforms` / `getVibrationOffset`、`subjectCropKeyframes.ts` を削除し、R2 を完了させる。
+- **担当**: 購読・評価 RPC・ストア配線は Codex、表示コンポーネント側の付け替えで見た目の確認が要る部分は UI 担当として分離する。
+- **テスト**: 各 UI 利用箇所の表示値が 447-frame fixture の Rust 評価値と一致する vitest、ドラッグ・再生中の購読頻度と `scene.evaluate` 呼び出し回数の計測、既存 E2E。
+- **受入条件**: 上記モジュールが non-test から import されない（型・定数のみ残す場合は理由を記録）。選択枠と PropertyPanel の値が Rust 評価と一致し、ドラッグ・スクラブ時の表示遅延が P1 で記録した基準値から悪化しない。`Rust_Source_Of_Truth_Plan.md` の R2 を★完了に更新できる。
+- **rollback**: 付け替えは UI 箇所ごとに flag で旧 TS 評価へ戻せるようにし、全箇所の切替後に TS 関数を削除する。
 
 ## 4. リスクと緩和策
 
@@ -183,6 +193,18 @@ direct caller は raw graph と目的（`PreviewProxy` / `ExportOriginal`）を 
 - 毎フレーム評価済み snapshot を送る。基本方針 6（フレーム単位 JSON 転送禁止）に反するため却下する。
 
 ## 6. ユーザーの決定が必要な未解決事項
+
+**決定済み（2026-09-13、ユーザー判断）**
+
+| # | 論点 | 決定 | P1以降への影響 |
+| --- | --- | --- | --- |
+| 1 | session の authoritative 範囲 | 評価用 scene のみ。編集 command の session 内適用は後続計画へ切り出す | P1 は「TS が編集 graph 全量を replace、Rust が評価 scene の正本」で開始 |
+| 2 | payload size / RTT 上限 | 未決（P1 で計測してから決める） | P1 受入条件の計測値を基に再判断 |
+| 3 | PSD schema | **`TimelineObject::Psd` を TS `PsdObject` と完全一致へ拡張**（runtime context で補う案は不採用） | P1 冒頭に PSD schema 拡張サブフェーズ（P1a）を置く。保存形式 `.uxfd` の読み書き round-trip と既存プロジェクトファイル互換を受入条件に追加 |
+| 4 | direct export の方式 | 短命 session に統一（`scene.replace` → 各 frame `scene.evaluate`） | P2 で `sharedRendererExportSession` を短命 session 化。新 RPC は追加しない |
+| 5 | UI 評価値の付け替え | 本計画に P4 として追加（§3 P4） | P3 完了後に実施し R2 を完全に閉じる |
+
+以下は決定前の論点の原文（記録として残す）。
 
 1. Rust session を「評価用 scene のみ authoritative」として P1 を始め、編集 command の session 内適用は後続に切り出してよいか。それとも command.apply と session graph を P1 から同時に一本化するか。
 2. raw graph `scene.replace` の payload size / RTT の許容上限を何 ms / MiB にするか。現状の計測値は本調査で取得しておらず**未確認**である。
