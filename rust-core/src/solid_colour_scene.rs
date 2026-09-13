@@ -1,6 +1,8 @@
 use crate::schema::{Fps, MediaKind};
 use crate::timeline::SceneSnapshot;
 use serde::{Deserialize, Serialize};
+use schemars::JsonSchema;
+use ts_rs::TS;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -9,7 +11,7 @@ pub struct CanvasSize {
     pub height: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub struct SceneMediaReference {
     pub id: String,
     pub kind: MediaKind,
@@ -18,7 +20,7 @@ pub struct SceneMediaReference {
     pub height: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_rate: Option<Fps>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub active_layer_ids: Vec<String>,
 }
 

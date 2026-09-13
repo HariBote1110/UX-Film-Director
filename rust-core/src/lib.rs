@@ -1,6 +1,7 @@
 pub mod agent_project;
 pub mod audio_waveform_scene;
 pub mod command;
+pub mod editable_scene_builder;
 pub mod focus_lines;
 pub mod generated_particle;
 pub mod keyframe;
@@ -21,6 +22,7 @@ pub use audio_waveform_scene::{
     AudioWaveformSource,
 };
 pub use command::{apply_command, invert, Command, CommandError};
+pub use editable_scene_builder::{build_evaluation_scene, BuiltEvaluationScene, EditableSceneDiagnostic};
 pub use focus_lines::{focus_lines_frame_bucket, focus_lines_frame_bucket_from_source};
 pub use generated_particle::{
     generated_particle_unit, parse_generated_particle_source, GeneratedParticleParams,
@@ -36,7 +38,8 @@ pub use schema::{
     AutoBlurFilterParams, BarcodeObjectFields, BaseObject, BlurFilterParams, CameraState, Clip,
     ClipKind, ClippingFilterParams, ClippingParams, ColorCorrection, ColorCorrectionParams,
     ColourAberrationFilterParams, ColourPipeline, ContourTraceObjectFields,
-    DisplacementMapFilterParams, DisplacementPolyObjectFields, Easing, EditorMode, Effect,
+    DisplacementMapFilterParams, DisplacementPolyObjectFields, Easing, EditableSceneGraph,
+    EditableSceneMediaContext, EditableSceneMediaPurpose, EditorMode, Effect,
     FadeFilterParams, FocusLinesPlusObjectFields, Fps, GearObjectFields,
     GetColorDotFieldObjectFields, GourdObjectFields, GradientFill, GradientFilterParams,
     GroupControlObjectFields, HksyAnchorPoint, HksyCheckerGridObjectFields, HistogramObjectFields,

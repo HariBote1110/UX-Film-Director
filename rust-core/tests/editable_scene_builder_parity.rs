@@ -8,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
+use uxfd_rust_core::{build_evaluation_scene, EditableSceneGraph, EditableSceneMediaContext, EditableSceneMediaPurpose};
 
 fn fixture_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -30,7 +31,8 @@ fn assert_structural_json_eq(path: &str, expected: &Value, actual: &Value) {
     match (expected, actual) {
         (Value::Null, Value::Null) => {}
         (Value::Bool(left), Value::Bool(right)) if left == right => {}
-        (Value::Number(left), Value::Number(right)) if left == right => {}
+        (Value::Number(left), Value::Number(right))
+            if (left.as_f64().unwrap_or(f64::NAN) - right.as_f64().unwrap_or(f64::NAN)).abs() <= 1e-5 => {}
         (Value::String(left), Value::String(right)) if left == right => {}
         (Value::Array(left), Value::Array(right)) => {
             assert_eq!(left.len(), right.len(), "{path}: array length が異なる");
@@ -122,11 +124,45 @@ fn structural_comparator_ignores_object_key_order_but_not_array_order() {
 }
 
 #[test]
-#[ignore = "P1: build_evaluation_scene を実装して fixture の expected.project / media と比較する"]
 fn p1_rust_builder_matches_p0_contract_fixture() {
-    let _fixture = load_fixture();
-    // TODO(P1): deserialize the editable graph and call build_evaluation_scene.
-    // TODO(P1): compare Project, SceneMediaReference, and generator source JSON
-    // with expected values via assert_structural_json_eq. P0 does not fake a builder.
-    panic!("P1 の Rust editable-scene builder は未実装");
+    let fixture = load_fixture();
+    for case in required(&fixture, "cases", "fixture").as_array().unwrap() {
+        let id = required(case, "id", "case").as_str().unwrap();
+        let mut graph: EditableSceneGraph = serde_json::from_value(required(case, "graph", id).clone())
+            .unwrap_or_else(|error| panic!("{id}.graph を deserialize できない: {error}"));
+        graph.media_context = Some(EditableSceneMediaContext {
+            purpose: match required(case, "purpose", id).as_str().unwrap() {
+                "previewProxy" => EditableSceneMediaPurpose::PreviewProxy,
+                "exportOriginal" => EditableSceneMediaPurpose::ExportOriginal,
+                purpose => panic!("{id}: 未知の purpose {purpose}"),
+            },
+            scene_id: Some(id.to_string()),
+            evaluation_time_seconds: Some(required(case, "time", id).as_f64().unwrap() as f32),
+        });
+        let built = build_evaluation_scene(&graph);
+        assert!(built.diagnostics.is_empty(), "{id}: diagnostics がある: {:?}", built.diagnostics);
+        let mut actual = serde_json::to_value(&built.media).unwrap();
+        let mut expected = required(required(case, "expected", id), "media", id).clone();
+        // `source` は canonical な JSON document。文字列としての key order / 1 と
+        // 1.0 の表現ではなく、P0 で固定した構造で比較する。
+        for media in expected.as_array_mut().unwrap().iter_mut().chain(actual.as_array_mut().unwrap()) {
+            if let Some(source) = media.get("source").and_then(Value::as_str) {
+                if let Ok(parsed) = serde_json::from_str::<Value>(source) {
+                    media["source"] = parsed;
+                }
+            }
+        }
+        assert_structural_json_eq(
+            &format!("{id}.media"),
+            &expected,
+            &actual,
+        );
+        if let Some(expected_project) = required(case, "expected", id).get("project") {
+            let mut expected_project = expected_project.clone();
+            if let Some(entries) = expected_project.get_mut("media").and_then(Value::as_array_mut) {
+                for entry in entries { entry.as_object_mut().unwrap().remove("width"); entry.as_object_mut().unwrap().remove("height"); entry.as_object_mut().unwrap().remove("source_rate"); entry.as_object_mut().unwrap().remove("active_layer_ids"); }
+            }
+            assert_structural_json_eq(&format!("{id}.project"), &expected_project, &serde_json::to_value(built.project).unwrap());
+        }
+    }
 }

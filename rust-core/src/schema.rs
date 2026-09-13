@@ -392,7 +392,7 @@ pub struct Clip {
     pub opacity_keyframes: Vec<ScalarKeyframe>,
     #[serde(default)]
     pub position_keyframes: Vec<PositionKeyframe>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject_crop: Option<SubjectCropAnimation>,
     #[serde(default)]
     pub wipe_animations: Vec<WipeAnimation>,
@@ -3744,6 +3744,42 @@ pub struct ProjectSettings {
     #[serde(rename = "editorMode", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "editorMode")]
     pub editor_mode: Option<EditorMode>,
+}
+
+/// Rust builder が素材パスを選ぶ目的。preview は video proxy、export は原本を使う。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum EditableSceneMediaPurpose {
+    PreviewProxy,
+    ExportOriginal,
+}
+
+/// UI/runtime が所有する、object graph 外の素材解決情報。
+/// 常駐 builder は TS `buildEditableRustScene` と同じく object の開始時刻で
+/// resolver を実行するため、`evaluation_time_seconds` は P1c の direct 経路用である。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct EditableSceneMediaContext {
+    #[serde(default = "default_editable_scene_purpose")]
+    pub purpose: EditableSceneMediaPurpose,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evaluation_time_seconds: Option<f32>,
+}
+
+fn default_editable_scene_purpose() -> EditableSceneMediaPurpose {
+    EditableSceneMediaPurpose::PreviewProxy
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct EditableSceneGraph {
+    pub settings: ProjectSettings,
+    pub layers: Vec<LayerState>,
+    pub objects: Vec<TimelineObject>,
+    #[serde(default)]
+    pub media_context: Option<EditableSceneMediaContext>,
 }
 
 /// `src/types.ts` の `LayerState` と同形。

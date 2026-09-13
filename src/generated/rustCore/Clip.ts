@@ -7,4 +7,4 @@ import type { SubjectCropAnimation } from "./SubjectCropAnimation";
 import type { Transform } from "./Transform";
 import type { WipeAnimation } from "./WipeAnimation";
 
-export type Clip = { id: string, media_id: string, kind: ClipKind, start_frame: number, duration_frames: number, source_frame_offset: number, transform: Transform, opacity: number, opacity_keyframes: Array<ScalarKeyframe>, position_keyframes: Array<PositionKeyframe>, subject_crop: SubjectCropAnimation | null, wipe_animations: Array<WipeAnimation>, effects: Array<Effect>, };
+export type Clip = { id: string, media_id: string, kind: ClipKind, start_frame: number, duration_frames: number, source_frame_offset: number, transform: Transform, opacity: number, opacity_keyframes: Array<ScalarKeyframe>, position_keyframes: Array<PositionKeyframe>, subject_crop?: SubjectCropAnimation | null, wipe_animations: Array<WipeAnimation>, effects: Array<Effect>, };

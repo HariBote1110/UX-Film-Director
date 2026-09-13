@@ -111,8 +111,7 @@
             {
               "type": "null"
             }
-          ],
-          "default": null
+          ]
         },
         "transform": {
           "$ref": "#/$defs/Transform",
