@@ -74,6 +74,14 @@ fn base(object: &TimelineObject) -> &crate::schema::BaseObject {
         TimelineObject::ShakingPolygon { base, .. } | TimelineObject::ShatteredSphere { base, .. } => base,
     }
 }
+fn object_type(object: &TimelineObject) -> &'static str {
+    match object {
+        TimelineObject::Text { .. } => "text", TimelineObject::Shape { .. } => "shape", TimelineObject::Image { .. } => "image", TimelineObject::Video { .. } => "video", TimelineObject::Audio { .. } => "audio", TimelineObject::Psd { .. } => "psd", TimelineObject::GroupControl { .. } => "group_control", TimelineObject::AudioVisualization { .. } => "audio_visualization", TimelineObject::AudioSphere { .. } => "audio_sphere", TimelineObject::Particle { .. } => "particle", TimelineObject::Barcode { .. } => "barcode", TimelineObject::PuzzlePiece { .. } => "puzzle_piece", TimelineObject::ColourWheel { .. } => "colour_wheel", TimelineObject::Gourd { .. } => "gourd", TimelineObject::Gear { .. } => "gear", TimelineObject::TrackBar { .. } => "track_bar", TimelineObject::PieChart { .. } => "pie_chart", TimelineObject::Histogram { .. } => "histogram", TimelineObject::ToneCurve { .. } => "tone_curve", TimelineObject::HksyCheckerGrid { .. } => "hksy_checker_grid", TimelineObject::GetColorDotField { .. } => "getcolor_dot_field", TimelineObject::RegionFrame { .. } => "region_frame", TimelineObject::SimpleTube { .. } => "simple_tube", TimelineObject::SphereDots { .. } => "sphere_dots", TimelineObject::SphericalField { .. } => "spherical_field", TimelineObject::Sunburst { .. } => "sunburst", TimelineObject::CircularArrow { .. } => "circular_arrow", TimelineObject::TriangleBracket { .. } => "triangle_bracket", TimelineObject::TartanCheck { .. } => "tartan_check", TimelineObject::Houndstooth { .. } => "houndstooth", TimelineObject::Yagasuri { .. } => "yagasuri", TimelineObject::PaperAirplane { .. } => "paper_airplane", TimelineObject::AsanohaPattern { .. } => "asanoha_pattern", TimelineObject::FocusLinesPlus { .. } => "focus_lines_plus", TimelineObject::RandomLineEx { .. } => "random_line_ex", TimelineObject::ContourTrace { .. } => "contour_trace", TimelineObject::DisplacementPoly { .. } => "displacement_poly", TimelineObject::PlainEffectorLine { .. } => "plain_effector_line", TimelineObject::Hologram { .. } => "hologram", TimelineObject::Protractor { .. } => "protractor", TimelineObject::ShakingPolygon { .. } => "shaking_polygon", TimelineObject::ShatteredSphere { .. } => "shattered_sphere",
+    }
+}
+fn verified_object_type(object: &TimelineObject) -> bool {
+    matches!(object, TimelineObject::Text { .. } | TimelineObject::Shape { .. } | TimelineObject::Image { .. } | TimelineObject::Video { .. } | TimelineObject::Audio { .. } | TimelineObject::GroupControl { .. } | TimelineObject::AudioVisualization { .. } | TimelineObject::AudioSphere { .. } | TimelineObject::GetColorDotField { .. } | TimelineObject::HksyCheckerGrid { .. } | TimelineObject::RegionFrame { .. } | TimelineObject::SimpleTube { .. } | TimelineObject::Hologram { .. } | TimelineObject::ShakingPolygon { .. } | TimelineObject::ShatteredSphere { .. })
+}
 fn kind_and_dimensions(object: &TimelineObject) -> Option<(MediaKind, f32, f32, String)> {
     match object {
         TimelineObject::Shape { fields, .. } => {
@@ -241,6 +249,10 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
     for (_, object) in &visual {
         let b=base(object);
         if matches!(object,TimelineObject::Audio{..}|TimelineObject::GroupControl{..}) { continue; }
+        if !verified_object_type(object) {
+            diagnostics.push(EditableSceneDiagnostic { object_id: b.id.clone(), code: "unverifiedObjectType".into(), detail: format!("object type '{}' は TS canonical serializer との parity 未検証", object_type(object)) });
+            continue;
+        }
         if b.clipping == Some(true) { diagnostics.push(unsupported(b, "unsupportedFeature", "clipping mask")); continue; }
         if b.group_gradient.as_ref().is_some_and(|gradient| gradient.enabled) { diagnostics.push(unsupported(b, "unsupportedFeature", "group gradient")); continue; }
         if b.filters.as_ref().is_some_and(|filters| filters.iter().any(|filter| filter_enabled(filter) && matches!(filter, ObjectFilter::Vibration { .. } | ObjectFilter::AutoBlur { .. } | ObjectFilter::Gradient { .. } | ObjectFilter::SmartClipping { .. }))) {
