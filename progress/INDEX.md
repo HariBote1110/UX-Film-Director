@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [export-tail-frame-loss.md](export-tail-frame-loss.md) — 音声付きIOSurface書き出しの末尾フレーム欠落を調査。`-shortest`が`-c:v copy`で末尾映像を落とすこと（親実験: 135→133フレーム）と、単純な除去では長い音声が出力を延長することを確認。書込みframe_count/fps由来の`-t`で映像尺を両方向の正に固定し、`-fflags +shortest`は未対応のため不採用（2026-09-13）
+
 - [export-resident-audio-waveform-missing-source.md](export-resident-audio-waveform-missing-source.md) — resident exportがaudio waveform / audio sphereのPCMを渡さずNative WGPUの`MissingSource`で停止する原因を、TS/Rust経路と履歴で調査。常駐RPC内で評価済みmediaからPCMを取得して`audioWaveforms`へ供給するよう修正し、waveform・sphere双方をRust unit testで固定。導入時からの潜在欠落である可能性が高いが、過去のresident export payload記録がないため分類は仮説。Electron E2E未実行、cargo sandbox制約3件を除く検証結果を記録（2026-09-13）
 
 - [export-nv12-ring-regression-2026-09-13.md](export-nv12-ring-regression-2026-09-13.md) — NV12 exact exportの約15秒タイムアウトを、要求PTSより古いフレームで満杯になったworkerがcondvar待機し続けるリング停止としてコードと純粋単体テストで立証。前回の100ms seek着地許容仮説は、実Electron E2Eが同じ失敗を再現したため反証し、変更を巻き戻した。0.5秒開始・約0.3秒ジャンプのUXFD_REPRO_VIDEO ignoredテストを追加。Electron E2E未実行（2026-09-13）

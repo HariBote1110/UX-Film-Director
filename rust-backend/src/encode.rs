@@ -188,7 +188,7 @@ pub(crate) fn handle_encode_finish(
         frame_count,
         ..
     } = session;
-    let encoder_path = match finish_encode_transport(transport) {
+    let encoder_path = match finish_encode_transport(transport, frame_count) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32057, &message),
     };
@@ -293,6 +293,7 @@ fn start_encode_transport(parsed: &EncodeStartParams) -> Result<EncodeTransport,
                         temp_video_path,
                         audio_path: audio_path.to_string(),
                         final_path: parsed.file_path.clone(),
+                        fps: parsed.fps,
                     }),
                 )
             } else {
@@ -325,7 +326,10 @@ fn start_encode_transport(parsed: &EncodeStartParams) -> Result<EncodeTransport,
     })
 }
 
-fn finish_encode_transport(transport: EncodeTransport) -> Result<&'static str, String> {
+fn finish_encode_transport(
+    transport: EncodeTransport,
+    frame_count: u64,
+) -> Result<&'static str, String> {
     match transport {
         EncodeTransport::Ffmpeg {
             mut child,
@@ -374,6 +378,8 @@ fn finish_encode_transport(transport: EncodeTransport) -> Result<&'static str, S
                 &mux.audio_path,
                 &mux.final_path,
                 &ffmpeg_path,
+                frame_count,
+                mux.fps,
             );
             // Best-effort cleanup of the temp video file regardless of mux
             // outcome, so a failed mux does not leave it lying around.
@@ -386,14 +392,20 @@ fn finish_encode_transport(transport: EncodeTransport) -> Result<&'static str, S
 
 /// Muxes `audio_path` into `temp_video_path` (video-only, produced by the
 /// IOSurface VideoToolbox encoder) via ffmpeg stream copy, writing the result
-/// to `final_path`. Extracted as a pure(ish) function so it can be unit
-/// tested directly against small ffmpeg-generated fixtures.
+/// to `final_path`. The video timeline is authoritative: audio can end before
+/// the final video frame or extend beyond it. `-t` receives the duration from
+/// the encoded frame count and fps, so this deliberately does not use
+/// ffmpeg's `-shortest` option. Extracted as a pure(ish) function so it can
+/// be unit tested directly against small ffmpeg-generated fixtures.
 fn mux_audio_into_video(
     temp_video_path: &str,
     audio_path: &str,
     final_path: &str,
     ffmpeg_path: &str,
+    frame_count: u64,
+    fps: u32,
 ) -> Result<(), String> {
+    let video_duration = format_video_duration(frame_count, fps)?;
     let output = Command::new(ffmpeg_path)
         .arg("-y")
         .arg("-i")
@@ -404,7 +416,8 @@ fn mux_audio_into_video(
         .arg("copy")
         .arg("-c:a")
         .arg("aac")
-        .arg("-shortest")
+        .arg("-t")
+        .arg(video_duration)
         .arg(final_path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -422,6 +435,28 @@ fn mux_audio_into_video(
     }
 
     Ok(())
+}
+
+/// Formats the exact `frame_count / fps` timeline rational to the microsecond
+/// precision accepted by ffmpeg without first converting the rational to a
+/// floating-point value.
+fn format_video_duration(frame_count: u64, fps: u32) -> Result<String, String> {
+    if frame_count == 0 {
+        return Err("Cannot mux audio for an encode session with zero video frames".to_string());
+    }
+    if fps == 0 {
+        return Err("Cannot mux audio with zero fps".to_string());
+    }
+
+    let fps = u64::from(fps);
+    let mut seconds = frame_count / fps;
+    let fractional_frames = frame_count % fps;
+    let microseconds = (fractional_frames * 1_000_000 + (fps / 2)) / fps;
+    if microseconds == 1_000_000 {
+        seconds += 1;
+        return Ok(format!("{seconds}.000000"));
+    }
+    Ok(format!("{seconds}.{microseconds:06}"))
 }
 
 fn abort_encode_transport(transport: EncodeTransport) -> (String, String) {
@@ -966,6 +1001,8 @@ mod tests {
             &audio_path.to_string_lossy(),
             &final_path.to_string_lossy(),
             &ffmpeg_path,
+            10,
+            10,
         );
 
         let _ = std::fs::remove_file(&temp_video_path);
@@ -977,6 +1014,171 @@ mod tests {
         assert!(result.is_ok(), "mux should succeed: {:?}", result.err());
         assert!(final_exists, "final muxed file should exist");
         assert!(final_size > 0, "final muxed file should not be empty");
+    }
+
+    #[test]
+    fn mux_audio_into_video_preserves_video_tail_when_audio_is_one_frame_shorter() {
+        if !ffmpeg_available() {
+            eprintln!("skipping tail-preservation mux test: ffmpeg is not available");
+            return;
+        }
+        let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+        let temp_video_path = unique_temp_path("mux_tail_video").with_extension("mp4");
+        let audio_path = unique_temp_path("mux_tail_audio").with_extension("wav");
+        let final_path = unique_temp_path("mux_tail_final").with_extension("mp4");
+
+        assert!(
+            generate_lavfi_fixture(
+                &temp_video_path,
+                "testsrc=size=32x32:rate=60:duration=2.25",
+                &["-frames:v", "135", "-pix_fmt", "yuv420p"],
+            ),
+            "failed to generate 135-frame video fixture"
+        );
+        assert!(
+            generate_lavfi_fixture(
+                &audio_path,
+                "sine=frequency=440:sample_rate=48000:duration=2.24",
+                &[],
+            ),
+            "failed to generate audio fixture"
+        );
+
+        let result = mux_audio_into_video(
+            &temp_video_path.to_string_lossy(),
+            &audio_path.to_string_lossy(),
+            &final_path.to_string_lossy(),
+            &ffmpeg_path,
+            135,
+            60,
+        );
+        assert!(result.is_ok(), "mux should succeed: {:?}", result.err());
+
+        let probe = Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-count_frames",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=nb_read_frames,duration",
+                "-of",
+                "json",
+            ])
+            .arg(&final_path)
+            .output()
+            .expect("ffprobe must be available");
+
+        let _ = std::fs::remove_file(&temp_video_path);
+        let _ = std::fs::remove_file(&audio_path);
+        let _ = std::fs::remove_file(&final_path);
+
+        assert!(probe.status.success(), "ffprobe failed: {probe:?}");
+        let stream: serde_json::Value =
+            serde_json::from_slice(&probe.stdout).expect("ffprobe must return JSON");
+        assert_eq!(
+            stream["streams"][0]["nb_read_frames"],
+            "135",
+            "audio mux must not discard video frames after the audio stream ends"
+        );
+        assert_eq!(
+            stream["streams"][0]["duration"],
+            "2.250000",
+            "the final video duration must include the duration of its last frame"
+        );
+    }
+
+    #[test]
+    fn mux_audio_into_video_caps_longer_audio_at_video_duration() {
+        if !ffmpeg_available() {
+            eprintln!("skipping video-duration mux cap test: ffmpeg is not available");
+            return;
+        }
+        let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+        let temp_video_path = unique_temp_path("mux_cap_video").with_extension("mp4");
+        let audio_path = unique_temp_path("mux_cap_audio").with_extension("wav");
+        let final_path = unique_temp_path("mux_cap_final").with_extension("mp4");
+
+        assert!(
+            generate_lavfi_fixture(
+                &temp_video_path,
+                "testsrc=size=32x32:rate=60:duration=2.25",
+                &["-frames:v", "135", "-pix_fmt", "yuv420p"],
+            ),
+            "failed to generate 135-frame video fixture"
+        );
+        assert!(
+            generate_lavfi_fixture(
+                &audio_path,
+                "sine=frequency=440:sample_rate=48000:duration=3",
+                &[],
+            ),
+            "failed to generate longer audio fixture"
+        );
+
+        let result = mux_audio_into_video(
+            &temp_video_path.to_string_lossy(),
+            &audio_path.to_string_lossy(),
+            &final_path.to_string_lossy(),
+            &ffmpeg_path,
+            135,
+            60,
+        );
+        assert!(result.is_ok(), "mux should succeed: {:?}", result.err());
+
+        let probe = Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-count_frames",
+                "-show_entries",
+                "stream=codec_type,nb_read_frames,duration:format=duration",
+                "-of",
+                "json",
+            ])
+            .arg(&final_path)
+            .output()
+            .expect("ffprobe must be available");
+
+        let _ = std::fs::remove_file(&temp_video_path);
+        let _ = std::fs::remove_file(&audio_path);
+        let _ = std::fs::remove_file(&final_path);
+
+        assert!(probe.status.success(), "ffprobe failed: {probe:?}");
+        let output: serde_json::Value =
+            serde_json::from_slice(&probe.stdout).expect("ffprobe must return JSON");
+        let streams = output["streams"]
+            .as_array()
+            .expect("streams must be present");
+        let video = streams
+            .iter()
+            .find(|stream| stream["codec_type"] == "video")
+            .expect("video stream must be present");
+        let audio = streams
+            .iter()
+            .find(|stream| stream["codec_type"] == "audio")
+            .expect("audio stream must be present");
+        assert_eq!(video["nb_read_frames"], "135");
+        assert_eq!(video["duration"], "2.250000");
+        let format_duration = output["format"]["duration"]
+            .as_str()
+            .expect("format duration must be present")
+            .parse::<f64>()
+            .expect("format duration must be numeric");
+        assert!(
+            (format_duration - 2.25).abs() <= 1.0 / 60.0,
+            "format duration must match the video duration within one frame: {format_duration}"
+        );
+        let audio_duration = audio["duration"]
+            .as_str()
+            .expect("audio duration must be present")
+            .parse::<f64>()
+            .expect("audio duration must be numeric");
+        assert!(
+            audio_duration <= 2.25 + (1.0 / 60.0),
+            "audio duration must be capped at the video duration: {audio_duration}"
+        );
     }
 
     #[test]
@@ -995,6 +1197,8 @@ mod tests {
             &missing_audio.to_string_lossy(),
             &final_path.to_string_lossy(),
             &ffmpeg_path,
+            1,
+            1,
         );
 
         assert!(result.is_err(), "mux should fail when inputs are missing");
@@ -1050,10 +1254,13 @@ mod tests {
                 .expect("append_frame should succeed");
         }
 
-        let status = finish_encode_transport(EncodeTransport::VideoToolbox {
-            encoder,
-            pending_audio_mux: Some(mux),
-        })
+        let status = finish_encode_transport(
+            EncodeTransport::VideoToolbox {
+                encoder,
+                pending_audio_mux: Some(mux),
+            },
+            3,
+        )
         .expect("finish should succeed");
 
         assert_eq!(status, "iosurfaceVideoToolboxAudioMux");

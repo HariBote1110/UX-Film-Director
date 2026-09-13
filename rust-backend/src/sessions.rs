@@ -116,6 +116,9 @@ pub(crate) struct PendingAudioMux {
     pub(crate) temp_video_path: String,
     pub(crate) audio_path: String,
     pub(crate) final_path: String,
+    /// Integer denominator of the encoded video timeline. The final frame
+    /// count is supplied when the encode session finishes.
+    pub(crate) fps: u32,
 }
 
 pub(crate) struct EncodeAbortSummary {
