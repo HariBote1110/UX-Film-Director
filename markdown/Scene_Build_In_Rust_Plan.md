@@ -139,6 +139,13 @@ TS `PsdObject` と照合し、`layerTree` を旧 `.uxfd` の保存値を失わ�
 で往復する。`File` と `ImageBitmap` は非 JSON runtime 値のため対象外であり、
 builder/wire の変更はまだ行っていない。
 
+**進捗（2026-09-13、P1b 着手）**: `rust-core` に純粋な
+`EditableSceneGraph` / `build_evaluation_scene` を追加し、P0 の12 cross-object
+契約ケースを Rust builder 経由で通した。常駐経路は現行 TS と同様に object の
+`startTime` で resolver を実行する。未移植kind は明示 diagnostic とし、P1c の
+wire cut-over は行っていない。詳細と残作業は
+`progress/scene-build-p1b-rust-builder.md` を参照する。
+
 - **Scope**: `rust-core` に `EditableSceneGraph` / runtime media context と純粋 `build_evaluation_scene` を追加する。42 kind の raw graph を入力に、visible layer の clip/track、media、group control を作る。`rust-backend::scene` は flag 下で raw graph を受け、旧 TS `project/media` と Rust build 結果を比較してから旧結果を常用する。
 - **主なファイル**: `rust-core/src/schema.rs`、新規 `rust-core/src/editable_scene_builder.rs`、`rust-core/src/lib.rs`、`rust-backend/src/scene.rs`、`rust-backend/src/state.rs`、`src/utils/rustBackendSceneControl.ts`、`src/utils/editableRustScenePreviewController.ts`、生成型 / schema。
 - **テスト**: P0 fixture、schema deserialize/round-trip、`scene.replace` stale revision test、PSD/media path case、`cargo test -p rust-core -p rust-backend`。
