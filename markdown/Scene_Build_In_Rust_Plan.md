@@ -132,6 +132,13 @@ direct caller は raw graph と目的（`PreviewProxy` / `ExportOriginal`）を 
 
 ### P1: Rust editable-scene builder と dual-run `scene.replace`（大、7–12日）
 
+**進捗（2026-09-13、P1a 完了）**: `TimelineObject::Psd` の JSON 保存 shape を
+TS `PsdObject` と照合し、`layerTree` を旧 `.uxfd` の保存値を失わない互換
+フィールドとして Rust schema に追加した。`rootLayer`、`activeLayerIds`、
+`filePath`、寸法、`lipSync`、`worldPlacement` は既存どおり Rust の編集モデル
+で往復する。`File` と `ImageBitmap` は非 JSON runtime 値のため対象外であり、
+builder/wire の変更はまだ行っていない。
+
 - **Scope**: `rust-core` に `EditableSceneGraph` / runtime media context と純粋 `build_evaluation_scene` を追加する。42 kind の raw graph を入力に、visible layer の clip/track、media、group control を作る。`rust-backend::scene` は flag 下で raw graph を受け、旧 TS `project/media` と Rust build 結果を比較してから旧結果を常用する。
 - **主なファイル**: `rust-core/src/schema.rs`、新規 `rust-core/src/editable_scene_builder.rs`、`rust-core/src/lib.rs`、`rust-backend/src/scene.rs`、`rust-backend/src/state.rs`、`src/utils/rustBackendSceneControl.ts`、`src/utils/editableRustScenePreviewController.ts`、生成型 / schema。
 - **テスト**: P0 fixture、schema deserialize/round-trip、`scene.replace` stale revision test、PSD/media path case、`cargo test -p rust-core -p rust-backend`。
