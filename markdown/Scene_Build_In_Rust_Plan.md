@@ -164,6 +164,13 @@ Project parityも別に検証する。P1cでは両方の適格性判定と出力
 smart_clipping/auto_blur/vibration/dynamic gradient の resident effect と、TS builder
 がまだ Project 化しない generated 27型の editable Project parity である。
 
+**進捗（2026-09-13、P1c 完了）**: `scene.replace` に optionalな `editableScene` wireを
+追加し、Rust backendで環境変数OFFを既定とするdual-runを実装した。ON時はRust
+`build_evaluation_scene` とTS送信の `project` / `media` を構造比較し、resident eligibility、
+差分path、Rust diagnostics、build時間、editableScene payloadサイズを応答へ付加する。
+resident sessionは従来どおりTS送信値だけを保持する。renderer側の送信も専用flagのON時
+だけであり、詳細な判断と制約は `progress/scene-build-p1c-dual-run.md` に記録した。
+
 - **Scope**: `rust-core` に `EditableSceneGraph` / runtime media context と純粋 `build_evaluation_scene` を追加する。42 kind の raw graph を入力に、visible layer の clip/track、media、group control を作る。`rust-backend::scene` は flag 下で raw graph を受け、旧 TS `project/media` と Rust build 結果を比較してから旧結果を常用する。
 - **主なファイル**: `rust-core/src/schema.rs`、新規 `rust-core/src/editable_scene_builder.rs`、`rust-core/src/lib.rs`、`rust-backend/src/scene.rs`、`rust-backend/src/state.rs`、`src/utils/rustBackendSceneControl.ts`、`src/utils/editableRustScenePreviewController.ts`、生成型 / schema。
 - **テスト**: P0 fixture、schema deserialize/round-trip、`scene.replace` stale revision test、PSD/media path case、`cargo test -p rust-core -p rust-backend`。
