@@ -110,6 +110,35 @@ fn v2_fixtures_serialise_to_semantically_equal_json_value() {
 }
 
 #[test]
+fn psd_bearing_project_file_preserves_the_ts_persisted_layer_tree() {
+    let mut original: Value = serde_json::from_str(&read_fixture("realistic-heavy-edit-v2.uxfd.json"))
+        .expect("実プロジェクト fixture の Value 解析に失敗");
+    let objects = original["scenes"][0]["objects"]
+        .as_array_mut()
+        .expect("実プロジェクト fixture の objects が array でない");
+    let base = objects.first().expect("実プロジェクト fixture に object が無い").as_object().unwrap();
+    let psd = serde_json::json!({
+        "type": "psd", "id": "p1a-psd", "name": "PSD", "layer": base["layer"],
+        "startTime": 0.0, "duration": 5.0, "x": 0.0, "y": 0.0, "rotation": 0.0,
+        "scaleX": 1.0, "scaleY": 1.0, "opacity": 1.0, "enableAnimation": false,
+        "endX": 0.0, "endY": 0.0, "easing": "linear", "src": "blob:psd",
+        "filePath": "/tmp/character.psd", "width": 64.0, "height": 48.0, "scale": 1.0,
+        "rootLayer": { "id": "root", "name": "Root", "isGroup": true, "isRadio": false,
+          "children": [], "width": 64.0, "height": 48.0, "left": 0.0, "top": 0.0,
+          "defaultVisible": true },
+        "activeLayerIds": { "root": true },
+        "layerTree": [{ "seq": null, "name": "Root", "checked": true, "isRadio": false,
+          "children": [], "blobUrl": "blob:display-root" }]
+    });
+    objects.push(psd);
+
+    let project = project_file_from_json(&serde_json::to_string(&original).unwrap())
+        .expect("PSD を含む project file は解析できるべき");
+    let round_tripped = project_file_to_json_value(&project);
+    assert_semantically_equal(&original, &round_tripped, "PSD を含む実プロジェクト fixture");
+}
+
+#[test]
 fn v1_fixture_migrates_to_v2_and_is_stable_on_reread() {
     let json = read_fixture("legacy-v1-sample.uxfd.json");
     let migrated =

@@ -386,6 +386,10 @@ fn layer_track_commands_remap_audio_visualization_and_lip_sync_targets() {
         "enabled": true, "sourceMode": "layer", "targetLayer": 3,
         "audioId": null, "mapping": { "a": "", "i": "", "u": "", "e": "", "o": "", "n": "" }
     });
+    psd_value["layerTree"] = serde_json::json!([{
+        "seq": null, "name": "Character", "checked": true, "isRadio": false,
+        "children": [], "blobUrl": "blob:display-character"
+    }]);
     let psd = serde_json::from_value(psd_value).unwrap();
     scene.objects.push(psd);
 
@@ -422,6 +426,7 @@ fn layer_track_commands_remap_audio_visualization_and_lip_sync_targets() {
     .unwrap();
     assert_eq!(psd["lipSync"]["enabled"], false);
     assert_eq!(psd["lipSync"]["targetLayer"], 0);
+    assert_eq!(psd["layerTree"][0]["blobUrl"], "blob:display-character");
     assert_eq!(apply_command(&deleted, &invert(&delete)).unwrap(), scene);
 }
 

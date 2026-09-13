@@ -2871,21 +2871,28 @@ pub struct PsdLayerNodeFields {
     pub src: Option<String>,
 }
 
-/// `psd` kind の編集モデル（R3バッチC）。`src/types.ts` の `PsdObject` と同形。
-///
-/// `PsdObject` は「平坦な intersection ではなく明示的な合成」の唯一の例外
-/// （バッチBの注記どおり）で、TS 側は
-/// `Omit<PsdObjectFields, 'rootLayer'> & PsdRuntimeFields & { rootLayer?: PsdLayerNode, layerTree?: PsdLayerStruct[] }`
-/// として組み立てる。以下2フィールドはこの Rust 型には**含めない**:
-///
-/// - `layerTree: PsdLayerStruct[]` — `buildPsdLayerTree` が `rootLayer` +
-///   `activeLayerIds` から都度再構築する表示専用の派生ビュー
-///   （`restorePsdObjectFromFile` は保存済みの値を信頼せず必ず再計算する）。
-///   独立した永続状態ではないため、`PsdLayerStruct` 自体もバッチBと同じ理由で
-///   TS 側の手書き型のまま残す。
-/// - `file?: File` — ブラウザの `File` オブジェクト。GPU テクスチャと同様の
-///   ランタイム専用値で JSON にシリアライズされない
-///   （`sanitiseObjectForSave` が保存直前に `undefined` へ落とす）。
+/// `layerTree` の保存時互換表現。`src/types.ts` の `PsdLayerStruct` と同形。
+/// これは `rootLayer` と `activeLayerIds` から再構築できる派生ビューであり、
+/// builder は参照しない。ただし旧 TS 保存処理がこの値を JSON に含めるため、
+/// Rust 経由の project save/load で静かに失わないよう明示的に保持する。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub struct PsdLayerStruct {
+    pub seq: Option<String>,
+    pub name: String,
+    pub checked: bool,
+    #[serde(rename = "isRadio")]
+    #[ts(rename = "isRadio")]
+    pub is_radio: bool,
+    pub children: Vec<PsdLayerStruct>,
+    #[serde(rename = "blobUrl", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "blobUrl")]
+    pub blob_url: Option<String>,
+}
+
+/// `psd` kind の編集モデル。JSON 保存対象の `src/types.ts` の `PsdObject`
+/// と完全に shape 互換である。`file?: File` と各 `rootLayer` node の
+/// `textureSource?: ImageBitmap` だけはブラウザ/GPU の非 JSON runtime 値で、
+/// TS が保存前に除去するため本編集モデルには含めない。
 ///
 /// `activeLayerIds` はキー集合がレイヤーIDに依存し動的だが、決定的な JSON
 /// キー順を保証するため `HashMap` ではなく `BTreeMap` を使う。保存済み
@@ -2915,6 +2922,9 @@ pub struct PsdObjectFields {
     #[serde(rename = "worldPlacement", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "worldPlacement")]
     pub world_placement: Option<PsdWorldPlacement>,
+    #[serde(rename = "layerTree", default, skip_serializing_if = "Option::is_none")]
+    #[ts(rename = "layerTree")]
+    pub layer_tree: Option<Vec<PsdLayerStruct>>,
 }
 
 impl Default for PsdObjectFields {
@@ -2931,6 +2941,7 @@ impl Default for PsdObjectFields {
             active_layer_ids: None,
             lip_sync: None,
             world_placement: None,
+            layer_tree: None,
         }
     }
 }
@@ -3408,10 +3419,9 @@ pub struct BaseObject {
 /// `BaseObject & XxxObjectFields & { type: 'xxx' }` パターンをそのまま Rust の
 /// 内部タグ付き enum + flatten で表現したもの。
 ///
-/// `psd` kind は `PsdObjectFields` をそのまま使う。TS 側の `PsdObject` は
-/// `rootLayer`/`file`/`layerTree` を独自に組み立てる特別な合成（R3バッチC）
-/// のため、この enum の `Psd` variant は R4-1a のスキーマ固定用であり、
-/// `src/types.ts` の `PsdObject` 型そのものと 1 対 1 のバイト互換ではない。
+/// `psd` kind は `PsdObjectFields` をそのまま使い、TS `PsdObject` の JSON
+/// 保存 shape と互換である。`File` / `ImageBitmap` は非 JSON runtime 値なので
+/// Rust の project-file 境界には到達しない。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "type")]
 pub enum TimelineObject {

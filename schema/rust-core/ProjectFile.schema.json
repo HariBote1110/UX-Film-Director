@@ -1321,6 +1321,45 @@
         "defaultVisible"
       ]
     },
+    "PsdLayerStruct": {
+      "description": "`layerTree` の保存時互換表現。`src/types.ts` の `PsdLayerStruct` と同形。\nこれは `rootLayer` と `activeLayerIds` から再構築できる派生ビューであり、\nbuilder は参照しない。ただし旧 TS 保存処理がこの値を JSON に含めるため、\nRust 経由の project save/load で静かに失わないよう明示的に保持する。",
+      "type": "object",
+      "properties": {
+        "blobUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checked": {
+          "type": "boolean"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PsdLayerStruct"
+          }
+        },
+        "isRadio": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "seq": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "checked",
+        "isRadio",
+        "children"
+      ]
+    },
     "PsdWorldPlacement": {
       "description": "PSD を 3D 空間に配置するときのパラメータ。`src/types.ts` の\n`PsdWorldPlacement` と同形（`billboard` は true のときカメラ方向へ\nY 回転を合わせる、立ち絵向けのフラグ）。",
       "type": "object",
@@ -1753,7 +1792,7 @@
       ]
     },
     "TimelineObject": {
-      "description": "`src/types.ts` の `TimelineObject` 判別共用体（42 kind）と同形。各 variant は\n`BaseObject`（共通フィールド）と kind 固有の `*ObjectFields` を\n`#[serde(flatten)]` で合成する — TS 側の\n`BaseObject & XxxObjectFields & { type: 'xxx' }` パターンをそのまま Rust の\n内部タグ付き enum + flatten で表現したもの。\n\n`psd` kind は `PsdObjectFields` をそのまま使う。TS 側の `PsdObject` は\n`rootLayer`/`file`/`layerTree` を独自に組み立てる特別な合成（R3バッチC）\nのため、この enum の `Psd` variant は R4-1a のスキーマ固定用であり、\n`src/types.ts` の `PsdObject` 型そのものと 1 対 1 のバイト互換ではない。",
+      "description": "`src/types.ts` の `TimelineObject` 判別共用体（42 kind）と同形。各 variant は\n`BaseObject`（共通フィールド）と kind 固有の `*ObjectFields` を\n`#[serde(flatten)]` で合成する — TS 側の\n`BaseObject & XxxObjectFields & { type: 'xxx' }` パターンをそのまま Rust の\n内部タグ付き enum + flatten で表現したもの。\n\n`psd` kind は `PsdObjectFields` をそのまま使い、TS `PsdObject` の JSON\n保存 shape と互換である。`File` / `ImageBitmap` は非 JSON runtime 値なので\nRust の project-file 境界には到達しない。",
       "oneOf": [
         {
           "description": "`src/types.ts` の `BaseObject` と同形。**例外**: TS 側の `type: ObjectType`\nフィールドはここには含めない — `TimelineObject`（下）の\n`#[serde(tag = \"type\")]` が同じ JSON キー `type` を判別タグとして専有する\nため、内部タグ付き enum に `#[serde(flatten)]` する構造体が同名フィールドを\n持つと判別と衝突する。各 `TimelineObject` variant は自分の kind をタグ自体\nとして保持しているため、`BaseObject.type` を複製する意味がなく、これは\n情報を失わない意図的な省略（ts-rs 側の制約に対する回避策）。",
@@ -2983,6 +3022,15 @@
             "layer": {
               "type": "number",
               "format": "float"
+            },
+            "layerTree": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/PsdLayerStruct"
+              }
             },
             "lipSync": {
               "anyOf": [

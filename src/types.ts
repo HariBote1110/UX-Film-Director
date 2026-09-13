@@ -1,6 +1,6 @@
 import { EasingType } from './utils/easings';
 import type { ImageObjectFields, ShapeObjectFields, TextObjectFields, TextStroke, TextShadow, TextAlignment, VideoObjectFields, SubjectCropNormKeyframe, AudioObjectFields, AudioVisualizationObjectFields, AudioSphereObjectFields, ParticleObjectFields, BarcodeObjectFields, PuzzlePieceObjectFields, ColourWheelObjectFields, GourdObjectFields, GearObjectFields, TrackBarObjectFields, PieChartObjectFields, HistogramObjectFields, ToneCurveObjectFields, HksyCheckerGridObjectFields, GetColorDotFieldObjectFields, RegionFrameObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields, SphericalFieldObjectFields, SunburstObjectFields, CircularArrowObjectFields, TriangleBracketObjectFields, TartanCheckObjectFields, HoundstoothObjectFields, YagasuriObjectFields, PaperAirplaneObjectFields, AsanohaPatternObjectFields, FocusLinesPlusObjectFields, RandomLineExObjectFields, ContourTraceObjectFields, DisplacementPolyObjectFields, PlainEffectorLineObjectFields, HologramObjectFields, ProtractorObjectFields, ShakingPolygonObjectFields, ShatteredSphereObjectFields, GroupControlObjectFields } from './generated/rustCore';
-import type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting, PsdLayerNodeFields, PsdObjectFields } from './generated/rustCore';
+import type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting, PsdLayerNodeFields, PsdObjectFields, PsdLayerStruct as RustPsdLayerStruct } from './generated/rustCore';
 export type { Vec3, StageCamera3D, PsdWorldPlacement, LipSyncSetting };
 
 /** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
@@ -519,23 +519,11 @@ export type SphericalFieldObject = BaseObject & SphericalFieldObjectFields & { t
 // --- PSD連携用 ---
 
 /**
- * `PsdLayerStruct` is a display-oriented derived view, not independently
- * persisted editable state: `buildPsdLayerTree` (src/utils/psdParser.ts)
- * rebuilds it from `PsdLayerNode` + `activeLayerIds` on every load/save
- * (see `restorePsdObjectFromFile` and `sanitiseObjectForSave` in
- * src/utils/projectFile.ts, which always recompute `layerTree` rather than
- * trust the saved copy). It therefore stays a hand-written TS type — only
- * `PsdLayerNode` (the true source of truth for the layer tree) is migrated
- * to rust-core (`PsdLayerNodeFields`, R3バッチB).
+ * `PsdLayerStruct` is a display-oriented derived view. `buildPsdLayerTree`
+ * rebuilds it from `PsdLayerNode` + `activeLayerIds`; Rust retains its JSON
+ * representation solely so existing project saves do not lose it.
  */
-export interface PsdLayerStruct {
-  seq: string | null;
-  name: string;
-  checked: boolean;
-  isRadio: boolean; 
-  children: PsdLayerStruct[];
-  blobUrl?: string; 
-}
+export type PsdLayerStruct = RustPsdLayerStruct;
 
 /**
  * Runtime-only fields that never round-trip through JSON persistence.
@@ -566,15 +554,13 @@ export interface PsdRuntimeFields {
 /**
  * `rootLayer` is `Omit`-ted from `PsdObjectFields` and re-added with the
  * TS-only `PsdLayerNode` type (which carries the non-serialisable
- * `textureSource` runtime field on every node). `layerTree` has no Rust type
- * at all — it is a display-only derived view (`PsdLayerStruct[]`, see above)
- * that `buildPsdLayerTree` always recomputes from `rootLayer` +
- * `activeLayerIds` on load, so it is added here purely as a TS/runtime field.
+ * `textureSource` runtime field on every node). `layerTree` is a display-only
+ * derived view (`PsdLayerStruct[]`); its JSON shape is retained by Rust for
+ * saved-project compatibility, while the runtime view is rebuilt on load.
  */
 export type PsdObject = BaseObject & Omit<PsdObjectFields, 'rootLayer'> & PsdRuntimeFields & {
   type: 'psd';
   rootLayer?: PsdLayerNode;
-  layerTree?: PsdLayerStruct[];
 };
 
 export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | HologramObject | ProtractorObject | ShakingPolygonObject | ShatteredSphereObject;

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PsdObjectFields",
-  "description": "`psd` kind の編集モデル（R3バッチC）。`src/types.ts` の `PsdObject` と同形。\n\n`PsdObject` は「平坦な intersection ではなく明示的な合成」の唯一の例外\n（バッチBの注記どおり）で、TS 側は\n`Omit<PsdObjectFields, 'rootLayer'> & PsdRuntimeFields & { rootLayer?: PsdLayerNode, layerTree?: PsdLayerStruct[] }`\nとして組み立てる。以下2フィールドはこの Rust 型には**含めない**:\n\n- `layerTree: PsdLayerStruct[]` — `buildPsdLayerTree` が `rootLayer` +\n  `activeLayerIds` から都度再構築する表示専用の派生ビュー\n  （`restorePsdObjectFromFile` は保存済みの値を信頼せず必ず再計算する）。\n  独立した永続状態ではないため、`PsdLayerStruct` 自体もバッチBと同じ理由で\n  TS 側の手書き型のまま残す。\n- `file?: File` — ブラウザの `File` オブジェクト。GPU テクスチャと同様の\n  ランタイム専用値で JSON にシリアライズされない\n  （`sanitiseObjectForSave` が保存直前に `undefined` へ落とす）。\n\n`activeLayerIds` はキー集合がレイヤーIDに依存し動的だが、決定的な JSON\nキー順を保証するため `HashMap` ではなく `BTreeMap` を使う。保存済み\nファイルの既存キー順（挿入順）とはズレうるが、消費側\n（`Object.entries`/`Record` として読む TS コード、および\n`projectFile.test.ts` の `toEqual` によるラウンドトリップ検証）はすべて\nキー順に依存しない構造比較のため、バイト互換ではなく shape 互換で足りる\n（このバッチCで実測・確認済み）。",
+  "description": "`psd` kind の編集モデル。JSON 保存対象の `src/types.ts` の `PsdObject`\nと完全に shape 互換である。`file?: File` と各 `rootLayer` node の\n`textureSource?: ImageBitmap` だけはブラウザ/GPU の非 JSON runtime 値で、\nTS が保存前に除去するため本編集モデルには含めない。\n\n`activeLayerIds` はキー集合がレイヤーIDに依存し動的だが、決定的な JSON\nキー順を保証するため `HashMap` ではなく `BTreeMap` を使う。保存済み\nファイルの既存キー順（挿入順）とはズレうるが、消費側\n（`Object.entries`/`Record` として読む TS コード、および\n`projectFile.test.ts` の `toEqual` によるラウンドトリップ検証）はすべて\nキー順に依存しない構造比較のため、バイト互換ではなく shape 互換で足りる\n（このバッチCで実測・確認済み）。",
   "type": "object",
   "properties": {
     "activeLayerIds": {
@@ -22,6 +22,15 @@
     "height": {
       "type": "number",
       "format": "float"
+    },
+    "layerTree": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/PsdLayerStruct"
+      }
     },
     "lipSync": {
       "anyOf": [
@@ -203,6 +212,45 @@
         "left",
         "top",
         "defaultVisible"
+      ]
+    },
+    "PsdLayerStruct": {
+      "description": "`layerTree` の保存時互換表現。`src/types.ts` の `PsdLayerStruct` と同形。\nこれは `rootLayer` と `activeLayerIds` から再構築できる派生ビューであり、\nbuilder は参照しない。ただし旧 TS 保存処理がこの値を JSON に含めるため、\nRust 経由の project save/load で静かに失わないよう明示的に保持する。",
+      "type": "object",
+      "properties": {
+        "blobUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checked": {
+          "type": "boolean"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PsdLayerStruct"
+          }
+        },
+        "isRadio": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "seq": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "checked",
+        "isRadio",
+        "children"
       ]
     },
     "PsdWorldPlacement": {

@@ -27,6 +27,7 @@ fn psd_object_fields_default_is_neutral_except_scale() {
     assert!(defaults.active_layer_ids.is_none());
     assert!(defaults.lip_sync.is_none());
     assert!(defaults.world_placement.is_none());
+    assert!(defaults.layer_tree.is_none());
 }
 
 #[test]
@@ -76,6 +77,7 @@ fn psd_object_fields_serialise_with_camel_case_field_names() {
             scale: 1.5,
             billboard: true,
         }),
+        layer_tree: None,
     };
 
     let value = serde_json::to_value(&fields).expect("PsdObjectFields must serialise");
@@ -117,6 +119,7 @@ fn psd_object_fields_omit_absent_optional_fields() {
     assert!(value.get("activeLayerIds").is_none());
     assert!(value.get("lipSync").is_none());
     assert!(value.get("worldPlacement").is_none());
+    assert!(value.get("layerTree").is_none());
 }
 
 #[test]
@@ -146,6 +149,7 @@ fn psd_object_fields_round_trip_through_json() {
         active_layer_ids: Some(active_layer_ids),
         lip_sync: None,
         world_placement: None,
+        layer_tree: None,
     };
 
     let json = serde_json::to_string(&fields).expect("serialise");
