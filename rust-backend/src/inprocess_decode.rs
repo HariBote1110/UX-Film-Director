@@ -642,9 +642,9 @@ mod platform {
         shared: &Arc<Shared>,
     ) {
         loop {
-            let (shutdown, seek_request, ring_len) = {
+            let (shutdown, seek_request) = {
                 let ring = shared.ring.lock().expect("ring mutex poisoned");
-                (ring.shutdown, ring.seek_request, ring.frames.len())
+                (ring.shutdown, ring.seek_request)
             };
             if shutdown {
                 return;
@@ -664,14 +664,15 @@ mod platform {
                 continue;
             }
 
-            if ring_len >= PREFETCH_RING_DEPTH {
-                let ring = shared.ring.lock().expect("ring mutex poisoned");
+            let ring = shared.ring.lock().expect("ring mutex poisoned");
+            if should_worker_wait_for_full_ring(&ring) {
                 let _ = shared
                     .condvar
                     .wait_timeout(ring, Duration::from_millis(50))
                     .expect("ring mutex poisoned");
                 continue;
             }
+            drop(ring);
 
             match session.next_frame() {
                 Ok(Some(frame)) => {
@@ -736,6 +737,18 @@ mod platform {
                 }
             }
         }
+    }
+
+    fn should_worker_wait_for_full_ring(ring: &RingState) -> bool {
+        // A full ring is only safe to park when decoding has reached the
+        // current request. Otherwise the worker must continue filling it and
+        // discard the oldest frame as the new frame arrives.
+        ring.frames.len() >= PREFETCH_RING_DEPTH
+            && ring
+                .frames
+                .back()
+                .map(|frame| frame.pts_seconds >= ring.target_pts_seconds)
+                .unwrap_or(false)
     }
 
     fn convert_and_resize(
@@ -1136,6 +1149,24 @@ mod platform {
         }
 
         #[test]
+        fn full_ring_with_newest_frame_before_target_must_keep_decoding() {
+            let mut ring = empty_ring_state();
+            ring.target_pts_seconds = 0.5;
+            for index in 0..PREFETCH_RING_DEPTH {
+                ring.frames.push_back(RingFrame {
+                    pts_seconds: index as f64 / 119.88,
+                    rgba: Some(vec![]),
+                    nv12: None,
+                });
+            }
+
+            assert!(
+                !should_worker_wait_for_full_ring(&ring),
+                "a full ring that is still behind the target must not park the worker"
+            );
+        }
+
+        #[test]
         fn frame_ready_for_exact_is_none_while_decoding_has_not_reached_the_target() {
             let mut frames = VecDeque::new();
             frames.push_back(RingFrame {
@@ -1241,7 +1272,11 @@ mod repro_export_ring {
                 Ok(f) => {
                     let lag = pts - f.pts_seconds;
                     if t.elapsed().as_millis() > 200 || (frame % 60 == 0) {
-                        eprintln!("frame {frame} target {pts:.3} served {:.3} lag {lag:.3} took {:?}", f.pts_seconds, t.elapsed());
+                        eprintln!(
+                            "frame {frame} target {pts:.3} served {:.3} lag {lag:.3} took {:?}",
+                            f.pts_seconds,
+                            t.elapsed()
+                        );
                     }
                     assert!(
                         lag.abs() < frame_duration_seconds + 1e-6,
@@ -1253,5 +1288,38 @@ mod repro_export_ring {
             }
         }
         eprintln!("ok in {:?}", start.elapsed());
+    }
+
+    /// Reproduces a fresh-session request that starts well beyond the first
+    /// prefetch ring. The following jump checks that a request within the
+    /// forward-seek gap still makes the worker decode through a full ring.
+    /// Run with:
+    /// `UXFD_REPRO_VIDEO='/path/to/file.mp4' cargo test --release --bin
+    /// uxfd-rust-backend export_fresh_decoder_starts_midstream_without_ring_stall
+    /// -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn export_fresh_decoder_starts_midstream_without_ring_stall() {
+        let path = std::env::var("UXFD_REPRO_VIDEO").expect("UXFD_REPRO_VIDEO");
+        let session = InProcessDecodeSession::open_nv12_only(Path::new(&path), 1920, 1080).unwrap();
+        let frame_duration_seconds = 1.0 / 60.0;
+
+        for target in [0.5, 0.8] {
+            let started = Instant::now();
+            let frame = session
+                .request_nv12_frame_exact(target, frame_duration_seconds)
+                .unwrap_or_else(|error| panic!("target {target:.3} failed: {error}"));
+            let elapsed = started.elapsed();
+            let lag = target - frame.pts_seconds;
+            assert!(
+                elapsed < std::time::Duration::from_secs(2),
+                "target {target:.3} took too long: {elapsed:?}"
+            );
+            assert!(
+                lag.abs() < frame_duration_seconds + 1e-6,
+                "target {target:.3} served {:.3}, lag {lag:.3} exceeds one frame duration",
+                frame.pts_seconds
+            );
+        }
     }
 }
