@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderProjectExportFrame } from './projectExportFrameRenderer';
 import type { ProjectExportFrameSourcePlanResult } from './projectExportFrameCanvas';
+import type { ProjectExportLegacyCanvasCaptureInput } from './projectExportLegacyCanvasCapture';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
 import { SharedRendererExportFrameSourceBlockedError } from './sharedRendererExportFrameSource';
 
@@ -35,6 +36,55 @@ const sharedFrame = (frameIndex: number, timestampUs: number): RustBackendVideoE
 });
 
 describe('renderProjectExportFrame', () => {
+  it('awaits an asynchronous 3D stage readback before handing frame N to the encoder', async () => {
+    let requestedTime = -1;
+    let renderedTime = -1;
+    const exportCanvas = { rgba: new Uint8Array([0]) } as unknown as HTMLCanvasElement & { rgba: Uint8Array };
+    const renderer = {
+      render: vi.fn(() => {
+        renderedTime = requestedTime;
+      }),
+      readbackRgba: vi.fn(async () => new Uint8Array([Math.round(renderedTime * 30)])),
+    };
+    const renderScene = vi.fn(async (time: number) => {
+      requestedTime = time;
+      renderer.render();
+      exportCanvas.rgba = await renderer.readbackRgba();
+    });
+    const captureLegacyCanvasFrame = vi.fn(async ({ canvas, timestamp }: ProjectExportLegacyCanvasCaptureInput) => ({
+      timestamp,
+      bitmap: { rgba: (canvas as HTMLCanvasElement & { rgba: Uint8Array }).rgba } as unknown as ImageBitmap,
+    }));
+    const frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }> = {
+      ok: true,
+      source: 'explicitExportCanvas',
+      canvas: exportCanvas,
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: true,
+    };
+
+    const result = await renderProjectExportFrame({
+      frameSourcePlan,
+      rustFrameSourceBlocked: false,
+      frameIndex: 7,
+      fps: 30,
+      width: 4,
+      height: 2,
+      objects: [],
+      encodeSessionId: 'session-stage-readback',
+      preferSharedFrame: false,
+      renderScene,
+      getExportCanvas: () => exportCanvas,
+      captureLegacyCanvasFrame,
+    });
+
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+    expect(renderer.readbackRgba).toHaveBeenCalledTimes(1);
+    if (!('bitmap' in result.frame)) throw new Error('Expected a captured bitmap frame.');
+    expect((result.frame.bitmap as unknown as { rgba: Uint8Array }).rgba).toEqual(new Uint8Array([7]));
+  });
+
   it('renders a ready Rust shared-frame source without touching legacy canvas capture', async () => {
     const rustFrame = sharedFrame(0, 0);
     const renderEncodeFrame = vi.fn(async () => rustFrame);

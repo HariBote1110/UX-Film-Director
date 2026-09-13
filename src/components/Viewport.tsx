@@ -665,6 +665,9 @@ const Viewport: React.FC = () => {
   // 結果を都度描き込んでおく2Dキャンバス。WebGPU canvasはtoDataURLで空になり
   // うるため、既存のtoDataURL/capture経路はこの2Dキャンバスを対象にする。
   const stage3dSnapshotCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 非同期readbackが前後して解決しても、古い要求が新しいフレームを上書きしない
+  // ようにする世代番号。プレビューのfire-and-forget更新も同じ規則に従う。
+  const stage3dSnapshotGenerationRef = useRef(0);
   // PSD ビルボードの合成キャッシュ: cacheKey（filePath::activeLayerIds）→
   // 合成済み RGBA8。rust-backend への psd.renderComposite は非同期・IO束縛
   // のため、renderScene 同期呼び出しの中では「今あるキャッシュをそのまま
@@ -2394,13 +2397,14 @@ const Viewport: React.FC = () => {
 
   // 3D ステージの現在フレームを StageRenderer#readbackRgba で読み戻し、
   // stage3dSnapshotCanvasRef の2Dキャンバスへ描き込む(export/snapshot用)。
-  // readback は非同期のため fire-and-forget で呼ぶ — getExportCanvas は
-  // 常にこのキャンバスの「直近の読み戻し結果」を同期的に返す(1フレーム分
-  // 遅延しうる点は実機検証が必要な既知の制約として申し送る)。
+  // 通常プレビューでは非同期更新のままにし、動画exportでは renderScene が返す
+  // Promiseをフレームループが待ってから同じキャンバスを捕捉する。
   const refreshStage3dSnapshotCanvas = useCallback(async (): Promise<void> => {
+    const generation = ++stage3dSnapshotGenerationRef.current;
     const handle = threeStageRef.current;
     if (!handle) return;
     const snapshot = await handle.getSnapshotRgba();
+    if (generation !== stage3dSnapshotGenerationRef.current) return;
     if (!snapshot || snapshot.width <= 0 || snapshot.height <= 0) return;
 
     let canvas = stage3dSnapshotCanvasRef.current;
@@ -2511,7 +2515,10 @@ const Viewport: React.FC = () => {
       }
 
       threeStageRef.current.syncBillboards(billboardEntries, useStore.getState().stageCamera3D);
-      void refreshStage3dSnapshotCanvas();
+      // 動画exportでは renderProjectExportFrame がこのPromiseを待ってから
+      // キャンバスを捕捉する。通常プレビューの呼び出し元は返値を利用しないため、
+      // 表示の非同期性は従来どおり維持される。
+      return refreshStage3dSnapshotCanvas();
     }
   }, [
     isExporting,
@@ -2605,8 +2612,8 @@ const Viewport: React.FC = () => {
   const getExportCanvas = useCallback((): HTMLCanvasElement | null => {
     if (useStore.getState().projectSettings.editorMode === '3d_stage') {
       // WebGPU canvasはtoDataURL/captureで空になりうるため、StageRenderer#readbackRgba
-      // を都度2Dキャンバスへ焼き込んだstage3dSnapshotCanvasRefを返す
-      // (readback非同期のfire-and-forget更新のため最大1フレーム遅延しうる)。
+      // を都度2Dキャンバスへ焼き込んだstage3dSnapshotCanvasRefを返す。動画export
+      // ではフレームごとのreadback完了後に呼ばれるため、当該フレームを返す。
       return stage3dSnapshotCanvasRef.current ?? threeStageRef.current?.getCanvas() ?? null;
     }
     // PixiJS 排除計画 Phase 4: 旧 Pixi canvas の legacy export 経路は撤去。

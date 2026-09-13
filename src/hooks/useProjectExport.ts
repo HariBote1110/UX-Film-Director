@@ -92,7 +92,7 @@ const withExportStepTimeout = async <T,>(
 };
 
 export const useProjectExport = (
-  renderScene: (time: number, objects: TimelineObject[]) => void,
+  renderScene: (time: number, objects: TimelineObject[]) => void | Promise<void>,
   getExportCanvas?: () => HTMLCanvasElement | null,
   getRustExportFrameSource?: (context: ProjectExportRustFrameSourceContext) => ProjectExportRustFrameSource | null,
 ) => {

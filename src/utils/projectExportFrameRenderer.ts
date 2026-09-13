@@ -30,7 +30,7 @@ export interface RenderProjectExportFrameInput {
   objects: TimelineObject[];
   encodeSessionId: string;
   preferSharedFrame: boolean;
-  renderScene: (time: number, objects: TimelineObject[]) => void;
+  renderScene: (time: number, objects: TimelineObject[]) => void | Promise<void>;
   getExportCanvas?: () => HTMLCanvasElement | null;
   closeRustFrameSource?: () => Promise<void> | void;
   onSynchroniseTimeline?: (time: number) => void;
@@ -132,7 +132,10 @@ export const renderProjectExportFrame = async ({
   }
 
   if (frameRuntimePlan.requiresRenderScene) {
-    renderScene(time, objects);
+    const renderResult = renderScene(time, objects);
+    if (renderResult) {
+      await renderResult;
+    }
   }
   if (frameRuntimePlan.shouldFailOnRustFrameSourceBlocked) {
     throw new Error('Rust frame source is blocked and legacy canvas fallback is disabled.');
