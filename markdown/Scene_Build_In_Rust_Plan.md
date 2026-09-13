@@ -150,13 +150,9 @@ wire cut-over は行っていない。詳細と残作業は
 へ拡張し、resident の対応済み effects、position keyframes、wipe、subject crop、fade を
 移植した。fixture generator は各 realistic scene の TS editable Project/media と
 raw graph も保存し、Rust 側で 3 scene / 447 frame の構造 parity（診断ゼロ）を検証
-する。ただし object type のTS parity検証は15/42に限られる。未検証の27型
-（asanoha_pattern、barcode、circular_arrow、colour_wheel、contour_trace、
-displacement_poly、focus_lines_plus、gear、gourd、histogram、houndstooth、
-paper_airplane、particle、pie_chart、plain_effector_line、protractor、psd、
-puzzle_piece、random_line_ex、sphere_dots、spherical_field、sunburst、tartan_check、
-tone_curve、track_bar、triangle_bracket、yagasuri）は `unverifiedObjectType` として
-clip/mediaを返さない。runtime の dual-run/cut-overと全42型coverage sceneは未完了である。
+する。別 fixture の全42型 coverage scene で TS canonical media と Rust の
+Project/media を構造比較し、全42型を verified とした。verified は
+`text、shape、image、video、audio、psd、group_control、audio_visualization、audio_sphere、particle、barcode、puzzle_piece、colour_wheel、gourd、gear、track_bar、pie_chart、histogram、tone_curve、hksy_checker_grid、getcolor_dot_field、region_frame、simple_tube、sphere_dots、spherical_field、sunburst、circular_arrow、triangle_bracket、tartan_check、houndstooth、yagasuri、paper_airplane、asanoha_pattern、focus_lines_plus、random_line_ex、contour_trace、displacement_poly、plain_effector_line、hologram、protractor、shaking_polygon、shattered_sphere`、still-diagnosed は空集合である。runtime の dual-run/cut-overは未完了である。
 未対応 feature は clip を返さず明示診断を
 返す。特殊 clamp を持つ一部 generated serializer と smart_clipping/auto_blur 等は
 未確認のため diagnostic として拒否する。
