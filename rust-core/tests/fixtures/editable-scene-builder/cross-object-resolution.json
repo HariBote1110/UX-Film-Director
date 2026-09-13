@@ -1,0 +1,2061 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "audio-direct-id-outside-window",
+      "time": 10,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "audio-direct",
+            "type": "audio",
+            "name": "audio-direct",
+            "layer": 2,
+            "startTime": 0,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:audio-direct",
+            "filePath": "/media/audio-direct.wav",
+            "volume": 1,
+            "muted": false
+          },
+          {
+            "id": "waveform-direct",
+            "type": "audio_visualization",
+            "name": "waveform-direct",
+            "layer": 4,
+            "startTime": 10,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetAudioId": "audio-direct",
+            "targetLayer": 2,
+            "visualizationType": "waveform",
+            "color": "#00ff00",
+            "thickness": 2,
+            "width": 640,
+            "height": 180,
+            "amplitude": 1
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "waveform-direct",
+            "kind": "GeneratedAudioWaveform",
+            "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-direct\",\"target_source\":\"/media/audio-direct.wav\",\"sample_window_seconds\":0.05,\"colour\":\"#00ff00\",\"thickness\":2,\"amplitude\":1}",
+            "width": 640,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "waveform-direct": {
+            "generator": "audio-waveform-r",
+            "target_audio_id": "audio-direct",
+            "target_source": "/media/audio-direct.wav",
+            "sample_window_seconds": 0.05,
+            "colour": "#00ff00",
+            "thickness": 2,
+            "amplitude": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "audio-sphere-direct-id-outside-window",
+      "time": 10,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "audio-direct",
+            "type": "audio",
+            "name": "audio-direct",
+            "layer": 2,
+            "startTime": 0,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:audio-direct",
+            "filePath": "/media/audio-direct.wav",
+            "volume": 1,
+            "muted": false
+          },
+          {
+            "id": "sphere-direct",
+            "type": "audio_sphere",
+            "name": "sphere-direct",
+            "layer": 4,
+            "startTime": 10,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetAudioId": "audio-direct",
+            "targetLayer": 2,
+            "width": 400,
+            "height": 400,
+            "sampleWindowSeconds": 0.1,
+            "columns": 16,
+            "rows": 12,
+            "baseRadius": 170,
+            "audioInfluence": 0.6,
+            "pointSize": 5,
+            "polygonSize": 0.35,
+            "randomAmount": 0.05,
+            "colour": "#36c2ff",
+            "seed": 93
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "sphere-direct",
+            "kind": "GeneratedAudioSphere",
+            "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"audio-direct\",\"target_source\":\"/media/audio-direct.wav\",\"sample_window_seconds\":0.1,\"columns\":16,\"rows\":12,\"base_radius\":170,\"audio_influence\":0.6,\"point_size\":5,\"polygon_size\":0.35,\"random_amount\":0.05,\"colour\":\"#36c2ff\",\"seed\":93}",
+            "width": 400,
+            "height": 400
+          }
+        ],
+        "generator_sources": {
+          "sphere-direct": {
+            "generator": "audio-sphere-93",
+            "target_audio_id": "audio-direct",
+            "target_source": "/media/audio-direct.wav",
+            "sample_window_seconds": 0.1,
+            "columns": 16,
+            "rows": 12,
+            "base_radius": 170,
+            "audio_influence": 0.6,
+            "point_size": 5,
+            "polygon_size": 0.35,
+            "random_amount": 0.05,
+            "colour": "#36c2ff",
+            "seed": 93
+          }
+        }
+      }
+    },
+    {
+      "id": "audio-layer-fallback-inside-window",
+      "time": 3,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "audio-layer",
+            "type": "audio",
+            "name": "audio-layer",
+            "layer": 2,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:audio-layer",
+            "filePath": "/media/audio-layer.wav",
+            "volume": 1,
+            "muted": false
+          },
+          {
+            "id": "waveform-layer",
+            "type": "audio_visualization",
+            "name": "waveform-layer",
+            "layer": 4,
+            "startTime": 3,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetAudioId": "",
+            "targetLayer": 2,
+            "visualizationType": "waveform",
+            "color": "#00ff00",
+            "thickness": 2,
+            "width": 640,
+            "height": 180,
+            "amplitude": 1
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "waveform-layer",
+            "kind": "GeneratedAudioWaveform",
+            "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-layer\",\"target_source\":\"/media/audio-layer.wav\",\"sample_window_seconds\":0.05,\"colour\":\"#00ff00\",\"thickness\":2,\"amplitude\":1}",
+            "width": 640,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "waveform-layer": {
+            "generator": "audio-waveform-r",
+            "target_audio_id": "audio-layer",
+            "target_source": "/media/audio-layer.wav",
+            "sample_window_seconds": 0.05,
+            "colour": "#00ff00",
+            "thickness": 2,
+            "amplitude": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "audio-sphere-layer-fallback-inside-window",
+      "time": 3,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "audio-layer",
+            "type": "audio",
+            "name": "audio-layer",
+            "layer": 2,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:audio-layer",
+            "filePath": "/media/audio-layer.wav",
+            "volume": 1,
+            "muted": false
+          },
+          {
+            "id": "sphere-layer",
+            "type": "audio_sphere",
+            "name": "sphere-layer",
+            "layer": 4,
+            "startTime": 3,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetAudioId": "",
+            "targetLayer": 2,
+            "width": 400,
+            "height": 400,
+            "sampleWindowSeconds": 0.1,
+            "columns": 16,
+            "rows": 12,
+            "baseRadius": 170,
+            "audioInfluence": 0.6,
+            "pointSize": 5,
+            "polygonSize": 0.35,
+            "randomAmount": 0.05,
+            "colour": "#36c2ff",
+            "seed": 93
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "sphere-layer",
+            "kind": "GeneratedAudioSphere",
+            "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"audio-layer\",\"target_source\":\"/media/audio-layer.wav\",\"sample_window_seconds\":0.1,\"columns\":16,\"rows\":12,\"base_radius\":170,\"audio_influence\":0.6,\"point_size\":5,\"polygon_size\":0.35,\"random_amount\":0.05,\"colour\":\"#36c2ff\",\"seed\":93}",
+            "width": 400,
+            "height": 400
+          }
+        ],
+        "generator_sources": {
+          "sphere-layer": {
+            "generator": "audio-sphere-93",
+            "target_audio_id": "audio-layer",
+            "target_source": "/media/audio-layer.wav",
+            "sample_window_seconds": 0.1,
+            "columns": 16,
+            "rows": 12,
+            "base_radius": 170,
+            "audio_influence": 0.6,
+            "point_size": 5,
+            "polygon_size": 0.35,
+            "random_amount": 0.05,
+            "colour": "#36c2ff",
+            "seed": 93
+          }
+        }
+      }
+    },
+    {
+      "id": "audio-layer-fallback-not-found",
+      "time": 5,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "audio-layer",
+            "type": "audio",
+            "name": "audio-layer",
+            "layer": 2,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:audio-layer",
+            "filePath": "/media/audio-layer.wav",
+            "volume": 1,
+            "muted": false
+          },
+          {
+            "id": "waveform-missing",
+            "type": "audio_visualization",
+            "name": "waveform-missing",
+            "layer": 4,
+            "startTime": 5,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetAudioId": "",
+            "targetLayer": 2,
+            "visualizationType": "waveform",
+            "color": "#00ff00",
+            "thickness": 2,
+            "width": 640,
+            "height": 180,
+            "amplitude": 1
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "waveform-missing",
+            "kind": "GeneratedAudioWaveform",
+            "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"\",\"target_source\":\"\",\"sample_window_seconds\":0.05,\"colour\":\"#00ff00\",\"thickness\":2,\"amplitude\":1}",
+            "width": 640,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "waveform-missing": {
+            "generator": "audio-waveform-r",
+            "target_audio_id": "",
+            "target_source": "",
+            "sample_window_seconds": 0.05,
+            "colour": "#00ff00",
+            "thickness": 2,
+            "amplitude": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "getcolor-direct-path",
+      "time": 3,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "getcolor-path",
+            "type": "getcolor_dot_field",
+            "name": "getcolor-path",
+            "layer": 5,
+            "startTime": 3,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 320,
+            "height": 180,
+            "columns": 32,
+            "rows": 18,
+            "dotSize": 14,
+            "sizeInfluence": 0.65,
+            "luminanceInfluence": 0.7,
+            "hueShiftDegrees": 0,
+            "alternateRows": false,
+            "foregroundColour": "#ffffff",
+            "secondaryColour": "#36c2ff",
+            "backgroundColour": "#000000",
+            "seed": 93,
+            "sampleStrength": 1,
+            "sampleHueShiftDegrees": 0,
+            "sampleSourcePath": "/samples/direct.png"
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "getcolor-path",
+            "kind": "GeneratedGetColorDots",
+            "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":32,\"rows\":18,\"dot_size\":14,\"size_influence\":0.65,\"luminance_influence\":0.7,\"hue_shift_degrees\":0,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#000000\",\"seed\":93,\"source_image\":\"/samples/direct.png\",\"sample_strength\":1,\"sample_hue_shift_degrees\":0}",
+            "width": 320,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "getcolor-path": {
+            "generator": "getcolor-v2r-dot-field",
+            "columns": 32,
+            "rows": 18,
+            "dot_size": 14,
+            "size_influence": 0.65,
+            "luminance_influence": 0.7,
+            "hue_shift_degrees": 0,
+            "alternate_rows": false,
+            "foreground_colour": "#ffffff",
+            "secondary_colour": "#36c2ff",
+            "background_colour": "#000000",
+            "seed": 93,
+            "source_image": "/samples/direct.png",
+            "sample_strength": 1,
+            "sample_hue_shift_degrees": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "getcolor-object-id-image",
+      "time": 3,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "image-candidate",
+            "type": "image",
+            "name": "image-candidate",
+            "layer": 3,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:image-candidate",
+            "filePath": "/media/image-candidate.png",
+            "width": 640,
+            "height": 360
+          },
+          {
+            "id": "getcolor-image",
+            "type": "getcolor_dot_field",
+            "name": "getcolor-image",
+            "layer": 5,
+            "startTime": 3,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 320,
+            "height": 180,
+            "columns": 32,
+            "rows": 18,
+            "dotSize": 14,
+            "sizeInfluence": 0.65,
+            "luminanceInfluence": 0.7,
+            "hueShiftDegrees": 0,
+            "alternateRows": false,
+            "foregroundColour": "#ffffff",
+            "secondaryColour": "#36c2ff",
+            "backgroundColour": "#000000",
+            "seed": 93,
+            "sampleStrength": 1,
+            "sampleHueShiftDegrees": 0,
+            "sampleSourceObjectId": "image-candidate"
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "image-candidate",
+            "kind": "Image",
+            "source": "/media/image-candidate.png",
+            "width": 640,
+            "height": 360
+          },
+          {
+            "id": "getcolor-image",
+            "kind": "GeneratedGetColorDots",
+            "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":32,\"rows\":18,\"dot_size\":14,\"size_influence\":0.65,\"luminance_influence\":0.7,\"hue_shift_degrees\":0,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#000000\",\"seed\":93,\"source_image\":\"/media/image-candidate.png\",\"sample_strength\":1,\"sample_hue_shift_degrees\":0}",
+            "width": 320,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "getcolor-image": {
+            "generator": "getcolor-v2r-dot-field",
+            "columns": 32,
+            "rows": 18,
+            "dot_size": 14,
+            "size_influence": 0.65,
+            "luminance_influence": 0.7,
+            "hue_shift_degrees": 0,
+            "alternate_rows": false,
+            "foreground_colour": "#ffffff",
+            "secondary_colour": "#36c2ff",
+            "background_colour": "#000000",
+            "seed": 93,
+            "source_image": "/media/image-candidate.png",
+            "sample_strength": 1,
+            "sample_hue_shift_degrees": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "getcolor-layer-psd-sorted-active-layers",
+      "time": 3,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "psd-candidate",
+            "type": "psd",
+            "name": "psd-candidate",
+            "layer": 3,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:psd-candidate",
+            "filePath": "/media/psd-candidate.psd",
+            "width": 640,
+            "height": 360,
+            "scale": 1,
+            "activeLayerIds": {
+              "zebra": true,
+              "alpha": true,
+              "disabled": false
+            }
+          },
+          {
+            "id": "getcolor-psd",
+            "type": "getcolor_dot_field",
+            "name": "getcolor-psd",
+            "layer": 5,
+            "startTime": 3,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 320,
+            "height": 180,
+            "columns": 32,
+            "rows": 18,
+            "dotSize": 14,
+            "sizeInfluence": 0.65,
+            "luminanceInfluence": 0.7,
+            "hueShiftDegrees": 0,
+            "alternateRows": false,
+            "foregroundColour": "#ffffff",
+            "secondaryColour": "#36c2ff",
+            "backgroundColour": "#000000",
+            "seed": 93,
+            "sampleStrength": 1,
+            "sampleHueShiftDegrees": 0,
+            "sampleSourceLayer": 3
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "psd-candidate",
+            "kind": "Psd",
+            "source": "/media/psd-candidate.psd",
+            "width": 640,
+            "height": 360,
+            "active_layer_ids": [
+              "alpha",
+              "zebra"
+            ]
+          },
+          {
+            "id": "getcolor-psd",
+            "kind": "GeneratedGetColorDots",
+            "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":32,\"rows\":18,\"dot_size\":14,\"size_influence\":0.65,\"luminance_influence\":0.7,\"hue_shift_degrees\":0,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#000000\",\"seed\":93,\"source_image\":\"/media/psd-candidate.psd\",\"source_active_layer_ids\":[\"alpha\",\"zebra\"],\"sample_strength\":1,\"sample_hue_shift_degrees\":0}",
+            "width": 320,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "getcolor-psd": {
+            "generator": "getcolor-v2r-dot-field",
+            "columns": 32,
+            "rows": 18,
+            "dot_size": 14,
+            "size_influence": 0.65,
+            "luminance_influence": 0.7,
+            "hue_shift_degrees": 0,
+            "alternate_rows": false,
+            "foreground_colour": "#ffffff",
+            "secondary_colour": "#36c2ff",
+            "background_colour": "#000000",
+            "seed": 93,
+            "source_image": "/media/psd-candidate.psd",
+            "source_active_layer_ids": [
+              "alpha",
+              "zebra"
+            ],
+            "sample_strength": 1,
+            "sample_hue_shift_degrees": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "getcolor-object-id-non-candidate-does-not-fallback",
+      "time": 3,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "image-candidate",
+            "type": "image",
+            "name": "image-candidate",
+            "layer": 3,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:image-candidate",
+            "filePath": "/media/image-candidate.png",
+            "width": 640,
+            "height": 360
+          },
+          {
+            "id": "not-an-image",
+            "type": "audio",
+            "name": "not-an-image",
+            "layer": 3,
+            "startTime": 2,
+            "duration": 2,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:not-an-image",
+            "filePath": "/media/not-an-image.wav",
+            "volume": 1,
+            "muted": false
+          },
+          {
+            "id": "getcolor-no-fallback",
+            "type": "getcolor_dot_field",
+            "name": "getcolor-no-fallback",
+            "layer": 5,
+            "startTime": 3,
+            "duration": 1,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 320,
+            "height": 180,
+            "columns": 32,
+            "rows": 18,
+            "dotSize": 14,
+            "sizeInfluence": 0.65,
+            "luminanceInfluence": 0.7,
+            "hueShiftDegrees": 0,
+            "alternateRows": false,
+            "foregroundColour": "#ffffff",
+            "secondaryColour": "#36c2ff",
+            "backgroundColour": "#000000",
+            "seed": 93,
+            "sampleStrength": 1,
+            "sampleHueShiftDegrees": 0,
+            "sampleSourceObjectId": "not-an-image",
+            "sampleSourceLayer": 3
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "image-candidate",
+            "kind": "Image",
+            "source": "/media/image-candidate.png",
+            "width": 640,
+            "height": 360
+          },
+          {
+            "id": "getcolor-no-fallback",
+            "kind": "GeneratedGetColorDots",
+            "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":32,\"rows\":18,\"dot_size\":14,\"size_influence\":0.65,\"luminance_influence\":0.7,\"hue_shift_degrees\":0,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#000000\",\"seed\":93}",
+            "width": 320,
+            "height": 180
+          }
+        ],
+        "generator_sources": {
+          "getcolor-no-fallback": {
+            "generator": "getcolor-v2r-dot-field",
+            "columns": 32,
+            "rows": 18,
+            "dot_size": 14,
+            "size_influence": 0.65,
+            "luminance_influence": 0.7,
+            "hue_shift_degrees": 0,
+            "alternate_rows": false,
+            "foreground_colour": "#ffffff",
+            "secondary_colour": "#36c2ff",
+            "background_colour": "#000000",
+            "seed": 93
+          }
+        }
+      }
+    },
+    {
+      "id": "group-control-visible-layers-and-counts",
+      "time": 1,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": false,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "below-control",
+            "type": "shape",
+            "name": "below-control",
+            "layer": 0,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 100,
+            "height": 100,
+            "shapeType": "rect",
+            "fill": "#ff0000"
+          },
+          {
+            "id": "group-all",
+            "type": "group_control",
+            "name": "group-all",
+            "layer": 1,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetLayerCount": 0,
+            "groupX": 0,
+            "groupY": 0,
+            "groupScale": 1,
+            "groupRotation": 0,
+            "groupOpacity": 1
+          },
+          {
+            "id": "group-next",
+            "type": "group_control",
+            "name": "group-next",
+            "layer": 2,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "targetLayerCount": 1,
+            "groupX": 0,
+            "groupY": 0,
+            "groupScale": 1,
+            "groupRotation": 0,
+            "groupOpacity": 1
+          },
+          {
+            "id": "same-layer-as-next-control",
+            "type": "shape",
+            "name": "same-layer-as-next-control",
+            "layer": 2,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 100,
+            "height": 100,
+            "shapeType": "rect",
+            "fill": "#ff0000"
+          },
+          {
+            "id": "layer-three-a",
+            "type": "shape",
+            "name": "layer-three-a",
+            "layer": 3,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 100,
+            "height": 100,
+            "shapeType": "rect",
+            "fill": "#ff0000"
+          },
+          {
+            "id": "layer-three-b",
+            "type": "shape",
+            "name": "layer-three-b",
+            "layer": 3,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 100,
+            "height": 100,
+            "shapeType": "rect",
+            "fill": "#ff0000"
+          },
+          {
+            "id": "layer-four",
+            "type": "shape",
+            "name": "layer-four",
+            "layer": 4,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 100,
+            "height": 100,
+            "shapeType": "rect",
+            "fill": "#ff0000"
+          },
+          {
+            "id": "hidden-layer-seven",
+            "type": "shape",
+            "name": "hidden-layer-seven",
+            "layer": 7,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "width": 100,
+            "height": 100,
+            "shapeType": "rect",
+            "fill": "#ff0000"
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "below-control",
+            "kind": "SolidColour",
+            "source": "#ff0000",
+            "width": 100,
+            "height": 100
+          },
+          {
+            "id": "same-layer-as-next-control",
+            "kind": "SolidColour",
+            "source": "#ff0000",
+            "width": 100,
+            "height": 100
+          },
+          {
+            "id": "layer-three-a",
+            "kind": "SolidColour",
+            "source": "#ff0000",
+            "width": 100,
+            "height": 100
+          },
+          {
+            "id": "layer-three-b",
+            "kind": "SolidColour",
+            "source": "#ff0000",
+            "width": 100,
+            "height": 100
+          },
+          {
+            "id": "layer-four",
+            "kind": "SolidColour",
+            "source": "#ff0000",
+            "width": 100,
+            "height": 100
+          }
+        ],
+        "generator_sources": {},
+        "project": {
+          "id": "group-control-visible-layers-and-counts",
+          "version": 1,
+          "size": {
+            "width": 1920,
+            "height": 1080
+          },
+          "fps": {
+            "numerator": 60,
+            "denominator": 1
+          },
+          "colour": {
+            "profile": "rec709-sdr",
+            "working_space": "linear-light",
+            "alpha": "premultiplied"
+          },
+          "media": [
+            {
+              "id": "below-control",
+              "kind": "SolidColour",
+              "source": "#ff0000",
+              "width": 100,
+              "height": 100
+            },
+            {
+              "id": "same-layer-as-next-control",
+              "kind": "SolidColour",
+              "source": "#ff0000",
+              "width": 100,
+              "height": 100
+            },
+            {
+              "id": "layer-three-a",
+              "kind": "SolidColour",
+              "source": "#ff0000",
+              "width": 100,
+              "height": 100
+            },
+            {
+              "id": "layer-three-b",
+              "kind": "SolidColour",
+              "source": "#ff0000",
+              "width": 100,
+              "height": 100
+            },
+            {
+              "id": "layer-four",
+              "kind": "SolidColour",
+              "source": "#ff0000",
+              "width": 100,
+              "height": 100
+            }
+          ],
+          "tracks": [
+            {
+              "id": "layer-0",
+              "clips": [
+                {
+                  "id": "below-control",
+                  "media_id": "below-control",
+                  "kind": "SolidColourPlane",
+                  "start_frame": 0,
+                  "duration_frames": 1200,
+                  "source_frame_offset": 0,
+                  "transform": {
+                    "translation_x": 10,
+                    "translation_y": 20,
+                    "scale_x": 1,
+                    "scale_y": 1,
+                    "rotation_degrees": 0,
+                    "sampling": "nearest"
+                  },
+                  "opacity": 1,
+                  "opacity_keyframes": [],
+                  "position_keyframes": [],
+                  "wipe_animations": [],
+                  "effects": []
+                }
+              ]
+            },
+            {
+              "id": "layer-2",
+              "clips": [
+                {
+                  "id": "same-layer-as-next-control",
+                  "media_id": "same-layer-as-next-control",
+                  "kind": "SolidColourPlane",
+                  "start_frame": 0,
+                  "duration_frames": 1200,
+                  "source_frame_offset": 0,
+                  "transform": {
+                    "translation_x": 10,
+                    "translation_y": 20,
+                    "scale_x": 1,
+                    "scale_y": 1,
+                    "rotation_degrees": 0,
+                    "sampling": "nearest"
+                  },
+                  "opacity": 1,
+                  "opacity_keyframes": [],
+                  "position_keyframes": [],
+                  "wipe_animations": [],
+                  "effects": []
+                }
+              ]
+            },
+            {
+              "id": "layer-3",
+              "clips": [
+                {
+                  "id": "layer-three-a",
+                  "media_id": "layer-three-a",
+                  "kind": "SolidColourPlane",
+                  "start_frame": 0,
+                  "duration_frames": 1200,
+                  "source_frame_offset": 0,
+                  "transform": {
+                    "translation_x": 10,
+                    "translation_y": 20,
+                    "scale_x": 1,
+                    "scale_y": 1,
+                    "rotation_degrees": 0,
+                    "sampling": "nearest"
+                  },
+                  "opacity": 1,
+                  "opacity_keyframes": [],
+                  "position_keyframes": [],
+                  "wipe_animations": [],
+                  "effects": []
+                },
+                {
+                  "id": "layer-three-b",
+                  "media_id": "layer-three-b",
+                  "kind": "SolidColourPlane",
+                  "start_frame": 0,
+                  "duration_frames": 1200,
+                  "source_frame_offset": 0,
+                  "transform": {
+                    "translation_x": 10,
+                    "translation_y": 20,
+                    "scale_x": 1,
+                    "scale_y": 1,
+                    "rotation_degrees": 0,
+                    "sampling": "nearest"
+                  },
+                  "opacity": 1,
+                  "opacity_keyframes": [],
+                  "position_keyframes": [],
+                  "wipe_animations": [],
+                  "effects": []
+                }
+              ]
+            },
+            {
+              "id": "layer-4",
+              "clips": [
+                {
+                  "id": "layer-four",
+                  "media_id": "layer-four",
+                  "kind": "SolidColourPlane",
+                  "start_frame": 0,
+                  "duration_frames": 1200,
+                  "source_frame_offset": 0,
+                  "transform": {
+                    "translation_x": 10,
+                    "translation_y": 20,
+                    "scale_x": 1,
+                    "scale_y": 1,
+                    "rotation_degrees": 0,
+                    "sampling": "nearest"
+                  },
+                  "opacity": 1,
+                  "opacity_keyframes": [],
+                  "position_keyframes": [],
+                  "wipe_animations": [],
+                  "effects": []
+                }
+              ]
+            }
+          ],
+          "group_controls": [
+            {
+              "id": "group-all",
+              "start_frame": 0,
+              "duration_frames": 1200,
+              "transform": {
+                "translation_x": 10,
+                "translation_y": 20,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 1,
+              "position_keyframes": [],
+              "target_track_ids": [
+                "layer-2",
+                "layer-3",
+                "layer-4"
+              ]
+            },
+            {
+              "id": "group-next",
+              "start_frame": 0,
+              "duration_frames": 1200,
+              "transform": {
+                "translation_x": 10,
+                "translation_y": 20,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 1,
+              "position_keyframes": [],
+              "target_track_ids": [
+                "layer-3"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "video-preview-proxy",
+      "time": 1,
+      "purpose": "previewProxy",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "video-paths",
+            "type": "video",
+            "name": "video-paths",
+            "layer": 1,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:video-paths",
+            "filePath": "/media/original.mov",
+            "proxyFilePath": "/media/proxy.mp4",
+            "width": 1280,
+            "height": 720,
+            "offset": 0,
+            "volume": 1,
+            "muted": false
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "video-paths",
+            "kind": "Video",
+            "source": "/media/proxy.mp4",
+            "width": 1280,
+            "height": 720,
+            "source_rate": {
+              "numerator": 60,
+              "denominator": 1
+            }
+          }
+        ],
+        "generator_sources": {}
+      }
+    },
+    {
+      "id": "video-export-original",
+      "time": 1,
+      "purpose": "exportOriginal",
+      "graph": {
+        "settings": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "sampleRate": 48000
+        },
+        "layers": [
+          {
+            "id": "layer-0",
+            "name": "Layer 0",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-1",
+            "name": "Layer 1",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-2",
+            "name": "Layer 2",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-3",
+            "name": "Layer 3",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-4",
+            "name": "Layer 4",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-5",
+            "name": "Layer 5",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-6",
+            "name": "Layer 6",
+            "visible": true,
+            "locked": false
+          },
+          {
+            "id": "layer-7",
+            "name": "Layer 7",
+            "visible": true,
+            "locked": false
+          }
+        ],
+        "objects": [
+          {
+            "id": "video-paths",
+            "type": "video",
+            "name": "video-paths",
+            "layer": 1,
+            "startTime": 0,
+            "duration": 20,
+            "x": 10,
+            "y": 20,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "opacity": 1,
+            "enableAnimation": false,
+            "endX": 10,
+            "endY": 20,
+            "easing": "linear",
+            "src": "blob:video-paths",
+            "filePath": "/media/original.mov",
+            "proxyFilePath": "/media/proxy.mp4",
+            "width": 1280,
+            "height": 720,
+            "offset": 0,
+            "volume": 1,
+            "muted": false
+          }
+        ]
+      },
+      "expected": {
+        "media": [
+          {
+            "id": "video-paths",
+            "kind": "Video",
+            "source": "/media/original.mov",
+            "width": 1280,
+            "height": 720,
+            "source_rate": {
+              "numerator": 60,
+              "denominator": 1
+            }
+          }
+        ],
+        "generator_sources": {}
+      }
+    }
+  ]
+}
