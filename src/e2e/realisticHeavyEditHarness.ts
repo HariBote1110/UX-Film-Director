@@ -121,10 +121,25 @@ const activeProjectFile = () => {
   });
 };
 
+// Object key order is not part of the saved-file meaning: since the project file
+// moved to rust-core, restored objects come back in schema (alphabetical) key
+// order. Sort keys before hashing so only value and array-order changes count.
+const canonicaliseForFingerprint = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicaliseForFingerprint);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        .map((key) => [key, canonicaliseForFingerprint((value as Record<string, unknown>)[key])]),
+    );
+  }
+  return value;
+};
+
 const projectFingerprint = (serialised: string): string => {
   const parsed = JSON.parse(serialised) as { savedAt?: string };
   delete parsed.savedAt;
-  const text = JSON.stringify(parsed);
+  const text = JSON.stringify(canonicaliseForFingerprint(parsed));
   let hash = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
     hash ^= text.charCodeAt(index);
