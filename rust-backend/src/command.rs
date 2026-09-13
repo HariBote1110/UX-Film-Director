@@ -7,6 +7,7 @@
 //! command stack 化）は R4-8 の historySlice 書き換えの範囲。
 
 use crate::rpc::{response_error, RpcResponse};
+use crate::json_helpers::typed_to_value_preserving_f32;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uxfd_rust_core::command::{apply_command, Command};
@@ -46,7 +47,9 @@ pub(crate) fn handle_command_apply(id: u64, params: Value) -> RpcResponse {
         Ok(next_scene) => RpcResponse {
             id,
             ok: true,
-            result: Some(json!({ "scene": next_scene })),
+            result: Some(json!({
+                "scene": typed_to_value_preserving_f32(&next_scene)
+            })),
             error: None,
         },
         Err(command_error) => response_error(
@@ -95,6 +98,39 @@ mod tests {
         assert!(response.ok, "{:?}", response.error);
         let result = response.result.expect("result should be present");
         assert_eq!(result["scene"]["objects"][0]["opacity"], 0.25);
+    }
+
+    #[test]
+    fn command_apply_rpc_response_preserves_f32_json_numbers() {
+        let scene = first_scene();
+        let object_id = scene["objects"][0]["id"]
+            .as_str()
+            .expect("first object id")
+            .to_string();
+        let previous_opacity = scene["objects"][0]["opacity"].clone();
+
+        let response = handle_command_apply(
+            1,
+            json!({
+                "scene": scene,
+                "command": {
+                    "kind": "setObjectField",
+                    "objectId": object_id,
+                    "field": "opacity",
+                    "next": 0.94,
+                    "previous": previous_opacity,
+                }
+            }),
+        );
+
+        assert!(response.ok, "{response:?}");
+        let response_json = serde_json::to_string(&response).expect("RPC 応答を JSON 化できるべき");
+        assert!(response_json.contains("1.03"), "1.03 が保持されるべき: {response_json}");
+        assert!(response_json.contains("0.65"), "0.65 が保持されるべき: {response_json}");
+        assert!(response_json.contains("0.94"), "0.94 が保持されるべき: {response_json}");
+        assert!(!response_json.contains("1.0299999713897705"));
+        assert!(!response_json.contains("0.6499999761581421"));
+        assert!(!response_json.contains("0.9399999976158142"));
     }
 
     #[test]

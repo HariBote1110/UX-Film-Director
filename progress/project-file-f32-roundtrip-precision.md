@@ -20,3 +20,27 @@
 - `ProjectFile` から `serde_json::to_string`/`to_string_pretty` へ直接渡す経路は ryu の最短往復表現を使うため、保存側の `project.serialize` は既に正しい。ロード側でも同じ直接文字列化を先に行う必要がある。
 - 退行を導入したコミットは `d4171976`（2026-08-22、R4-2、rust-backend RPC に `project.deserialize`/`project.serialize` を追加）。`git show d4171976` と `git blame rust-backend/src/project_file.rs` で、当初の `json!({ "project": project })` が導入点であることを確認した。後続の `23546d8c` は rust-core の直接文字列化を追加したが、deserialize 応答の Value 化は残したため退行を防げなかった。
 - 既存の backend テストは deserialize 応答内の同じ `Value` を比較しており、数値の表記劣化を検出しなかった。新テストは実際の RPC 応答 JSON 化まで検証する。
+
+## 追跡調査（command.apply 後の状態）
+
+- 実アプリの重い編集ハーネスでは、`seed()` 直後の保存→読込は差分ゼロだった。一方、scrub・duplicate・undo/redo・scene 切替・再生後は Zustand 内ですでに `1.0299999713897705`、`0.6499999761581421` などが発生していた。
+- 根本原因は `rust-backend/src/command.rs` の `command.apply` が、f32 を含む型付き `SceneData` を `json!({ "scene": next_scene })` に直接埋め込んでいたことだった。`historySlice`、フィルター、レイヤートラックのコマンド適用がこの応答を Zustand に戻すため、保存前に単精度ノイズが注入されていた。
+- `typed_to_value_preserving_f32` を rust-backend の共有ヘルパーとして抽出した。型付き値を一度 `serde_json::to_string` で文字列化し、その後 `Value` に戻すことで、RPC の `Value` 境界でも f32 の最短表現を維持する。
+- `command.apply` に `0.94` の応答表記を検証する Red→Green テストを追加した。修正前は `0.9399999976158142` となり、修正後は `0.94` になった。
+
+## RPC 応答の監査結果
+
+| 呼び出し箇所 | 判断 | 理由・対応 |
+| --- | --- | --- |
+| `command.rs:handle_command_apply` | 修正 | `SceneData` が undo/redo、フィルター、レイヤートラック経由で Zustand に戻り、保存対象になる。共有ヘルパーを使用。 |
+| `project_file.rs:handle_project_deserialize` | 修正 | `ProjectFile` が Zustand に戻り、保存対象になる。既存の個別変換を共有ヘルパーへ置換。 |
+| `project_file.rs:handle_project_serialize` | 対応不要 | `ProjectFile` を `Value` にせず `project_file_to_json_pretty` で直接文字列化する既存経路を維持。型付き入力の `1.03`/`0.65` と、展開表記がないことをテストで固定。 |
+| `agent_project.rs:handle_agent_build_project_file` | 修正 | 生成した `ProjectFile` はエージェントの新規プロジェクトとして renderer/Zustand と保存経路へ渡る。共有ヘルパーを使用。 |
+| `scene.rs:handle_scene_evaluate` (`snapshot`) | 対応不要 | `SceneSnapshot` はフレーム描画用の一時結果で、編集状態や保存ファイルへ戻らない。 |
+| `scene.rs:dual_run_diagnostics` の比較用 `to_value` | 対応不要 | TS/Rust の構造比較専用で、RPC 応答や永続状態には出力しない。 |
+| `scene.rs:handle_scene_replace` の `dualRun` 診断 | 対応不要 | 診断情報のみで、編集プロジェクトを renderer/Zustand へ返す応答ではない。 |
+| `native_render.rs:133-135` (`snapshot`/`media`/`nv12Sources`) | 対応不要 | encode 内部へ渡す入力を `Value` 化しているだけで、RPC の成功結果には含めない。描画専用。 |
+| `native_render.rs` の各成功応答 | 対応不要 | frame count、timing、render path などの描画・エンコード診断で、保存対象の型付き構造体を返さない。 |
+| `media.rs` の PSD 応答 | 対応不要 | PSD の寸法・ノード情報や一時blobパスを返すメディア処理結果で、f32 を含む編集プロジェクトを返さない。 |
+| `decode.rs` の `start`/`requestFrame` 応答 | 対応不要 | デコーダー制御情報とフレームバッファを返す描画経路で、Zustand の保存対象へ流れない。 |
+| `rpc_dispatch.rs:health` | 対応不要 | `HealthResult` は文字列のみで f32 フィールドを持たない。 |

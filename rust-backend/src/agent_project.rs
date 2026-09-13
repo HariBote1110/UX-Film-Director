@@ -7,6 +7,7 @@
 //! RPC メソッド。バリデーション/展開ロジック自体はここには一切無い
 //! （`parse_agent_project_spec`/`build_agent_project_file` が唯一の正）。
 
+use crate::json_helpers::typed_to_value_preserving_f32;
 use crate::rpc::{response_error, RpcResponse};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -40,7 +41,9 @@ pub(crate) fn handle_agent_build_project_file(id: u64, params: Value) -> RpcResp
         Ok(project) => RpcResponse {
             id,
             ok: true,
-            result: Some(json!({ "project": project })),
+            result: Some(json!({
+                "project": typed_to_value_preserving_f32(&project)
+            })),
             error: None,
         },
         Err(message) => response_error(id, AGENT_PROJECT_INVALID_CODE, &message),

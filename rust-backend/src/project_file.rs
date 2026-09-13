@@ -5,12 +5,11 @@
 //! `rust-backend-project-deserialize`/`rust-backend-project-serialize`）が
 //! 実際に呼び出す先はこの RPC メソッド。
 
+use crate::json_helpers::typed_to_value_preserving_f32;
 use crate::rpc::{response_error, RpcResponse};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use uxfd_rust_core::project_file::{
-    project_file_from_json, project_file_to_json_pretty, project_file_to_json_string,
-};
+use uxfd_rust_core::project_file::{project_file_from_json, project_file_to_json_pretty};
 use uxfd_rust_core::schema::ProjectFile;
 
 /// `.uxfd.json` の内容として不正（format/version 不一致・壊れた JSON・
@@ -47,17 +46,12 @@ pub(crate) fn handle_project_deserialize(id: u64, params: Value) -> RpcResponse 
 
     match project_file_from_json(&parsed.json) {
         Ok(project) => {
-            // `json!({ "project": project })` は ProjectFile の f32 を
-            // serde_json::Value の f64 として保持するため、RPC 応答の
-            // JSON 化時に 1.03 などが単精度の内部値の展開表現へ変わる。
-            // 型付き構造体から短い JSON 表現を作ってから Value 境界へ渡す。
-            let project_json = project_file_to_json_string(&project);
-            let project_value: Value = serde_json::from_str(&project_json)
-                .expect("ProjectFile の JSON Value 変換に失敗しました");
             RpcResponse {
                 id,
                 ok: true,
-                result: Some(json!({ "project": project_value })),
+                result: Some(json!({
+                    "project": typed_to_value_preserving_f32(&project)
+                })),
                 error: None,
             }
         }
@@ -143,6 +137,10 @@ mod tests {
         let result = serialize_response.result.expect("result should be present");
         let json_string = result["json"].as_str().expect("json should be a string");
         assert!(json_string.contains("\n  \""), "2-space indented pretty JSON expected");
+        assert!(json_string.contains("\"brightness\": 1.03"));
+        assert!(json_string.contains("\"opacity\": 0.65"));
+        assert!(!json_string.contains("1.0299999713897705"));
+        assert!(!json_string.contains("0.6499999761581421"));
 
         // 直列化した文字列を再度 deserialize すると同じ内容に戻ること。
         let reparsed = handle_project_deserialize(3, json!({ "json": json_string }));

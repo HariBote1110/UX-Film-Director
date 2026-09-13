@@ -7,6 +7,7 @@ mod fonts;
 mod frames;
 mod generated;
 mod inprocess_decode;
+mod json_helpers;
 mod media;
 mod native_render;
 mod native_shared;
