@@ -22,6 +22,7 @@
     "agent:validate": "VITEST=true vite-node scripts/validate-agent-project.mts",
     "fixture:evaluation-parity": "VITEST=true vite-node scripts/generate-evaluation-parity-fixture.mts",
     "fixture:editable-scene-builder": "VITEST=true vite-node scripts/generate-editable-scene-builder-fixture.mts",
+    "fixture:editable-scene-builder:coverage": "VITEST=true vite-node scripts/generate-editable-scene-builder-coverage-fixture.mts",
     "codegen:types": "cargo run --manifest-path rust-core/Cargo.toml --bin codegen_types",
     "codegen:types:check": "npm run codegen:types && git diff --exit-code -- src/generated/rustCore schema/rust-core",
     "agent:video": "node scripts/run-agent-video.mjs",

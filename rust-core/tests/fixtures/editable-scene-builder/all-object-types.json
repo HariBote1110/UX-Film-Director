@@ -1,0 +1,3077 @@
+{
+  "version": 1,
+  "scene_id": "all-object-types",
+  "graph": {
+    "settings": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "sampleRate": 48000
+    },
+    "layers": [
+      {
+        "id": "layer-0",
+        "name": "Coverage 0",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-1",
+        "name": "Coverage 1",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-2",
+        "name": "Coverage 2",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-3",
+        "name": "Coverage 3",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-4",
+        "name": "Coverage 4",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-5",
+        "name": "Coverage 5",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-6",
+        "name": "Coverage 6",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-7",
+        "name": "Coverage 7",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-8",
+        "name": "Coverage 8",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-9",
+        "name": "Coverage 9",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-10",
+        "name": "Coverage 10",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-11",
+        "name": "Coverage 11",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-12",
+        "name": "Coverage 12",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-13",
+        "name": "Coverage 13",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-14",
+        "name": "Coverage 14",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-15",
+        "name": "Coverage 15",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-16",
+        "name": "Coverage 16",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-17",
+        "name": "Coverage 17",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-18",
+        "name": "Coverage 18",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-19",
+        "name": "Coverage 19",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-20",
+        "name": "Coverage 20",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-21",
+        "name": "Coverage 21",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-22",
+        "name": "Coverage 22",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-23",
+        "name": "Coverage 23",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-24",
+        "name": "Coverage 24",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-25",
+        "name": "Coverage 25",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-26",
+        "name": "Coverage 26",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-27",
+        "name": "Coverage 27",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-28",
+        "name": "Coverage 28",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-29",
+        "name": "Coverage 29",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-30",
+        "name": "Coverage 30",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-31",
+        "name": "Coverage 31",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-32",
+        "name": "Coverage 32",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-33",
+        "name": "Coverage 33",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-34",
+        "name": "Coverage 34",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-35",
+        "name": "Coverage 35",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-36",
+        "name": "Coverage 36",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-37",
+        "name": "Coverage 37",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-38",
+        "name": "Coverage 38",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-39",
+        "name": "Coverage 39",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-40",
+        "name": "Coverage 40",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-41",
+        "name": "Coverage 41",
+        "visible": true,
+        "locked": false
+      },
+      {
+        "id": "layer-42",
+        "name": "Coverage 42",
+        "visible": true,
+        "locked": false
+      }
+    ],
+    "objects": [
+      {
+        "id": "text",
+        "type": "text",
+        "name": "coverage-text",
+        "layer": 0,
+        "startTime": 0,
+        "duration": 5,
+        "x": 17,
+        "y": 23,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 17,
+        "endY": 23,
+        "easing": "linear",
+        "text": "Coverage",
+        "fontSize": 42,
+        "fontFamily": "sans-serif",
+        "fill": "#f0c",
+        "measuredWidth": 320,
+        "measuredHeight": 60,
+        "textAlignment": "centre",
+        "letterSpacing": 2
+      },
+      {
+        "id": "shape",
+        "type": "shape",
+        "name": "coverage-shape",
+        "layer": 1,
+        "startTime": 0,
+        "duration": 5,
+        "x": 18,
+        "y": 24,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 18,
+        "endY": 24,
+        "easing": "linear",
+        "shapeType": "ellipse",
+        "width": 320,
+        "height": 180,
+        "fill": "#123456",
+        "cornerRadius": 9
+      },
+      {
+        "id": "image",
+        "type": "image",
+        "name": "coverage-image",
+        "layer": 2,
+        "startTime": 0,
+        "duration": 5,
+        "x": 19,
+        "y": 25,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 19,
+        "endY": 25,
+        "easing": "linear",
+        "src": "/fixtures/coverage.png",
+        "filePath": "/fixtures/coverage.png",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "video",
+        "type": "video",
+        "name": "coverage-video",
+        "layer": 3,
+        "startTime": 0,
+        "duration": 5,
+        "x": 20,
+        "y": 26,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 20,
+        "endY": 26,
+        "easing": "linear",
+        "src": "/fixtures/coverage.mp4",
+        "filePath": "/fixtures/coverage.mp4",
+        "width": 320,
+        "height": 180,
+        "volume": 0.65,
+        "muted": false,
+        "offset": 0.25
+      },
+      {
+        "id": "audio",
+        "type": "audio",
+        "name": "coverage-audio",
+        "layer": 4,
+        "startTime": 0,
+        "duration": 5,
+        "x": 21,
+        "y": 27,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 21,
+        "endY": 27,
+        "easing": "linear",
+        "src": "blob:coverage-audio",
+        "filePath": "/fixtures/coverage.wav",
+        "volume": 0.7,
+        "muted": false
+      },
+      {
+        "id": "psd",
+        "type": "psd",
+        "name": "coverage-psd",
+        "layer": 5,
+        "startTime": 0,
+        "duration": 5,
+        "x": 22,
+        "y": 28,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 22,
+        "endY": 28,
+        "easing": "linear",
+        "src": "/fixtures/coverage.psd",
+        "filePath": "/fixtures/coverage.psd",
+        "width": 320,
+        "height": 180,
+        "scale": 1.2,
+        "activeLayerIds": {
+          "z-layer": true,
+          "a-layer": true,
+          "off-layer": false
+        }
+      },
+      {
+        "id": "group_control",
+        "type": "group_control",
+        "name": "coverage-group_control",
+        "layer": 6,
+        "startTime": 0,
+        "duration": 5,
+        "x": 23,
+        "y": 29,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 23,
+        "endY": 29,
+        "easing": "linear",
+        "targetLayerCount": 0
+      },
+      {
+        "id": "audio_visualization",
+        "type": "audio_visualization",
+        "name": "coverage-audio_visualization",
+        "layer": 7,
+        "startTime": 0,
+        "duration": 5,
+        "x": 24,
+        "y": 30,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 24,
+        "endY": 30,
+        "easing": "linear",
+        "targetAudioId": "audio",
+        "targetLayer": 4,
+        "visualizationType": "waveform",
+        "color": "#f00",
+        "thickness": 3,
+        "width": 320,
+        "height": 120,
+        "amplitude": 1.4
+      },
+      {
+        "id": "audio_sphere",
+        "type": "audio_sphere",
+        "name": "coverage-audio_sphere",
+        "layer": 8,
+        "startTime": 0,
+        "duration": 5,
+        "x": 25,
+        "y": 31,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 25,
+        "endY": 31,
+        "easing": "linear",
+        "targetAudioId": "audio",
+        "targetLayer": 4,
+        "width": 320,
+        "height": 320,
+        "sampleWindowSeconds": 0.2,
+        "columns": 20,
+        "rows": 14,
+        "baseRadius": 120,
+        "audioInfluence": 0.8,
+        "pointSize": 6,
+        "polygonSize": 0.4,
+        "randomAmount": 0.1,
+        "colour": "#36c2ff",
+        "seed": 17
+      },
+      {
+        "id": "particle",
+        "type": "particle",
+        "name": "標準パーティクル",
+        "layer": 9,
+        "startTime": 0,
+        "duration": 5,
+        "x": 653,
+        "y": 360,
+        "width": 640,
+        "height": 360,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 640,
+        "endY": 360,
+        "easing": "linear",
+        "particleCount": 96,
+        "seed": 93,
+        "spread": 160,
+        "speed": 90,
+        "size": 4,
+        "colour": "#ffffff",
+        "lifetimeSeconds": 2
+      },
+      {
+        "id": "barcode",
+        "type": "barcode",
+        "name": "バーコードT",
+        "layer": 10,
+        "startTime": 0,
+        "duration": 5,
+        "x": 713,
+        "y": 450,
+        "width": 520,
+        "height": 180,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 700,
+        "endY": 450,
+        "easing": "linear",
+        "data": "AviUtl",
+        "minimumBarWidth": 2,
+        "horizontalMargin": 30,
+        "verticalMargin": 20,
+        "foregroundColour": "#000000",
+        "backgroundColour": "#ffffff"
+      },
+      {
+        "id": "puzzle_piece",
+        "type": "puzzle_piece",
+        "name": "パズルピース",
+        "layer": 11,
+        "startTime": 0,
+        "duration": 5,
+        "x": 853,
+        "y": 420,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 840,
+        "endY": 420,
+        "easing": "linear",
+        "size": 120,
+        "shapeVariant": 1,
+        "connectorMode": "convex",
+        "fillColour": "#ffffff"
+      },
+      {
+        "id": "colour_wheel",
+        "type": "colour_wheel",
+        "name": "色相環",
+        "layer": 12,
+        "startTime": 0,
+        "duration": 5,
+        "x": 853,
+        "y": 420,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 840,
+        "endY": 420,
+        "easing": "linear",
+        "radius": 120,
+        "saturation": 100,
+        "brightness": 100,
+        "ringWidthPercent": 25,
+        "segmentCount": 24
+      },
+      {
+        "id": "gourd",
+        "type": "gourd",
+        "name": "ひょうたんTM",
+        "layer": 13,
+        "startTime": 0,
+        "duration": 5,
+        "x": 773,
+        "y": 340,
+        "width": 400,
+        "height": 400,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 760,
+        "endY": 340,
+        "easing": "linear",
+        "bodyRadius": 80,
+        "bodyWidth": 250,
+        "waistRadius": 10,
+        "squashPercent": 40,
+        "repeatCount": 1,
+        "fillColour": "#ffffff"
+      },
+      {
+        "id": "gear",
+        "type": "gear",
+        "name": "歯車",
+        "layer": 14,
+        "startTime": 0,
+        "duration": 5,
+        "x": 813,
+        "y": 380,
+        "width": 320,
+        "height": 320,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 800,
+        "endY": 380,
+        "easing": "linear",
+        "outerRadius": 160,
+        "innerRadiusPercent": 45,
+        "toothCount": 20,
+        "toothDepthPercent": 18,
+        "toothSkewPercent": 0,
+        "fillColour": "#ffffff"
+      },
+      {
+        "id": "track_bar",
+        "type": "track_bar",
+        "name": "カスタムトラックバー",
+        "layer": 15,
+        "startTime": 0,
+        "duration": 5,
+        "x": 793,
+        "y": 480,
+        "width": 360,
+        "height": 120,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 780,
+        "endY": 480,
+        "easing": "linear",
+        "trackValues": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "trackRanges": [
+          [
+            0,
+            100
+          ],
+          [
+            0,
+            100
+          ],
+          [
+            0,
+            100
+          ],
+          [
+            -100,
+            100
+          ]
+        ],
+        "labels": [
+          "TrackA",
+          "TrackB",
+          "TrackC",
+          "TrackD"
+        ],
+        "barColour": "#ffffff",
+        "backgroundOpacity": 0.05
+      },
+      {
+        "id": "pie_chart",
+        "type": "pie_chart",
+        "name": "パイシートグラフ",
+        "layer": 16,
+        "startTime": 0,
+        "duration": 5,
+        "x": 773,
+        "y": 340,
+        "width": 400,
+        "height": 400,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 760,
+        "endY": 340,
+        "easing": "linear",
+        "values": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "sortMode": "descending",
+        "normaliseToHundred": true,
+        "labelMode": "percentage",
+        "progressPercent": 100,
+        "strokeWidth": 20,
+        "sliceColours": [
+          "#389ba6",
+          "#f2e2c4",
+          "#f29422",
+          "#f27830",
+          "#f24b0f"
+        ]
+      },
+      {
+        "id": "histogram",
+        "type": "histogram",
+        "name": "簡易ヒストグラム",
+        "layer": 17,
+        "startTime": 0,
+        "duration": 5,
+        "x": 845,
+        "y": 440,
+        "width": 256,
+        "height": 200,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 832,
+        "endY": 440,
+        "easing": "linear",
+        "binValues": [
+          0.08,
+          0.18,
+          0.32,
+          0.55,
+          0.78,
+          0.92,
+          0.64,
+          0.36
+        ],
+        "heightScalePercent": 100,
+        "lineWidth": 1,
+        "showLuminance": true,
+        "showRed": true,
+        "showGreen": true,
+        "showBlue": true,
+        "channelColours": [
+          "#ffffff",
+          "#ff4b4b",
+          "#4bff6a",
+          "#4b8cff"
+        ],
+        "backgroundColour": "#000000"
+      },
+      {
+        "id": "tone_curve",
+        "type": "tone_curve",
+        "name": "簡易トーンカーブ",
+        "layer": 18,
+        "startTime": 0,
+        "duration": 5,
+        "x": 793,
+        "y": 360,
+        "width": 360,
+        "height": 360,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 780,
+        "endY": 360,
+        "easing": "linear",
+        "gridDivisions": 4,
+        "lineWidth": 3,
+        "curvePoints": [
+          0,
+          0.16,
+          0.42,
+          0.7,
+          1
+        ],
+        "curveColour": "#ffffff",
+        "gridColour": "#333333",
+        "backgroundColour": "#000000"
+      },
+      {
+        "id": "sphere_dots",
+        "type": "sphere_dots",
+        "name": "93 Sphere(DrawPixel)",
+        "layer": 22,
+        "startTime": 0,
+        "duration": 5,
+        "x": 733,
+        "y": 300,
+        "width": 480,
+        "height": 480,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 720,
+        "endY": 300,
+        "easing": "linear",
+        "radius": 170,
+        "columns": 16,
+        "rows": 12,
+        "rotationDegrees": 10,
+        "offsetDegrees": 0,
+        "luminanceInfluence": 0,
+        "pointSize": 6,
+        "latitudeLineWidth": 2,
+        "colour": "#ffffff",
+        "secondaryColour": "#36c2ff",
+        "seed": 93,
+        "planeMode": false
+      },
+      {
+        "id": "spherical_field",
+        "type": "spherical_field",
+        "name": "93 SphericalField",
+        "layer": 23,
+        "startTime": 0,
+        "duration": 5,
+        "x": 733,
+        "y": 300,
+        "width": 480,
+        "height": 480,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 720,
+        "endY": 300,
+        "easing": "linear",
+        "radius": 160,
+        "strength": 100,
+        "colourAmount": 100,
+        "alphaAmount": 0,
+        "lineWidth": 3,
+        "ringCount": 4,
+        "vectorCount": 16,
+        "fieldColour": "#ff3b30",
+        "secondaryColour": "#36c2ff",
+        "backgroundOpacity": 0.08,
+        "container": false,
+        "seed": 93
+      },
+      {
+        "id": "sunburst",
+        "type": "sunburst",
+        "name": "日の出",
+        "layer": 24,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "rayCount": 10,
+        "rayCoveragePercent": 50,
+        "rotationOffsetDegrees": 0,
+        "centreXPercent": 50,
+        "centreYPercent": 50,
+        "motifSize": 200,
+        "motifShape": "circle",
+        "rayColour": "#ff0000",
+        "backgroundColour": "#ffff00"
+      },
+      {
+        "id": "circular_arrow",
+        "type": "circular_arrow",
+        "name": "円矢印",
+        "layer": 25,
+        "startTime": 0,
+        "duration": 5,
+        "x": 873,
+        "y": 440,
+        "width": 200,
+        "height": 200,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 860,
+        "endY": 440,
+        "easing": "linear",
+        "radius": 100,
+        "lineWidth": 20,
+        "headSize": 50,
+        "angleDegrees": 260,
+        "centreAngleDegrees": 0,
+        "headShape": "triangle",
+        "showTailHead": false,
+        "flipVertical": false,
+        "flipHorizontal": false,
+        "arrowColour": "#ffff00"
+      },
+      {
+        "id": "triangle_bracket",
+        "type": "triangle_bracket",
+        "name": "三角括弧",
+        "layer": 26,
+        "startTime": 0,
+        "duration": 5,
+        "x": 893,
+        "y": 490,
+        "width": 160,
+        "height": 100,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 880,
+        "endY": 490,
+        "easing": "linear",
+        "bracketWidth": 100,
+        "angleDegrees": 120,
+        "armLength": 50,
+        "offsetDistance": 0,
+        "bracketColour": "#ffffff"
+      },
+      {
+        "id": "tartan_check",
+        "type": "tartan_check",
+        "name": "タータンチェック",
+        "layer": 27,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "tileSize": 100,
+        "blurRadius": 1,
+        "baseColour": "#143e10",
+        "stripeColourA": "#a81616",
+        "stripeColourB": "#c9c526",
+        "lineColour": "#000000"
+      },
+      {
+        "id": "houndstooth",
+        "type": "houndstooth",
+        "name": "千鳥格子",
+        "layer": 28,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "patternSize": 50,
+        "foregroundColour": "#000000",
+        "backgroundColour": "#ffffff"
+      },
+      {
+        "id": "yagasuri",
+        "type": "yagasuri",
+        "name": "矢がすり",
+        "layer": 29,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "arrowWidth": 15,
+        "arrowHeight": 65,
+        "lineWidth": 2,
+        "staggered": true,
+        "foregroundColour": "#000000",
+        "backgroundColour": "#ffffff"
+      },
+      {
+        "id": "paper_airplane",
+        "type": "paper_airplane",
+        "name": "紙飛行機",
+        "layer": 30,
+        "startTime": 0,
+        "duration": 5,
+        "x": 813,
+        "y": 420,
+        "width": 320,
+        "height": 240,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 800,
+        "endY": 420,
+        "easing": "linear",
+        "bodyLength": 200,
+        "wingWidth": 80,
+        "foldHeight": 50,
+        "gap": 50,
+        "followMotionDirection": false,
+        "axisMode": 0,
+        "fillColour": "#ffffff"
+      },
+      {
+        "id": "asanoha_pattern",
+        "type": "asanoha_pattern",
+        "name": "麻の葉模様",
+        "layer": 31,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "patternSize": 50,
+        "lineWidth": 2,
+        "foregroundColour": "#000000",
+        "backgroundColour": "#ffffff"
+      },
+      {
+        "id": "focus_lines_plus",
+        "type": "focus_lines_plus",
+        "name": "集中線plus",
+        "layer": 32,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "rayWidth": 1,
+        "gap": 5,
+        "centreRadius": 100,
+        "rotationDegrees": 0,
+        "centreX": 400,
+        "centreY": 225,
+        "centreJitterPercent": 20,
+        "seed": 0,
+        "keyframeInterval": 0,
+        "lineColour": "#ffffff"
+      },
+      {
+        "id": "random_line_ex",
+        "type": "random_line_ex",
+        "name": "ランダムラインEX",
+        "layer": 33,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "lineCount": 3,
+        "lineWidth": 6,
+        "threshold": 128,
+        "noiseCellSize": 12,
+        "widthVariance": 0,
+        "seed": 0,
+        "lineColour": "#ffffff"
+      },
+      {
+        "id": "contour_trace",
+        "type": "contour_trace",
+        "name": "93 輪郭トレス",
+        "layer": 34,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "lineWidth": 3,
+        "contourCount": 5,
+        "jitterAmount": 1.5,
+        "traceColour": "#ffffff",
+        "backgroundOpacity": 0,
+        "seed": 93
+      },
+      {
+        "id": "displacement_poly",
+        "type": "displacement_poly",
+        "name": "93 DisplacementPoly",
+        "layer": 35,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "columns": 14,
+        "rows": 8,
+        "displacementScale": 42,
+        "depthScale": 18,
+        "meshOpacity": 0.85,
+        "fillOpacity": 0.18,
+        "lineColour": "#36c2ff",
+        "fillColour": "#0b1020",
+        "seed": 93
+      },
+      {
+        "id": "plain_effector_line",
+        "type": "plain_effector_line",
+        "name": "93 PlainEffector Line",
+        "layer": 36,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "radius": 100,
+        "strength": 1,
+        "randomness": 0,
+        "zoom": 1,
+        "invert": false,
+        "lineCount": 24,
+        "lineWidth": 2,
+        "colour": "#f74d52",
+        "colourAmount": 1,
+        "seed": 93
+      },
+      {
+        "id": "hologram",
+        "type": "hologram",
+        "name": "ホログラム",
+        "layer": 37,
+        "startTime": 0,
+        "duration": 5,
+        "x": 573,
+        "y": 315,
+        "width": 800,
+        "height": 450,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 560,
+        "endY": 315,
+        "easing": "linear",
+        "tileSize": 80,
+        "rotationDegrees": 0,
+        "gradientAngleDegrees": -60,
+        "colourMode": 1,
+        "tintColour": "#ffffff"
+      },
+      {
+        "id": "protractor",
+        "type": "protractor",
+        "name": "分度器",
+        "layer": 38,
+        "startTime": 0,
+        "duration": 5,
+        "x": 763,
+        "y": 420,
+        "width": 420,
+        "height": 240,
+        "rotation": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 750,
+        "endY": 420,
+        "easing": "linear",
+        "radius": 180,
+        "measuredAngleDegrees": 90,
+        "tickStepDegrees": 10,
+        "majorTickStepDegrees": 30,
+        "decimalPlaces": 1,
+        "lineColour": "#ffffff",
+        "textColour": "#ffffff",
+        "shadowColour": "#000000"
+      },
+      {
+        "id": "hksy_checker_grid",
+        "type": "hksy_checker_grid",
+        "name": "coverage-hksy_checker_grid",
+        "layer": 19,
+        "startTime": 0,
+        "duration": 5,
+        "x": 36,
+        "y": 42,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 36,
+        "endY": 42,
+        "easing": "linear",
+        "width": 320,
+        "height": 180,
+        "pattern": "grid",
+        "cellSize": 24,
+        "lineWidth": 3,
+        "checkerEnabled": true,
+        "gridEnabled": false,
+        "foregroundColour": "#ffffff",
+        "secondaryColour": "#00ffff",
+        "backgroundColour": "#111111"
+      },
+      {
+        "id": "getcolor_dot_field",
+        "type": "getcolor_dot_field",
+        "name": "coverage-getcolor_dot_field",
+        "layer": 20,
+        "startTime": 0,
+        "duration": 5,
+        "x": 37,
+        "y": 43,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 37,
+        "endY": 43,
+        "easing": "linear",
+        "width": 320,
+        "height": 180,
+        "columns": 24,
+        "rows": 12,
+        "dotSize": 8,
+        "sizeInfluence": 0.4,
+        "luminanceInfluence": 0.8,
+        "hueShiftDegrees": 12,
+        "alternateRows": false,
+        "foregroundColour": "#ffffff",
+        "secondaryColour": "#00ffff",
+        "backgroundColour": "#111111",
+        "seed": 17
+      },
+      {
+        "id": "region_frame",
+        "type": "region_frame",
+        "name": "coverage-region_frame",
+        "layer": 21,
+        "startTime": 0,
+        "duration": 5,
+        "x": 38,
+        "y": 44,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 38,
+        "endY": 44,
+        "easing": "linear",
+        "width": 320,
+        "height": 180,
+        "lineWidth": 8,
+        "extraWidth": 4,
+        "extraHeight": 5,
+        "backgroundOpacity": 0.3,
+        "frameColour": "#fff",
+        "backgroundColour": "#ccf",
+        "shape": "ellipse"
+      },
+      {
+        "id": "simple_tube",
+        "type": "simple_tube",
+        "name": "coverage-simple_tube",
+        "layer": 40,
+        "startTime": 0,
+        "duration": 5,
+        "x": 57,
+        "y": 63,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 57,
+        "endY": 63,
+        "easing": "linear",
+        "width": 320,
+        "height": 180,
+        "radius": 120,
+        "depth": 240,
+        "segments": 20,
+        "rings": 12,
+        "twistDegrees": 15,
+        "randomAmount": 0.2,
+        "strokeWidth": 4,
+        "colour": "#0e769f",
+        "secondaryColour": "#fff",
+        "seed": 17,
+        "torus": true
+      },
+      {
+        "id": "shaking_polygon",
+        "type": "shaking_polygon",
+        "name": "coverage-shaking_polygon",
+        "layer": 41,
+        "startTime": 0,
+        "duration": 5,
+        "x": 58,
+        "y": 64,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 58,
+        "endY": 64,
+        "easing": "linear",
+        "width": 320,
+        "height": 320,
+        "lineWidth": 12,
+        "vertexCount": 5,
+        "fixedDiameter": 300,
+        "verticalDistortionPercent": 8,
+        "repeatCount": 2,
+        "repeatFrequency": 3,
+        "fill": true,
+        "jitterRange": 25,
+        "jitterInterval": 11,
+        "stepped": true,
+        "colour": "#fff",
+        "seed": 17
+      },
+      {
+        "id": "shattered_sphere",
+        "type": "shattered_sphere",
+        "name": "coverage-shattered_sphere",
+        "layer": 42,
+        "startTime": 0,
+        "duration": 5,
+        "x": 59,
+        "y": 65,
+        "rotation": 7,
+        "scaleX": 1.1,
+        "scaleY": 0.9,
+        "opacity": 0.73,
+        "enableAnimation": false,
+        "endX": 59,
+        "endY": 65,
+        "easing": "linear",
+        "width": 320,
+        "height": 320,
+        "fractureAmount": 120,
+        "delay": 90,
+        "radius": 150,
+        "limitDistance": 140,
+        "thickness": 18,
+        "fragmentSize": 35,
+        "randomShape": 80,
+        "speed": 90,
+        "impact": 80,
+        "gravityX": 1,
+        "gravityY": 90,
+        "gravityZ": -1,
+        "spin": 80,
+        "directionDiffusion": 70,
+        "colour": "#fff",
+        "seed": 17
+      }
+    ]
+  },
+  "ts_result": {
+    "project": {
+      "id": "editable-scene",
+      "version": 1,
+      "size": {
+        "width": 1920,
+        "height": 1080
+      },
+      "fps": {
+        "numerator": 60,
+        "denominator": 1
+      },
+      "colour": {
+        "profile": "rec709-sdr",
+        "working_space": "linear-light",
+        "alpha": "premultiplied"
+      },
+      "media": [
+        {
+          "id": "text",
+          "kind": "Text",
+          "source": "{\"text\":\"Coverage\",\"fontSize\":42,\"fontFamily\":\"sans-serif\",\"fill\":\"#f0c\",\"measuredWidth\":320,\"measuredHeight\":60,\"textAlignment\":\"centre\",\"letterSpacing\":2}"
+        },
+        {
+          "id": "shape",
+          "kind": "GeneratedShape",
+          "source": "{\"shapeType\":\"ellipse\",\"width\":320,\"height\":180,\"fill\":\"#123456\",\"cornerRadius\":9}"
+        },
+        {
+          "id": "image",
+          "kind": "Image",
+          "source": "/fixtures/coverage.png"
+        },
+        {
+          "id": "video",
+          "kind": "Video",
+          "source": "/fixtures/coverage.mp4"
+        },
+        {
+          "id": "psd",
+          "kind": "Psd",
+          "source": "/fixtures/coverage.psd"
+        },
+        {
+          "id": "audio_visualization",
+          "kind": "GeneratedAudioWaveform",
+          "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio\",\"target_source\":\"/fixtures/coverage.wav\",\"sample_window_seconds\":0.05,\"colour\":\"#f00\",\"thickness\":3,\"amplitude\":1.4}"
+        },
+        {
+          "id": "audio_sphere",
+          "kind": "GeneratedAudioSphere",
+          "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"audio\",\"target_source\":\"/fixtures/coverage.wav\",\"sample_window_seconds\":0.2,\"columns\":20,\"rows\":14,\"base_radius\":120,\"audio_influence\":0.8,\"point_size\":6,\"polygon_size\":0.4,\"random_amount\":0.1,\"colour\":\"#36c2ff\",\"seed\":17}"
+        },
+        {
+          "id": "particle",
+          "kind": "GeneratedParticle",
+          "source": "{\"width\":640,\"height\":360,\"particleCount\":96,\"seed\":93,\"spread\":160,\"speed\":90,\"size\":4,\"colour\":\"#ffffff\",\"lifetimeSeconds\":2}"
+        },
+        {
+          "id": "barcode",
+          "kind": "GeneratedBarcode",
+          "source": "{\"width\":520,\"height\":180,\"data\":\"AviUtl\",\"minimumBarWidth\":2,\"horizontalMargin\":30,\"verticalMargin\":20,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "puzzle_piece",
+          "kind": "GeneratedPuzzlePiece",
+          "source": "{\"width\":240,\"height\":240,\"size\":120,\"shapeVariant\":1,\"connectorMode\":\"convex\",\"fillColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "colour_wheel",
+          "kind": "GeneratedColourWheel",
+          "source": "{\"width\":240,\"height\":240,\"radius\":120,\"saturation\":100,\"brightness\":100,\"ringWidthPercent\":25,\"segmentCount\":24}"
+        },
+        {
+          "id": "gourd",
+          "kind": "GeneratedGourd",
+          "source": "{\"width\":400,\"height\":400,\"bodyRadius\":80,\"bodyWidth\":250,\"waistRadius\":10,\"squashPercent\":40,\"repeatCount\":1,\"fillColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "gear",
+          "kind": "GeneratedGear",
+          "source": "{\"width\":320,\"height\":320,\"outerRadius\":160,\"innerRadiusPercent\":45,\"toothCount\":20,\"toothDepthPercent\":18,\"toothSkewPercent\":0,\"fillColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "track_bar",
+          "kind": "GeneratedTrackBar",
+          "source": "{\"width\":360,\"height\":120,\"trackValues\":[0,0,0,0],\"trackRanges\":[[0,100],[0,100],[0,100],[-100,100]],\"labels\":[\"TrackA\",\"TrackB\",\"TrackC\",\"TrackD\"],\"barColour\":\"#ffffff\",\"backgroundOpacity\":0.05}"
+        },
+        {
+          "id": "pie_chart",
+          "kind": "GeneratedPieChart",
+          "source": "{\"width\":400,\"height\":400,\"values\":[10,20,30,40],\"sortMode\":\"descending\",\"normaliseToHundred\":true,\"labelMode\":\"percentage\",\"progressPercent\":100,\"strokeWidth\":20,\"sliceColours\":[\"#389ba6\",\"#f2e2c4\",\"#f29422\",\"#f27830\",\"#f24b0f\"]}"
+        },
+        {
+          "id": "histogram",
+          "kind": "GeneratedHistogram",
+          "source": "{\"width\":256,\"height\":200,\"binValues\":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],\"heightScalePercent\":100,\"lineWidth\":1,\"showLuminance\":true,\"showRed\":true,\"showGreen\":true,\"showBlue\":true,\"channelColours\":[\"#ffffff\",\"#ff4b4b\",\"#4bff6a\",\"#4b8cff\"],\"backgroundColour\":\"#000000\"}"
+        },
+        {
+          "id": "tone_curve",
+          "kind": "GeneratedToneCurve",
+          "source": "{\"width\":360,\"height\":360,\"gridDivisions\":4,\"lineWidth\":3,\"curvePoints\":[0,0.16,0.42,0.7,1],\"curveColour\":\"#ffffff\",\"gridColour\":\"#333333\",\"backgroundColour\":\"#000000\"}"
+        },
+        {
+          "id": "hksy_checker_grid",
+          "kind": "GeneratedHksyCheckerGrid",
+          "source": "{\"width\":320,\"height\":180,\"pattern\":\"grid\",\"cellSize\":24,\"lineWidth\":3,\"checkerEnabled\":true,\"gridEnabled\":false,\"foregroundColour\":\"#ffffff\",\"secondaryColour\":\"#00ffff\",\"backgroundColour\":\"#111111\"}"
+        },
+        {
+          "id": "getcolor_dot_field",
+          "kind": "GeneratedGetColorDots",
+          "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":24,\"rows\":12,\"dot_size\":8,\"size_influence\":0.4,\"luminance_influence\":0.8,\"hue_shift_degrees\":12,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#00ffff\",\"background_colour\":\"#111111\",\"seed\":17}"
+        },
+        {
+          "id": "region_frame",
+          "kind": "GeneratedRegionFrame",
+          "source": "{\"width\":320,\"height\":180,\"lineWidth\":8,\"shape\":\"ellipse\",\"extraWidth\":4,\"extraHeight\":5,\"backgroundOpacity\":0.3,\"frameColour\":\"#fff\",\"backgroundColour\":\"#ccf\"}"
+        },
+        {
+          "id": "sphere_dots",
+          "kind": "GeneratedSphereDots",
+          "source": "{\"width\":480,\"height\":480,\"radius\":170,\"columns\":16,\"rows\":12,\"rotationDegrees\":10,\"offsetDegrees\":0,\"luminanceInfluence\":0,\"pointSize\":6,\"latitudeLineWidth\":2,\"colour\":\"#ffffff\",\"secondaryColour\":\"#36c2ff\",\"seed\":93,\"planeMode\":false}"
+        },
+        {
+          "id": "spherical_field",
+          "kind": "GeneratedSphericalField",
+          "source": "{\"width\":480,\"height\":480,\"radius\":160,\"strength\":100,\"colourAmount\":100,\"alphaAmount\":0,\"lineWidth\":3,\"ringCount\":4,\"vectorCount\":16,\"fieldColour\":\"#ff3b30\",\"secondaryColour\":\"#36c2ff\",\"backgroundOpacity\":0.08,\"container\":false,\"seed\":93}"
+        },
+        {
+          "id": "sunburst",
+          "kind": "GeneratedSunburst",
+          "source": "{\"width\":800,\"height\":450,\"rayCount\":10,\"rayCoveragePercent\":50,\"rotationOffsetDegrees\":0,\"centreXPercent\":50,\"centreYPercent\":50,\"motifSize\":200,\"motifShape\":\"circle\",\"rayColour\":\"#ff0000\",\"backgroundColour\":\"#ffff00\"}"
+        },
+        {
+          "id": "circular_arrow",
+          "kind": "GeneratedCircularArrow",
+          "source": "{\"width\":200,\"height\":200,\"radius\":100,\"lineWidth\":20,\"headSize\":50,\"angleDegrees\":260,\"centreAngleDegrees\":0,\"headShape\":\"triangle\",\"showTailHead\":false,\"flipVertical\":false,\"flipHorizontal\":false,\"arrowColour\":\"#ffff00\"}"
+        },
+        {
+          "id": "triangle_bracket",
+          "kind": "GeneratedTriangleBracket",
+          "source": "{\"width\":160,\"height\":100,\"bracketWidth\":100,\"angleDegrees\":120,\"armLength\":50,\"offsetDistance\":0,\"bracketColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "tartan_check",
+          "kind": "GeneratedTartanCheck",
+          "source": "{\"width\":800,\"height\":450,\"tileSize\":100,\"blurRadius\":1,\"baseColour\":\"#143e10\",\"stripeColourA\":\"#a81616\",\"stripeColourB\":\"#c9c526\",\"lineColour\":\"#000000\"}"
+        },
+        {
+          "id": "houndstooth",
+          "kind": "GeneratedHoundstooth",
+          "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "yagasuri",
+          "kind": "GeneratedYagasuri",
+          "source": "{\"width\":800,\"height\":450,\"arrowWidth\":15,\"arrowHeight\":65,\"lineWidth\":2,\"staggered\":true,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "paper_airplane",
+          "kind": "GeneratedPaperAirplane",
+          "source": "{\"width\":320,\"height\":240,\"bodyLength\":200,\"wingWidth\":80,\"foldHeight\":50,\"gap\":50,\"followMotionDirection\":false,\"axisMode\":0,\"fillColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "asanoha_pattern",
+          "kind": "GeneratedAsanohaPattern",
+          "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"lineWidth\":2,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "focus_lines_plus",
+          "kind": "GeneratedFocusLinesPlus",
+          "source": "{\"width\":800,\"height\":450,\"rayWidth\":1,\"gap\":5,\"centreRadius\":100,\"rotationDegrees\":0,\"centreX\":400,\"centreY\":225,\"centreJitterPercent\":20,\"seed\":0,\"keyframeInterval\":0,\"lineColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "random_line_ex",
+          "kind": "GeneratedRandomLineEx",
+          "source": "{\"width\":800,\"height\":450,\"lineCount\":3,\"lineWidth\":6,\"threshold\":128,\"noiseCellSize\":12,\"widthVariance\":0,\"seed\":0,\"lineColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "contour_trace",
+          "kind": "GeneratedContourTrace",
+          "source": "{\"width\":800,\"height\":450,\"lineWidth\":3,\"contourCount\":5,\"jitterAmount\":1.5,\"traceColour\":\"#ffffff\",\"backgroundOpacity\":0,\"seed\":93}"
+        },
+        {
+          "id": "displacement_poly",
+          "kind": "GeneratedDisplacementPoly",
+          "source": "{\"width\":800,\"height\":450,\"columns\":14,\"rows\":8,\"displacementScale\":42,\"depthScale\":18,\"meshOpacity\":0.85,\"fillOpacity\":0.18,\"lineColour\":\"#36c2ff\",\"fillColour\":\"#0b1020\",\"seed\":93}"
+        },
+        {
+          "id": "plain_effector_line",
+          "kind": "GeneratedPlainEffectorLine",
+          "source": "{\"width\":800,\"height\":450,\"radius\":100,\"strength\":1,\"randomness\":0,\"zoom\":1,\"invert\":false,\"lineCount\":24,\"lineWidth\":2,\"colour\":\"#f74d52\",\"colourAmount\":1,\"seed\":93}"
+        },
+        {
+          "id": "hologram",
+          "kind": "GeneratedHologram",
+          "source": "{\"width\":800,\"height\":450,\"tileSize\":80,\"rotationDegrees\":0,\"gradientAngleDegrees\":-60,\"colourMode\":1,\"tintColour\":\"#ffffff\"}"
+        },
+        {
+          "id": "protractor",
+          "kind": "GeneratedProtractor",
+          "source": "{\"width\":420,\"height\":240,\"radius\":180,\"measuredAngleDegrees\":90,\"tickStepDegrees\":10,\"majorTickStepDegrees\":30,\"decimalPlaces\":1,\"lineColour\":\"#ffffff\",\"textColour\":\"#ffffff\",\"shadowColour\":\"#000000\"}"
+        },
+        {
+          "id": "simple_tube",
+          "kind": "GeneratedSimpleTube",
+          "source": "{\"width\":320,\"height\":180,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":15,\"randomAmount\":0.2,\"strokeWidth\":4,\"colour\":\"#0e769f\",\"secondaryColour\":\"#fff\",\"seed\":17,\"torus\":true}"
+        },
+        {
+          "id": "shaking_polygon",
+          "kind": "GeneratedShakingPolygon",
+          "source": "{\"width\":320,\"height\":320,\"lineWidth\":12,\"vertexCount\":5,\"fixedDiameter\":300,\"verticalDistortionPercent\":8,\"repeatCount\":2,\"repeatFrequency\":3,\"fill\":true,\"jitterRange\":25,\"jitterInterval\":11,\"stepped\":true,\"colour\":\"#ffffff\",\"seed\":17}"
+        },
+        {
+          "id": "shattered_sphere",
+          "kind": "GeneratedShatteredSphere",
+          "source": "{\"width\":320,\"height\":320,\"fractureAmount\":120,\"delay\":90,\"radius\":150,\"limitDistance\":140,\"thickness\":18,\"fragmentSize\":35,\"randomShape\":80,\"speed\":90,\"impact\":80,\"gravityX\":1,\"gravityY\":90,\"gravityZ\":-1,\"spin\":80,\"directionDiffusion\":70,\"colour\":\"#ffffff\",\"seed\":17}"
+        }
+      ],
+      "tracks": [
+        {
+          "id": "layer-0",
+          "clips": [
+            {
+              "id": "text",
+              "media_id": "text",
+              "kind": "TextPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 17,
+                "translation_y": 23,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-1",
+          "clips": [
+            {
+              "id": "shape",
+              "media_id": "shape",
+              "kind": "GeneratedShapePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 18,
+                "translation_y": 24,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "nearest"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-2",
+          "clips": [
+            {
+              "id": "image",
+              "media_id": "image",
+              "kind": "ImagePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 19,
+                "translation_y": 25,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-3",
+          "clips": [
+            {
+              "id": "video",
+              "media_id": "video",
+              "kind": "VideoPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 15,
+              "transform": {
+                "translation_x": 20,
+                "translation_y": 26,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-5",
+          "clips": [
+            {
+              "id": "psd",
+              "media_id": "psd",
+              "kind": "ImagePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 22,
+                "translation_y": 28,
+                "scale_x": 1.32,
+                "scale_y": 1.08,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-7",
+          "clips": [
+            {
+              "id": "audio_visualization",
+              "media_id": "audio_visualization",
+              "kind": "GeneratedAudioWaveformPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 24,
+                "translation_y": 30,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-8",
+          "clips": [
+            {
+              "id": "audio_sphere",
+              "media_id": "audio_sphere",
+              "kind": "GeneratedAudioSpherePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 25,
+                "translation_y": 31,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-9",
+          "clips": [
+            {
+              "id": "particle",
+              "media_id": "particle",
+              "kind": "GeneratedParticlePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 653,
+                "translation_y": 360,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-10",
+          "clips": [
+            {
+              "id": "barcode",
+              "media_id": "barcode",
+              "kind": "GeneratedBarcodePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 713,
+                "translation_y": 450,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-11",
+          "clips": [
+            {
+              "id": "puzzle_piece",
+              "media_id": "puzzle_piece",
+              "kind": "GeneratedPuzzlePiecePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 853,
+                "translation_y": 420,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-12",
+          "clips": [
+            {
+              "id": "colour_wheel",
+              "media_id": "colour_wheel",
+              "kind": "GeneratedColourWheelPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 853,
+                "translation_y": 420,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-13",
+          "clips": [
+            {
+              "id": "gourd",
+              "media_id": "gourd",
+              "kind": "GeneratedGourdPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 773,
+                "translation_y": 340,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-14",
+          "clips": [
+            {
+              "id": "gear",
+              "media_id": "gear",
+              "kind": "GeneratedGearPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 813,
+                "translation_y": 380,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-15",
+          "clips": [
+            {
+              "id": "track_bar",
+              "media_id": "track_bar",
+              "kind": "GeneratedTrackBarPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 793,
+                "translation_y": 480,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-16",
+          "clips": [
+            {
+              "id": "pie_chart",
+              "media_id": "pie_chart",
+              "kind": "GeneratedPieChartPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 773,
+                "translation_y": 340,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-17",
+          "clips": [
+            {
+              "id": "histogram",
+              "media_id": "histogram",
+              "kind": "GeneratedHistogramPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 845,
+                "translation_y": 440,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-18",
+          "clips": [
+            {
+              "id": "tone_curve",
+              "media_id": "tone_curve",
+              "kind": "GeneratedToneCurvePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 793,
+                "translation_y": 360,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-19",
+          "clips": [
+            {
+              "id": "hksy_checker_grid",
+              "media_id": "hksy_checker_grid",
+              "kind": "GeneratedHksyCheckerGridPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 36,
+                "translation_y": 42,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-20",
+          "clips": [
+            {
+              "id": "getcolor_dot_field",
+              "media_id": "getcolor_dot_field",
+              "kind": "GeneratedGetColorDotsPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 37,
+                "translation_y": 43,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-21",
+          "clips": [
+            {
+              "id": "region_frame",
+              "media_id": "region_frame",
+              "kind": "GeneratedRegionFramePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 38,
+                "translation_y": 44,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-22",
+          "clips": [
+            {
+              "id": "sphere_dots",
+              "media_id": "sphere_dots",
+              "kind": "GeneratedSphereDotsPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 733,
+                "translation_y": 300,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-23",
+          "clips": [
+            {
+              "id": "spherical_field",
+              "media_id": "spherical_field",
+              "kind": "GeneratedSphericalFieldPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 733,
+                "translation_y": 300,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-24",
+          "clips": [
+            {
+              "id": "sunburst",
+              "media_id": "sunburst",
+              "kind": "GeneratedSunburstPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-25",
+          "clips": [
+            {
+              "id": "circular_arrow",
+              "media_id": "circular_arrow",
+              "kind": "GeneratedCircularArrowPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 873,
+                "translation_y": 440,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-26",
+          "clips": [
+            {
+              "id": "triangle_bracket",
+              "media_id": "triangle_bracket",
+              "kind": "GeneratedTriangleBracketPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 893,
+                "translation_y": 490,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-27",
+          "clips": [
+            {
+              "id": "tartan_check",
+              "media_id": "tartan_check",
+              "kind": "GeneratedTartanCheckPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-28",
+          "clips": [
+            {
+              "id": "houndstooth",
+              "media_id": "houndstooth",
+              "kind": "GeneratedHoundstoothPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-29",
+          "clips": [
+            {
+              "id": "yagasuri",
+              "media_id": "yagasuri",
+              "kind": "GeneratedYagasuriPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-30",
+          "clips": [
+            {
+              "id": "paper_airplane",
+              "media_id": "paper_airplane",
+              "kind": "GeneratedPaperAirplanePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 813,
+                "translation_y": 420,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-31",
+          "clips": [
+            {
+              "id": "asanoha_pattern",
+              "media_id": "asanoha_pattern",
+              "kind": "GeneratedAsanohaPatternPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-32",
+          "clips": [
+            {
+              "id": "focus_lines_plus",
+              "media_id": "focus_lines_plus",
+              "kind": "GeneratedFocusLinesPlusPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-33",
+          "clips": [
+            {
+              "id": "random_line_ex",
+              "media_id": "random_line_ex",
+              "kind": "GeneratedRandomLineExPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-34",
+          "clips": [
+            {
+              "id": "contour_trace",
+              "media_id": "contour_trace",
+              "kind": "GeneratedContourTracePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-35",
+          "clips": [
+            {
+              "id": "displacement_poly",
+              "media_id": "displacement_poly",
+              "kind": "GeneratedDisplacementPolyPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-36",
+          "clips": [
+            {
+              "id": "plain_effector_line",
+              "media_id": "plain_effector_line",
+              "kind": "GeneratedPlainEffectorLinePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-37",
+          "clips": [
+            {
+              "id": "hologram",
+              "media_id": "hologram",
+              "kind": "GeneratedHologramPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 573,
+                "translation_y": 315,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-38",
+          "clips": [
+            {
+              "id": "protractor",
+              "media_id": "protractor",
+              "kind": "GeneratedProtractorPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 763,
+                "translation_y": 420,
+                "scale_x": 1,
+                "scale_y": 1,
+                "rotation_degrees": 0,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-40",
+          "clips": [
+            {
+              "id": "simple_tube",
+              "media_id": "simple_tube",
+              "kind": "GeneratedSimpleTubePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 57,
+                "translation_y": 63,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-41",
+          "clips": [
+            {
+              "id": "shaking_polygon",
+              "media_id": "shaking_polygon",
+              "kind": "GeneratedShakingPolygonPlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 58,
+                "translation_y": 64,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        },
+        {
+          "id": "layer-42",
+          "clips": [
+            {
+              "id": "shattered_sphere",
+              "media_id": "shattered_sphere",
+              "kind": "GeneratedShatteredSpherePlane",
+              "start_frame": 0,
+              "duration_frames": 300,
+              "source_frame_offset": 0,
+              "transform": {
+                "translation_x": 59,
+                "translation_y": 65,
+                "scale_x": 1.1,
+                "scale_y": 0.9,
+                "rotation_degrees": 7,
+                "sampling": "bilinear"
+              },
+              "opacity": 0.73,
+              "opacity_keyframes": [],
+              "position_keyframes": [],
+              "wipe_animations": [],
+              "effects": []
+            }
+          ]
+        }
+      ],
+      "group_controls": [
+        {
+          "id": "group_control",
+          "start_frame": 0,
+          "duration_frames": 300,
+          "transform": {
+            "translation_x": 23,
+            "translation_y": 29,
+            "scale_x": 1.1,
+            "scale_y": 0.9,
+            "rotation_degrees": 7,
+            "sampling": "bilinear"
+          },
+          "opacity": 0.73,
+          "position_keyframes": [],
+          "target_track_ids": [
+            "layer-7",
+            "layer-8",
+            "layer-9",
+            "layer-10",
+            "layer-11",
+            "layer-12",
+            "layer-13",
+            "layer-14",
+            "layer-15",
+            "layer-16",
+            "layer-17",
+            "layer-18",
+            "layer-19",
+            "layer-20",
+            "layer-21",
+            "layer-22",
+            "layer-23",
+            "layer-24",
+            "layer-25",
+            "layer-26",
+            "layer-27",
+            "layer-28",
+            "layer-29",
+            "layer-30",
+            "layer-31",
+            "layer-32",
+            "layer-33",
+            "layer-34",
+            "layer-35",
+            "layer-36",
+            "layer-37",
+            "layer-38",
+            "layer-40",
+            "layer-41",
+            "layer-42"
+          ]
+        }
+      ]
+    },
+    "media": [
+      {
+        "id": "text",
+        "kind": "Text",
+        "source": "{\"text\":\"Coverage\",\"fontSize\":42,\"fontFamily\":\"sans-serif\",\"fill\":\"#f0c\",\"measuredWidth\":320,\"measuredHeight\":60,\"textAlignment\":\"centre\",\"letterSpacing\":2}",
+        "width": 320,
+        "height": 60
+      },
+      {
+        "id": "shape",
+        "kind": "GeneratedShape",
+        "source": "{\"shapeType\":\"ellipse\",\"width\":320,\"height\":180,\"fill\":\"#123456\",\"cornerRadius\":9}",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "image",
+        "kind": "Image",
+        "source": "/fixtures/coverage.png",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "video",
+        "kind": "Video",
+        "source": "/fixtures/coverage.mp4",
+        "width": 320,
+        "height": 180,
+        "source_rate": {
+          "numerator": 60,
+          "denominator": 1
+        }
+      },
+      {
+        "id": "psd",
+        "kind": "Psd",
+        "source": "/fixtures/coverage.psd",
+        "width": 320,
+        "height": 180,
+        "active_layer_ids": [
+          "a-layer",
+          "z-layer"
+        ]
+      },
+      {
+        "id": "audio_visualization",
+        "kind": "GeneratedAudioWaveform",
+        "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio\",\"target_source\":\"/fixtures/coverage.wav\",\"sample_window_seconds\":0.05,\"colour\":\"#f00\",\"thickness\":3,\"amplitude\":1.4}",
+        "width": 320,
+        "height": 120
+      },
+      {
+        "id": "audio_sphere",
+        "kind": "GeneratedAudioSphere",
+        "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"audio\",\"target_source\":\"/fixtures/coverage.wav\",\"sample_window_seconds\":0.2,\"columns\":20,\"rows\":14,\"base_radius\":120,\"audio_influence\":0.8,\"point_size\":6,\"polygon_size\":0.4,\"random_amount\":0.1,\"colour\":\"#36c2ff\",\"seed\":17}",
+        "width": 320,
+        "height": 320
+      },
+      {
+        "id": "particle",
+        "kind": "GeneratedParticle",
+        "source": "{\"width\":640,\"height\":360,\"particleCount\":96,\"seed\":93,\"spread\":160,\"speed\":90,\"size\":4,\"colour\":\"#ffffff\",\"lifetimeSeconds\":2}",
+        "width": 640,
+        "height": 360
+      },
+      {
+        "id": "barcode",
+        "kind": "GeneratedBarcode",
+        "source": "{\"width\":520,\"height\":180,\"data\":\"AviUtl\",\"minimumBarWidth\":2,\"horizontalMargin\":30,\"verticalMargin\":20,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "width": 520,
+        "height": 180
+      },
+      {
+        "id": "puzzle_piece",
+        "kind": "GeneratedPuzzlePiece",
+        "source": "{\"width\":240,\"height\":240,\"size\":120,\"shapeVariant\":1,\"connectorMode\":\"convex\",\"fillColour\":\"#ffffff\"}",
+        "width": 240,
+        "height": 240
+      },
+      {
+        "id": "colour_wheel",
+        "kind": "GeneratedColourWheel",
+        "source": "{\"width\":240,\"height\":240,\"radius\":120,\"saturation\":100,\"brightness\":100,\"ringWidthPercent\":25,\"segmentCount\":24}",
+        "width": 240,
+        "height": 240
+      },
+      {
+        "id": "gourd",
+        "kind": "GeneratedGourd",
+        "source": "{\"width\":400,\"height\":400,\"bodyRadius\":80,\"bodyWidth\":250,\"waistRadius\":10,\"squashPercent\":40,\"repeatCount\":1,\"fillColour\":\"#ffffff\"}",
+        "width": 400,
+        "height": 400
+      },
+      {
+        "id": "gear",
+        "kind": "GeneratedGear",
+        "source": "{\"width\":320,\"height\":320,\"outerRadius\":160,\"innerRadiusPercent\":45,\"toothCount\":20,\"toothDepthPercent\":18,\"toothSkewPercent\":0,\"fillColour\":\"#ffffff\"}",
+        "width": 320,
+        "height": 320
+      },
+      {
+        "id": "track_bar",
+        "kind": "GeneratedTrackBar",
+        "source": "{\"width\":360,\"height\":120,\"trackValues\":[0,0,0,0],\"trackRanges\":[[0,100],[0,100],[0,100],[-100,100]],\"labels\":[\"TrackA\",\"TrackB\",\"TrackC\",\"TrackD\"],\"barColour\":\"#ffffff\",\"backgroundOpacity\":0.05}",
+        "width": 360,
+        "height": 120
+      },
+      {
+        "id": "pie_chart",
+        "kind": "GeneratedPieChart",
+        "source": "{\"width\":400,\"height\":400,\"values\":[10,20,30,40],\"sortMode\":\"descending\",\"normaliseToHundred\":true,\"labelMode\":\"percentage\",\"progressPercent\":100,\"strokeWidth\":20,\"sliceColours\":[\"#389ba6\",\"#f2e2c4\",\"#f29422\",\"#f27830\",\"#f24b0f\"]}",
+        "width": 400,
+        "height": 400
+      },
+      {
+        "id": "histogram",
+        "kind": "GeneratedHistogram",
+        "source": "{\"width\":256,\"height\":200,\"binValues\":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],\"heightScalePercent\":100,\"lineWidth\":1,\"showLuminance\":true,\"showRed\":true,\"showGreen\":true,\"showBlue\":true,\"channelColours\":[\"#ffffff\",\"#ff4b4b\",\"#4bff6a\",\"#4b8cff\"],\"backgroundColour\":\"#000000\"}",
+        "width": 256,
+        "height": 200
+      },
+      {
+        "id": "tone_curve",
+        "kind": "GeneratedToneCurve",
+        "source": "{\"width\":360,\"height\":360,\"gridDivisions\":4,\"lineWidth\":3,\"curvePoints\":[0,0.16,0.42,0.7,1],\"curveColour\":\"#ffffff\",\"gridColour\":\"#333333\",\"backgroundColour\":\"#000000\"}",
+        "width": 360,
+        "height": 360
+      },
+      {
+        "id": "hksy_checker_grid",
+        "kind": "GeneratedHksyCheckerGrid",
+        "source": "{\"width\":320,\"height\":180,\"pattern\":\"grid\",\"cellSize\":24,\"lineWidth\":3,\"checkerEnabled\":true,\"gridEnabled\":false,\"foregroundColour\":\"#ffffff\",\"secondaryColour\":\"#00ffff\",\"backgroundColour\":\"#111111\"}",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "getcolor_dot_field",
+        "kind": "GeneratedGetColorDots",
+        "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":24,\"rows\":12,\"dot_size\":8,\"size_influence\":0.4,\"luminance_influence\":0.8,\"hue_shift_degrees\":12,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#00ffff\",\"background_colour\":\"#111111\",\"seed\":17}",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "region_frame",
+        "kind": "GeneratedRegionFrame",
+        "source": "{\"width\":320,\"height\":180,\"lineWidth\":8,\"shape\":\"ellipse\",\"extraWidth\":4,\"extraHeight\":5,\"backgroundOpacity\":0.3,\"frameColour\":\"#fff\",\"backgroundColour\":\"#ccf\"}",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "sphere_dots",
+        "kind": "GeneratedSphereDots",
+        "source": "{\"width\":480,\"height\":480,\"radius\":170,\"columns\":16,\"rows\":12,\"rotationDegrees\":10,\"offsetDegrees\":0,\"luminanceInfluence\":0,\"pointSize\":6,\"latitudeLineWidth\":2,\"colour\":\"#ffffff\",\"secondaryColour\":\"#36c2ff\",\"seed\":93,\"planeMode\":false}",
+        "width": 480,
+        "height": 480
+      },
+      {
+        "id": "spherical_field",
+        "kind": "GeneratedSphericalField",
+        "source": "{\"width\":480,\"height\":480,\"radius\":160,\"strength\":100,\"colourAmount\":100,\"alphaAmount\":0,\"lineWidth\":3,\"ringCount\":4,\"vectorCount\":16,\"fieldColour\":\"#ff3b30\",\"secondaryColour\":\"#36c2ff\",\"backgroundOpacity\":0.08,\"container\":false,\"seed\":93}",
+        "width": 480,
+        "height": 480
+      },
+      {
+        "id": "sunburst",
+        "kind": "GeneratedSunburst",
+        "source": "{\"width\":800,\"height\":450,\"rayCount\":10,\"rayCoveragePercent\":50,\"rotationOffsetDegrees\":0,\"centreXPercent\":50,\"centreYPercent\":50,\"motifSize\":200,\"motifShape\":\"circle\",\"rayColour\":\"#ff0000\",\"backgroundColour\":\"#ffff00\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "circular_arrow",
+        "kind": "GeneratedCircularArrow",
+        "source": "{\"width\":200,\"height\":200,\"radius\":100,\"lineWidth\":20,\"headSize\":50,\"angleDegrees\":260,\"centreAngleDegrees\":0,\"headShape\":\"triangle\",\"showTailHead\":false,\"flipVertical\":false,\"flipHorizontal\":false,\"arrowColour\":\"#ffff00\"}",
+        "width": 200,
+        "height": 200
+      },
+      {
+        "id": "triangle_bracket",
+        "kind": "GeneratedTriangleBracket",
+        "source": "{\"width\":160,\"height\":100,\"bracketWidth\":100,\"angleDegrees\":120,\"armLength\":50,\"offsetDistance\":0,\"bracketColour\":\"#ffffff\"}",
+        "width": 160,
+        "height": 100
+      },
+      {
+        "id": "tartan_check",
+        "kind": "GeneratedTartanCheck",
+        "source": "{\"width\":800,\"height\":450,\"tileSize\":100,\"blurRadius\":1,\"baseColour\":\"#143e10\",\"stripeColourA\":\"#a81616\",\"stripeColourB\":\"#c9c526\",\"lineColour\":\"#000000\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "houndstooth",
+        "kind": "GeneratedHoundstooth",
+        "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "yagasuri",
+        "kind": "GeneratedYagasuri",
+        "source": "{\"width\":800,\"height\":450,\"arrowWidth\":15,\"arrowHeight\":65,\"lineWidth\":2,\"staggered\":true,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "paper_airplane",
+        "kind": "GeneratedPaperAirplane",
+        "source": "{\"width\":320,\"height\":240,\"bodyLength\":200,\"wingWidth\":80,\"foldHeight\":50,\"gap\":50,\"followMotionDirection\":false,\"axisMode\":0,\"fillColour\":\"#ffffff\"}",
+        "width": 320,
+        "height": 240
+      },
+      {
+        "id": "asanoha_pattern",
+        "kind": "GeneratedAsanohaPattern",
+        "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"lineWidth\":2,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "focus_lines_plus",
+        "kind": "GeneratedFocusLinesPlus",
+        "source": "{\"width\":800,\"height\":450,\"rayWidth\":1,\"gap\":5,\"centreRadius\":100,\"rotationDegrees\":0,\"centreX\":400,\"centreY\":225,\"centreJitterPercent\":20,\"seed\":0,\"keyframeInterval\":0,\"lineColour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "random_line_ex",
+        "kind": "GeneratedRandomLineEx",
+        "source": "{\"width\":800,\"height\":450,\"lineCount\":3,\"lineWidth\":6,\"threshold\":128,\"noiseCellSize\":12,\"widthVariance\":0,\"seed\":0,\"lineColour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "contour_trace",
+        "kind": "GeneratedContourTrace",
+        "source": "{\"width\":800,\"height\":450,\"lineWidth\":3,\"contourCount\":5,\"jitterAmount\":1.5,\"traceColour\":\"#ffffff\",\"backgroundOpacity\":0,\"seed\":93}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "displacement_poly",
+        "kind": "GeneratedDisplacementPoly",
+        "source": "{\"width\":800,\"height\":450,\"columns\":14,\"rows\":8,\"displacementScale\":42,\"depthScale\":18,\"meshOpacity\":0.85,\"fillOpacity\":0.18,\"lineColour\":\"#36c2ff\",\"fillColour\":\"#0b1020\",\"seed\":93}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "plain_effector_line",
+        "kind": "GeneratedPlainEffectorLine",
+        "source": "{\"width\":800,\"height\":450,\"radius\":100,\"strength\":1,\"randomness\":0,\"zoom\":1,\"invert\":false,\"lineCount\":24,\"lineWidth\":2,\"colour\":\"#f74d52\",\"colourAmount\":1,\"seed\":93}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "hologram",
+        "kind": "GeneratedHologram",
+        "source": "{\"width\":800,\"height\":450,\"tileSize\":80,\"rotationDegrees\":0,\"gradientAngleDegrees\":-60,\"colourMode\":1,\"tintColour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+      },
+      {
+        "id": "protractor",
+        "kind": "GeneratedProtractor",
+        "source": "{\"width\":420,\"height\":240,\"radius\":180,\"measuredAngleDegrees\":90,\"tickStepDegrees\":10,\"majorTickStepDegrees\":30,\"decimalPlaces\":1,\"lineColour\":\"#ffffff\",\"textColour\":\"#ffffff\",\"shadowColour\":\"#000000\"}",
+        "width": 420,
+        "height": 240
+      },
+      {
+        "id": "simple_tube",
+        "kind": "GeneratedSimpleTube",
+        "source": "{\"width\":320,\"height\":180,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":15,\"randomAmount\":0.2,\"strokeWidth\":4,\"colour\":\"#0e769f\",\"secondaryColour\":\"#fff\",\"seed\":17,\"torus\":true}",
+        "width": 320,
+        "height": 180
+      },
+      {
+        "id": "shaking_polygon",
+        "kind": "GeneratedShakingPolygon",
+        "source": "{\"width\":320,\"height\":320,\"lineWidth\":12,\"vertexCount\":5,\"fixedDiameter\":300,\"verticalDistortionPercent\":8,\"repeatCount\":2,\"repeatFrequency\":3,\"fill\":true,\"jitterRange\":25,\"jitterInterval\":11,\"stepped\":true,\"colour\":\"#ffffff\",\"seed\":17}",
+        "width": 320,
+        "height": 320
+      },
+      {
+        "id": "shattered_sphere",
+        "kind": "GeneratedShatteredSphere",
+        "source": "{\"width\":320,\"height\":320,\"fractureAmount\":120,\"delay\":90,\"radius\":150,\"limitDistance\":140,\"thickness\":18,\"fragmentSize\":35,\"randomShape\":80,\"speed\":90,\"impact\":80,\"gravityX\":1,\"gravityY\":90,\"gravityZ\":-1,\"spin\":80,\"directionDiffusion\":70,\"colour\":\"#ffffff\",\"seed\":17}",
+        "width": 320,
+        "height": 320
+      }
+    ]
+  }
+}

@@ -43,6 +43,14 @@ fn colour(value: &str) -> [f32; 3] {
         u8::from_str_radix(&raw[4..6], 16).unwrap_or(0) as f32 / 255.0,
     ]
 }
+fn valid_colour(value: &str, fallback: &str) -> String {
+    let raw = value.trim().trim_start_matches('#');
+    if raw.len() == 6 && raw.chars().all(|character| character.is_ascii_hexdigit()) {
+        value.to_string()
+    } else {
+        fallback.to_string()
+    }
+}
 fn source_path(src: &str, file_path: &Option<String>) -> String {
     file_path.clone().filter(|path| !path.is_empty()).unwrap_or_else(|| src.to_string())
 }
@@ -80,7 +88,7 @@ fn object_type(object: &TimelineObject) -> &'static str {
     }
 }
 fn verified_object_type(object: &TimelineObject) -> bool {
-    matches!(object, TimelineObject::Text { .. } | TimelineObject::Shape { .. } | TimelineObject::Image { .. } | TimelineObject::Video { .. } | TimelineObject::Audio { .. } | TimelineObject::GroupControl { .. } | TimelineObject::AudioVisualization { .. } | TimelineObject::AudioSphere { .. } | TimelineObject::GetColorDotField { .. } | TimelineObject::HksyCheckerGrid { .. } | TimelineObject::RegionFrame { .. } | TimelineObject::SimpleTube { .. } | TimelineObject::Hologram { .. } | TimelineObject::ShakingPolygon { .. } | TimelineObject::ShatteredSphere { .. })
+    !matches!(object, TimelineObject::Audio { .. } | TimelineObject::GroupControl { .. })
 }
 fn kind_and_dimensions(object: &TimelineObject) -> Option<(MediaKind, f32, f32, String)> {
     match object {
@@ -127,8 +135,29 @@ fn kind_and_dimensions(object: &TimelineObject) -> Option<(MediaKind, f32, f32, 
         TimelineObject::PlainEffectorLine { fields, .. } => Some((MediaKind::GeneratedPlainEffectorLine, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
         TimelineObject::Hologram { fields, .. } => Some((MediaKind::GeneratedHologram, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
         TimelineObject::Protractor { fields, .. } => Some((MediaKind::GeneratedProtractor, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
-        TimelineObject::ShakingPolygon { fields, .. } => Some((MediaKind::GeneratedShakingPolygon, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
-        TimelineObject::ShatteredSphere { fields, .. } => Some((MediaKind::GeneratedShatteredSphere, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::ShakingPolygon { fields, .. } => Some((MediaKind::GeneratedShakingPolygon, fields.width, fields.height, serde_json::to_string(&json!({
+            "width": fields.width, "height": fields.height,
+            "lineWidth": clamp(fields.line_width as f32, 1.0, 100.0).trunc(),
+            "vertexCount": clamp(fields.vertex_count as f32, 2.0, 16.0).trunc(),
+            "fixedDiameter": clamp(fields.fixed_diameter as f32, 0.0, 2000.0).trunc(),
+            "verticalDistortionPercent": clamp(fields.vertical_distortion_percent, -100.0, 100.0),
+            "repeatCount": clamp(fields.repeat_count as f32, 1.0, 100.0).trunc(),
+            "repeatFrequency": (fields.repeat_frequency as f32).max(1.0).trunc(),
+            "fill": fields.fill, "jitterRange": clamp(fields.jitter_range, 0.0, 2000.0),
+            "jitterInterval": (fields.jitter_interval as f32).max(1.0).trunc(), "stepped": fields.stepped,
+            "colour": valid_colour(&fields.colour, "#ffffff"), "seed": fields.seed,
+        })).ok()?)),
+        TimelineObject::ShatteredSphere { fields, .. } => Some((MediaKind::GeneratedShatteredSphere, fields.width, fields.height, serde_json::to_string(&json!({
+            "width": fields.width, "height": fields.height,
+            "fractureAmount": clamp(fields.fracture_amount, 0.0, 5000.0), "delay": clamp(fields.delay, 0.0, 1000.0),
+            "radius": clamp(fields.radius, 1.0, 10000.0), "limitDistance": clamp(fields.limit_distance, 0.0, 10000.0),
+            "thickness": clamp(fields.thickness, 0.0, 1000.0), "fragmentSize": clamp(fields.fragment_size, 1.0, 1000.0),
+            "randomShape": clamp(fields.random_shape, 0.0, 100.0), "speed": clamp(fields.speed, 0.0, 1000.0),
+            "impact": clamp(fields.impact, 0.0, 1000.0), "gravityX": clamp(fields.gravity_x, -1000.0, 1000.0),
+            "gravityY": clamp(fields.gravity_y, -1000.0, 1000.0), "gravityZ": clamp(fields.gravity_z, -1000.0, 1000.0),
+            "spin": clamp(fields.spin, 0.0, 1000.0), "directionDiffusion": clamp(fields.direction_diffusion, 0.0, 1000.0),
+            "colour": valid_colour(&fields.colour, "#ffffff"), "seed": fields.seed,
+        })).ok()?)),
         _ => None,
     }
 }

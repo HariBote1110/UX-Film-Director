@@ -140,12 +140,6 @@ fn p1_rust_builder_matches_p0_contract_fixture() {
             evaluation_time_seconds: Some(required(case, "time", id).as_f64().unwrap() as f32),
         });
         let built = build_evaluation_scene(&graph);
-        if id == "getcolor-layer-psd-sorted-active-layers" {
-            assert_eq!(built.diagnostics.len(), 1, "{id}: 期待した unverifiedObjectType 診断数");
-            assert_eq!(built.diagnostics[0].object_id, "psd-candidate");
-            assert_eq!(built.diagnostics[0].code, "unverifiedObjectType");
-            continue;
-        }
         assert!(built.diagnostics.is_empty(), "{id}: diagnostics がある: {:?}", built.diagnostics);
         let mut actual = serde_json::to_value(&built.media).unwrap();
         let mut expected = required(required(case, "expected", id), "media", id).clone();
@@ -261,19 +255,53 @@ fn generated_evaluation_scenes_match_ts_editable_builder_without_diagnostics() {
         scene_count += 1;
     }
     assert_eq!(scene_count, 3, "fixture scene count");
-    let verified: std::collections::BTreeSet<String> = [
-        "text", "shape", "image", "video", "audio", "group_control",
-        "audio_visualization", "audio_sphere", "getcolor_dot_field", "hksy_checker_grid",
-        "region_frame", "simple_tube", "hologram", "shaking_polygon", "shattered_sphere",
-    ].into_iter().map(str::to_string).collect();
-    let diagnosed: std::collections::BTreeSet<String> = [
-        "asanoha_pattern", "barcode", "circular_arrow", "colour_wheel", "contour_trace",
-        "displacement_poly", "focus_lines_plus", "gear", "gourd", "histogram", "houndstooth",
-        "paper_airplane", "particle", "pie_chart", "plain_effector_line", "protractor", "psd",
-        "puzzle_piece", "random_line_ex", "sphere_dots", "spherical_field", "sunburst",
-        "tartan_check", "tone_curve", "track_bar", "triangle_bracket", "yagasuri",
-    ].into_iter().map(str::to_string).collect();
-    let all: std::collections::BTreeSet<String> = [
+    let verified: std::collections::BTreeSet<String> = all_object_type_names().into_iter().collect();
+    let diagnosed: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let all: std::collections::BTreeSet<String> = all_object_type_names().into_iter().collect();
+    assert_eq!(verified.union(&diagnosed).cloned().collect::<std::collections::BTreeSet<_>>(), all);
+    assert!(verified.is_disjoint(&diagnosed));
+    assert!(object_types.is_subset(&verified), "既存3シーンに未検証型が混入: {object_types:?}");
+}
+
+#[test]
+fn coverage_scene_matches_ts_media_for_all_object_types_without_diagnostics() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value = serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+        .expect("coverage fixture JSON");
+    let graph: EditableSceneGraph = serde_json::from_value(required(&fixture, "graph", "coverage").clone())
+        .expect("coverage graph");
+    let built = build_evaluation_scene(&graph);
+    assert!(built.diagnostics.is_empty(), "coverage diagnostics: {:?}", built.diagnostics);
+    let mut expected = required(required(&fixture, "ts_result", "coverage"), "media", "coverage").clone();
+    let mut actual = serde_json::to_value(&built.media).expect("coverage media");
+    for media in expected.as_array_mut().unwrap().iter_mut().chain(actual.as_array_mut().unwrap()) {
+        if let Some(source) = media.get("source").and_then(Value::as_str) {
+            if let Ok(parsed) = serde_json::from_str::<Value>(source) {
+                media["source"] = parsed;
+            }
+        }
+    }
+    assert_structural_json_eq("coverage.media", &expected, &actual);
+    let mut expected_project = required(required(&fixture, "ts_result", "coverage"), "project", "coverage").clone();
+    let mut actual_project = serde_json::to_value(built.project).expect("coverage project");
+    for project in [&mut expected_project, &mut actual_project] {
+        if let Some(entries) = project.get_mut("media").and_then(Value::as_array_mut) {
+            for entry in entries {
+                if let Some(source) = entry.get("source").and_then(Value::as_str) {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(source) { entry["source"] = parsed; }
+                }
+            }
+        }
+    }
+    assert_structural_json_eq("coverage.project", &expected_project, &actual_project);
+    let types: std::collections::BTreeSet<String> = graph.objects.iter().map(object_type_name).collect();
+    assert_eq!(types.len(), 42, "coverage scene は42 kindを含む必要がある");
+    assert_eq!(types, all_object_type_names().into_iter().collect());
+}
+
+fn all_object_type_names() -> Vec<String> {
+    [
         "text", "shape", "image", "video", "audio", "psd", "group_control", "audio_visualization",
         "audio_sphere", "particle", "barcode", "puzzle_piece", "colour_wheel", "gourd", "gear",
         "track_bar", "pie_chart", "histogram", "tone_curve", "hksy_checker_grid", "getcolor_dot_field",
@@ -281,10 +309,7 @@ fn generated_evaluation_scenes_match_ts_editable_builder_without_diagnostics() {
         "triangle_bracket", "tartan_check", "houndstooth", "yagasuri", "paper_airplane", "asanoha_pattern",
         "focus_lines_plus", "random_line_ex", "contour_trace", "displacement_poly", "plain_effector_line",
         "hologram", "protractor", "shaking_polygon", "shattered_sphere",
-    ].into_iter().map(str::to_string).collect();
-    assert_eq!(verified.union(&diagnosed).cloned().collect::<std::collections::BTreeSet<_>>(), all);
-    assert!(verified.is_disjoint(&diagnosed));
-    assert!(object_types.is_subset(&verified), "既存3シーンに未検証型が混入: {object_types:?}");
+    ].into_iter().map(str::to_string).collect()
 }
 
 fn object_type_name(object: &uxfd_rust_core::TimelineObject) -> String {
