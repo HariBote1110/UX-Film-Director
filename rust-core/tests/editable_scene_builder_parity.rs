@@ -166,3 +166,92 @@ fn p1_rust_builder_matches_p0_contract_fixture() {
         }
     }
 }
+
+#[test]
+fn unported_feature_never_produces_a_valid_looking_clip() {
+    let fixture = load_fixture();
+    let first = &required(&fixture, "cases", "fixture").as_array().expect("cases")[0];
+    let mut graph: EditableSceneGraph = serde_json::from_value(required(first, "graph", "case").clone()).unwrap();
+    let object_id = {
+        let object = graph.objects.iter_mut().find(|object| !matches!(object, uxfd_rust_core::TimelineObject::Audio { .. } | uxfd_rust_core::TimelineObject::GroupControl { .. })).expect("visual fixture object");
+        let object_id = object_id(object).to_string();
+        let mut value = serde_json::to_value(&*object).unwrap();
+        value["filters"] = serde_json::json!([{"type":"vibration","id":"unsupported","enabled":true,"params":{"strength":1.0,"speed":1.0}}]);
+        *object = serde_json::from_value(value).unwrap();
+        object_id
+    };
+    let built = build_evaluation_scene(&graph);
+    assert!(built.project.tracks.iter().all(|track| track.clips.iter().all(|clip| clip.id != object_id)));
+    assert!(built.diagnostics.iter().any(|diagnostic| diagnostic.object_id == object_id && diagnostic.code == "unsupportedFeature"));
+}
+
+fn object_id(object: &uxfd_rust_core::TimelineObject) -> &str {
+    match object {
+        uxfd_rust_core::TimelineObject::Text { base, .. } | uxfd_rust_core::TimelineObject::Shape { base, .. } |
+        uxfd_rust_core::TimelineObject::Image { base, .. } | uxfd_rust_core::TimelineObject::Video { base, .. } |
+        uxfd_rust_core::TimelineObject::Audio { base, .. } | uxfd_rust_core::TimelineObject::Psd { base, .. } |
+        uxfd_rust_core::TimelineObject::GroupControl { base, .. } | uxfd_rust_core::TimelineObject::AudioVisualization { base, .. } |
+        uxfd_rust_core::TimelineObject::AudioSphere { base, .. } | uxfd_rust_core::TimelineObject::Particle { base, .. } |
+        uxfd_rust_core::TimelineObject::Barcode { base, .. } | uxfd_rust_core::TimelineObject::PuzzlePiece { base, .. } |
+        uxfd_rust_core::TimelineObject::ColourWheel { base, .. } | uxfd_rust_core::TimelineObject::Gourd { base, .. } |
+        uxfd_rust_core::TimelineObject::Gear { base, .. } | uxfd_rust_core::TimelineObject::TrackBar { base, .. } |
+        uxfd_rust_core::TimelineObject::PieChart { base, .. } | uxfd_rust_core::TimelineObject::Histogram { base, .. } |
+        uxfd_rust_core::TimelineObject::ToneCurve { base, .. } | uxfd_rust_core::TimelineObject::HksyCheckerGrid { base, .. } |
+        uxfd_rust_core::TimelineObject::GetColorDotField { base, .. } | uxfd_rust_core::TimelineObject::RegionFrame { base, .. } |
+        uxfd_rust_core::TimelineObject::SimpleTube { base, .. } | uxfd_rust_core::TimelineObject::SphereDots { base, .. } |
+        uxfd_rust_core::TimelineObject::SphericalField { base, .. } | uxfd_rust_core::TimelineObject::Sunburst { base, .. } |
+        uxfd_rust_core::TimelineObject::CircularArrow { base, .. } | uxfd_rust_core::TimelineObject::TriangleBracket { base, .. } |
+        uxfd_rust_core::TimelineObject::TartanCheck { base, .. } | uxfd_rust_core::TimelineObject::Houndstooth { base, .. } |
+        uxfd_rust_core::TimelineObject::Yagasuri { base, .. } | uxfd_rust_core::TimelineObject::PaperAirplane { base, .. } |
+        uxfd_rust_core::TimelineObject::AsanohaPattern { base, .. } | uxfd_rust_core::TimelineObject::FocusLinesPlus { base, .. } |
+        uxfd_rust_core::TimelineObject::RandomLineEx { base, .. } | uxfd_rust_core::TimelineObject::ContourTrace { base, .. } |
+        uxfd_rust_core::TimelineObject::DisplacementPoly { base, .. } | uxfd_rust_core::TimelineObject::PlainEffectorLine { base, .. } |
+        uxfd_rust_core::TimelineObject::Hologram { base, .. } | uxfd_rust_core::TimelineObject::Protractor { base, .. } |
+        uxfd_rust_core::TimelineObject::ShakingPolygon { base, .. } | uxfd_rust_core::TimelineObject::ShatteredSphere { base, .. } => &base.id,
+    }
+}
+
+#[test]
+fn generated_evaluation_scenes_match_ts_editable_builder_without_diagnostics() {
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ts-evaluation-parity");
+    let mut scene_count = 0;
+    let mut kinds = std::collections::BTreeSet::new();
+    for entry in fs::read_dir(&directory).expect("parity fixture directory") {
+        let path = entry.expect("fixture entry").path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") { continue; }
+        if path.file_name().and_then(|name| name.to_str()) == Some("KNOWN_DIFFERENCES.json") { continue; }
+        let fixture: Value = serde_json::from_str(&fs::read_to_string(&path).expect("fixture")).expect("fixture JSON");
+        let editable = required(&fixture, "editable_scene", path.to_str().unwrap());
+        let mut graph: EditableSceneGraph = serde_json::from_value(required(editable, "graph", "editable_scene").clone()).expect("editable graph");
+        let scene_name = required(&fixture, "name", "fixture").as_str().unwrap();
+        graph.media_context = Some(EditableSceneMediaContext { purpose: EditableSceneMediaPurpose::PreviewProxy, scene_id: Some(scene_name.to_string()), evaluation_time_seconds: None });
+        let built = build_evaluation_scene(&graph);
+        assert!(built.diagnostics.is_empty(), "{scene_name}: {:?}", built.diagnostics);
+        let expected_result = required(editable, "result", "editable_scene");
+        assert_eq!(required(expected_result, "ok", "editable_scene.result"), &Value::Bool(true));
+        let mut expected_media = required(expected_result, "media", "editable_scene.result").clone();
+        let mut actual_media = serde_json::to_value(&built.media).unwrap();
+        for media in expected_media.as_array_mut().unwrap().iter_mut().chain(actual_media.as_array_mut().unwrap()) {
+            if let Some(source) = media.get("source").and_then(Value::as_str) { if let Ok(parsed) = serde_json::from_str::<Value>(source) { media["source"] = parsed; } }
+        }
+        assert_structural_json_eq(&format!("{scene_name}.editable.media"), &expected_media, &actual_media);
+        let mut expected_project = required(expected_result, "project", "editable_scene.result").clone();
+        if let Some(entries) = expected_project.get_mut("media").and_then(Value::as_array_mut) {
+            for entry in entries {
+                if let Some(object) = entry.as_object_mut() {
+                    object.remove("width"); object.remove("height"); object.remove("sourceRate"); object.remove("activeLayerIds"); object.remove("source_rate"); object.remove("active_layer_ids");
+                    if let Some(source) = object.get("source").and_then(Value::as_str).and_then(|source| serde_json::from_str::<Value>(source).ok()) { object.insert("source".to_string(), source); }
+                }
+            }
+        }
+        let mut actual_project = serde_json::to_value(built.project).unwrap();
+        if let Some(entries) = actual_project.get_mut("media").and_then(Value::as_array_mut) {
+            for entry in entries { if let Some(object) = entry.as_object_mut() { if let Some(source) = object.get("source").and_then(Value::as_str).and_then(|source| serde_json::from_str::<Value>(source).ok()) { object.insert("source".to_string(), source); } } }
+        }
+        assert_structural_json_eq(&format!("{scene_name}.editable.project"), &expected_project, &actual_project);
+        if let Some(media) = expected_media.as_array() { for item in media { kinds.insert(required(item, "kind", scene_name).as_str().unwrap().to_string()); } }
+        scene_count += 1;
+    }
+    assert_eq!(scene_count, 3, "fixture scene count");
+    assert!(kinds.len() >= 10, "fixture kinds coverage is unexpectedly small: {kinds:?}");
+}

@@ -8,9 +8,10 @@ use serde_json::json;
 use ts_rs::TS;
 
 use crate::schema::{
-    Clip, ClipKind, ColourPipeline, EditableSceneGraph, EditableSceneMediaPurpose, Fps,
-    GroupControl, MediaKind, MediaReference, Project, ProjectSize, SamplingMode, TimelineObject,
-    Transform,
+    Clip, ClipKind, ColourPipeline, EditableSceneGraph, EditableSceneMediaPurpose, Effect, Easing,
+    Fps, GroupControl, MediaKind, MediaReference, ObjectFilter, PositionKeyframe, Project,
+    ProjectSize, SamplingMode, SubjectCropAnimation, SubjectCropKeyframe,
+    TimelineObject, Transform, WipeAnimation,
 };
 use crate::solid_colour_scene::SceneMediaReference;
 
@@ -31,8 +32,22 @@ pub struct BuiltEvaluationScene {
 
 fn frame(seconds: f32, fps: f32) -> u64 { (seconds * fps).round().max(0.0) as u64 }
 fn dimension(value: f32) -> u32 { value.max(0.0).round() as u32 }
+fn finite(value: f32, fallback: f32) -> f32 { if value.is_finite() { value } else { fallback } }
+fn clamp(value: f32, low: f32, high: f32) -> f32 { finite(value, low).clamp(low, high) }
+fn colour(value: &str) -> [f32; 3] {
+    let raw = value.trim().trim_start_matches('#');
+    if raw.len() != 6 || !raw.chars().all(|c| c.is_ascii_hexdigit()) { return [0.0; 3]; }
+    [
+        u8::from_str_radix(&raw[0..2], 16).unwrap_or(0) as f32 / 255.0,
+        u8::from_str_radix(&raw[2..4], 16).unwrap_or(0) as f32 / 255.0,
+        u8::from_str_radix(&raw[4..6], 16).unwrap_or(0) as f32 / 255.0,
+    ]
+}
 fn source_path(src: &str, file_path: &Option<String>) -> String {
     file_path.clone().filter(|path| !path.is_empty()).unwrap_or_else(|| src.to_string())
+}
+fn unsupported(base: &crate::schema::BaseObject, feature: &str, detail: &str) -> EditableSceneDiagnostic {
+    EditableSceneDiagnostic { object_id: base.id.clone(), code: feature.to_string(), detail: format!("{detail} は Rust builder へ未移植") }
 }
 fn base(object: &TimelineObject) -> &crate::schema::BaseObject {
     match object {
@@ -64,16 +79,48 @@ fn kind_and_dimensions(object: &TimelineObject) -> Option<(MediaKind, f32, f32, 
         TimelineObject::Shape { fields, .. } => {
             if matches!(fields.shape_type, crate::schema::ShapeType::Rect) && fields.gradient.as_ref().map(|g| g.enabled).unwrap_or(false) == false {
                 Some((MediaKind::SolidColour, fields.width, fields.height, fields.fill.clone()))
-            } else { Some((MediaKind::GeneratedShape, fields.width, fields.height, serde_json::to_string(&json!({"shapeType":fields.shape_type,"width":fields.width,"height":fields.height,"fill":fields.fill,"gradient":fields.gradient,"cornerRadius":fields.corner_radius})).unwrap())) }
+            } else if fields.gradient.is_some() { Some((MediaKind::GeneratedGradient, fields.width, fields.height, serde_json::to_string(&fields.gradient).ok()?)) } else { Some((MediaKind::GeneratedShape, fields.width, fields.height, serde_json::to_string(fields).ok()?)) }
         }
         TimelineObject::Image { fields, .. } => Some((MediaKind::Image, fields.width, fields.height, source_path(&fields.src, &fields.file_path))),
         TimelineObject::Video { fields, .. } => Some((MediaKind::Video, fields.width, fields.height, String::new())),
         TimelineObject::Psd { fields, .. } => Some((MediaKind::Psd, fields.width, fields.height, source_path(&fields.src, &fields.file_path))),
         TimelineObject::Text { fields, .. } => {
-            let width = fields.measured_width.unwrap_or_else(|| ((fields.text.lines().map(str::len).max().unwrap_or(1).max(1) as f32) * fields.font_size * 0.6).ceil());
+            let width = fields.measured_width.unwrap_or_else(|| ((fields.text.lines().map(|line| line.encode_utf16().count()).max().unwrap_or(1).max(1) as f32) * fields.font_size * 0.6).ceil());
             let height = fields.measured_height.unwrap_or_else(|| ((fields.text.lines().count().max(1) as f32) * fields.font_size * 1.25).ceil());
-            Some((MediaKind::Text, width, height, serde_json::to_string(&json!({"text":fields.text,"fontSize":fields.font_size,"fontFamily":fields.font_family,"fill":fields.fill,"measuredWidth":fields.measured_width,"measuredHeight":fields.measured_height,"textAlignment":fields.text_alignment,"letterSpacing":fields.letter_spacing,"textStroke":fields.text_stroke,"textShadow":fields.text_shadow})).unwrap()))
+            Some((MediaKind::Text, width, height, serde_json::to_string(fields).ok()?))
         }
+        TimelineObject::Particle { fields, .. } => Some((MediaKind::GeneratedParticle, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Barcode { fields, .. } => Some((MediaKind::GeneratedBarcode, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::PuzzlePiece { fields, .. } => Some((MediaKind::GeneratedPuzzlePiece, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::ColourWheel { fields, .. } => Some((MediaKind::GeneratedColourWheel, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Gourd { fields, .. } => Some((MediaKind::GeneratedGourd, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Gear { fields, .. } => Some((MediaKind::GeneratedGear, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::TrackBar { fields, .. } => Some((MediaKind::GeneratedTrackBar, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::PieChart { fields, .. } => Some((MediaKind::GeneratedPieChart, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Histogram { fields, .. } => Some((MediaKind::GeneratedHistogram, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::ToneCurve { fields, .. } => Some((MediaKind::GeneratedToneCurve, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::HksyCheckerGrid { fields, .. } => Some((MediaKind::GeneratedHksyCheckerGrid, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::RegionFrame { fields, .. } => Some((MediaKind::GeneratedRegionFrame, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::SimpleTube { fields, .. } => Some((MediaKind::GeneratedSimpleTube, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::SphereDots { fields, .. } => Some((MediaKind::GeneratedSphereDots, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::SphericalField { fields, .. } => Some((MediaKind::GeneratedSphericalField, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Sunburst { fields, .. } => Some((MediaKind::GeneratedSunburst, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::CircularArrow { fields, .. } => Some((MediaKind::GeneratedCircularArrow, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::TriangleBracket { fields, .. } => Some((MediaKind::GeneratedTriangleBracket, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::TartanCheck { fields, .. } => Some((MediaKind::GeneratedTartanCheck, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Houndstooth { fields, .. } => Some((MediaKind::GeneratedHoundstooth, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Yagasuri { fields, .. } => Some((MediaKind::GeneratedYagasuri, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::PaperAirplane { fields, .. } => Some((MediaKind::GeneratedPaperAirplane, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::AsanohaPattern { fields, .. } => Some((MediaKind::GeneratedAsanohaPattern, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::FocusLinesPlus { fields, .. } => Some((MediaKind::GeneratedFocusLinesPlus, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::RandomLineEx { fields, .. } => Some((MediaKind::GeneratedRandomLineEx, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::ContourTrace { fields, .. } => Some((MediaKind::GeneratedContourTrace, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::DisplacementPoly { fields, .. } => Some((MediaKind::GeneratedDisplacementPoly, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::PlainEffectorLine { fields, .. } => Some((MediaKind::GeneratedPlainEffectorLine, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Hologram { fields, .. } => Some((MediaKind::GeneratedHologram, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::Protractor { fields, .. } => Some((MediaKind::GeneratedProtractor, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::ShakingPolygon { fields, .. } => Some((MediaKind::GeneratedShakingPolygon, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::ShatteredSphere { fields, .. } => Some((MediaKind::GeneratedShatteredSphere, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
         _ => None,
     }
 }
@@ -94,6 +141,8 @@ fn media_for(object: &TimelineObject, objects: &[TimelineObject], purpose: Edita
     }
     if let TimelineObject::GetColorDotField { fields, .. } = object {
         let mut value=json!({"generator":"getcolor-v2r-dot-field","columns":fields.columns.clamp(1,512),"rows":fields.rows.clamp(1,512),"dot_size":fields.dot_size.clamp(0.,2000.),"size_influence":fields.size_influence.clamp(0.,4.),"luminance_influence":fields.luminance_influence.clamp(0.,4.),"hue_shift_degrees":fields.hue_shift_degrees.clamp(-720.,720.),"alternate_rows":fields.alternate_rows,"foreground_colour":fields.foreground_colour,"secondary_colour":fields.secondary_colour,"background_colour":fields.background_colour,"seed":fields.seed});
+        if let Some(dot_shape) = &fields.dot_shape { value["dot_shape"] = json!(dot_shape); }
+        if let Some(stroke_width) = fields.stroke_width { value["stroke_width"] = json!(stroke_width); }
         let candidate = fields.sample_source_object_id.as_ref().and_then(|id| objects.iter().find(|o| {let x=base(o); x.id==*id && b.start_time>=x.start_time && b.start_time<x.start_time+x.duration})).or_else(|| fields.sample_source_layer.and_then(|layer| objects.iter().find(|o| {let x=base(o); (x.layer == layer as f32) && b.start_time>=x.start_time && b.start_time<x.start_time+x.duration && sample_path(o).is_some()})));
         let sample = fields.sample_source_path.clone().filter(|s|!s.is_empty()).or_else(|| candidate.and_then(sample_path));
         if let Some(path)=sample { value["source_image"]=json!(path); if let Some(TimelineObject::Psd{fields,..})=candidate { let mut ids:Vec<_>=fields.active_layer_ids.as_ref().into_iter().flat_map(|ids|ids.iter()).filter(|(_,active)|**active).map(|(id,_)|id.clone()).collect();ids.sort();value["source_active_layer_ids"]=json!(ids); } value["sample_strength"]=json!(fields.sample_strength.unwrap_or(1.).clamp(0.,1.)); value["sample_hue_shift_degrees"]=json!(fields.sample_hue_shift_degrees.unwrap_or(0.).clamp(-720.,720.)); }
@@ -106,6 +155,82 @@ fn media_for(object: &TimelineObject, objects: &[TimelineObject], purpose: Edita
 }
 fn sample_path(object: &TimelineObject) -> Option<String> { match object { TimelineObject::Image{fields,..}=>Some(source_path(&fields.src,&fields.file_path)), TimelineObject::Psd{fields,..}=>Some(source_path(&fields.src,&fields.file_path)), _=>None } }
 
+fn position_keyframes(b: &crate::schema::BaseObject, fps: f32) -> Vec<PositionKeyframe> {
+    let normalised = b.keyframes.as_ref().filter(|items| items.len() >= 2);
+    if let Some(items) = normalised {
+        let mut items = items.clone();
+        items.sort_by(|left, right| left.time.total_cmp(&right.time).then(left.id.cmp(&right.id)));
+        return items.iter().map(|item| PositionKeyframe {
+            frame_offset: frame((item.time - b.start_time).clamp(0.0, b.duration), fps), x: finite(item.x, 0.0), y: finite(item.y, 0.0),
+            easing: item.easing.unwrap_or(b.easing),
+        }).collect();
+    }
+    if !b.enable_animation { return Vec::new(); }
+    vec![
+        PositionKeyframe { frame_offset: 0, x: b.x, y: b.y, easing: b.easing },
+        PositionKeyframe { frame_offset: frame(b.duration, fps), x: b.end_x, y: b.end_y, easing: Easing::Linear },
+    ]
+}
+
+fn subject_crop(object: &TimelineObject, fps: f32) -> Option<SubjectCropAnimation> {
+    let TimelineObject::Video { base: b, fields } = object else { return None; };
+    if fields.subject_crop_enabled != Some(true) { return None; }
+    let mut keyframes = fields.subject_crop_keyframes.as_ref()?.clone();
+    if keyframes.is_empty() { return None; }
+    let start = b.start_time;
+    let end = b.start_time + b.duration;
+    keyframes.sort_by(|left, right| left.time.total_cmp(&right.time).then(left.id.cmp(&right.id)));
+    Some(SubjectCropAnimation {
+        source_width: fields.width,
+        source_height: fields.height,
+        keyframes: keyframes.into_iter().map(|item| SubjectCropKeyframe {
+            frame_offset: frame((item.time.clamp(start, end) - b.start_time).max(0.0), fps),
+            x: clamp(item.x, 0.0, 1.0), y: clamp(item.y, 0.0, 1.0),
+            width: (clamp(item.x, 0.0, 1.0) + clamp(item.width, 0.0, 1.0)).min(1.0) - clamp(item.x, 0.0, 1.0),
+            height: (clamp(item.y, 0.0, 1.0) + clamp(item.height, 0.0, 1.0)).min(1.0) - clamp(item.y, 0.0, 1.0),
+        }).collect(),
+    })
+}
+
+fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, f32) {
+    let b = base(object);
+    let mut effects = Vec::new();
+    let mut wipes = Vec::new();
+    let mut fade = 1.0;
+    let mut legacy = Vec::new();
+    if b.filters.is_none() {
+        if let Some(value) = &b.color_correction { legacy.push(serde_json::json!({"type":"color_correction","id":"legacy-colour","enabled":value.enabled,"params":{"brightness":value.brightness,"contrast":value.contrast,"saturation":value.saturation,"hue":value.hue}})); }
+        if let Some(value) = &b.custom_clipping { legacy.push(serde_json::json!({"type":"clipping","id":"legacy-clipping","enabled":value.enabled,"params":{"top":value.top,"bottom":value.bottom,"left":value.left,"right":value.right,"angle":value.angle,"radius":value.radius}})); }
+        if let Some(value) = &b.shadow { legacy.push(serde_json::json!({"type":"shadow","id":"legacy-shadow","enabled":value.enabled,"params":{"colour":value.colour,"blur":value.blur,"offsetX":value.offset_x,"offsetY":value.offset_y,"opacity":value.opacity}})); }
+    }
+    let filters: Vec<ObjectFilter> = b.filters.clone().unwrap_or_default().into_iter().chain(legacy.into_iter().filter_map(|value| serde_json::from_value(value).ok())).collect();
+    for filter in filters.iter().filter(|filter| filter_enabled(filter)) {
+        match filter {
+            ObjectFilter::ColorCorrection { params, .. } => effects.push(Effect::ColourCorrection { brightness: clamp(params.brightness, 0.0, f32::MAX), contrast: finite(params.contrast, 0.0), saturation: finite(params.saturation, 0.0), hue_degrees: finite(params.hue, 0.0) }),
+            ObjectFilter::ColourAberration { params, .. } => effects.push(Effect::ColourAberration { offset_x: clamp(params.offset_x, 0.0, f32::MAX), offset_y: clamp(params.offset_y, 0.0, f32::MAX) }),
+            ObjectFilter::Outline { params, .. } => effects.push(Effect::Outline { colour: colour(&params.colour), thickness: clamp(params.thickness, 0.0, f32::MAX), opacity: clamp(params.opacity, 0.0, 1.0) }),
+            ObjectFilter::Clipping { params, .. } => effects.push(Effect::Clipping { top: clamp(params.top, 0.0, f32::MAX), bottom: clamp(params.bottom, 0.0, f32::MAX), left: clamp(params.left, 0.0, f32::MAX), right: clamp(params.right, 0.0, f32::MAX), angle_degrees: finite(params.angle, 0.0) }),
+            ObjectFilter::Shadow { params, .. } => effects.push(Effect::DropShadow { colour: colour(&params.colour), offset_x: finite(params.offset_x, 0.0), offset_y: finite(params.offset_y, 0.0), opacity: clamp(params.opacity, 0.0, 1.0) }),
+            ObjectFilter::Blur { params, .. } if params.strength > 0.05 => effects.push(Effect::Blur { radius: clamp(params.strength, 0.0, f32::MAX), strength: 1.0 }),
+            ObjectFilter::Fade { params, .. } => fade = clamp(params.opacity, 0.0, 1.0),
+            ObjectFilter::Wipe { params, .. } => { let index = effects.len() as u32; wipes.push(WipeAnimation { effect_index: index, edge: params.edge, reverse: params.reverse }); },
+            ObjectFilter::SpotLight { params, .. } => effects.push(Effect::SpotLight { centre_x: clamp(params.centre_x, 0.0, 1.0), centre_y: clamp(params.centre_y, 0.0, 1.0), radius: clamp(params.radius, 0.0, f32::MAX), intensity: clamp(params.intensity, 0.0, f32::MAX), colour: colour(&params.colour) }),
+            ObjectFilter::DisplacementMap { params, .. } => effects.push(Effect::DisplacementMap { amount_x: clamp(params.amount_x, 0.0, f32::MAX), amount_y: clamp(params.amount_y, 0.0, f32::MAX), size: clamp(params.size, 1.0, f32::MAX), strength: clamp(params.strength, 0.0, 1.0) }),
+            ObjectFilter::FakeDof { params, .. } => effects.push(Effect::FakeDof { focus_x: clamp(params.focus_x, 0.0, 1.0), focus_y: clamp(params.focus_y, 0.0, 1.0), focus_radius: clamp(params.focus_radius, 0.01, 1.0), blur: clamp(params.blur, 0.0, f32::MAX), strength: clamp(params.strength, 0.0, 1.0) }),
+            ObjectFilter::Stretch { params, .. } => effects.push(Effect::Stretch { angle_degrees: finite(params.angle, 0.0), amount: clamp(params.amount, 0.0, f32::MAX), strength: clamp(params.strength, 0.0, 1.0) }),
+            ObjectFilter::MultiSlicer { params, .. } => effects.push(Effect::MultiSlicer { angle_degrees: finite(params.angle, 45.0), offset: clamp(params.offset, 0.0, f32::MAX), slices: clamp(params.slices, 2.0, f32::MAX).round() as u32, expansion: clamp(params.expansion, 0.0, f32::MAX), strength: clamp(params.strength, 0.0, 1.0) }),
+            ObjectFilter::OctTransform { params, .. } => effects.push(Effect::OctTransform { scale: clamp(params.scale, 0.01, f32::MAX), rotation_degrees: finite(params.rotation, 0.0), vertex_count: clamp(params.vertex_count, 3.0, f32::MAX).round() as u32, warp: clamp(params.warp, 0.0, f32::MAX), strength: clamp(params.strength, 0.0, 1.0) }),
+            ObjectFilter::AreaExpand { params, .. } => effects.push(Effect::AreaExpand { top: clamp(params.top, 0.0, f32::MAX), bottom: clamp(params.bottom, 0.0, f32::MAX), left: clamp(params.left, 0.0, f32::MAX), right: clamp(params.right, 0.0, f32::MAX), fill: params.fill }),
+            ObjectFilter::SmartClipping { params, .. } => effects.push(Effect::Clipping { top: clamp(params.top, 0.0, f32::MAX), bottom: clamp(params.bottom, 0.0, f32::MAX), left: clamp(params.left, 0.0, f32::MAX), right: clamp(params.right, 0.0, f32::MAX), angle_degrees: 0.0 }),
+            ObjectFilter::Gradient { .. } | ObjectFilter::Vibration { .. } | ObjectFilter::Blur { .. } => {}
+            ObjectFilter::AutoBlur { .. } => {}
+        }
+    }
+    (effects, wipes, fade)
+}
+
+fn filter_enabled(filter: &ObjectFilter) -> bool { match filter { ObjectFilter::ColorCorrection { enabled, .. } | ObjectFilter::ColourAberration { enabled, .. } | ObjectFilter::Outline { enabled, .. } | ObjectFilter::Clipping { enabled, .. } | ObjectFilter::Vibration { enabled, .. } | ObjectFilter::Shadow { enabled, .. } | ObjectFilter::Gradient { enabled, .. } | ObjectFilter::Blur { enabled, .. } | ObjectFilter::Fade { enabled, .. } | ObjectFilter::Wipe { enabled, .. } | ObjectFilter::SpotLight { enabled, .. } | ObjectFilter::DisplacementMap { enabled, .. } | ObjectFilter::FakeDof { enabled, .. } | ObjectFilter::AutoBlur { enabled, .. } | ObjectFilter::Stretch { enabled, .. } | ObjectFilter::MultiSlicer { enabled, .. } | ObjectFilter::OctTransform { enabled, .. } | ObjectFilter::AreaExpand { enabled, .. } | ObjectFilter::SmartClipping { enabled, .. } => *enabled } }
+
 /// 42 kind を明示的に走査し、未移植 kind は診断として返す。誤った media を黙って
 /// 出力しないため、diagnostic がある場合でも安全に構築できた部分だけを返す。
 pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScene {
@@ -113,7 +238,43 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
     let mut diagnostics=Vec::new(); let mut visual:Vec<(usize,&TimelineObject)>=graph.objects.iter().enumerate().filter(|(_,o)| {let b=base(o); graph.layers.get(b.layer.max(0.) as usize).map(|l|l.visible).unwrap_or(true)}).collect();
     visual.sort_by(|a,b| base(a.1).layer.total_cmp(&base(b.1).layer).then(a.0.cmp(&b.0)));
     let mut media=Vec::new(); let mut tracks:Vec<(f32,Vec<Clip>)>=Vec::new();
-    for (_, object) in &visual { let b=base(object); if matches!(object,TimelineObject::Audio{..}|TimelineObject::GroupControl{..}) {continue}; let Some(mut reference)=media_for(object,&graph.objects,purpose) else { diagnostics.push(EditableSceneDiagnostic{object_id:b.id.clone(),code:"unsupportedObjectType".into(),detail:"P1b ではこの kind の canonical media serializer は未移植です".into()}); continue;}; if matches!(object, TimelineObject::Video { .. }) { reference.source_rate=Some(Fps { numerator: graph.settings.fps.round() as u32, denominator: 1 }); } let kind=match reference.kind {MediaKind::Video=>ClipKind::VideoPlane,MediaKind::Text=>ClipKind::TextPlane,MediaKind::SolidColour=>ClipKind::SolidColourPlane,MediaKind::GeneratedAudioWaveform=>ClipKind::GeneratedAudioWaveformPlane,MediaKind::GeneratedAudioSphere=>ClipKind::GeneratedAudioSpherePlane,MediaKind::GeneratedGetColorDots=>ClipKind::GeneratedGetColorDotsPlane,MediaKind::GeneratedShape=>ClipKind::GeneratedShapePlane,_=>ClipKind::ImagePlane}; let clip=Clip{id:b.id.clone(),media_id:b.id.clone(),kind,start_frame:frame(b.start_time,graph.settings.fps),duration_frames:frame(b.duration,graph.settings.fps).max(1),source_frame_offset:if matches!(object,TimelineObject::Video{..}){frame(b.offset.unwrap_or(0.),graph.settings.fps)}else{0},transform:Transform{translation_x:b.x,translation_y:b.y,scale_x:b.scale_x,scale_y:b.scale_y,rotation_degrees:b.rotation,sampling:if matches!(object,TimelineObject::Shape{..}){SamplingMode::Nearest}else{SamplingMode::Bilinear}},opacity:b.opacity,opacity_keyframes:vec![],position_keyframes:vec![],subject_crop:None,wipe_animations:vec![],effects:vec![]}; if let Some((_,clips))=tracks.iter_mut().find(|(layer,_)|*layer==b.layer){clips.push(clip)}else{tracks.push((b.layer,vec![clip]));} media.push(reference); }
+    for (_, object) in &visual {
+        let b=base(object);
+        if matches!(object,TimelineObject::Audio{..}|TimelineObject::GroupControl{..}) { continue; }
+        if b.clipping == Some(true) { diagnostics.push(unsupported(b, "unsupportedFeature", "clipping mask")); continue; }
+        if b.group_gradient.as_ref().is_some_and(|gradient| gradient.enabled) { diagnostics.push(unsupported(b, "unsupportedFeature", "group gradient")); continue; }
+        if b.filters.as_ref().is_some_and(|filters| filters.iter().any(|filter| filter_enabled(filter) && matches!(filter, ObjectFilter::Vibration { .. } | ObjectFilter::AutoBlur { .. } | ObjectFilter::Gradient { .. } | ObjectFilter::SmartClipping { .. }))) {
+            diagnostics.push(unsupported(b, "unsupportedFeature", "filter")); continue;
+        }
+        if matches!(object, TimelineObject::Video { fields, .. } if fields.reversed == Some(true)) { diagnostics.push(unsupported(b, "unsupportedFeature", "reversed video")); continue; }
+        let Some(mut reference)=media_for(object,&graph.objects,purpose) else { diagnostics.push(EditableSceneDiagnostic{object_id:b.id.clone(),code:"unsupportedObjectType".into(),detail:"canonical media serializer が未移植です".into()}); continue;};
+        if matches!(object, TimelineObject::Video { .. }) { reference.source_rate=Some(Fps { numerator: graph.settings.fps.round() as u32, denominator: 1 }); }
+        let kind=match reference.kind {
+            MediaKind::Video=>ClipKind::VideoPlane, MediaKind::Text=>ClipKind::TextPlane, MediaKind::SolidColour=>ClipKind::SolidColourPlane,
+            MediaKind::Image=>ClipKind::ImagePlane, MediaKind::Psd=>ClipKind::ImagePlane,
+            MediaKind::GeneratedAudioWaveform=>ClipKind::GeneratedAudioWaveformPlane, MediaKind::GeneratedAudioSphere=>ClipKind::GeneratedAudioSpherePlane,
+            MediaKind::GeneratedParticle=>ClipKind::GeneratedParticlePlane, MediaKind::GeneratedBarcode=>ClipKind::GeneratedBarcodePlane,
+            MediaKind::GeneratedPuzzlePiece=>ClipKind::GeneratedPuzzlePiecePlane, MediaKind::GeneratedColourWheel=>ClipKind::GeneratedColourWheelPlane,
+            MediaKind::GeneratedGourd=>ClipKind::GeneratedGourdPlane, MediaKind::GeneratedGear=>ClipKind::GeneratedGearPlane,
+            MediaKind::GeneratedTrackBar=>ClipKind::GeneratedTrackBarPlane, MediaKind::GeneratedPieChart=>ClipKind::GeneratedPieChartPlane,
+            MediaKind::GeneratedHistogram=>ClipKind::GeneratedHistogramPlane, MediaKind::GeneratedToneCurve=>ClipKind::GeneratedToneCurvePlane,
+            MediaKind::GeneratedGetColorDots=>ClipKind::GeneratedGetColorDotsPlane, MediaKind::GeneratedHksyCheckerGrid=>ClipKind::GeneratedHksyCheckerGridPlane,
+            MediaKind::GeneratedRegionFrame=>ClipKind::GeneratedRegionFramePlane, MediaKind::GeneratedSimpleTube=>ClipKind::GeneratedSimpleTubePlane,
+            MediaKind::GeneratedSphereDots=>ClipKind::GeneratedSphereDotsPlane, MediaKind::GeneratedSphericalField=>ClipKind::GeneratedSphericalFieldPlane,
+            MediaKind::GeneratedSunburst=>ClipKind::GeneratedSunburstPlane, MediaKind::GeneratedCircularArrow=>ClipKind::GeneratedCircularArrowPlane,
+            MediaKind::GeneratedTriangleBracket=>ClipKind::GeneratedTriangleBracketPlane, MediaKind::GeneratedTartanCheck=>ClipKind::GeneratedTartanCheckPlane,
+            MediaKind::GeneratedHoundstooth=>ClipKind::GeneratedHoundstoothPlane, MediaKind::GeneratedYagasuri=>ClipKind::GeneratedYagasuriPlane,
+            MediaKind::GeneratedPaperAirplane=>ClipKind::GeneratedPaperAirplanePlane, MediaKind::GeneratedAsanohaPattern=>ClipKind::GeneratedAsanohaPatternPlane,
+            MediaKind::GeneratedFocusLinesPlus=>ClipKind::GeneratedFocusLinesPlusPlane, MediaKind::GeneratedRandomLineEx=>ClipKind::GeneratedRandomLineExPlane,
+            MediaKind::GeneratedContourTrace=>ClipKind::GeneratedContourTracePlane, MediaKind::GeneratedDisplacementPoly=>ClipKind::GeneratedDisplacementPolyPlane,
+            MediaKind::GeneratedPlainEffectorLine=>ClipKind::GeneratedPlainEffectorLinePlane, MediaKind::GeneratedHologram=>ClipKind::GeneratedHologramPlane,
+            MediaKind::GeneratedProtractor=>ClipKind::GeneratedProtractorPlane, MediaKind::GeneratedShakingPolygon=>ClipKind::GeneratedShakingPolygonPlane,
+            MediaKind::GeneratedShatteredSphere=>ClipKind::GeneratedShatteredSpherePlane, MediaKind::GeneratedShape|MediaKind::GeneratedGradient=>ClipKind::GeneratedShapePlane,
+        };
+        let (effects, wipes, fade) = static_effects(object);
+        let clip=Clip{id:b.id.clone(),media_id:b.id.clone(),kind,start_frame:frame(b.start_time,graph.settings.fps),duration_frames:frame(b.duration,graph.settings.fps).max(1),source_frame_offset:if matches!(object,TimelineObject::Video{..}){frame(b.offset.unwrap_or(0.),graph.settings.fps)}else{0},transform:Transform{translation_x:b.keyframes.as_ref().filter(|k| k.len()>=2).and_then(|k|k.first()).map_or(b.x,|k|k.x),translation_y:b.keyframes.as_ref().filter(|k| k.len()>=2).and_then(|k|k.first()).map_or(b.y,|k|k.y),scale_x:b.scale_x*if let TimelineObject::Psd{fields,..}=object{fields.scale}else{1.0},scale_y:b.scale_y*if let TimelineObject::Psd{fields,..}=object{fields.scale}else{1.0},rotation_degrees:b.rotation,sampling:if matches!(object,TimelineObject::Shape{fields,..} if fields.gradient.as_ref().is_none_or(|gradient| !gradient.enabled)){SamplingMode::Nearest}else{SamplingMode::Bilinear}},opacity:b.opacity*fade,opacity_keyframes:vec![],position_keyframes:position_keyframes(b,graph.settings.fps),subject_crop:subject_crop(object,graph.settings.fps),wipe_animations:wipes,effects};
+        if let Some((_,clips))=tracks.iter_mut().find(|(layer,_)|*layer==b.layer){clips.push(clip)}else{tracks.push((b.layer,vec![clip]));} media.push(reference);
+    }
     tracks.sort_by(|a,b|a.0.total_cmp(&b.0));
     let group_controls=graph.objects.iter().filter_map(|object|if let TimelineObject::GroupControl{base:b,fields}=object { let mut target=Vec::new(); for (_,candidate) in &visual { let c=base(candidate); if c.layer>b.layer && (fields.target_layer_count==0 || c.layer<=b.layer+fields.target_layer_count as f32) {let id=format!("layer-{}",c.layer as i32);if !target.contains(&id){target.push(id)}} } Some(GroupControl{id:b.id.clone(),start_frame:frame(b.start_time,graph.settings.fps),duration_frames:frame(b.duration,graph.settings.fps).max(1),transform:Transform{translation_x:b.x,translation_y:b.y,scale_x:b.scale_x,scale_y:b.scale_y,rotation_degrees:b.rotation,sampling:SamplingMode::Bilinear},opacity:b.opacity,position_keyframes:vec![],target_track_ids:target}) }else{None}).collect();
     let project=Project{id:graph.media_context.as_ref().and_then(|c|c.scene_id.clone()).unwrap_or_else(||"editable-scene".into()),version:1,size:ProjectSize{width:dimension(graph.settings.width),height:dimension(graph.settings.height)},fps:Fps{numerator:graph.settings.fps.round() as u32,denominator:1},colour:ColourPipeline::rec709_sdr_linear(),media:media.iter().map(|m|MediaReference{id:m.id.clone(),kind:m.kind.clone(),source:m.source.clone()}).collect(),tracks:tracks.into_iter().map(|(layer,clips)|crate::schema::Track{id:format!("layer-{}",layer as i32),clips}).collect(),group_controls};

@@ -10,6 +10,7 @@ import {
   type EvaluationParityFixtureBuild,
 } from '../utils/rustSceneEvaluationParityFixture';
 import { buildRealisticHeavyEditScenario } from './realisticHeavyEditScenario';
+import { buildEditableRustScene } from '../utils/editableRustScene';
 
 /** frame を間引く歩幅。キーフレーム境界と揃わないよう素数にする。 */
 export const EVALUATION_PARITY_FRAME_STEP = 7;
@@ -28,6 +29,7 @@ export interface EvaluationParityFixtureSetEntry extends EvaluationParityFixture
   fileName: string;
   objectCount: number;
   requestedFrameCount: number;
+  editableScene: unknown;
 }
 
 export const buildEvaluationParityFixtureSet = (): EvaluationParityFixtureSetEntry[] => {
@@ -58,6 +60,10 @@ export const buildEvaluationParityFixtureSet = (): EvaluationParityFixtureSetEnt
       fileName: `${scene.id}.json`,
       objectCount: scene.objects.length,
       requestedFrameCount: frameIndices.length,
+      editableScene: {
+        graph: { settings: scenario.settings, layers: scene.layers, objects: scene.objects },
+        result: buildEditableRustScene({ sceneId: scene.id, projectSettings: scenario.settings, layers: scene.layers, objects: scene.objects }),
+      },
     };
   });
 };
@@ -65,4 +71,4 @@ export const buildEvaluationParityFixtureSet = (): EvaluationParityFixtureSetEnt
 /** 生成物のフォーマット。生成器と drift 検出で同じ文字列にする必要がある。 */
 export const serialiseEvaluationParityFixture = (
   entry: EvaluationParityFixtureSetEntry
-): string => `${JSON.stringify(entry.fixture, null, 2)}\n`;
+): string => `${JSON.stringify({ ...entry.fixture, editable_scene: entry.editableScene }, null, 2)}\n`;

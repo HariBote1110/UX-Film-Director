@@ -16711,5 +16711,1439 @@
         ]
       }
     }
-  ]
+  ],
+  "editable_scene": {
+    "graph": {
+      "settings": {
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "sampleRate": 48000,
+        "editorMode": "2d"
+      },
+      "layers": [
+        {
+          "name": "Layer 1",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 2",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 3",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 4",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 6",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 7",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 8",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 9",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 10",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 11",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 12",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 13",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 14",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 15",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 16",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 17",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 18",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 19",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 20",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 21",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 22",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 23",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 24",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 25",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 26",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 27",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 28",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 29",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 30",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 31",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 32",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 33",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 34",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 35",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 36",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 37",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 38",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 39",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 40",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 41",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 42",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 43",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 44",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 45",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 46",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 47",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 48",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 49",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 50",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 51",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 52",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 53",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 54",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 55",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 56",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 57",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 58",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 59",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 60",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 61",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 62",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 63",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 64",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 65",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 66",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 67",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 68",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 69",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 70",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 71",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 72",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 73",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 74",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 75",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 76",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 77",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 78",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 79",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 80",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 81",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 82",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 83",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 84",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 85",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 86",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 87",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 88",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 89",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 90",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 91",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 92",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 93",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 94",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 95",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 96",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 97",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 98",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 99",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 100",
+          "visible": true,
+          "locked": false
+        }
+      ],
+      "objects": [
+        {
+          "id": "realistic-titles-heading",
+          "type": "text",
+          "name": "Opening title",
+          "layer": 2,
+          "startTime": 0,
+          "duration": 7,
+          "x": 110,
+          "y": 760,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 160,
+          "endY": 760,
+          "easing": "easeOutCubic",
+          "text": "重いけれど現実的な編集",
+          "fontSize": 76,
+          "fontFamily": "Hiragino Sans",
+          "fill": "#ffffff",
+          "textAlignment": "left",
+          "letterSpacing": 2,
+          "textStroke": {
+            "colour": "#111827",
+            "width": 5
+          },
+          "textShadow": {
+            "colour": "#000000",
+            "offsetX": 8,
+            "offsetY": 10,
+            "blur": 8
+          },
+          "filters": [
+            {
+              "id": "realistic-titles-heading-wipe",
+              "type": "wipe",
+              "enabled": true,
+              "params": {
+                "edge": "left",
+                "reverse": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-0",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 1",
+          "layer": 4,
+          "startTime": 0,
+          "duration": 10,
+          "x": 90,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-1",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 2",
+          "layer": 5,
+          "startTime": 1.5,
+          "duration": 10,
+          "x": 420,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-2",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 3",
+          "layer": 6,
+          "startTime": 3,
+          "duration": 10,
+          "x": 750,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-3",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 4",
+          "layer": 7,
+          "startTime": 4.5,
+          "duration": 10,
+          "x": 90,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-3-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-3-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-4",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 5",
+          "layer": 8,
+          "startTime": 6,
+          "duration": 10,
+          "x": 420,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-4-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-4-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-5",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 6",
+          "layer": 9,
+          "startTime": 7.5,
+          "duration": 10,
+          "x": 750,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-5-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-5-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-6",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 7",
+          "layer": 10,
+          "startTime": 9,
+          "duration": 10,
+          "x": 90,
+          "y": 520,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 540,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-6-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-6-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "result": {
+      "ok": true,
+      "project": {
+        "id": "realistic-heavy-titles",
+        "version": 1,
+        "size": {
+          "width": 1920,
+          "height": 1080
+        },
+        "fps": {
+          "numerator": 60,
+          "denominator": 1
+        },
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "media": [
+          {
+            "id": "realistic-titles-heading",
+            "kind": "Text",
+            "source": "{\"text\":\"重いけれど現実的な編集\",\"fontSize\":76,\"fontFamily\":\"Hiragino Sans\",\"fill\":\"#ffffff\",\"textAlignment\":\"left\",\"letterSpacing\":2,\"textStroke\":{\"colour\":\"#111827\",\"width\":5},\"textShadow\":{\"colour\":\"#000000\",\"offsetX\":8,\"offsetY\":10,\"blur\":8}}",
+            "width": 502,
+            "height": 95
+          },
+          {
+            "id": "realistic-titles-shape-0",
+            "kind": "GeneratedShape",
+            "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+            "width": 280,
+            "height": 170
+          },
+          {
+            "id": "realistic-titles-shape-1",
+            "kind": "SolidColour",
+            "source": "#351c4d",
+            "width": 280,
+            "height": 170
+          },
+          {
+            "id": "realistic-titles-shape-2",
+            "kind": "GeneratedShape",
+            "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+            "width": 280,
+            "height": 170
+          },
+          {
+            "id": "realistic-titles-shape-3",
+            "kind": "SolidColour",
+            "source": "#351c4d",
+            "width": 280,
+            "height": 170
+          },
+          {
+            "id": "realistic-titles-shape-4",
+            "kind": "GeneratedShape",
+            "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+            "width": 280,
+            "height": 170
+          },
+          {
+            "id": "realistic-titles-shape-5",
+            "kind": "SolidColour",
+            "source": "#351c4d",
+            "width": 280,
+            "height": 170
+          },
+          {
+            "id": "realistic-titles-shape-6",
+            "kind": "GeneratedShape",
+            "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+            "width": 280,
+            "height": 170
+          }
+        ],
+        "tracks": [
+          {
+            "id": "layer-2",
+            "clips": [
+              {
+                "id": "realistic-titles-heading",
+                "media_id": "realistic-titles-heading",
+                "kind": "TextPlane",
+                "start_frame": 0,
+                "duration_frames": 420,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 110,
+                  "translation_y": 760,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": 0,
+                  "sampling": "bilinear"
+                },
+                "opacity": 1,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 110,
+                    "y": 760,
+                    "easing": "easeOutCubic"
+                  },
+                  {
+                    "frame_offset": 420,
+                    "x": 160,
+                    "y": 760,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [
+                  {
+                    "effect_index": 0,
+                    "edge": "left",
+                    "reverse": false
+                  }
+                ],
+                "effects": []
+              }
+            ]
+          },
+          {
+            "id": "layer-4",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-0",
+                "media_id": "realistic-titles-shape-0",
+                "kind": "GeneratedShapePlane",
+                "start_frame": 0,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 90,
+                  "translation_y": 80,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": -2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 90,
+                    "y": 80,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 130,
+                    "y": 100,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Blur": {
+                      "radius": 2,
+                      "strength": 1
+                    }
+                  },
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layer-5",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-1",
+                "media_id": "realistic-titles-shape-1",
+                "kind": "SolidColourPlane",
+                "start_frame": 90,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 420,
+                  "translation_y": 80,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": 2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 420,
+                    "y": 80,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 460,
+                    "y": 100,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layer-6",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-2",
+                "media_id": "realistic-titles-shape-2",
+                "kind": "GeneratedShapePlane",
+                "start_frame": 180,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 750,
+                  "translation_y": 80,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": -2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 750,
+                    "y": 80,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 790,
+                    "y": 100,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layer-7",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-3",
+                "media_id": "realistic-titles-shape-3",
+                "kind": "SolidColourPlane",
+                "start_frame": 270,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 90,
+                  "translation_y": 300,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": 2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 90,
+                    "y": 300,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 130,
+                    "y": 320,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Blur": {
+                      "radius": 2,
+                      "strength": 1
+                    }
+                  },
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layer-8",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-4",
+                "media_id": "realistic-titles-shape-4",
+                "kind": "GeneratedShapePlane",
+                "start_frame": 360,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 420,
+                  "translation_y": 300,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": -2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 420,
+                    "y": 300,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 460,
+                    "y": 320,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layer-9",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-5",
+                "media_id": "realistic-titles-shape-5",
+                "kind": "SolidColourPlane",
+                "start_frame": 450,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 750,
+                  "translation_y": 300,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": 2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 750,
+                    "y": 300,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 790,
+                    "y": 320,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layer-10",
+            "clips": [
+              {
+                "id": "realistic-titles-shape-6",
+                "media_id": "realistic-titles-shape-6",
+                "kind": "GeneratedShapePlane",
+                "start_frame": 540,
+                "duration_frames": 600,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 90,
+                  "translation_y": 520,
+                  "scale_x": 1,
+                  "scale_y": 1,
+                  "rotation_degrees": -2,
+                  "sampling": "nearest"
+                },
+                "opacity": 0.78,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 90,
+                    "y": 520,
+                    "easing": "easeInOutQuad"
+                  },
+                  {
+                    "frame_offset": 600,
+                    "x": 130,
+                    "y": 540,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Blur": {
+                      "radius": 2,
+                      "strength": 1
+                    }
+                  },
+                  {
+                    "Outline": {
+                      "colour": [
+                        1,
+                        1,
+                        1
+                      ],
+                      "thickness": 2,
+                      "opacity": 0.45
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "group_controls": []
+      },
+      "media": [
+        {
+          "id": "realistic-titles-heading",
+          "kind": "Text",
+          "source": "{\"text\":\"重いけれど現実的な編集\",\"fontSize\":76,\"fontFamily\":\"Hiragino Sans\",\"fill\":\"#ffffff\",\"textAlignment\":\"left\",\"letterSpacing\":2,\"textStroke\":{\"colour\":\"#111827\",\"width\":5},\"textShadow\":{\"colour\":\"#000000\",\"offsetX\":8,\"offsetY\":10,\"blur\":8}}",
+          "width": 502,
+          "height": 95
+        },
+        {
+          "id": "realistic-titles-shape-0",
+          "kind": "GeneratedShape",
+          "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+          "width": 280,
+          "height": 170
+        },
+        {
+          "id": "realistic-titles-shape-1",
+          "kind": "SolidColour",
+          "source": "#351c4d",
+          "width": 280,
+          "height": 170
+        },
+        {
+          "id": "realistic-titles-shape-2",
+          "kind": "GeneratedShape",
+          "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+          "width": 280,
+          "height": 170
+        },
+        {
+          "id": "realistic-titles-shape-3",
+          "kind": "SolidColour",
+          "source": "#351c4d",
+          "width": 280,
+          "height": 170
+        },
+        {
+          "id": "realistic-titles-shape-4",
+          "kind": "GeneratedShape",
+          "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+          "width": 280,
+          "height": 170
+        },
+        {
+          "id": "realistic-titles-shape-5",
+          "kind": "SolidColour",
+          "source": "#351c4d",
+          "width": 280,
+          "height": 170
+        },
+        {
+          "id": "realistic-titles-shape-6",
+          "kind": "GeneratedShape",
+          "source": "{\"shapeType\":\"rounded_rect\",\"width\":280,\"height\":170,\"fill\":\"#12213d\",\"cornerRadius\":20}",
+          "width": 280,
+          "height": 170
+        }
+      ]
+    }
+  }
 }
