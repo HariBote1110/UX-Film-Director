@@ -108,21 +108,23 @@ const tsMedia = objects
   .filter((object) => object.type !== 'audio' && object.type !== 'group_control')
   .sort((left, right) => left.layer - right.layer)
   .map((object) => mediaReferenceForEditableRustScene(object as never, settings.fps, objects));
-// TS の editable builder が現在受理する V1 対象だけで Project を生成する。
-// 42 種全体の media は上の canonical serializer で引き続き coverage する。
+// 常駐用のProjectは現行TS builderが受理するV1対象だけで生成する。
+// 42種全体のTS builder結果も別に保存し、media coverageとは混同しない。
 const editableProjectObjects = objects.filter((object) => [
   'group_control',
   'shape', 'image', 'video', 'psd', 'text', 'particle', 'audio_visualization', 'audio_sphere',
   'getcolor_dot_field', 'hksy_checker_grid', 'region_frame', 'simple_tube', 'hologram',
   'shaking_polygon', 'shattered_sphere',
 ].includes(object.type));
-const tsResult = buildEditableRustScene({ sceneId: 'all-object-types', projectSettings: settings, layers, objects: editableProjectObjects });
-if (!tsResult.ok) throw new Error(`coverage fixture の TS builder が失敗: ${JSON.stringify(tsResult.issues)}`);
+const tsResidentResult = buildEditableRustScene({ sceneId: 'all-object-types', projectSettings: settings, layers, objects: editableProjectObjects });
+if (!tsResidentResult.ok) throw new Error(`coverage fixture の TS builder (resident subset) が失敗: ${JSON.stringify(tsResidentResult.issues)}`);
+const tsFullResult = buildEditableRustScene({ sceneId: 'all-object-types', projectSettings: settings, layers, objects });
 export const buildEditableSceneBuilderCoverageFixture = () => ({
   version: 1,
   scene_id: 'all-object-types',
   graph,
-  ts_result: { project: tsResult.project, media: tsMedia },
+  ts_result: tsFullResult,
+  resident_result: { project: tsResidentResult.project, media: tsMedia },
 });
 const fixture = buildEditableSceneBuilderCoverageFixture();
 

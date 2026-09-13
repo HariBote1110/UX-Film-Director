@@ -15,6 +15,7 @@ use schemars::{JsonSchema, SchemaGenerator};
 use ts_rs::{Config, TS};
 use uxfd_rust_core::agent_project::AgentProjectSpec;
 use uxfd_rust_core::command::Command;
+use uxfd_rust_core::editable_scene_builder::{BuiltEvaluationScene, EditableSceneDiagnostic};
 use uxfd_rust_core::schema::{
     AsanohaPatternObjectFields, AudioLabPhoneme, AudioObjectFields, AudioSphereObjectFields,
     AudioVisualizationObjectFields, AudioVisualizationType, BarcodeObjectFields, BaseObject,
@@ -73,6 +74,8 @@ fn write_ts_bindings() {
     ProjectFile::export_all(&cfg).expect("ProjectFile の TS export に失敗しました");
     SceneSnapshot::export_all(&cfg).expect("SceneSnapshot の TS export に失敗しました");
     EvaluatedClip::export_all(&cfg).expect("EvaluatedClip の TS export に失敗しました");
+    BuiltEvaluationScene::export_all(&cfg).expect("BuiltEvaluationScene の TS export に失敗しました");
+    EditableSceneDiagnostic::export_all(&cfg).expect("EditableSceneDiagnostic の TS export に失敗しました");
     ShapeObjectFields::export_all(&cfg).expect("ShapeObjectFields の TS export に失敗しました");
     TextObjectFields::export_all(&cfg).expect("TextObjectFields の TS export に失敗しました");
     ImageObjectFields::export_all(&cfg).expect("ImageObjectFields の TS export に失敗しました");
@@ -306,6 +309,8 @@ fn write_json_schemas() {
     write_schema::<GroupControlObjectFields>(&dir, "GroupControlObjectFields");
     write_schema::<SceneSnapshot>(&dir, "SceneSnapshot");
     write_schema::<EvaluatedClip>(&dir, "EvaluatedClip");
+    write_schema::<BuiltEvaluationScene>(&dir, "BuiltEvaluationScene");
+    write_schema::<EditableSceneDiagnostic>(&dir, "EditableSceneDiagnostic");
     write_schema::<Vec3>(&dir, "Vec3");
     write_schema::<StageCamera3D>(&dir, "StageCamera3D");
     write_schema::<PsdWorldPlacement>(&dir, "PsdWorldPlacement");

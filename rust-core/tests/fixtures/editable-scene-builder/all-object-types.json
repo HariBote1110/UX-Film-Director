@@ -1438,6 +1438,136 @@
     ]
   },
   "ts_result": {
+    "ok": false,
+    "issues": [
+      {
+        "objectId": "barcode",
+        "code": "unsupportedObjectType",
+        "detail": "barcode はV1対象外です"
+      },
+      {
+        "objectId": "puzzle_piece",
+        "code": "unsupportedObjectType",
+        "detail": "puzzle_piece はV1対象外です"
+      },
+      {
+        "objectId": "colour_wheel",
+        "code": "unsupportedObjectType",
+        "detail": "colour_wheel はV1対象外です"
+      },
+      {
+        "objectId": "gourd",
+        "code": "unsupportedObjectType",
+        "detail": "gourd はV1対象外です"
+      },
+      {
+        "objectId": "gear",
+        "code": "unsupportedObjectType",
+        "detail": "gear はV1対象外です"
+      },
+      {
+        "objectId": "track_bar",
+        "code": "unsupportedObjectType",
+        "detail": "track_bar はV1対象外です"
+      },
+      {
+        "objectId": "pie_chart",
+        "code": "unsupportedObjectType",
+        "detail": "pie_chart はV1対象外です"
+      },
+      {
+        "objectId": "histogram",
+        "code": "unsupportedObjectType",
+        "detail": "histogram はV1対象外です"
+      },
+      {
+        "objectId": "tone_curve",
+        "code": "unsupportedObjectType",
+        "detail": "tone_curve はV1対象外です"
+      },
+      {
+        "objectId": "sphere_dots",
+        "code": "unsupportedObjectType",
+        "detail": "sphere_dots はV1対象外です"
+      },
+      {
+        "objectId": "spherical_field",
+        "code": "unsupportedObjectType",
+        "detail": "spherical_field はV1対象外です"
+      },
+      {
+        "objectId": "sunburst",
+        "code": "unsupportedObjectType",
+        "detail": "sunburst はV1対象外です"
+      },
+      {
+        "objectId": "circular_arrow",
+        "code": "unsupportedObjectType",
+        "detail": "circular_arrow はV1対象外です"
+      },
+      {
+        "objectId": "triangle_bracket",
+        "code": "unsupportedObjectType",
+        "detail": "triangle_bracket はV1対象外です"
+      },
+      {
+        "objectId": "tartan_check",
+        "code": "unsupportedObjectType",
+        "detail": "tartan_check はV1対象外です"
+      },
+      {
+        "objectId": "houndstooth",
+        "code": "unsupportedObjectType",
+        "detail": "houndstooth はV1対象外です"
+      },
+      {
+        "objectId": "yagasuri",
+        "code": "unsupportedObjectType",
+        "detail": "yagasuri はV1対象外です"
+      },
+      {
+        "objectId": "paper_airplane",
+        "code": "unsupportedObjectType",
+        "detail": "paper_airplane はV1対象外です"
+      },
+      {
+        "objectId": "asanoha_pattern",
+        "code": "unsupportedObjectType",
+        "detail": "asanoha_pattern はV1対象外です"
+      },
+      {
+        "objectId": "focus_lines_plus",
+        "code": "unsupportedObjectType",
+        "detail": "focus_lines_plus はV1対象外です"
+      },
+      {
+        "objectId": "random_line_ex",
+        "code": "unsupportedObjectType",
+        "detail": "random_line_ex はV1対象外です"
+      },
+      {
+        "objectId": "contour_trace",
+        "code": "unsupportedObjectType",
+        "detail": "contour_trace はV1対象外です"
+      },
+      {
+        "objectId": "displacement_poly",
+        "code": "unsupportedObjectType",
+        "detail": "displacement_poly はV1対象外です"
+      },
+      {
+        "objectId": "plain_effector_line",
+        "code": "unsupportedObjectType",
+        "detail": "plain_effector_line はV1対象外です"
+      },
+      {
+        "objectId": "protractor",
+        "code": "unsupportedObjectType",
+        "detail": "protractor はV1対象外です"
+      }
+    ]
+  },
+  "resident_result": {
     "project": {
       "id": "all-object-types",
       "version": 1,
