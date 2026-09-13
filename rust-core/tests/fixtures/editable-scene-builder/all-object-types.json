@@ -511,13 +511,13 @@
         "endX": 640,
         "endY": 360,
         "easing": "linear",
-        "particleCount": 96,
+        "particleCount": 1,
         "seed": 93,
-        "spread": 160,
+        "spread": 0,
         "speed": 90,
         "size": 4,
         "colour": "#ffffff",
-        "lifetimeSeconds": 2
+        "lifetimeSeconds": 0.01
       },
       {
         "id": "barcode",
@@ -539,9 +539,9 @@
         "endY": 450,
         "easing": "linear",
         "data": "AviUtl",
-        "minimumBarWidth": 2,
-        "horizontalMargin": 30,
-        "verticalMargin": 20,
+        "minimumBarWidth": 0.1,
+        "horizontalMargin": 0,
+        "verticalMargin": 7,
         "foregroundColour": "#000000",
         "backgroundColour": "#ffffff"
       },
@@ -564,8 +564,8 @@
         "endX": 840,
         "endY": 420,
         "easing": "linear",
-        "size": 120,
-        "shapeVariant": 1,
+        "size": 1,
+        "shapeVariant": 0,
         "connectorMode": "convex",
         "fillColour": "#ffffff"
       },
@@ -588,11 +588,11 @@
         "endX": 840,
         "endY": 420,
         "easing": "linear",
-        "radius": 120,
-        "saturation": 100,
+        "radius": 1,
+        "saturation": 0,
         "brightness": 100,
         "ringWidthPercent": 25,
-        "segmentCount": 24
+        "segmentCount": 3
       },
       {
         "id": "gourd",
@@ -613,10 +613,10 @@
         "endX": 760,
         "endY": 340,
         "easing": "linear",
-        "bodyRadius": 80,
+        "bodyRadius": 1,
         "bodyWidth": 250,
         "waistRadius": 10,
-        "squashPercent": 40,
+        "squashPercent": 0,
         "repeatCount": 1,
         "fillColour": "#ffffff"
       },
@@ -639,9 +639,9 @@
         "endX": 800,
         "endY": 380,
         "easing": "linear",
-        "outerRadius": 160,
-        "innerRadiusPercent": 45,
-        "toothCount": 20,
+        "outerRadius": 1,
+        "innerRadiusPercent": 0,
+        "toothCount": 3,
         "toothDepthPercent": 18,
         "toothSkewPercent": 0,
         "fillColour": "#ffffff"
@@ -665,36 +665,9 @@
         "endX": 780,
         "endY": 480,
         "easing": "linear",
-        "trackValues": [
-          0,
-          0,
-          0,
-          0
-        ],
-        "trackRanges": [
-          [
-            0,
-            100
-          ],
-          [
-            0,
-            100
-          ],
-          [
-            0,
-            100
-          ],
-          [
-            -100,
-            100
-          ]
-        ],
-        "labels": [
-          "TrackA",
-          "TrackB",
-          "TrackC",
-          "TrackD"
-        ],
+        "trackValues": [],
+        "trackRanges": [],
+        "labels": [],
         "barColour": "#ffffff",
         "backgroundOpacity": 0.05
       },
@@ -718,15 +691,13 @@
         "endY": 340,
         "easing": "linear",
         "values": [
-          10,
-          20,
-          30,
-          40
+          0,
+          1
         ],
-        "sortMode": "descending",
-        "normaliseToHundred": true,
+        "sortMode": "none",
+        "normaliseToHundred": false,
         "labelMode": "percentage",
-        "progressPercent": 100,
+        "progressPercent": 0,
         "strokeWidth": 20,
         "sliceColours": [
           "#389ba6",
@@ -755,17 +726,8 @@
         "endX": 832,
         "endY": 440,
         "easing": "linear",
-        "binValues": [
-          0.08,
-          0.18,
-          0.32,
-          0.55,
-          0.78,
-          0.92,
-          0.64,
-          0.36
-        ],
-        "heightScalePercent": 100,
+        "binValues": [],
+        "heightScalePercent": 0,
         "lineWidth": 1,
         "showLuminance": true,
         "showRed": true,
@@ -799,7 +761,7 @@
         "endY": 360,
         "easing": "linear",
         "gridDivisions": 4,
-        "lineWidth": 3,
+        "lineWidth": 1,
         "curvePoints": [
           0,
           0.16,
@@ -809,7 +771,9 @@
         ],
         "curveColour": "#ffffff",
         "gridColour": "#333333",
-        "backgroundColour": "#000000"
+        "backgroundColour": "#000000",
+        "points": [],
+        "channel": "red"
       },
       {
         "id": "sphere_dots",
@@ -830,7 +794,7 @@
         "endX": 720,
         "endY": 300,
         "easing": "linear",
-        "radius": 170,
+        "radius": 1,
         "columns": 16,
         "rows": 12,
         "rotationDegrees": 10,
@@ -841,7 +805,10 @@
         "colour": "#ffffff",
         "secondaryColour": "#36c2ff",
         "seed": 93,
-        "planeMode": false
+        "planeMode": false,
+        "dotSize": 0,
+        "latitudeCount": 2,
+        "longitudeCount": 3
       },
       {
         "id": "spherical_field",
@@ -862,7 +829,7 @@
         "endX": 720,
         "endY": 300,
         "easing": "linear",
-        "radius": 160,
+        "radius": 1,
         "strength": 100,
         "colourAmount": 100,
         "alphaAmount": 0,
@@ -873,7 +840,10 @@
         "secondaryColour": "#36c2ff",
         "backgroundOpacity": 0.08,
         "container": false,
-        "seed": 93
+        "seed": 93,
+        "pointCount": 1,
+        "pointSize": 0,
+        "randomAmount": 0
       },
       {
         "id": "sunburst",
@@ -894,12 +864,12 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "rayCount": 10,
-        "rayCoveragePercent": 50,
+        "rayCount": 1,
+        "rayCoveragePercent": 0,
         "rotationOffsetDegrees": 0,
-        "centreXPercent": 50,
+        "centreXPercent": 0,
         "centreYPercent": 50,
-        "motifSize": 200,
+        "motifSize": 1,
         "motifShape": "circle",
         "rayColour": "#ff0000",
         "backgroundColour": "#ffff00"
@@ -923,10 +893,10 @@
         "endX": 860,
         "endY": 440,
         "easing": "linear",
-        "radius": 100,
-        "lineWidth": 20,
-        "headSize": 50,
-        "angleDegrees": 260,
+        "radius": 1,
+        "lineWidth": 0,
+        "headSize": 1,
+        "angleDegrees": 0,
         "centreAngleDegrees": 0,
         "headShape": "triangle",
         "showTailHead": false,
@@ -953,9 +923,9 @@
         "endX": 880,
         "endY": 490,
         "easing": "linear",
-        "bracketWidth": 100,
-        "angleDegrees": 120,
-        "armLength": 50,
+        "bracketWidth": 1,
+        "angleDegrees": -180,
+        "armLength": 1,
         "offsetDistance": 0,
         "bracketColour": "#ffffff"
       },
@@ -978,8 +948,8 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "tileSize": 100,
-        "blurRadius": 1,
+        "tileSize": 1,
+        "blurRadius": 0,
         "baseColour": "#143e10",
         "stripeColourA": "#a81616",
         "stripeColourB": "#c9c526",
@@ -1004,7 +974,7 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "patternSize": 50,
+        "patternSize": 1,
         "foregroundColour": "#000000",
         "backgroundColour": "#ffffff"
       },
@@ -1027,10 +997,10 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "arrowWidth": 15,
-        "arrowHeight": 65,
-        "lineWidth": 2,
-        "staggered": true,
+        "arrowWidth": 1,
+        "arrowHeight": 1,
+        "lineWidth": 0,
+        "staggered": false,
         "foregroundColour": "#000000",
         "backgroundColour": "#ffffff"
       },
@@ -1053,10 +1023,10 @@
         "endX": 800,
         "endY": 420,
         "easing": "linear",
-        "bodyLength": 200,
-        "wingWidth": 80,
-        "foldHeight": 50,
-        "gap": 50,
+        "bodyLength": 1,
+        "wingWidth": 1,
+        "foldHeight": 0,
+        "gap": 0,
         "followMotionDirection": false,
         "axisMode": 0,
         "fillColour": "#ffffff"
@@ -1080,8 +1050,8 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "patternSize": 50,
-        "lineWidth": 2,
+        "patternSize": 1,
+        "lineWidth": 0,
         "foregroundColour": "#000000",
         "backgroundColour": "#ffffff"
       },
@@ -1104,15 +1074,15 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "rayWidth": 1,
-        "gap": 5,
-        "centreRadius": 100,
+        "rayWidth": 0,
+        "gap": 0,
+        "centreRadius": 0,
         "rotationDegrees": 0,
         "centreX": 400,
         "centreY": 225,
-        "centreJitterPercent": 20,
+        "centreJitterPercent": 0,
         "seed": 0,
-        "keyframeInterval": 0,
+        "keyframeInterval": 1,
         "lineColour": "#ffffff"
       },
       {
@@ -1134,10 +1104,10 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "lineCount": 3,
-        "lineWidth": 6,
-        "threshold": 128,
-        "noiseCellSize": 12,
+        "lineCount": 1,
+        "lineWidth": 0,
+        "threshold": 0,
+        "noiseCellSize": 1,
         "widthVariance": 0,
         "seed": 0,
         "lineColour": "#ffffff"
@@ -1161,9 +1131,9 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "lineWidth": 3,
-        "contourCount": 5,
-        "jitterAmount": 1.5,
+        "lineWidth": 0,
+        "contourCount": 1,
+        "jitterAmount": 0,
         "traceColour": "#ffffff",
         "backgroundOpacity": 0,
         "seed": 93
@@ -1187,12 +1157,12 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "columns": 14,
-        "rows": 8,
-        "displacementScale": 42,
-        "depthScale": 18,
-        "meshOpacity": 0.85,
-        "fillOpacity": 0.18,
+        "columns": 1,
+        "rows": 1,
+        "displacementScale": 0,
+        "depthScale": 0,
+        "meshOpacity": 0,
+        "fillOpacity": 0,
         "lineColour": "#36c2ff",
         "fillColour": "#0b1020",
         "seed": 93
@@ -1216,15 +1186,15 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "radius": 100,
-        "strength": 1,
-        "randomness": 0,
-        "zoom": 1,
+        "radius": -1,
+        "strength": 10,
+        "randomness": -1000,
+        "zoom": -2,
         "invert": false,
-        "lineCount": 24,
-        "lineWidth": 2,
-        "colour": "#f74d52",
-        "colourAmount": 1,
+        "lineCount": 0,
+        "lineWidth": 0,
+        "colour": "invalid",
+        "colourAmount": 0,
         "seed": 93
       },
       {
@@ -1246,11 +1216,11 @@
         "endX": 560,
         "endY": 315,
         "easing": "linear",
-        "tileSize": 80,
-        "rotationDegrees": 0,
-        "gradientAngleDegrees": -60,
-        "colourMode": 1,
-        "tintColour": "#ffffff"
+        "tileSize": 9,
+        "rotationDegrees": -720,
+        "gradientAngleDegrees": 720,
+        "colourMode": 0,
+        "tintColour": "invalid"
       },
       {
         "id": "protractor",
@@ -1271,12 +1241,12 @@
         "endX": 750,
         "endY": 420,
         "easing": "linear",
-        "radius": 180,
-        "measuredAngleDegrees": 90,
-        "tickStepDegrees": 10,
-        "majorTickStepDegrees": 30,
-        "decimalPlaces": 1,
-        "lineColour": "#ffffff",
+        "radius": 0,
+        "measuredAngleDegrees": 0,
+        "tickStepDegrees": 1,
+        "majorTickStepDegrees": 1,
+        "decimalPlaces": 0,
+        "lineColour": "invalid",
         "textColour": "#ffffff",
         "shadowColour": "#000000"
       },
@@ -1469,7 +1439,7 @@
   },
   "ts_result": {
     "project": {
-      "id": "editable-scene",
+      "id": "all-object-types",
       "version": 1,
       "size": {
         "width": 1920,
@@ -1488,202 +1458,115 @@
         {
           "id": "text",
           "kind": "Text",
-          "source": "{\"text\":\"Coverage\",\"fontSize\":42,\"fontFamily\":\"sans-serif\",\"fill\":\"#f0c\",\"measuredWidth\":320,\"measuredHeight\":60,\"textAlignment\":\"centre\",\"letterSpacing\":2}"
+          "source": "{\"text\":\"Coverage\",\"fontSize\":42,\"fontFamily\":\"sans-serif\",\"fill\":\"#f0c\",\"measuredWidth\":320,\"measuredHeight\":60,\"textAlignment\":\"centre\",\"letterSpacing\":2}",
+          "width": 320,
+          "height": 60
         },
         {
           "id": "shape",
           "kind": "GeneratedShape",
-          "source": "{\"shapeType\":\"ellipse\",\"width\":320,\"height\":180,\"fill\":\"#123456\",\"cornerRadius\":9}"
+          "source": "{\"shapeType\":\"ellipse\",\"width\":320,\"height\":180,\"fill\":\"#123456\",\"cornerRadius\":9}",
+          "width": 320,
+          "height": 180
         },
         {
           "id": "image",
           "kind": "Image",
-          "source": "/fixtures/coverage.png"
+          "source": "/fixtures/coverage.png",
+          "width": 320,
+          "height": 180
         },
         {
           "id": "video",
           "kind": "Video",
-          "source": "/fixtures/coverage.mp4"
+          "source": "/fixtures/coverage.mp4",
+          "width": 320,
+          "height": 180,
+          "source_rate": {
+            "numerator": 60,
+            "denominator": 1
+          }
         },
         {
           "id": "psd",
           "kind": "Psd",
-          "source": "/fixtures/coverage.psd"
+          "source": "/fixtures/coverage.psd",
+          "width": 320,
+          "height": 180,
+          "active_layer_ids": [
+            "a-layer",
+            "z-layer"
+          ]
         },
         {
           "id": "audio_visualization",
           "kind": "GeneratedAudioWaveform",
-          "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio\",\"target_source\":\"/fixtures/coverage.wav\",\"sample_window_seconds\":0.05,\"colour\":\"#f00\",\"thickness\":3,\"amplitude\":1.4}"
+          "source": "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"\",\"target_source\":\"\",\"sample_window_seconds\":0.05,\"colour\":\"#f00\",\"thickness\":3,\"amplitude\":1.4}",
+          "width": 320,
+          "height": 120
         },
         {
           "id": "audio_sphere",
           "kind": "GeneratedAudioSphere",
-          "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"audio\",\"target_source\":\"/fixtures/coverage.wav\",\"sample_window_seconds\":0.2,\"columns\":20,\"rows\":14,\"base_radius\":120,\"audio_influence\":0.8,\"point_size\":6,\"polygon_size\":0.4,\"random_amount\":0.1,\"colour\":\"#36c2ff\",\"seed\":17}"
+          "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"\",\"target_source\":\"\",\"sample_window_seconds\":0.2,\"columns\":20,\"rows\":14,\"base_radius\":120,\"audio_influence\":0.8,\"point_size\":6,\"polygon_size\":0.4,\"random_amount\":0.1,\"colour\":\"#36c2ff\",\"seed\":17}",
+          "width": 320,
+          "height": 320
         },
         {
           "id": "particle",
           "kind": "GeneratedParticle",
-          "source": "{\"width\":640,\"height\":360,\"particleCount\":96,\"seed\":93,\"spread\":160,\"speed\":90,\"size\":4,\"colour\":\"#ffffff\",\"lifetimeSeconds\":2}"
-        },
-        {
-          "id": "barcode",
-          "kind": "GeneratedBarcode",
-          "source": "{\"width\":520,\"height\":180,\"data\":\"AviUtl\",\"minimumBarWidth\":2,\"horizontalMargin\":30,\"verticalMargin\":20,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "puzzle_piece",
-          "kind": "GeneratedPuzzlePiece",
-          "source": "{\"width\":240,\"height\":240,\"size\":120,\"shapeVariant\":1,\"connectorMode\":\"convex\",\"fillColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "colour_wheel",
-          "kind": "GeneratedColourWheel",
-          "source": "{\"width\":240,\"height\":240,\"radius\":120,\"saturation\":100,\"brightness\":100,\"ringWidthPercent\":25,\"segmentCount\":24}"
-        },
-        {
-          "id": "gourd",
-          "kind": "GeneratedGourd",
-          "source": "{\"width\":400,\"height\":400,\"bodyRadius\":80,\"bodyWidth\":250,\"waistRadius\":10,\"squashPercent\":40,\"repeatCount\":1,\"fillColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "gear",
-          "kind": "GeneratedGear",
-          "source": "{\"width\":320,\"height\":320,\"outerRadius\":160,\"innerRadiusPercent\":45,\"toothCount\":20,\"toothDepthPercent\":18,\"toothSkewPercent\":0,\"fillColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "track_bar",
-          "kind": "GeneratedTrackBar",
-          "source": "{\"width\":360,\"height\":120,\"trackValues\":[0,0,0,0],\"trackRanges\":[[0,100],[0,100],[0,100],[-100,100]],\"labels\":[\"TrackA\",\"TrackB\",\"TrackC\",\"TrackD\"],\"barColour\":\"#ffffff\",\"backgroundOpacity\":0.05}"
-        },
-        {
-          "id": "pie_chart",
-          "kind": "GeneratedPieChart",
-          "source": "{\"width\":400,\"height\":400,\"values\":[10,20,30,40],\"sortMode\":\"descending\",\"normaliseToHundred\":true,\"labelMode\":\"percentage\",\"progressPercent\":100,\"strokeWidth\":20,\"sliceColours\":[\"#389ba6\",\"#f2e2c4\",\"#f29422\",\"#f27830\",\"#f24b0f\"]}"
-        },
-        {
-          "id": "histogram",
-          "kind": "GeneratedHistogram",
-          "source": "{\"width\":256,\"height\":200,\"binValues\":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],\"heightScalePercent\":100,\"lineWidth\":1,\"showLuminance\":true,\"showRed\":true,\"showGreen\":true,\"showBlue\":true,\"channelColours\":[\"#ffffff\",\"#ff4b4b\",\"#4bff6a\",\"#4b8cff\"],\"backgroundColour\":\"#000000\"}"
-        },
-        {
-          "id": "tone_curve",
-          "kind": "GeneratedToneCurve",
-          "source": "{\"width\":360,\"height\":360,\"gridDivisions\":4,\"lineWidth\":3,\"curvePoints\":[0,0.16,0.42,0.7,1],\"curveColour\":\"#ffffff\",\"gridColour\":\"#333333\",\"backgroundColour\":\"#000000\"}"
+          "source": "{\"width\":640,\"height\":360,\"particleCount\":1,\"seed\":93,\"spread\":0,\"speed\":90,\"size\":4,\"colour\":\"#ffffff\",\"lifetimeSeconds\":0.01}",
+          "width": 640,
+          "height": 360
         },
         {
           "id": "hksy_checker_grid",
           "kind": "GeneratedHksyCheckerGrid",
-          "source": "{\"width\":320,\"height\":180,\"pattern\":\"grid\",\"cellSize\":24,\"lineWidth\":3,\"checkerEnabled\":true,\"gridEnabled\":false,\"foregroundColour\":\"#ffffff\",\"secondaryColour\":\"#00ffff\",\"backgroundColour\":\"#111111\"}"
+          "source": "{\"width\":320,\"height\":180,\"pattern\":\"grid\",\"cellSize\":24,\"lineWidth\":3,\"checkerEnabled\":true,\"gridEnabled\":false,\"foregroundColour\":\"#ffffff\",\"secondaryColour\":\"#00ffff\",\"backgroundColour\":\"#111111\"}",
+          "width": 320,
+          "height": 180
         },
         {
           "id": "getcolor_dot_field",
           "kind": "GeneratedGetColorDots",
-          "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":24,\"rows\":12,\"dot_size\":8,\"size_influence\":0.4,\"luminance_influence\":0.8,\"hue_shift_degrees\":12,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#00ffff\",\"background_colour\":\"#111111\",\"seed\":17}"
+          "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":24,\"rows\":12,\"dot_size\":8,\"size_influence\":0.4,\"luminance_influence\":0.8,\"hue_shift_degrees\":12,\"alternate_rows\":false,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#00ffff\",\"background_colour\":\"#111111\",\"seed\":17}",
+          "width": 320,
+          "height": 180
         },
         {
           "id": "region_frame",
           "kind": "GeneratedRegionFrame",
-          "source": "{\"width\":320,\"height\":180,\"lineWidth\":8,\"shape\":\"ellipse\",\"extraWidth\":4,\"extraHeight\":5,\"backgroundOpacity\":0.3,\"frameColour\":\"#fff\",\"backgroundColour\":\"#ccf\"}"
-        },
-        {
-          "id": "sphere_dots",
-          "kind": "GeneratedSphereDots",
-          "source": "{\"width\":480,\"height\":480,\"radius\":170,\"columns\":16,\"rows\":12,\"rotationDegrees\":10,\"offsetDegrees\":0,\"luminanceInfluence\":0,\"pointSize\":6,\"latitudeLineWidth\":2,\"colour\":\"#ffffff\",\"secondaryColour\":\"#36c2ff\",\"seed\":93,\"planeMode\":false}"
-        },
-        {
-          "id": "spherical_field",
-          "kind": "GeneratedSphericalField",
-          "source": "{\"width\":480,\"height\":480,\"radius\":160,\"strength\":100,\"colourAmount\":100,\"alphaAmount\":0,\"lineWidth\":3,\"ringCount\":4,\"vectorCount\":16,\"fieldColour\":\"#ff3b30\",\"secondaryColour\":\"#36c2ff\",\"backgroundOpacity\":0.08,\"container\":false,\"seed\":93}"
-        },
-        {
-          "id": "sunburst",
-          "kind": "GeneratedSunburst",
-          "source": "{\"width\":800,\"height\":450,\"rayCount\":10,\"rayCoveragePercent\":50,\"rotationOffsetDegrees\":0,\"centreXPercent\":50,\"centreYPercent\":50,\"motifSize\":200,\"motifShape\":\"circle\",\"rayColour\":\"#ff0000\",\"backgroundColour\":\"#ffff00\"}"
-        },
-        {
-          "id": "circular_arrow",
-          "kind": "GeneratedCircularArrow",
-          "source": "{\"width\":200,\"height\":200,\"radius\":100,\"lineWidth\":20,\"headSize\":50,\"angleDegrees\":260,\"centreAngleDegrees\":0,\"headShape\":\"triangle\",\"showTailHead\":false,\"flipVertical\":false,\"flipHorizontal\":false,\"arrowColour\":\"#ffff00\"}"
-        },
-        {
-          "id": "triangle_bracket",
-          "kind": "GeneratedTriangleBracket",
-          "source": "{\"width\":160,\"height\":100,\"bracketWidth\":100,\"angleDegrees\":120,\"armLength\":50,\"offsetDistance\":0,\"bracketColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "tartan_check",
-          "kind": "GeneratedTartanCheck",
-          "source": "{\"width\":800,\"height\":450,\"tileSize\":100,\"blurRadius\":1,\"baseColour\":\"#143e10\",\"stripeColourA\":\"#a81616\",\"stripeColourB\":\"#c9c526\",\"lineColour\":\"#000000\"}"
-        },
-        {
-          "id": "houndstooth",
-          "kind": "GeneratedHoundstooth",
-          "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "yagasuri",
-          "kind": "GeneratedYagasuri",
-          "source": "{\"width\":800,\"height\":450,\"arrowWidth\":15,\"arrowHeight\":65,\"lineWidth\":2,\"staggered\":true,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "paper_airplane",
-          "kind": "GeneratedPaperAirplane",
-          "source": "{\"width\":320,\"height\":240,\"bodyLength\":200,\"wingWidth\":80,\"foldHeight\":50,\"gap\":50,\"followMotionDirection\":false,\"axisMode\":0,\"fillColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "asanoha_pattern",
-          "kind": "GeneratedAsanohaPattern",
-          "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"lineWidth\":2,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "focus_lines_plus",
-          "kind": "GeneratedFocusLinesPlus",
-          "source": "{\"width\":800,\"height\":450,\"rayWidth\":1,\"gap\":5,\"centreRadius\":100,\"rotationDegrees\":0,\"centreX\":400,\"centreY\":225,\"centreJitterPercent\":20,\"seed\":0,\"keyframeInterval\":0,\"lineColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "random_line_ex",
-          "kind": "GeneratedRandomLineEx",
-          "source": "{\"width\":800,\"height\":450,\"lineCount\":3,\"lineWidth\":6,\"threshold\":128,\"noiseCellSize\":12,\"widthVariance\":0,\"seed\":0,\"lineColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "contour_trace",
-          "kind": "GeneratedContourTrace",
-          "source": "{\"width\":800,\"height\":450,\"lineWidth\":3,\"contourCount\":5,\"jitterAmount\":1.5,\"traceColour\":\"#ffffff\",\"backgroundOpacity\":0,\"seed\":93}"
-        },
-        {
-          "id": "displacement_poly",
-          "kind": "GeneratedDisplacementPoly",
-          "source": "{\"width\":800,\"height\":450,\"columns\":14,\"rows\":8,\"displacementScale\":42,\"depthScale\":18,\"meshOpacity\":0.85,\"fillOpacity\":0.18,\"lineColour\":\"#36c2ff\",\"fillColour\":\"#0b1020\",\"seed\":93}"
-        },
-        {
-          "id": "plain_effector_line",
-          "kind": "GeneratedPlainEffectorLine",
-          "source": "{\"width\":800,\"height\":450,\"radius\":100,\"strength\":1,\"randomness\":0,\"zoom\":1,\"invert\":false,\"lineCount\":24,\"lineWidth\":2,\"colour\":\"#f74d52\",\"colourAmount\":1,\"seed\":93}"
+          "source": "{\"width\":320,\"height\":180,\"lineWidth\":8,\"shape\":\"ellipse\",\"extraWidth\":4,\"extraHeight\":5,\"backgroundOpacity\":0.3,\"frameColour\":\"#fff\",\"backgroundColour\":\"#ccf\"}",
+          "width": 320,
+          "height": 180
         },
         {
           "id": "hologram",
           "kind": "GeneratedHologram",
-          "source": "{\"width\":800,\"height\":450,\"tileSize\":80,\"rotationDegrees\":0,\"gradientAngleDegrees\":-60,\"colourMode\":1,\"tintColour\":\"#ffffff\"}"
-        },
-        {
-          "id": "protractor",
-          "kind": "GeneratedProtractor",
-          "source": "{\"width\":420,\"height\":240,\"radius\":180,\"measuredAngleDegrees\":90,\"tickStepDegrees\":10,\"majorTickStepDegrees\":30,\"decimalPlaces\":1,\"lineColour\":\"#ffffff\",\"textColour\":\"#ffffff\",\"shadowColour\":\"#000000\"}"
+          "source": "{\"width\":800,\"height\":450,\"tileSize\":10,\"rotationDegrees\":-720,\"gradientAngleDegrees\":720,\"colourMode\":0,\"tintColour\":\"#ffffff\"}",
+          "width": 800,
+          "height": 450
         },
         {
           "id": "simple_tube",
           "kind": "GeneratedSimpleTube",
-          "source": "{\"width\":320,\"height\":180,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":15,\"randomAmount\":0.2,\"strokeWidth\":4,\"colour\":\"#0e769f\",\"secondaryColour\":\"#fff\",\"seed\":17,\"torus\":true}"
+          "source": "{\"width\":320,\"height\":180,\"radius\":120,\"depth\":240,\"segments\":20,\"rings\":12,\"twistDegrees\":15,\"randomAmount\":0.2,\"strokeWidth\":4,\"colour\":\"#0e769f\",\"secondaryColour\":\"#fff\",\"seed\":17,\"torus\":true}",
+          "width": 320,
+          "height": 180
         },
         {
           "id": "shaking_polygon",
           "kind": "GeneratedShakingPolygon",
-          "source": "{\"width\":320,\"height\":320,\"lineWidth\":12,\"vertexCount\":5,\"fixedDiameter\":300,\"verticalDistortionPercent\":8,\"repeatCount\":2,\"repeatFrequency\":3,\"fill\":true,\"jitterRange\":25,\"jitterInterval\":11,\"stepped\":true,\"colour\":\"#ffffff\",\"seed\":17}"
+          "source": "{\"width\":320,\"height\":320,\"lineWidth\":12,\"vertexCount\":5,\"fixedDiameter\":300,\"verticalDistortionPercent\":8,\"repeatCount\":2,\"repeatFrequency\":3,\"fill\":true,\"jitterRange\":25,\"jitterInterval\":11,\"stepped\":true,\"colour\":\"#ffffff\",\"seed\":17}",
+          "width": 320,
+          "height": 320
         },
         {
           "id": "shattered_sphere",
           "kind": "GeneratedShatteredSphere",
-          "source": "{\"width\":320,\"height\":320,\"fractureAmount\":120,\"delay\":90,\"radius\":150,\"limitDistance\":140,\"thickness\":18,\"fragmentSize\":35,\"randomShape\":80,\"speed\":90,\"impact\":80,\"gravityX\":1,\"gravityY\":90,\"gravityZ\":-1,\"spin\":80,\"directionDiffusion\":70,\"colour\":\"#ffffff\",\"seed\":17}"
+          "source": "{\"width\":320,\"height\":320,\"fractureAmount\":120,\"delay\":90,\"radius\":150,\"limitDistance\":140,\"thickness\":18,\"fragmentSize\":35,\"randomShape\":80,\"speed\":90,\"impact\":80,\"gravityX\":1,\"gravityY\":90,\"gravityZ\":-1,\"spin\":80,\"directionDiffusion\":70,\"colour\":\"#ffffff\",\"seed\":17}",
+          "width": 320,
+          "height": 320
         }
       ],
       "tracks": [
@@ -1896,240 +1779,6 @@
           ]
         },
         {
-          "id": "layer-10",
-          "clips": [
-            {
-              "id": "barcode",
-              "media_id": "barcode",
-              "kind": "GeneratedBarcodePlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 713,
-                "translation_y": 450,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-11",
-          "clips": [
-            {
-              "id": "puzzle_piece",
-              "media_id": "puzzle_piece",
-              "kind": "GeneratedPuzzlePiecePlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 853,
-                "translation_y": 420,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-12",
-          "clips": [
-            {
-              "id": "colour_wheel",
-              "media_id": "colour_wheel",
-              "kind": "GeneratedColourWheelPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 853,
-                "translation_y": 420,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-13",
-          "clips": [
-            {
-              "id": "gourd",
-              "media_id": "gourd",
-              "kind": "GeneratedGourdPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 773,
-                "translation_y": 340,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-14",
-          "clips": [
-            {
-              "id": "gear",
-              "media_id": "gear",
-              "kind": "GeneratedGearPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 813,
-                "translation_y": 380,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-15",
-          "clips": [
-            {
-              "id": "track_bar",
-              "media_id": "track_bar",
-              "kind": "GeneratedTrackBarPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 793,
-                "translation_y": 480,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-16",
-          "clips": [
-            {
-              "id": "pie_chart",
-              "media_id": "pie_chart",
-              "kind": "GeneratedPieChartPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 773,
-                "translation_y": 340,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-17",
-          "clips": [
-            {
-              "id": "histogram",
-              "media_id": "histogram",
-              "kind": "GeneratedHistogramPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 845,
-                "translation_y": 440,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-18",
-          "clips": [
-            {
-              "id": "tone_curve",
-              "media_id": "tone_curve",
-              "kind": "GeneratedToneCurvePlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 793,
-                "translation_y": 360,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
           "id": "layer-19",
           "clips": [
             {
@@ -2208,396 +1857,6 @@
           ]
         },
         {
-          "id": "layer-22",
-          "clips": [
-            {
-              "id": "sphere_dots",
-              "media_id": "sphere_dots",
-              "kind": "GeneratedSphereDotsPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 733,
-                "translation_y": 300,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-23",
-          "clips": [
-            {
-              "id": "spherical_field",
-              "media_id": "spherical_field",
-              "kind": "GeneratedSphericalFieldPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 733,
-                "translation_y": 300,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-24",
-          "clips": [
-            {
-              "id": "sunburst",
-              "media_id": "sunburst",
-              "kind": "GeneratedSunburstPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-25",
-          "clips": [
-            {
-              "id": "circular_arrow",
-              "media_id": "circular_arrow",
-              "kind": "GeneratedCircularArrowPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 873,
-                "translation_y": 440,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-26",
-          "clips": [
-            {
-              "id": "triangle_bracket",
-              "media_id": "triangle_bracket",
-              "kind": "GeneratedTriangleBracketPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 893,
-                "translation_y": 490,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-27",
-          "clips": [
-            {
-              "id": "tartan_check",
-              "media_id": "tartan_check",
-              "kind": "GeneratedTartanCheckPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-28",
-          "clips": [
-            {
-              "id": "houndstooth",
-              "media_id": "houndstooth",
-              "kind": "GeneratedHoundstoothPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-29",
-          "clips": [
-            {
-              "id": "yagasuri",
-              "media_id": "yagasuri",
-              "kind": "GeneratedYagasuriPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-30",
-          "clips": [
-            {
-              "id": "paper_airplane",
-              "media_id": "paper_airplane",
-              "kind": "GeneratedPaperAirplanePlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 813,
-                "translation_y": 420,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-31",
-          "clips": [
-            {
-              "id": "asanoha_pattern",
-              "media_id": "asanoha_pattern",
-              "kind": "GeneratedAsanohaPatternPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-32",
-          "clips": [
-            {
-              "id": "focus_lines_plus",
-              "media_id": "focus_lines_plus",
-              "kind": "GeneratedFocusLinesPlusPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-33",
-          "clips": [
-            {
-              "id": "random_line_ex",
-              "media_id": "random_line_ex",
-              "kind": "GeneratedRandomLineExPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-34",
-          "clips": [
-            {
-              "id": "contour_trace",
-              "media_id": "contour_trace",
-              "kind": "GeneratedContourTracePlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-35",
-          "clips": [
-            {
-              "id": "displacement_poly",
-              "media_id": "displacement_poly",
-              "kind": "GeneratedDisplacementPolyPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-36",
-          "clips": [
-            {
-              "id": "plain_effector_line",
-              "media_id": "plain_effector_line",
-              "kind": "GeneratedPlainEffectorLinePlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 573,
-                "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
           "id": "layer-37",
           "clips": [
             {
@@ -2610,32 +1869,6 @@
               "transform": {
                 "translation_x": 573,
                 "translation_y": 315,
-                "scale_x": 1,
-                "scale_y": 1,
-                "rotation_degrees": 0,
-                "sampling": "bilinear"
-              },
-              "opacity": 0.73,
-              "opacity_keyframes": [],
-              "position_keyframes": [],
-              "wipe_animations": [],
-              "effects": []
-            }
-          ]
-        },
-        {
-          "id": "layer-38",
-          "clips": [
-            {
-              "id": "protractor",
-              "media_id": "protractor",
-              "kind": "GeneratedProtractorPlane",
-              "start_frame": 0,
-              "duration_frames": 300,
-              "source_frame_offset": 0,
-              "transform": {
-                "translation_x": 763,
-                "translation_y": 420,
                 "scale_x": 1,
                 "scale_y": 1,
                 "rotation_degrees": 0,
@@ -2747,35 +1980,10 @@
             "layer-7",
             "layer-8",
             "layer-9",
-            "layer-10",
-            "layer-11",
-            "layer-12",
-            "layer-13",
-            "layer-14",
-            "layer-15",
-            "layer-16",
-            "layer-17",
-            "layer-18",
             "layer-19",
             "layer-20",
             "layer-21",
-            "layer-22",
-            "layer-23",
-            "layer-24",
-            "layer-25",
-            "layer-26",
-            "layer-27",
-            "layer-28",
-            "layer-29",
-            "layer-30",
-            "layer-31",
-            "layer-32",
-            "layer-33",
-            "layer-34",
-            "layer-35",
-            "layer-36",
             "layer-37",
-            "layer-38",
             "layer-40",
             "layer-41",
             "layer-42"
@@ -2844,70 +2052,70 @@
       {
         "id": "particle",
         "kind": "GeneratedParticle",
-        "source": "{\"width\":640,\"height\":360,\"particleCount\":96,\"seed\":93,\"spread\":160,\"speed\":90,\"size\":4,\"colour\":\"#ffffff\",\"lifetimeSeconds\":2}",
+        "source": "{\"width\":640,\"height\":360,\"particleCount\":1,\"seed\":93,\"spread\":0,\"speed\":90,\"size\":4,\"colour\":\"#ffffff\",\"lifetimeSeconds\":0.01}",
         "width": 640,
         "height": 360
       },
       {
         "id": "barcode",
         "kind": "GeneratedBarcode",
-        "source": "{\"width\":520,\"height\":180,\"data\":\"AviUtl\",\"minimumBarWidth\":2,\"horizontalMargin\":30,\"verticalMargin\":20,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "source": "{\"width\":520,\"height\":180,\"data\":\"AviUtl\",\"minimumBarWidth\":0.1,\"horizontalMargin\":0,\"verticalMargin\":7,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
         "width": 520,
         "height": 180
       },
       {
         "id": "puzzle_piece",
         "kind": "GeneratedPuzzlePiece",
-        "source": "{\"width\":240,\"height\":240,\"size\":120,\"shapeVariant\":1,\"connectorMode\":\"convex\",\"fillColour\":\"#ffffff\"}",
+        "source": "{\"width\":240,\"height\":240,\"size\":1,\"shapeVariant\":0,\"connectorMode\":\"convex\",\"fillColour\":\"#ffffff\"}",
         "width": 240,
         "height": 240
       },
       {
         "id": "colour_wheel",
         "kind": "GeneratedColourWheel",
-        "source": "{\"width\":240,\"height\":240,\"radius\":120,\"saturation\":100,\"brightness\":100,\"ringWidthPercent\":25,\"segmentCount\":24}",
+        "source": "{\"width\":240,\"height\":240,\"radius\":1,\"saturation\":0,\"brightness\":100,\"ringWidthPercent\":25,\"segmentCount\":3}",
         "width": 240,
         "height": 240
       },
       {
         "id": "gourd",
         "kind": "GeneratedGourd",
-        "source": "{\"width\":400,\"height\":400,\"bodyRadius\":80,\"bodyWidth\":250,\"waistRadius\":10,\"squashPercent\":40,\"repeatCount\":1,\"fillColour\":\"#ffffff\"}",
+        "source": "{\"width\":400,\"height\":400,\"bodyRadius\":1,\"bodyWidth\":250,\"waistRadius\":10,\"squashPercent\":0,\"repeatCount\":1,\"fillColour\":\"#ffffff\"}",
         "width": 400,
         "height": 400
       },
       {
         "id": "gear",
         "kind": "GeneratedGear",
-        "source": "{\"width\":320,\"height\":320,\"outerRadius\":160,\"innerRadiusPercent\":45,\"toothCount\":20,\"toothDepthPercent\":18,\"toothSkewPercent\":0,\"fillColour\":\"#ffffff\"}",
+        "source": "{\"width\":320,\"height\":320,\"outerRadius\":1,\"innerRadiusPercent\":0,\"toothCount\":3,\"toothDepthPercent\":18,\"toothSkewPercent\":0,\"fillColour\":\"#ffffff\"}",
         "width": 320,
         "height": 320
       },
       {
         "id": "track_bar",
         "kind": "GeneratedTrackBar",
-        "source": "{\"width\":360,\"height\":120,\"trackValues\":[0,0,0,0],\"trackRanges\":[[0,100],[0,100],[0,100],[-100,100]],\"labels\":[\"TrackA\",\"TrackB\",\"TrackC\",\"TrackD\"],\"barColour\":\"#ffffff\",\"backgroundOpacity\":0.05}",
+        "source": "{\"width\":360,\"height\":120,\"trackValues\":[],\"trackRanges\":[],\"labels\":[],\"barColour\":\"#ffffff\",\"backgroundOpacity\":0.05}",
         "width": 360,
         "height": 120
       },
       {
         "id": "pie_chart",
         "kind": "GeneratedPieChart",
-        "source": "{\"width\":400,\"height\":400,\"values\":[10,20,30,40],\"sortMode\":\"descending\",\"normaliseToHundred\":true,\"labelMode\":\"percentage\",\"progressPercent\":100,\"strokeWidth\":20,\"sliceColours\":[\"#389ba6\",\"#f2e2c4\",\"#f29422\",\"#f27830\",\"#f24b0f\"]}",
+        "source": "{\"width\":400,\"height\":400,\"values\":[0,1],\"sortMode\":\"none\",\"normaliseToHundred\":false,\"labelMode\":\"percentage\",\"progressPercent\":0,\"strokeWidth\":20,\"sliceColours\":[\"#389ba6\",\"#f2e2c4\",\"#f29422\",\"#f27830\",\"#f24b0f\"]}",
         "width": 400,
         "height": 400
       },
       {
         "id": "histogram",
         "kind": "GeneratedHistogram",
-        "source": "{\"width\":256,\"height\":200,\"binValues\":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],\"heightScalePercent\":100,\"lineWidth\":1,\"showLuminance\":true,\"showRed\":true,\"showGreen\":true,\"showBlue\":true,\"channelColours\":[\"#ffffff\",\"#ff4b4b\",\"#4bff6a\",\"#4b8cff\"],\"backgroundColour\":\"#000000\"}",
+        "source": "{\"width\":256,\"height\":200,\"binValues\":[],\"heightScalePercent\":0,\"lineWidth\":1,\"showLuminance\":true,\"showRed\":true,\"showGreen\":true,\"showBlue\":true,\"channelColours\":[\"#ffffff\",\"#ff4b4b\",\"#4bff6a\",\"#4b8cff\"],\"backgroundColour\":\"#000000\"}",
         "width": 256,
         "height": 200
       },
       {
         "id": "tone_curve",
         "kind": "GeneratedToneCurve",
-        "source": "{\"width\":360,\"height\":360,\"gridDivisions\":4,\"lineWidth\":3,\"curvePoints\":[0,0.16,0.42,0.7,1],\"curveColour\":\"#ffffff\",\"gridColour\":\"#333333\",\"backgroundColour\":\"#000000\"}",
+        "source": "{\"width\":360,\"height\":360,\"gridDivisions\":4,\"lineWidth\":1,\"curvePoints\":[0,0.16,0.42,0.7,1],\"curveColour\":\"#ffffff\",\"gridColour\":\"#333333\",\"backgroundColour\":\"#000000\"}",
         "width": 360,
         "height": 360
       },
@@ -2935,119 +2143,119 @@
       {
         "id": "sphere_dots",
         "kind": "GeneratedSphereDots",
-        "source": "{\"width\":480,\"height\":480,\"radius\":170,\"columns\":16,\"rows\":12,\"rotationDegrees\":10,\"offsetDegrees\":0,\"luminanceInfluence\":0,\"pointSize\":6,\"latitudeLineWidth\":2,\"colour\":\"#ffffff\",\"secondaryColour\":\"#36c2ff\",\"seed\":93,\"planeMode\":false}",
+        "source": "{\"width\":480,\"height\":480,\"radius\":1,\"columns\":16,\"rows\":12,\"rotationDegrees\":10,\"offsetDegrees\":0,\"luminanceInfluence\":0,\"pointSize\":6,\"latitudeLineWidth\":2,\"colour\":\"#ffffff\",\"secondaryColour\":\"#36c2ff\",\"seed\":93,\"planeMode\":false}",
         "width": 480,
         "height": 480
       },
       {
         "id": "spherical_field",
         "kind": "GeneratedSphericalField",
-        "source": "{\"width\":480,\"height\":480,\"radius\":160,\"strength\":100,\"colourAmount\":100,\"alphaAmount\":0,\"lineWidth\":3,\"ringCount\":4,\"vectorCount\":16,\"fieldColour\":\"#ff3b30\",\"secondaryColour\":\"#36c2ff\",\"backgroundOpacity\":0.08,\"container\":false,\"seed\":93}",
+        "source": "{\"width\":480,\"height\":480,\"radius\":1,\"strength\":100,\"colourAmount\":100,\"alphaAmount\":0,\"lineWidth\":3,\"ringCount\":4,\"vectorCount\":16,\"fieldColour\":\"#ff3b30\",\"secondaryColour\":\"#36c2ff\",\"backgroundOpacity\":0.08,\"container\":false,\"seed\":93}",
         "width": 480,
         "height": 480
       },
       {
         "id": "sunburst",
         "kind": "GeneratedSunburst",
-        "source": "{\"width\":800,\"height\":450,\"rayCount\":10,\"rayCoveragePercent\":50,\"rotationOffsetDegrees\":0,\"centreXPercent\":50,\"centreYPercent\":50,\"motifSize\":200,\"motifShape\":\"circle\",\"rayColour\":\"#ff0000\",\"backgroundColour\":\"#ffff00\"}",
+        "source": "{\"width\":800,\"height\":450,\"rayCount\":1,\"rayCoveragePercent\":0,\"rotationOffsetDegrees\":0,\"centreXPercent\":0,\"centreYPercent\":50,\"motifSize\":1,\"motifShape\":\"circle\",\"rayColour\":\"#ff0000\",\"backgroundColour\":\"#ffff00\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "circular_arrow",
         "kind": "GeneratedCircularArrow",
-        "source": "{\"width\":200,\"height\":200,\"radius\":100,\"lineWidth\":20,\"headSize\":50,\"angleDegrees\":260,\"centreAngleDegrees\":0,\"headShape\":\"triangle\",\"showTailHead\":false,\"flipVertical\":false,\"flipHorizontal\":false,\"arrowColour\":\"#ffff00\"}",
+        "source": "{\"width\":200,\"height\":200,\"radius\":1,\"lineWidth\":0,\"headSize\":1,\"angleDegrees\":0,\"centreAngleDegrees\":0,\"headShape\":\"triangle\",\"showTailHead\":false,\"flipVertical\":false,\"flipHorizontal\":false,\"arrowColour\":\"#ffff00\"}",
         "width": 200,
         "height": 200
       },
       {
         "id": "triangle_bracket",
         "kind": "GeneratedTriangleBracket",
-        "source": "{\"width\":160,\"height\":100,\"bracketWidth\":100,\"angleDegrees\":120,\"armLength\":50,\"offsetDistance\":0,\"bracketColour\":\"#ffffff\"}",
+        "source": "{\"width\":160,\"height\":100,\"bracketWidth\":1,\"angleDegrees\":-180,\"armLength\":1,\"offsetDistance\":0,\"bracketColour\":\"#ffffff\"}",
         "width": 160,
         "height": 100
       },
       {
         "id": "tartan_check",
         "kind": "GeneratedTartanCheck",
-        "source": "{\"width\":800,\"height\":450,\"tileSize\":100,\"blurRadius\":1,\"baseColour\":\"#143e10\",\"stripeColourA\":\"#a81616\",\"stripeColourB\":\"#c9c526\",\"lineColour\":\"#000000\"}",
+        "source": "{\"width\":800,\"height\":450,\"tileSize\":1,\"blurRadius\":0,\"baseColour\":\"#143e10\",\"stripeColourA\":\"#a81616\",\"stripeColourB\":\"#c9c526\",\"lineColour\":\"#000000\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "houndstooth",
         "kind": "GeneratedHoundstooth",
-        "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "source": "{\"width\":800,\"height\":450,\"patternSize\":1,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "yagasuri",
         "kind": "GeneratedYagasuri",
-        "source": "{\"width\":800,\"height\":450,\"arrowWidth\":15,\"arrowHeight\":65,\"lineWidth\":2,\"staggered\":true,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "source": "{\"width\":800,\"height\":450,\"arrowWidth\":1,\"arrowHeight\":1,\"lineWidth\":0,\"staggered\":false,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "paper_airplane",
         "kind": "GeneratedPaperAirplane",
-        "source": "{\"width\":320,\"height\":240,\"bodyLength\":200,\"wingWidth\":80,\"foldHeight\":50,\"gap\":50,\"followMotionDirection\":false,\"axisMode\":0,\"fillColour\":\"#ffffff\"}",
+        "source": "{\"width\":320,\"height\":240,\"bodyLength\":1,\"wingWidth\":1,\"foldHeight\":0,\"gap\":0,\"followMotionDirection\":false,\"axisMode\":0,\"fillColour\":\"#ffffff\"}",
         "width": 320,
         "height": 240
       },
       {
         "id": "asanoha_pattern",
         "kind": "GeneratedAsanohaPattern",
-        "source": "{\"width\":800,\"height\":450,\"patternSize\":50,\"lineWidth\":2,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
+        "source": "{\"width\":800,\"height\":450,\"patternSize\":1,\"lineWidth\":0,\"foregroundColour\":\"#000000\",\"backgroundColour\":\"#ffffff\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "focus_lines_plus",
         "kind": "GeneratedFocusLinesPlus",
-        "source": "{\"width\":800,\"height\":450,\"rayWidth\":1,\"gap\":5,\"centreRadius\":100,\"rotationDegrees\":0,\"centreX\":400,\"centreY\":225,\"centreJitterPercent\":20,\"seed\":0,\"keyframeInterval\":0,\"lineColour\":\"#ffffff\"}",
+        "source": "{\"width\":800,\"height\":450,\"rayWidth\":0,\"gap\":0,\"centreRadius\":0,\"rotationDegrees\":0,\"centreX\":400,\"centreY\":225,\"centreJitterPercent\":0,\"seed\":0,\"keyframeInterval\":1,\"lineColour\":\"#ffffff\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "random_line_ex",
         "kind": "GeneratedRandomLineEx",
-        "source": "{\"width\":800,\"height\":450,\"lineCount\":3,\"lineWidth\":6,\"threshold\":128,\"noiseCellSize\":12,\"widthVariance\":0,\"seed\":0,\"lineColour\":\"#ffffff\"}",
+        "source": "{\"width\":800,\"height\":450,\"lineCount\":1,\"lineWidth\":0,\"threshold\":0,\"noiseCellSize\":1,\"widthVariance\":0,\"seed\":0,\"lineColour\":\"#ffffff\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "contour_trace",
         "kind": "GeneratedContourTrace",
-        "source": "{\"width\":800,\"height\":450,\"lineWidth\":3,\"contourCount\":5,\"jitterAmount\":1.5,\"traceColour\":\"#ffffff\",\"backgroundOpacity\":0,\"seed\":93}",
+        "source": "{\"width\":800,\"height\":450,\"lineWidth\":0,\"contourCount\":1,\"jitterAmount\":0,\"traceColour\":\"#ffffff\",\"backgroundOpacity\":0,\"seed\":93}",
         "width": 800,
         "height": 450
       },
       {
         "id": "displacement_poly",
         "kind": "GeneratedDisplacementPoly",
-        "source": "{\"width\":800,\"height\":450,\"columns\":14,\"rows\":8,\"displacementScale\":42,\"depthScale\":18,\"meshOpacity\":0.85,\"fillOpacity\":0.18,\"lineColour\":\"#36c2ff\",\"fillColour\":\"#0b1020\",\"seed\":93}",
+        "source": "{\"width\":800,\"height\":450,\"columns\":1,\"rows\":1,\"displacementScale\":0,\"depthScale\":0,\"meshOpacity\":0,\"fillOpacity\":0,\"lineColour\":\"#36c2ff\",\"fillColour\":\"#0b1020\",\"seed\":93}",
         "width": 800,
         "height": 450
       },
       {
         "id": "plain_effector_line",
         "kind": "GeneratedPlainEffectorLine",
-        "source": "{\"width\":800,\"height\":450,\"radius\":100,\"strength\":1,\"randomness\":0,\"zoom\":1,\"invert\":false,\"lineCount\":24,\"lineWidth\":2,\"colour\":\"#f74d52\",\"colourAmount\":1,\"seed\":93}",
+        "source": "{\"width\":800,\"height\":450,\"radius\":1,\"strength\":10,\"randomness\":-1000,\"zoom\":-2,\"invert\":false,\"lineCount\":1,\"lineWidth\":0.25,\"colour\":\"#f74d52\",\"colourAmount\":0,\"seed\":93}",
         "width": 800,
         "height": 450
       },
       {
         "id": "hologram",
         "kind": "GeneratedHologram",
-        "source": "{\"width\":800,\"height\":450,\"tileSize\":80,\"rotationDegrees\":0,\"gradientAngleDegrees\":-60,\"colourMode\":1,\"tintColour\":\"#ffffff\"}",
+        "source": "{\"width\":800,\"height\":450,\"tileSize\":10,\"rotationDegrees\":-720,\"gradientAngleDegrees\":720,\"colourMode\":0,\"tintColour\":\"#ffffff\"}",
         "width": 800,
         "height": 450
       },
       {
         "id": "protractor",
         "kind": "GeneratedProtractor",
-        "source": "{\"width\":420,\"height\":240,\"radius\":180,\"measuredAngleDegrees\":90,\"tickStepDegrees\":10,\"majorTickStepDegrees\":30,\"decimalPlaces\":1,\"lineColour\":\"#ffffff\",\"textColour\":\"#ffffff\",\"shadowColour\":\"#000000\"}",
+        "source": "{\"width\":420,\"height\":240,\"radius\":1,\"measuredAngleDegrees\":0,\"tickStepDegrees\":1,\"majorTickStepDegrees\":1,\"decimalPlaces\":0,\"lineColour\":\"#ffffff\",\"textColour\":\"#ffffff\",\"shadowColour\":\"#000000\"}",
         "width": 420,
         "height": 240
       },

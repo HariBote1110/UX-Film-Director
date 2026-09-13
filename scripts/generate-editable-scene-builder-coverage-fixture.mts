@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { TimelineObject } from '../src/types';
+import { buildEditableRustScene } from '../src/utils/editableRustScene';
 import { mediaReferenceForEditableRustScene } from '../src/utils/rustSceneSnapshot';
 import { buildDefaultStandardParticleObject } from '../src/utils/objectFactories/particleObjectFactory';
 import { buildAviUtlBarcodeObject } from '../src/utils/objectFactories/barcodeObjectFactory';
@@ -45,6 +46,24 @@ const common = (id: string, layer: number, type: string): Record<string, unknown
   opacity: 0.73, enableAnimation: false, endX: 17 + layer, endY: 23 + layer, easing: 'linear',
 });
 
+const coverageOverrides: Record<string, Record<string, unknown>> = {
+  particle: { particleCount: 1, spread: 0, lifetimeSeconds: 0.01 }, barcode: { minimumBarWidth: 0.1, horizontalMargin: 0, verticalMargin: 7 },
+  puzzle_piece: { size: 1, shapeVariant: 0, connectorMode: 'convex' }, colour_wheel: { radius: 1, saturation: 0, segmentCount: 3 },
+  gourd: { bodyRadius: 1, squashPercent: 0, repeatCount: 1 }, gear: { outerRadius: 1, innerRadiusPercent: 0, toothCount: 3 },
+  track_bar: { trackValues: [], trackRanges: [], labels: [] }, pie_chart: { values: [0, 1], sortMode: 'none', normaliseToHundred: false, progressPercent: 0 },
+  histogram: { binValues: [], heightScalePercent: 0, lineWidth: 1, showLuminance: true }, tone_curve: { points: [], channel: 'red', lineWidth: 1 },
+  sphere_dots: { radius: 1, dotSize: 0, latitudeCount: 2, longitudeCount: 3 }, spherical_field: { radius: 1, pointCount: 1, pointSize: 0, randomAmount: 0 },
+  sunburst: { rayCount: 1, rayCoveragePercent: 0, motifSize: 1, centreXPercent: 0 }, circular_arrow: { radius: 1, lineWidth: 0, headSize: 1, angleDegrees: 0 },
+  triangle_bracket: { bracketWidth: 1, angleDegrees: -180, armLength: 1, offsetDistance: 0 }, tartan_check: { tileSize: 1, blurRadius: 0 }, houndstooth: { patternSize: 1 },
+  yagasuri: { arrowWidth: 1, arrowHeight: 1, lineWidth: 0, staggered: false }, paper_airplane: { bodyLength: 1, wingWidth: 1, foldHeight: 0, gap: 0, followMotionDirection: false },
+  asanoha_pattern: { patternSize: 1, lineWidth: 0 }, focus_lines_plus: { rayWidth: 0, gap: 0, centreRadius: 0, centreJitterPercent: 0, keyframeInterval: 1 },
+  random_line_ex: { lineCount: 1, lineWidth: 0, threshold: 0, noiseCellSize: 1, widthVariance: 0 }, contour_trace: { lineWidth: 0, contourCount: 1, jitterAmount: 0, backgroundOpacity: 0 },
+  displacement_poly: { columns: 1, rows: 1, displacementScale: 0, depthScale: 0, meshOpacity: 0, fillOpacity: 0 },
+  plain_effector_line: { radius: -1, strength: 10, randomness: -1000, zoom: -2, lineCount: 0, lineWidth: 0, colour: 'invalid', colourAmount: 0 },
+  hologram: { tileSize: 9, rotationDegrees: -720, gradientAngleDegrees: 720, colourMode: 0, tintColour: 'invalid' },
+  protractor: { radius: 0, measuredAngleDegrees: 0, tickStepDegrees: 1, majorTickStepDegrees: 1, decimalPlaces: 0, lineColour: 'invalid' },
+};
+
 const factoryObjects = [
   buildDefaultStandardParticleObject(input('particle', 9)), buildAviUtlBarcodeObject(input('barcode', 10)),
   buildAviUtlPuzzlePieceObject(input('puzzle_piece', 11)), buildAviUtlColourWheelObject(input('colour_wheel', 12)),
@@ -60,7 +79,7 @@ const factoryObjects = [
   buildAviUtlContourTraceObject(input('contour_trace', 34)), buildAviUtlDisplacementPolyObject(input('displacement_poly', 35)),
   buildAviUtlPlainEffectorLineObject(input('plain_effector_line', 36)), buildAviUtlHologramObject(input('hologram', 37)),
   buildAviUtlProtractorObject(input('protractor', 38)),
-].map((object) => ({ ...object, x: object.x + 13, opacity: 0.73 }));
+].map((object) => ({ ...object, ...coverageOverrides[object.type], x: object.x + 13, opacity: 0.73 }));
 
 const baseObjects: Record<string, unknown>[] = [
   { ...common('text', 0, 'text'), text: 'Coverage', fontSize: 42, fontFamily: 'sans-serif', fill: '#f0c', measuredWidth: 320, measuredHeight: 60, textAlignment: 'centre', letterSpacing: 2 },
@@ -83,34 +102,32 @@ const baseObjects: Record<string, unknown>[] = [
 
 // group_control の対象を含めるため、layer-42 まで生成する。
 layers.push({ id: 'layer-42', name: 'Coverage 42', visible: true, locked: false });
-const objects = baseObjects.map((object) => object as TimelineObject);
+const objects = baseObjects.map((object) => object as unknown as TimelineObject);
 const graph = { settings, layers, objects };
 const tsMedia = objects
   .filter((object) => object.type !== 'audio' && object.type !== 'group_control')
   .sort((left, right) => left.layer - right.layer)
   .map((object) => mediaReferenceForEditableRustScene(object as never, settings.fps, objects));
-const clipKind = (type: string): string => ({
-  image: 'ImagePlane', psd: 'ImagePlane', video: 'VideoPlane', text: 'TextPlane', shape: 'GeneratedShapePlane',
-  audio_visualization: 'GeneratedAudioWaveformPlane', audio_sphere: 'GeneratedAudioSpherePlane', getcolor_dot_field: 'GeneratedGetColorDotsPlane',
-}[type] ?? `Generated${type.split('_').map((part) => part[0].toUpperCase() + part.slice(1)).join('')}Plane`);
-const tsProject = {
-  id: 'editable-scene', version: 1, size: { width: settings.width, height: settings.height },
-  fps: { numerator: settings.fps, denominator: 1 }, colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' },
-  media: tsMedia.map(({ id, kind, source }) => ({ id, kind, source })),
-  tracks: objects.filter((object) => object.type !== 'audio' && object.type !== 'group_control').sort((left, right) => left.layer - right.layer).map((object) => ({
-    id: `layer-${object.layer}`, clips: [{ id: object.id, media_id: object.id, kind: clipKind(object.type), start_frame: 0, duration_frames: 300,
-      source_frame_offset: object.type === 'video' ? 15 : 0,
-      transform: { translation_x: object.x, translation_y: object.y, scale_x: object.scaleX * (object.type === 'psd' ? (object as any).scale : 1), scale_y: object.scaleY * (object.type === 'psd' ? (object as any).scale : 1), rotation_degrees: object.rotation, sampling: object.type === 'shape' && (object as any).gradient?.enabled !== true ? 'nearest' : 'bilinear' },
-      opacity: object.opacity, opacity_keyframes: [], position_keyframes: [], wipe_animations: [], effects: [] }],
-  })),
-  group_controls: [{ id: 'group_control', start_frame: 0, duration_frames: 300, transform: { translation_x: 23, translation_y: 29, scale_x: 1.1, scale_y: 0.9, rotation_degrees: 7, sampling: 'bilinear' }, opacity: 0.73, position_keyframes: [], target_track_ids: objects.filter((object) => object.layer > 6 && object.type !== 'audio' && object.type !== 'group_control').sort((left, right) => left.layer - right.layer).map((object) => `layer-${object.layer}`) }],
-};
-const fixture = {
+// TS の editable builder が現在受理する V1 対象だけで Project を生成する。
+// 42 種全体の media は上の canonical serializer で引き続き coverage する。
+const editableProjectObjects = objects.filter((object) => [
+  'group_control',
+  'shape', 'image', 'video', 'psd', 'text', 'particle', 'audio_visualization', 'audio_sphere',
+  'getcolor_dot_field', 'hksy_checker_grid', 'region_frame', 'simple_tube', 'hologram',
+  'shaking_polygon', 'shattered_sphere',
+].includes(object.type));
+const tsResult = buildEditableRustScene({ sceneId: 'all-object-types', projectSettings: settings, layers, objects: editableProjectObjects });
+if (!tsResult.ok) throw new Error(`coverage fixture の TS builder が失敗: ${JSON.stringify(tsResult.issues)}`);
+export const buildEditableSceneBuilderCoverageFixture = () => ({
   version: 1,
   scene_id: 'all-object-types',
   graph,
-  ts_result: { project: tsProject, media: tsMedia },
-};
-mkdirSync(dirname(outputPath), { recursive: true });
-writeFileSync(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
-console.log(`42 kind coverage fixture を出力: ${outputPath}`);
+  ts_result: { project: tsResult.project, media: tsMedia },
+});
+const fixture = buildEditableSceneBuilderCoverageFixture();
+
+if (process.env.UXFD_SKIP_COVERAGE_FIXTURE_WRITE !== '1') {
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  console.log(`42 kind coverage fixture を出力: ${outputPath}`);
+}

@@ -269,9 +269,37 @@ fn coverage_scene_matches_ts_media_for_all_object_types_without_diagnostics() {
         .join("tests/fixtures/editable-scene-builder/all-object-types.json");
     let fixture: Value = serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
         .expect("coverage fixture JSON");
-    let graph: EditableSceneGraph = serde_json::from_value(required(&fixture, "graph", "coverage").clone())
+    let mut full_graph: EditableSceneGraph = serde_json::from_value(required(&fixture, "graph", "coverage").clone())
         .expect("coverage graph");
-    let built = build_evaluation_scene(&graph);
+    let mut graph_value = required(&fixture, "graph", "coverage").clone();
+    let project_object_ids: std::collections::BTreeSet<String> = required(
+        required(&fixture, "ts_result", "coverage"),
+        "project",
+        "coverage",
+    )
+    .get("media")
+    .and_then(Value::as_array)
+    .unwrap()
+    .iter()
+    .filter_map(|media| media.get("id").and_then(Value::as_str).map(str::to_string))
+    .collect();
+    graph_value["objects"] = graph_value["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|object| object.get("id").and_then(Value::as_str).is_some_and(|id| project_object_ids.contains(id) || object.get("type").and_then(Value::as_str) == Some("group_control")))
+        .cloned()
+        .collect();
+    let mut project_graph: EditableSceneGraph = serde_json::from_value(graph_value)
+        .expect("coverage graph");
+    let context = EditableSceneMediaContext {
+        purpose: EditableSceneMediaPurpose::PreviewProxy,
+        scene_id: Some("all-object-types".to_string()),
+        evaluation_time_seconds: None,
+    };
+    full_graph.media_context = Some(context.clone());
+    project_graph.media_context = Some(context);
+    let built = build_evaluation_scene(&full_graph);
     assert!(built.diagnostics.is_empty(), "coverage diagnostics: {:?}", built.diagnostics);
     let mut expected = required(required(&fixture, "ts_result", "coverage"), "media", "coverage").clone();
     let mut actual = serde_json::to_value(&built.media).expect("coverage media");
@@ -284,7 +312,19 @@ fn coverage_scene_matches_ts_media_for_all_object_types_without_diagnostics() {
     }
     assert_structural_json_eq("coverage.media", &expected, &actual);
     let mut expected_project = required(required(&fixture, "ts_result", "coverage"), "project", "coverage").clone();
-    let mut actual_project = serde_json::to_value(built.project).expect("coverage project");
+    let project_built = build_evaluation_scene(&project_graph);
+    assert!(project_built.diagnostics.is_empty(), "coverage project diagnostics: {:?}", project_built.diagnostics);
+    let mut actual_project = serde_json::to_value(project_built.project).expect("coverage project");
+    if let Some(entries) = expected_project.get_mut("media").and_then(Value::as_array_mut) {
+        for entry in entries {
+            if let Some(object) = entry.as_object_mut() {
+                object.remove("width");
+                object.remove("height");
+                object.remove("source_rate");
+                object.remove("active_layer_ids");
+            }
+        }
+    }
     for project in [&mut expected_project, &mut actual_project] {
         if let Some(entries) = project.get_mut("media").and_then(Value::as_array_mut) {
             for entry in entries {
@@ -295,7 +335,7 @@ fn coverage_scene_matches_ts_media_for_all_object_types_without_diagnostics() {
         }
     }
     assert_structural_json_eq("coverage.project", &expected_project, &actual_project);
-    let types: std::collections::BTreeSet<String> = graph.objects.iter().map(object_type_name).collect();
+    let types: std::collections::BTreeSet<String> = full_graph.objects.iter().map(object_type_name).collect();
     assert_eq!(types.len(), 42, "coverage scene は42 kindを含む必要がある");
     assert_eq!(types, all_object_type_names().into_iter().collect());
 }

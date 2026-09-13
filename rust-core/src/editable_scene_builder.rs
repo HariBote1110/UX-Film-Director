@@ -132,9 +132,16 @@ fn kind_and_dimensions(object: &TimelineObject) -> Option<(MediaKind, f32, f32, 
         TimelineObject::RandomLineEx { fields, .. } => Some((MediaKind::GeneratedRandomLineEx, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
         TimelineObject::ContourTrace { fields, .. } => Some((MediaKind::GeneratedContourTrace, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
         TimelineObject::DisplacementPoly { fields, .. } => Some((MediaKind::GeneratedDisplacementPoly, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
-        TimelineObject::PlainEffectorLine { fields, .. } => Some((MediaKind::GeneratedPlainEffectorLine, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
-        TimelineObject::Hologram { fields, .. } => Some((MediaKind::GeneratedHologram, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
-        TimelineObject::Protractor { fields, .. } => Some((MediaKind::GeneratedProtractor, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
+        TimelineObject::PlainEffectorLine { fields, .. } => Some((MediaKind::GeneratedPlainEffectorLine, fields.width, fields.height, serde_json::to_string(&json!({
+            "width": fields.width, "height": fields.height, "radius": clamp(fields.radius, 1.0, 2000.0), "strength": clamp(fields.strength, -10.0, 10.0), "randomness": clamp(fields.randomness, -1000.0, 1000.0), "zoom": clamp(fields.zoom, -2.0, 5.0), "invert": fields.invert,
+            "lineCount": clamp(fields.line_count as f32, 1.0, 128.0).trunc(), "lineWidth": clamp(fields.line_width, 0.25, 200.0), "colour": valid_colour(&fields.colour, "#f74d52"), "colourAmount": clamp(fields.colour_amount, 0.0, 1.0), "seed": fields.seed,
+        })).ok()?)),
+        TimelineObject::Hologram { fields, .. } => Some((MediaKind::GeneratedHologram, fields.width, fields.height, serde_json::to_string(&json!({
+            "width": fields.width, "height": fields.height, "tileSize": clamp(fields.tile_size as f32, 10.0, 1000.0).trunc(), "rotationDegrees": clamp(fields.rotation_degrees, -720.0, 720.0), "gradientAngleDegrees": clamp(fields.gradient_angle_degrees, -720.0, 720.0), "colourMode": clamp(fields.colour_mode as f32, 0.0, 2.0).trunc(), "tintColour": valid_colour(&fields.tint_colour, "#ffffff"),
+        })).ok()?)),
+        TimelineObject::Protractor { fields, .. } => Some((MediaKind::GeneratedProtractor, fields.width, fields.height, serde_json::to_string(&json!({
+            "width": fields.width, "height": fields.height, "radius": clamp(fields.radius as f32, 1.0, 2000.0).trunc(), "measuredAngleDegrees": clamp(fields.measured_angle_degrees, 0.0, 180.0), "tickStepDegrees": clamp(fields.tick_step_degrees as f32, 1.0, 90.0).trunc(), "majorTickStepDegrees": clamp(fields.major_tick_step_degrees as f32, 1.0, 180.0).trunc(), "decimalPlaces": clamp(fields.decimal_places as f32, 0.0, 5.0).trunc(), "lineColour": valid_colour(&fields.line_colour, "#ffffff"), "textColour": valid_colour(&fields.text_colour, "#ffffff"), "shadowColour": valid_colour(&fields.shadow_colour, "#000000"),
+        })).ok()?)),
         TimelineObject::ShakingPolygon { fields, .. } => Some((MediaKind::GeneratedShakingPolygon, fields.width, fields.height, serde_json::to_string(&json!({
             "width": fields.width, "height": fields.height,
             "lineWidth": clamp(fields.line_width as f32, 1.0, 100.0).trunc(),
