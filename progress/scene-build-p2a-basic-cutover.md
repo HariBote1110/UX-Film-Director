@@ -11,3 +11,9 @@
 
 - rendererは `VITE_UXFD_RUST_EDITABLE_SCENE_DUAL_RUN=1` または空でない `VITE_UXFD_RUST_SCENE_BUILDER_CUTOVER` のときにだけeditable graphを添付する。Electron側ではbackend flagをsidecar子プロセスへ明示転送する。
 - export、direct snapshot caller、native overlay、既存TS serializerはこのスライスでは変更しない。
+
+## 実機確認（2026-09-17、親環境）
+
+- `scripts/run-video-export-e2e.mjs` に FHD 60fps の HEVC 動画（`perf/heavy-media/20000kbps_60fps.mp4`）1本を読み込ませ、`UXFD_SCENE_BUILDER_CUTOVER=basic`、`UXFD_SCENE_BUILDER_DUAL_RUN=1`、`VITE_UXFD_RUST_SCENE_BUILDER_CUTOVER=basic`、`VITE_UXFD_RUST_EDITABLE_SCENE_DUAL_RUN=1` で起動した。E2E は総合 PASS。
+- CDP で `window.__UXFD_RUST_TIMELINE_SCENE_RPC__` を 200ms 間隔で採取した結果、`status: ready`、`sceneSource: "rust"`、dual-run は `matched: true`、`eligibilityMatched: true`、`diffPaths: []` だった（採取できた一意の状態は1件）。
+- 生成系・音声系を含む重量シナリオで `kindGroupDisabled` へ fallback する経路は、実機では未確認（Rust テストのみ）。
