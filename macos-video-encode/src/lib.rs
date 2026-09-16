@@ -11,7 +11,9 @@ mod macos {
     use objc2::runtime::AnyObject;
     use objc2_av_foundation::{
         AVAssetWriter, AVAssetWriterInput, AVAssetWriterInputPixelBufferAdaptor, AVFileTypeMPEG4,
-        AVMediaTypeVideo, AVVideoCodecKey, AVVideoCodecTypeH264, AVVideoHeightKey, AVVideoWidthKey,
+        AVFileTypeQuickTimeMovie,
+        AVMediaTypeVideo, AVVideoCodecKey, AVVideoCodecTypeAppleProRes422, AVVideoCodecTypeH264,
+        AVVideoCodecTypeHEVC, AVVideoCompressionPropertiesKey, AVVideoHeightKey, AVVideoWidthKey,
     };
     use objc2_core_foundation::{CFDictionary, CFNumber, CFRetained, CFString, CFType};
     use objc2_core_media::CMTime;
@@ -36,6 +38,13 @@ mod macos {
         FinishFailed(String),
         InvalidDimensions,
         OutputPathUnwritable(String),
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum VideoCodec {
+        H264,
+        Hevc,
+        Prores,
     }
 
     impl fmt::Display for EncodeError {
@@ -88,6 +97,16 @@ mod macos {
             height: u32,
             fps: u32,
         ) -> Result<Self, EncodeError> {
+            Self::start_with_codec(output_path, width, height, fps, VideoCodec::H264)
+        }
+
+        pub fn start_with_codec(
+            output_path: &Path,
+            width: u32,
+            height: u32,
+            fps: u32,
+            codec: VideoCodec,
+        ) -> Result<Self, EncodeError> {
             if width == 0 || height == 0 || fps == 0 {
                 return Err(EncodeError::InvalidDimensions);
             }
@@ -100,14 +119,18 @@ mod macos {
 
             let path = NSString::from_str(&output_path.to_string_lossy());
             let url = NSURL::fileURLWithPath(&path);
-            let file_type = unsafe { AVFileTypeMPEG4 }
-                .ok_or(EncodeError::MissingFrameworkConstant("AVFileTypeMPEG4"))?;
+            let file_type = match codec {
+                VideoCodec::Prores => unsafe { AVFileTypeQuickTimeMovie }
+                    .ok_or(EncodeError::MissingFrameworkConstant("AVFileTypeQuickTimeMovie"))?,
+                _ => unsafe { AVFileTypeMPEG4 }
+                    .ok_or(EncodeError::MissingFrameworkConstant("AVFileTypeMPEG4"))?,
+            };
             let writer = unsafe { AVAssetWriter::assetWriterWithURL_fileType_error(&url, file_type) }
                 .map_err(|error| EncodeError::WriterCreation(error.localizedDescription().to_string()))?;
 
             let media_type = unsafe { AVMediaTypeVideo }
                 .ok_or(EncodeError::MissingFrameworkConstant("AVMediaTypeVideo"))?;
-            let settings = build_video_settings(width, height)?;
+            let settings = build_video_settings(width, height, codec)?;
             let input = unsafe {
                 AVAssetWriterInput::assetWriterInputWithMediaType_outputSettings(
                     media_type,
@@ -220,6 +243,7 @@ mod macos {
     fn build_video_settings(
         width: u32,
         height: u32,
+        codec: VideoCodec,
     ) -> Result<CFRetained<CFDictionary<CFString, CFType>>, EncodeError> {
         let codec_key = unsafe { AVVideoCodecKey }
             .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCodecKey"))?;
@@ -227,20 +251,37 @@ mod macos {
             .ok_or(EncodeError::MissingFrameworkConstant("AVVideoWidthKey"))?;
         let height_key = unsafe { AVVideoHeightKey }
             .ok_or(EncodeError::MissingFrameworkConstant("AVVideoHeightKey"))?;
-        let codec = unsafe { AVVideoCodecTypeH264 }
-            .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCodecTypeH264"))?;
+        let codec = match codec {
+            VideoCodec::H264 => unsafe { AVVideoCodecTypeH264 }
+                .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCodecTypeH264"))?,
+            VideoCodec::Hevc => unsafe { AVVideoCodecTypeHEVC }
+                .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCodecTypeHEVC"))?,
+            VideoCodec::Prores => unsafe { AVVideoCodecTypeAppleProRes422 }
+                .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCodecTypeAppleProRes422"))?,
+        };
         let width_number = CFNumber::new_i32(width as i32);
         let height_number = CFNumber::new_i32(height as i32);
-        let keys = [
-            as_cf_string(codec_key),
-            as_cf_string(width_key),
-            as_cf_string(height_key),
-        ];
-        let values: [&CFType; 3] = [
-            as_cf_type(as_cf_string(codec)),
-            width_number.as_ref(),
-            height_number.as_ref(),
-        ];
+        if codec == unsafe { AVVideoCodecTypeH264 }
+            .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCodecTypeH264"))?
+        {
+            let keys = [as_cf_string(codec_key), as_cf_string(width_key), as_cf_string(height_key)];
+            let values: [&CFType; 3] = [as_cf_type(as_cf_string(codec)), width_number.as_ref(), height_number.as_ref()];
+            return Ok(CFDictionary::from_slices(&keys, &values));
+        }
+
+        let compression_key = unsafe { AVVideoCompressionPropertiesKey }
+            .ok_or(EncodeError::MissingFrameworkConstant("AVVideoCompressionPropertiesKey"))?;
+        // This VideoToolbox key is deliberately expressed as a CFString: objc2 0.3
+        // does not expose VideoToolbox's constants, while AVFoundation accepts the
+        // documented key in its compression-properties dictionary.
+        let prioritise_speed_key = CFString::from_str("PrioritizeEncodingSpeedOverQuality");
+        let true_number = CFNumber::new_i32(1);
+        let compression: CFRetained<CFDictionary<CFString, CFType>> = CFDictionary::from_slices(
+            &[prioritise_speed_key.as_ref() as &CFString],
+            &[true_number.as_ref() as &CFType],
+        );
+        let keys = [as_cf_string(codec_key), as_cf_string(width_key), as_cf_string(height_key), as_cf_string(compression_key)];
+        let values: [&CFType; 4] = [as_cf_type(as_cf_string(codec)), width_number.as_ref(), height_number.as_ref(), compression.as_ref()];
         Ok(CFDictionary::from_slices(&keys, &values))
     }
 
@@ -296,4 +337,4 @@ mod macos {
 }
 
 #[cfg(target_os = "macos")]
-pub use macos::{EncodeError, EncodeFrame, VideoEncodeSession};
+pub use macos::{EncodeError, EncodeFrame, VideoCodec, VideoEncodeSession};

@@ -6,12 +6,13 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::encode::get_video_codec;
+use crate::encode::ffmpeg_video_codec_args;
 use crate::local_media_source_path;
 use crate::params::{
     normalise_transcode_quality_preset, resolve_transcode_video_bitrate_kbps,
     EncodeTranscodeVideoOverlayParams, EncodeTranscodeVideoParams, NormalisedTranscodeOverlay,
-    NormalisedTranscodeOverlayKind, NormalisedTranscodeOverlays,
+    validate_video_codec_output_path, NormalisedTranscodeOverlayKind, NormalisedTranscodeOverlays,
+    VideoCodec,
 };
 use crate::psd_fast;
 use crate::rpc::{response_error, RpcResponse};
@@ -39,6 +40,10 @@ pub(crate) fn handle_encode_transcode_video(
     }
     if parsed.output_path.trim().is_empty() {
         return response_error(id, -32602, "outputPath must not be empty");
+    }
+    let video_codec = parsed.video_codec.unwrap_or(VideoCodec::H264);
+    if let Err(message) = validate_video_codec_output_path(video_codec, &parsed.output_path) {
+        return response_error(id, -32602, message);
     }
     if parsed.width == 0 || parsed.height == 0 || parsed.fps == 0 {
         return response_error(
@@ -113,7 +118,7 @@ pub(crate) fn handle_encode_transcode_video(
     let canvas_height = output_height + crop_y + bottom_overflow;
     let pad_x = 0_i64.max(object_x_i64);
     let pad_y = 0_i64.max(object_y_i64);
-    let scale_filter = format!(
+    let cpu_placement_filter = format!(
         "scale={}:{},setsar=1,pad={}:{}:{}:{}:black,crop={}:{}:{}:{},fps={}",
         object_width,
         object_height,
@@ -134,6 +139,20 @@ pub(crate) fn handle_encode_transcode_video(
         };
     let psd_overlay_cache_hits = normalised_overlays.psd_overlay_cache_hits;
     let overlays = normalised_overlays.overlays;
+    let identity_placement = is_identity_placement(
+        object_x, object_y, object_width, object_height, parsed.width, parsed.height, overlays.is_empty(),
+    );
+    let scale_vt_placement = object_x == 0
+        && object_y == 0
+        && (object_width != parsed.width || object_height != parsed.height);
+    let scale_vt_placement = scale_vt_placement && overlays.is_empty() && transcode_videotoolbox_decode_enabled();
+    let mut video_decode_path = if scale_vt_placement {
+        "videotoolboxScaleVt"
+    } else if transcode_videotoolbox_decode_enabled() {
+        "videotoolbox"
+    } else {
+        "cpu"
+    };
 
     let mut cmd = Command::new(&ffmpeg_path);
     cmd.arg("-hide_banner")
@@ -144,6 +163,7 @@ pub(crate) fn handle_encode_transcode_video(
     cmd.args(build_transcode_main_input_args(
         start_seconds,
         &parsed.input_path,
+        scale_vt_placement,
     ));
     let mut next_input_index = 1_usize;
     let mut overlay_inputs: Vec<Option<usize>> = Vec::with_capacity(overlays.len());
@@ -194,7 +214,7 @@ pub(crate) fn handle_encode_transcode_video(
     let mapped_complex_video = !overlays.is_empty();
     if mapped_complex_video {
         let (filter_complex, final_label) =
-            build_transcode_filter_complex(&scale_filter, &overlays, &overlay_inputs);
+            build_transcode_filter_complex(&cpu_placement_filter, &overlays, &overlay_inputs);
         cmd.arg("-filter_complex")
             .arg(filter_complex)
             .arg("-map")
@@ -204,17 +224,16 @@ pub(crate) fn handle_encode_transcode_video(
         .arg(format!("{:.6}", parsed.duration_seconds))
         .arg("-progress")
         .arg("pipe:1");
-    if !mapped_complex_video {
-        cmd.arg("-vf").arg(scale_filter);
+    if !mapped_complex_video && !identity_placement {
+        cmd.arg("-vf").arg(if scale_vt_placement {
+            format!("scale_vt=w={}:h={}", parsed.width, parsed.height)
+        } else {
+            cpu_placement_filter.clone()
+        });
     }
     cmd.arg("-r")
         .arg(parsed.fps.to_string())
-        .arg("-c:v")
-        .arg(get_video_codec())
-        .arg("-b:v")
-        .arg(format!("{video_bitrate_kbps}k"))
-        .arg("-pix_fmt")
-        .arg("yuv420p");
+        .args(ffmpeg_video_codec_args(video_codec, video_bitrate_kbps));
 
     if audio_path.is_some() {
         if !mapped_complex_video {
@@ -249,6 +268,15 @@ pub(crate) fn handle_encode_transcode_video(
         .arg(&parsed.output_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    let cpu_retry_args = if video_decode_path != "cpu" {
+        Some(build_cpu_retry_args(
+            &cmd.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>(),
+            &cpu_placement_filter,
+        ))
+    } else {
+        None
+    };
 
     let mut child = match cmd.spawn() {
         Ok(value) => value,
@@ -335,14 +363,40 @@ pub(crate) fn handle_encode_transcode_video(
         }
     };
     let stderr_detail = stderr_handle.join().unwrap_or_default().trim().to_string();
-    remove_temporary_transcode_overlay_inputs(&overlays);
 
     if !status.success() {
+        if let Some(retry_args) = cpu_retry_args {
+            let retry_status = Command::new(&ffmpeg_path)
+                .args(&retry_args)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            if matches!(retry_status, Ok(value) if value.success()) {
+                video_decode_path = "cpu";
+                remove_temporary_transcode_overlay_inputs(&overlays);
+                emit_transcode_progress_event(session_id, frame_count, frame_count, "completed");
+                return RpcResponse {
+                    id,
+                    ok: true,
+                    result: Some(json!({
+                        "transcoded": true, "outputPath": parsed.output_path,
+                        "frameCount": frame_count, "width": parsed.width, "height": parsed.height,
+                        "fps": parsed.fps, "overlayCount": overlays.len(),
+                        "psdOverlayCacheHits": psd_overlay_cache_hits,
+                        "includedAudio": audio_path.is_some() || include_source_audio,
+                        "videoDecodePath": video_decode_path,
+                        "videoCodec": match video_codec { VideoCodec::H264 => "h264", VideoCodec::Hevc => "hevc", VideoCodec::Prores => "prores" },
+                        "encodeSettings": { "qualityPreset": quality_preset, "videoBitrateKbps": video_bitrate_kbps },
+                    })), error: None,
+                };
+            }
+        }
         let stderr_suffix = if stderr_detail.is_empty() {
             String::new()
         } else {
             format!(" stderr: {stderr_detail}")
         };
+        remove_temporary_transcode_overlay_inputs(&overlays);
         return response_error(
             id,
             -32059,
@@ -352,6 +406,7 @@ pub(crate) fn handle_encode_transcode_video(
             ),
         );
     }
+    remove_temporary_transcode_overlay_inputs(&overlays);
     emit_transcode_progress_event(session_id, frame_count, frame_count, "completed");
 
     RpcResponse {
@@ -367,6 +422,8 @@ pub(crate) fn handle_encode_transcode_video(
             "overlayCount": overlays.len(),
             "psdOverlayCacheHits": psd_overlay_cache_hits,
             "includedAudio": audio_path.is_some() || include_source_audio,
+            "videoDecodePath": video_decode_path,
+            "videoCodec": match video_codec { VideoCodec::H264 => "h264", VideoCodec::Hevc => "hevc", VideoCodec::Prores => "prores" },
             "encodeSettings": {
                 "qualityPreset": quality_preset,
                 "videoBitrateKbps": video_bitrate_kbps,
@@ -374,6 +431,44 @@ pub(crate) fn handle_encode_transcode_video(
         })),
         error: None,
     }
+}
+
+/// Converts a hardware ffmpeg attempt into the pre-existing CPU-filter command.
+/// Kept pure so retry policy and argument removal stay independently testable.
+fn build_cpu_retry_args(hardware_args: &[String], cpu_filter: &str) -> Vec<String> {
+    let mut result = Vec::with_capacity(hardware_args.len());
+    let mut index = 0;
+    while index < hardware_args.len() {
+        let arg = &hardware_args[index];
+        if arg == "-hwaccel" || arg == "-hwaccel_output_format" {
+            index += 2;
+            continue;
+        }
+        result.push(arg.clone());
+        index += 1;
+    }
+    if let Some(index) = result.iter().position(|arg| arg == "scale_vt=w=1920:h=1080") {
+        result[index] = cpu_filter.to_string();
+    } else if let Some(index) = result.iter().position(|arg| arg.starts_with("scale_vt=w=")) {
+        result[index] = cpu_filter.to_string();
+    }
+    result
+}
+
+fn is_identity_placement(
+    object_x: i32,
+    object_y: i32,
+    object_width: u32,
+    object_height: u32,
+    output_width: u32,
+    output_height: u32,
+    has_no_overlays: bool,
+) -> bool {
+    object_x == 0
+        && object_y == 0
+        && object_width == output_width
+        && object_height == output_height
+        && has_no_overlays
 }
 
 fn emit_transcode_progress_event(
@@ -608,11 +703,12 @@ pub(crate) fn remove_temporary_transcode_overlay_inputs(overlays: &[NormalisedTr
 /// omitted: the filter chain below runs CPU scale/pad/crop/overlay filters,
 /// so frames must land back in system memory after decode rather than
 /// staying in a VideoToolbox surface.
-fn build_transcode_main_input_args(start_seconds: f64, input_path: &str) -> Vec<String> {
+fn build_transcode_main_input_args(start_seconds: f64, input_path: &str, videotoolbox_output: bool) -> Vec<String> {
     build_transcode_main_input_args_with_hwaccel(
         start_seconds,
         input_path,
         transcode_videotoolbox_decode_enabled(),
+        videotoolbox_output,
     )
 }
 
@@ -620,11 +716,16 @@ fn build_transcode_main_input_args_with_hwaccel(
     start_seconds: f64,
     input_path: &str,
     hwaccel_enabled: bool,
+    videotoolbox_output: bool,
 ) -> Vec<String> {
     let mut args = Vec::new();
     if hwaccel_enabled {
         args.push("-hwaccel".to_string());
         args.push("videotoolbox".to_string());
+        if videotoolbox_output {
+            args.push("-hwaccel_output_format".to_string());
+            args.push("videotoolbox_vld".to_string());
+        }
     }
     if start_seconds > 0.0 {
         args.push("-ss".to_string());
@@ -717,7 +818,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn transcode_main_input_args_use_videotoolbox_before_input_on_macos() {
-        let args = build_transcode_main_input_args_with_hwaccel(0.0, "/tmp/input.mp4", true);
+        let args = build_transcode_main_input_args_with_hwaccel(0.0, "/tmp/input.mp4", true, false);
 
         let hwaccel_index = args
             .iter()
@@ -741,7 +842,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn transcode_main_input_args_keep_hwaccel_before_seek() {
-        let args = build_transcode_main_input_args_with_hwaccel(1.5, "/tmp/input.mp4", true);
+        let args = build_transcode_main_input_args_with_hwaccel(1.5, "/tmp/input.mp4", true, false);
 
         let hwaccel_index = args
             .iter()
@@ -774,6 +875,7 @@ mod tests {
                 0.0,
                 "/tmp/input.mp4",
                 hwaccel_enabled,
+                false,
             );
 
             assert_eq!(args.iter().filter(|arg| *arg == "-i").count(), 1);
@@ -789,12 +891,34 @@ mod tests {
         // Mirrors what `transcode_videotoolbox_decode_enabled()` returns
         // when `UXFD_DISABLE_VIDEOTOOLBOX_DECODE=1` (or on non-macOS
         // targets): no `-hwaccel` flag should be emitted at all.
-        let args = build_transcode_main_input_args_with_hwaccel(0.0, "/tmp/input.mp4", false);
+        let args = build_transcode_main_input_args_with_hwaccel(0.0, "/tmp/input.mp4", false, false);
 
         assert!(
             !args.iter().any(|arg| arg == "-hwaccel"),
             "disabled hwaccel must not appear in the ffmpeg args"
         );
         assert_eq!(args, vec!["-i".to_string(), "/tmp/input.mp4".to_string()]);
+    }
+
+    #[test]
+    fn cpu_retry_removes_videotoolbox_options_and_restores_cpu_scale() {
+        let retry = build_cpu_retry_args(
+            &[
+                "-hwaccel".into(), "videotoolbox".into(),
+                "-hwaccel_output_format".into(), "videotoolbox_vld".into(),
+                "-i".into(), "input.mp4".into(), "-vf".into(), "scale_vt=w=1280:h=720".into(),
+            ],
+            "scale=1280:720,setsar=1",
+        );
+        assert!(!retry.iter().any(|arg| arg == "-hwaccel"));
+        assert!(!retry.iter().any(|arg| arg == "-hwaccel_output_format"));
+        assert!(retry.iter().any(|arg| arg == "scale=1280:720,setsar=1"));
+    }
+
+    #[test]
+    fn identity_placement_omits_the_filter_but_overlay_keeps_cpu_filtering() {
+        assert!(is_identity_placement(0, 0, 1920, 1080, 1920, 1080, true));
+        assert!(!is_identity_placement(0, 0, 1920, 1080, 1920, 1080, false));
+        assert!(!is_identity_placement(8, 0, 1920, 1080, 1920, 1080, true));
     }
 }

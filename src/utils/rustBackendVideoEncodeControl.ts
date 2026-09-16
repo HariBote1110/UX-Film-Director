@@ -23,6 +23,7 @@ export interface RustBackendVideoEncodeStartPayload {
   height: number;
   fps: number;
   iosurfaceEncode?: boolean;
+  videoCodec?: 'h264' | 'hevc' | 'prores';
   pixelFormat: RustBackendDecodedVideoFrameFormat;
   colour: RustBackendVideoDecodeColour;
 }
@@ -76,6 +77,7 @@ export interface RustBackendVideoTranscodePayload {
   audioPath?: string | null;
   qualityPreset?: string;
   videoBitrateKbps?: number;
+  videoCodec?: 'h264' | 'hevc' | 'prores';
 }
 
 export interface RustBackendVideoTranscodeProgressEvent {

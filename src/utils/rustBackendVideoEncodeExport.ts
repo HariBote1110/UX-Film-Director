@@ -88,6 +88,7 @@ export interface RunRustBackendVideoEncodeExportInput {
   height: number;
   fps: number;
   iosurfaceEncode?: boolean;
+  videoCodec?: 'h264' | 'hevc' | 'prores';
   frames: AsyncIterable<RustBackendVideoEncodePayloadFrame>;
   renderAheadFrameCount?: number;
   sessionId?: string;
@@ -145,6 +146,7 @@ export const runRustBackendVideoEncodeExport = async ({
   height,
   fps,
   iosurfaceEncode = false,
+  videoCodec,
   frames,
   renderAheadFrameCount,
   sessionId = createDefaultSessionId(),
@@ -160,6 +162,7 @@ export const runRustBackendVideoEncodeExport = async ({
     height,
     fps,
     ...(iosurfaceEncode ? { iosurfaceEncode: true } : {}),
+    ...(videoCodec ? { videoCodec } : {}),
     pixelFormat: 'rgba8Srgb',
     colour: {
       primaries: 'bt709',

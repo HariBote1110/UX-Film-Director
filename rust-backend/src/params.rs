@@ -4,6 +4,30 @@ use std::path::PathBuf;
 use uxfd_rust_core::{Nv12IoSurfaceRef, SceneMediaReference, SceneSnapshot};
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat, SharedFrame};
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum VideoCodec {
+    H264,
+    Hevc,
+    Prores,
+}
+
+impl VideoCodec {
+    pub(crate) fn is_prores(self) -> bool {
+        matches!(self, Self::Prores)
+    }
+}
+
+pub(crate) fn validate_video_codec_output_path(
+    codec: VideoCodec,
+    output_path: &str,
+) -> Result<(), &'static str> {
+    if codec.is_prores() && !output_path.to_ascii_lowercase().ends_with(".mov") {
+        return Err("ProRes output requires a .mov output path");
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DecodeStopRequest {
@@ -22,6 +46,8 @@ pub(crate) struct EncodeStartParams {
     pub(crate) fps: u32,
     #[serde(default)]
     pub(crate) iosurface_encode: bool,
+    #[serde(default)]
+    pub(crate) video_codec: Option<VideoCodec>,
     pub(crate) pixel_format: FrameFormat,
     pub(crate) colour: ColourMetadata,
 }
@@ -108,6 +134,8 @@ pub(crate) struct EncodeTranscodeVideoParams {
     #[serde(default)]
     pub(crate) video_bitrate_kbps: Option<u32>,
     #[serde(default)]
+    pub(crate) video_codec: Option<VideoCodec>,
+    #[serde(default)]
     pub(crate) overlays: Vec<EncodeTranscodeVideoOverlayParams>,
     #[serde(default)]
     pub(crate) ffmpeg_path: Option<String>,
@@ -193,6 +221,20 @@ pub(crate) fn resolve_transcode_video_bitrate_kbps(
         .filter(|value| *value > 0)
         .map(|value| value.clamp(500, 80_000))
         .unwrap_or_else(|| default_transcode_video_bitrate_kbps(quality_preset))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prores_rejects_mp4_output() {
+        assert_eq!(
+            validate_video_codec_output_path(VideoCodec::Prores, "export.mp4"),
+            Err("ProRes output requires a .mov output path")
+        );
+        assert!(validate_video_codec_output_path(VideoCodec::Prores, "export.mov").is_ok());
+    }
 }
 
 #[derive(Debug, Deserialize)]

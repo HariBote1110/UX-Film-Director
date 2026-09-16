@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::sync::Arc;
 use uxfd_golden_harness::RgbaFrame;
-use uxfd_macos_video_encode::VideoEncodeSession;
+use uxfd_macos_video_encode::{VideoCodec, VideoEncodeSession};
 use uxfd_native_wgpu_renderer::{
     BgraIoSurfaceTarget, NativeWgpuRenderError, NativeWgpuRenderer,
 };
@@ -102,4 +102,29 @@ fn encodes_gpu_rendered_iosurface_frames_as_h264_without_rgba_readback() {
     assert_eq!(stream["height"], height);
     assert_eq!(stream["nb_read_frames"], frame_count.to_string());
     assert_eq!(stream["duration"], "2.250000");
+}
+
+#[test]
+#[ignore = "実機 VideoToolbox/ffprobe 検証用。UXFD_RUN_HEVC_ENCODER_TEST=1 で親環境から実行する"]
+fn encodes_hevc_with_avassetwriter_when_explicitly_enabled() {
+    if std::env::var("UXFD_RUN_HEVC_ENCODER_TEST").as_deref() != Ok("1") {
+        return;
+    }
+    let directory = tempfile::tempdir().expect("temporary output directory");
+    let output_path = directory.path().join("iosurface-hevc.mp4");
+    let mut encoder = VideoEncodeSession::start_with_codec(&output_path, 64, 64, 30, VideoCodec::Hevc)
+        .expect("HEVC writer starts");
+    for frame_index in 0..3 {
+        let frame = encoder.acquire_frame().expect("pool supplies a frame");
+        encoder.append_frame(frame, frame_index).expect("frame append succeeds");
+    }
+    encoder.finish().expect("writer finishes");
+    let probe = Command::new("ffprobe")
+        .args(["-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=codec_name,nb_read_frames", "-of", "json"])
+        .arg(&output_path)
+        .output().expect("ffprobe must be available");
+    assert!(probe.status.success(), "{probe:?}");
+    let json: serde_json::Value = serde_json::from_slice(&probe.stdout).expect("valid ffprobe JSON");
+    assert_eq!(json["streams"][0]["codec_name"], "hevc");
+    assert_eq!(json["streams"][0]["nb_read_frames"], "3");
 }

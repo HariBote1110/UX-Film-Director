@@ -3,7 +3,8 @@ use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 use std::time::Duration;
 
 use crate::params::{
-    EncodeAbortParams, EncodeFinishParams, EncodeStartParams, EncodeWriteFrameParams,
+    validate_video_codec_output_path, EncodeAbortParams, EncodeFinishParams, EncodeStartParams,
+    EncodeWriteFrameParams, VideoCodec,
 };
 use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::{EncodeAbortSummary, EncodeSession, EncodeTransport};
@@ -29,6 +30,11 @@ pub(crate) fn handle_encode_start(id: u64, params: Value, state: &mut BackendSta
     }
     if parsed.file_path.trim().is_empty() {
         return response_error(id, -32602, "filePath must not be empty");
+    }
+    if let Some(codec) = parsed.video_codec {
+        if let Err(message) = validate_video_codec_output_path(codec, &parsed.file_path) {
+            return response_error(id, -32602, message);
+        }
     }
     let audio_path = parsed
         .audio_path
@@ -270,7 +276,11 @@ pub(crate) fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary
 /// IOSurface VideoToolbox transport when an audio track needs to be muxed in
 /// afterwards. Pure so it can be unit tested without touching the filesystem.
 pub(crate) fn derive_pending_mux_temp_video_path(final_file_path: &str) -> String {
-    format!("{final_file_path}.uxfd-video-tmp.mp4")
+    if final_file_path.to_ascii_lowercase().ends_with(".mov") {
+        format!("{final_file_path}.uxfd-video-tmp.mov")
+    } else {
+        format!("{final_file_path}.uxfd-video-tmp.mp4")
+    }
 }
 
 fn start_encode_transport(parsed: &EncodeStartParams) -> Result<EncodeTransport, String> {
@@ -299,11 +309,16 @@ fn start_encode_transport(parsed: &EncodeStartParams) -> Result<EncodeTransport,
             } else {
                 (parsed.file_path.clone(), None)
             };
-            let encoder = uxfd_macos_video_encode::VideoEncodeSession::start(
+            let encoder = uxfd_macos_video_encode::VideoEncodeSession::start_with_codec(
                 std::path::Path::new(&encode_target_path),
                 parsed.width,
                 parsed.height,
                 parsed.fps,
+                match parsed.video_codec.unwrap_or(VideoCodec::H264) {
+                    VideoCodec::H264 => uxfd_macos_video_encode::VideoCodec::H264,
+                    VideoCodec::Hevc => uxfd_macos_video_encode::VideoCodec::Hevc,
+                    VideoCodec::Prores => uxfd_macos_video_encode::VideoCodec::Prores,
+                },
             )
             .map_err(|error| format!("Failed to start IOSurface VideoToolbox encoder: {error}"))?;
             return Ok(EncodeTransport::VideoToolbox {
@@ -609,12 +624,7 @@ pub(crate) fn start_encode_ffmpeg(
         cmd.arg("-i").arg(audio_path);
     }
 
-    cmd.arg("-c:v")
-        .arg(get_video_codec())
-        .arg("-b:v")
-        .arg("8000k")
-        .arg("-pix_fmt")
-        .arg("yuv420p");
+    append_ffmpeg_video_codec_args(&mut cmd, parsed.video_codec.unwrap_or(VideoCodec::H264), 8_000);
 
     if audio_path.is_some() {
         cmd.arg("-c:a")
@@ -664,6 +674,25 @@ pub(crate) fn get_video_codec() -> &'static str {
     } else {
         "libx264"
     }
+}
+
+pub(crate) fn ffmpeg_video_codec_args(codec: VideoCodec, bitrate_kbps: u32) -> Vec<String> {
+    let encoder = match codec {
+        VideoCodec::H264 => get_video_codec(),
+        VideoCodec::Hevc => if cfg!(target_os = "macos") { "hevc_videotoolbox" } else { "libx265" },
+        VideoCodec::Prores => if cfg!(target_os = "macos") { "prores_videotoolbox" } else { "prores_ks" },
+    };
+    let mut args = vec!["-c:v".into(), encoder.into()];
+    match codec {
+        VideoCodec::H264 => args.extend(["-b:v".into(), format!("{bitrate_kbps}k"), "-pix_fmt".into(), "yuv420p".into()]),
+        VideoCodec::Hevc => args.extend(["-prio_speed".into(), "1".into(), "-tag:v".into(), "hvc1".into(), "-b:v".into(), format!("{bitrate_kbps}k"), "-pix_fmt".into(), "yuv420p".into()]),
+        VideoCodec::Prores => args.extend(["-profile:v".into(), "standard".into(), "-pix_fmt".into(), "yuv422p10le".into()]),
+    }
+    args
+}
+
+fn append_ffmpeg_video_codec_args(cmd: &mut Command, codec: VideoCodec, bitrate_kbps: u32) {
+    cmd.args(ffmpeg_video_codec_args(codec, bitrate_kbps));
 }
 
 fn write_tight_rgba_frame_to_encoder(
@@ -1232,6 +1261,7 @@ mod tests {
             pixel_format: FrameFormat::Rgba8Srgb,
             colour: ColourMetadata::rec709_srgb(),
             iosurface_encode: true,
+            video_codec: None,
         };
 
         let transport = start_encode_transport(&parsed).expect("transport should start");
@@ -1273,5 +1303,17 @@ mod tests {
         let _ = std::fs::remove_file(&audio_path);
         let _ = std::fs::remove_file(&final_path);
         let _ = std::fs::remove_file(&temp_video_path);
+    }
+
+    #[test]
+    fn ffmpeg_codec_arguments_select_hevc_and_prores_without_a_bitrate_for_prores() {
+        let hevc = ffmpeg_video_codec_args(VideoCodec::Hevc, 8_000);
+        assert!(hevc.iter().any(|arg| arg == "-prio_speed"));
+        assert!(hevc.windows(2).any(|pair| pair == ["-tag:v", "hvc1"]));
+        assert!(hevc.windows(2).any(|pair| pair == ["-b:v", "8000k"]));
+
+        let prores = ffmpeg_video_codec_args(VideoCodec::Prores, 8_000);
+        assert!(prores.iter().any(|arg| arg.contains("prores")));
+        assert!(!prores.iter().any(|arg| arg == "-b:v"));
     }
 }

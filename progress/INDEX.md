@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [export-videotoolbox-hardware-acceleration.md](export-videotoolbox-hardware-acceleration.md) — macOS の export/proxy に VideoToolbox デコード・`scale_vt`・HEVC/ProRes 出力選択を導入する方針、CPU フィルター境界と MOV 制約を記録（2026-09-17）
+
 - [scene-build-p2a-basic-cutover.md](scene-build-p2a-basic-cutover.md) — `Scene_Build_In_Rust_Plan.md` P2aとして、既定OFFの`UXFD_SCENE_BUILDER_CUTOVER=basic`でshape/text/image/video/PSD由来の7 MediaKindだけをRust-built resident preview sessionへ切替。未知群はログ付き無効化、未実装群は構文予約に留め、TS fallback理由とscene sourceをrenderer診断へ公開（2026-09-17）
 
 - [export-tail-frame-loss.md](export-tail-frame-loss.md) — 音声付きIOSurface書き出しの末尾フレーム欠落を調査。`-shortest`が`-c:v copy`で末尾映像を落とすこと（親実験: 135→133フレーム）と、単純な除去では長い音声が出力を延長することを確認。書込みframe_count/fps由来の`-t`で映像尺を両方向の正に固定し、`-fflags +shortest`は未対応のため不採用（2026-09-13）

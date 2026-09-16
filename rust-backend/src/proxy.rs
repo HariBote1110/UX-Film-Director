@@ -49,12 +49,24 @@ fn build_proxy_args(
     if codec == ProxyCodec::VideotoolboxGpu {
         args.push("-hwaccel".to_string());
         args.push("videotoolbox".to_string());
+        args.push("-hwaccel_output_format".to_string());
+        args.push("videotoolbox_vld".to_string());
     }
 
     args.push("-i".to_string());
     args.push(input_path.to_string());
     args.push("-vf".to_string());
-    args.push(scale_filter.to_string());
+    if codec == ProxyCodec::VideotoolboxGpu {
+        let width = scale_filter
+            .strip_prefix("scale=")
+            .unwrap_or(scale_filter)
+            .split(':')
+            .next()
+            .unwrap_or("1280");
+        args.push(format!("scale_vt=w={width}:h=-2"));
+    } else {
+        args.push(scale_filter.to_string());
+    }
 
     match codec {
         ProxyCodec::VideotoolboxGpu => {
@@ -144,6 +156,10 @@ pub(crate) fn handle_proxy_generate(id: u64, params: Value) -> RpcResponse {
                             ProxyCodec::VideotoolboxGpu => "h264_videotoolbox",
                             ProxyCodec::Libx264Cpu => "libx264",
                         },
+                        "videoDecodePath": match codec {
+                            ProxyCodec::VideotoolboxGpu => "videotoolboxScaleVt",
+                            ProxyCodec::Libx264Cpu => "cpu",
+                        },
                     })),
                     error: None,
                 };
@@ -182,6 +198,8 @@ mod tests {
         let input_idx = args.iter().position(|a| a == "-i").expect("input flag");
         assert!(hwaccel_idx < input_idx, "hwaccel must precede input");
         assert_eq!(args[hwaccel_idx + 1], "videotoolbox");
+        assert!(args.windows(2).any(|pair| pair == ["-hwaccel_output_format", "videotoolbox_vld"]));
+        assert!(args.iter().any(|arg| arg == "scale_vt=w=640:h=-2"));
 
         // GPU エンコーダと固定品質が使われ、CRF は使われないこと
         assert!(args.iter().any(|a| a == "h264_videotoolbox"));
