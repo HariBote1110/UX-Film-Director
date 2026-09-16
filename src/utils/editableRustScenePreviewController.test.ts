@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LayerState, ProjectSettings, ShapeObject } from '../types';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
-import { createEditableRustScenePreviewController } from './editableRustScenePreviewController';
+import {
+  createEditableRustScenePreviewController,
+  shouldAttachEditableRustScene,
+} from './editableRustScenePreviewController';
 
 const projectSettings: ProjectSettings = {
   width: 1920,
@@ -49,6 +52,16 @@ const scheduler = () => ({
 }) satisfies SharedRendererScenePreviewScheduler;
 
 describe('editableRustScenePreviewController', () => {
+  it.each([
+    ['1', undefined, true],
+    [undefined, 'basic', true],
+    [undefined, '  basic,generated  ', true],
+    [undefined, '', false],
+    ['0', undefined, false],
+  ])('dual-run=%s、cut-over=%s の editableScene 添付判定は %s', (dualRun, cutover, expected) => {
+    expect(shouldAttachEditableRustScene(dualRun, cutover)).toBe(expected);
+  });
+
   it('編集時だけProjectを更新してrevisionを進め、時刻更新はframe要求だけを送る', () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({

@@ -25,6 +25,8 @@ export interface SharedRendererScenePreviewSchedulerDiagnostics {
   stale: number;
   coalesced: number;
   failed: number;
+  sceneSource?: NonNullable<RustBackendSceneReplaceResult['sceneSource']>;
+  sceneFallbackReason?: RustBackendSceneReplaceResult['sceneFallbackReason'];
   dualRun?: unknown;
 }
 
@@ -142,10 +144,13 @@ export const createSharedRendererScenePreviewScheduler = ({
           return;
         }
         if (result.value.dualRun) diagnostics.dualRun = result.value.dualRun;
-        remoteReadyRevision = result.value;
-        const isStillDesired = desiredRevision?.sceneId === result.value.sceneId
-          && desiredRevision.revision === result.value.revision;
-        if (isStillDesired) notifyRemoteReady(result.value);
+        diagnostics.sceneSource = result.value.sceneSource;
+        diagnostics.sceneFallbackReason = result.value.sceneFallbackReason;
+        const remoteReady = { sceneId: result.value.sceneId, revision: result.value.revision };
+        remoteReadyRevision = remoteReady;
+        const isStillDesired = desiredRevision?.sceneId === remoteReady.sceneId
+          && desiredRevision.revision === remoteReady.revision;
+        if (isStillDesired) notifyRemoteReady(remoteReady);
         pump();
       }).catch(() => {
         replaceInFlight = false;

@@ -25,7 +25,11 @@ import {
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
 import { buildSharedRendererPreviewSessionFromEvaluatedScene } from '../utils/sharedRendererEvaluatedScenePreviewSession';
-import { createEditableRustScenePreviewController, type EditableRustScenePreviewController } from '../utils/editableRustScenePreviewController';
+import {
+  createEditableRustScenePreviewController,
+  shouldAttachEditableRustScene,
+  type EditableRustScenePreviewController,
+} from '../utils/editableRustScenePreviewController';
 import { createSharedRendererScenePreviewScheduler } from '../utils/sharedRendererScenePreviewScheduler';
 import { evaluateRustBackendScene, replaceRustBackendScene } from '../utils/rustBackendSceneControl';
 import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererPresenterSessionKey';
@@ -116,6 +120,8 @@ interface RustTimelineSceneRpcDiagnostics {
   stale?: number;
   coalesced?: number;
   failed?: number;
+  sceneSource?: 'typescript' | 'rust';
+  sceneFallbackReason?: string;
   dualRun?: unknown;
 }
 
@@ -738,7 +744,10 @@ const Viewport: React.FC = () => {
   // renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
   // '0' 指定でレガシー経路へ opt-out できる。
   const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC !== '0';
-  const rustEditableSceneDualRunEnabled = import.meta.env.VITE_UXFD_RUST_EDITABLE_SCENE_DUAL_RUN === '1';
+  const rustEditableSceneCutoverEnabled = shouldAttachEditableRustScene(
+    import.meta.env.VITE_UXFD_RUST_EDITABLE_SCENE_DUAL_RUN,
+    import.meta.env.VITE_UXFD_RUST_SCENE_BUILDER_CUTOVER,
+  );
   // Phase 7 (W7) STAGE 1: macOSはopt-out（既定ON）のまま、Windowsは
   // 24時間ベンチ完了までopt-in（既定OFF）とする。判定ロジックは純粋関数
   // resolveNativeOverlayEnabled（テストはnativeOverlayPlatformGate.test.ts）
@@ -1878,7 +1887,7 @@ const Viewport: React.FC = () => {
     const controller = createEditableRustScenePreviewController({
       sceneId: 'viewport-rust-timeline',
       scheduler,
-      includeEditableScene: rustEditableSceneDualRunEnabled,
+      includeEditableScene: rustEditableSceneCutoverEnabled,
     });
     rustTimelineScenePreviewControllerRef.current = controller;
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
@@ -1892,7 +1901,7 @@ const Viewport: React.FC = () => {
     // scheduler の callback は store/refから最新値を読むため、flagの変化時のみ
     // 再生成する。ここにobjectsやcurrentTimeを足すと常駐の意味がなくなる。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rustEditableSceneDualRunEnabled, rustTimelineSceneRpcEnabled]);
+  }, [rustEditableSceneCutoverEnabled, rustTimelineSceneRpcEnabled]);
 
   useEffect(() => {
     if (!rustTimelineSceneRpcEnabled) return;

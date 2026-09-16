@@ -20,7 +20,7 @@ describe('rustBackendSceneControl', () => {
         calls.push(payload);
         return {
           success: true,
-          result: { sceneId: payload.sceneId, revision: payload.revision },
+          result: { sceneId: payload.sceneId, revision: payload.revision, sceneSource: 'typescript', sceneFallbackReason: 'flagOff' },
         };
       },
       evaluateScene: async () => {
@@ -30,7 +30,7 @@ describe('rustBackendSceneControl', () => {
 
     await expect(replaceRustBackendScene(scene, bridge)).resolves.toEqual({
       ok: true,
-      value: { sceneId: 'preview:scene-1', revision: 7 },
+      value: { sceneId: 'preview:scene-1', revision: 7, sceneSource: 'typescript', sceneFallbackReason: 'flagOff' },
     });
     expect(calls).toEqual([scene]);
   });

@@ -21,6 +21,11 @@ export interface EditableRustScenePreviewController {
   dispose: () => void;
 }
 
+export const shouldAttachEditableRustScene = (
+  dualRunFlag: string | undefined,
+  cutoverFlag: string | undefined,
+): boolean => dualRunFlag === '1' || Boolean(cutoverFlag?.trim());
+
 export const createEditableRustScenePreviewController = ({
   sceneId,
   scheduler,

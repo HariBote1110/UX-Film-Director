@@ -24,6 +24,7 @@ const flush = async () => {
 const revision = (value: number) => ({
   sceneId: 'preview:main',
   revision: value,
+  sceneSource: 'typescript' as const,
   project: { id: `project-${value}` },
   media: [],
 });
@@ -55,7 +56,11 @@ describe('sharedRendererScenePreviewScheduler', () => {
 
     scheduler.submitRevision(revision(1));
     scheduler.requestFrame(10);
-    replace.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1 } });
+    replace.resolve({ ok: true, value: {
+      sceneId: 'preview:main',
+      revision: 1,
+      sceneSource: 'rust',
+    } });
     await flush();
     scheduler.requestFrame(11);
     scheduler.requestFrame(12);
@@ -64,7 +69,14 @@ describe('sharedRendererScenePreviewScheduler', () => {
 
     expect(evaluateCalls).toEqual([10, 12]);
     expect(presented.map((entry) => entry.frameIndex)).toEqual([12]);
-    expect(scheduler.diagnostics).toMatchObject({ requested: 2, resolved: 2, stale: 1, coalesced: 1, failed: 0 });
+    expect(scheduler.diagnostics).toMatchObject({
+      requested: 2,
+      resolved: 2,
+      stale: 1,
+      coalesced: 1,
+      failed: 0,
+      sceneSource: 'rust',
+    });
   });
 
   it('replace r1の実行中にr2/r3を受けたとき、r1の後はr3だけを送る', async () => {
@@ -84,10 +96,10 @@ describe('sharedRendererScenePreviewScheduler', () => {
     scheduler.submitRevision(revision(2));
     scheduler.submitRevision(revision(3));
     expect(replaces.map((entry) => entry.input.revision)).toEqual([1]);
-    replaces[0].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1 } });
+    replaces[0].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1, sceneSource: 'typescript' } });
     await flush();
     expect(replaces.map((entry) => entry.input.revision)).toEqual([1, 3]);
-    replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 3 } });
+    replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 3, sceneSource: 'typescript' } });
     await flush();
 
     expect(scheduler.diagnostics).toMatchObject({ requested: 1, resolved: 1, stale: 0, coalesced: 0, failed: 0 });
@@ -97,7 +109,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
     const evaluationDeferred = deferred<any>();
     const presented: SharedRendererSceneEvaluation[] = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {
-      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision, sceneSource: 'typescript' } }),
       evaluateScene: (input) => input.revision === 1
         ? evaluationDeferred.promise
         : Promise.resolve({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
@@ -129,7 +141,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
     scheduler.submitRevision(revision(1));
     scheduler.requestFrame(1);
     scheduler.dispose();
-    replace.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1 } });
+    replace.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1, sceneSource: 'typescript' } });
     await flush();
 
     expect(presented).toEqual([]);
@@ -141,7 +153,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
     const presented: SharedRendererSceneEvaluation[] = [];
     const scheduler = createSharedRendererScenePreviewScheduler({
       rpc: {
-        replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+        replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision, sceneSource: 'typescript' } }),
         evaluateScene: () => evaluationDeferred.promise,
       },
       onEvaluation: (value) => presented.push(value),
@@ -161,7 +173,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
   it('scene RPC失敗を呼び出し側へ通知し、同じrevisionの評価を停止する', async () => {
     const failures: string[] = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {
-      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision, sceneSource: 'typescript' } }),
       evaluateScene: async () => ({ ok: false, reason: 'backendFailure', detail: 'renderer unavailable' }),
     };
     const scheduler = createSharedRendererScenePreviewScheduler({
@@ -183,7 +195,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
   it('replaceが成功し常駐revisionが現在の希望revisionと一致したときだけonRemoteReadyへ通知する', async () => {
     const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {
-      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision, sceneSource: 'typescript' } }),
       evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
     };
     const scheduler = createSharedRendererScenePreviewScheduler({
@@ -228,12 +240,12 @@ describe('sharedRendererScenePreviewScheduler', () => {
     scheduler.submitRevision(revision(2));
     scheduler.submitRevision(revision(3));
     // r1の解決時点ではr3がdesiredなので、r1はreportされない。
-    replaces[0].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1 } });
+    replaces[0].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1, sceneSource: 'typescript' } });
     await flush();
     expect(remoteReadyEvents).toEqual([]);
 
     expect(replaces.map((entry) => entry.input.revision)).toEqual([1, 3]);
-    replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 3 } });
+    replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 3, sceneSource: 'typescript' } });
     await flush();
     expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 3 }]);
   });
@@ -241,7 +253,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
   it('scene RPC失敗時はonRemoteReadyへnullを通知する', async () => {
     const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {
-      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision, sceneSource: 'typescript' } }),
       evaluateScene: async () => ({ ok: false, reason: 'backendFailure', detail: 'renderer unavailable' }),
     };
     const scheduler = createSharedRendererScenePreviewScheduler({
@@ -259,7 +271,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
   it('invalidate後はonRemoteReadyへnullを通知する', async () => {
     const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {
-      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision } }),
+      replaceScene: async (input) => ({ ok: true, value: { sceneId: input.sceneId, revision: input.revision, sceneSource: 'typescript' } }),
       evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
     };
     const scheduler = createSharedRendererScenePreviewScheduler({

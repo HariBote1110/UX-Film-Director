@@ -179,6 +179,8 @@ resident sessionは従来どおりTS送信値だけを保持する。renderer側
 
 ### P2: kind 群ごとの Rust builder cut-over と両経路収束（大、8–15日）
 
+**進捗（2026-09-17、P2a basic cut-over）**: `UXFD_SCENE_BUILDER_CUTOVER=basic`（既定OFF）で、shape/text/image/video/PSDがRust builderから生成する`SolidColour`、`GeneratedGradient`、`GeneratedShape`、`Text`、`Image`、`Video`、`Psd`だけをresident preview sessionのRust-built Project/mediaへ切替できるようにした。editable graph未送信、resident不適格、許可外kind、flag OFF時はTS送信値へ戻し、応答の`sceneSource`/`sceneFallbackReason`をrenderer診断へ渡す。`generated`/`audio`/`getcolor`/`group_control`は将来群として解析のみ対応し、未知群はログ付きで無効化する。export・direct snapshot・native overlay・TS serializerは未変更である。詳細は`progress/scene-build-p2a-basic-cutover.md`を参照する。
+
 - **Scope**: 低依存 kind（shape/text/image/video/PSD）から、生成系、最後に audio / GetColor / group-control の順に Rust build 結果を常用する。direct snapshot caller を短命 / resident Rust scene 評価へ変え、`buildRustSceneSnapshotForTimeline` の評価済み出力を使わない。各 kind 群ごとに dual-run を残して切替える。
 - **主なファイル**: `src/utils/sharedRendererPreviewBridge.ts`、`src/utils/sharedRendererPreviewSession.ts`、`src/utils/sharedRendererExportSession.ts`、`src/utils/sharedRendererEvaluatedScenePreviewSession.ts`、export orchestration、`electron/main.ts:615-622,1290-1306`、`native-overlay/src/lib.rs`、`rust-backend/src/source_frames.rs`、`native-wgpu-renderer/src/lib.rs`。
 - **テスト**: kind 群ごとの media source fixture、`sharedRendererExportSession` / surface gate tests、native overlay の cache revision tests、native renderer audio/GetColor tests、447-frame parity、既存 video export E2E。

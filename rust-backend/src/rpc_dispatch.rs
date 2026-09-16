@@ -51,9 +51,7 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "fonts.list" => handle_fonts_list(request.id),
         "audio.waveformSamples" => handle_audio_waveform_samples(request.id, request.params),
         "psd.parseMeta" => handle_psd_parse_meta(request.id, request.params, state),
-        "psd.renderComposite" => {
-            handle_psd_render_composite(request.id, request.params, state)
-        }
+        "psd.renderComposite" => handle_psd_render_composite(request.id, request.params, state),
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "decode.start" => handle_decode_start(request.id, request.params, state),
         "decode.stop" => handle_decode_stop(request.id, request.params, state),
@@ -103,7 +101,9 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scene::handle_scene_replace_with_dual_run;
+    use crate::scene::{
+        handle_scene_replace_with_scene_builder, parse_scene_builder_cutover, SceneBuilderCutover,
+    };
     use serde_json::{json, Value};
     use uxfd_rust_core::build_evaluation_scene;
 
@@ -182,6 +182,40 @@ mod tests {
         })
     }
 
+    fn editable_replace_params_for_type(scene_id: &str, revision: u64, object_type: &str) -> Value {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
+        ))
+        .expect("editable scene fixture");
+        let mut graph = fixture["graph"].clone();
+        graph["objects"] = Value::Array(
+            graph["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|object| object["type"] == object_type)
+                .cloned()
+                .collect(),
+        );
+        let graph: uxfd_rust_core::EditableSceneGraph = serde_json::from_value(graph).unwrap();
+        let built = build_evaluation_scene(&graph);
+        assert!(
+            built.resident_eligible,
+            "{object_type} fixture must be resident eligible"
+        );
+        json!({
+            "sceneId": scene_id,
+            "revision": revision,
+            "project": built.project,
+            "media": built.media,
+            "editableScene": graph,
+        })
+    }
+
+    fn basic_cutover() -> SceneBuilderCutover {
+        parse_scene_builder_cutover(Some("basic")).expect("basic cut-over config")
+    }
+
     #[test]
     fn scene_replace_omitted_editable_scene_keeps_legacy_response_shape() {
         let mut state = BackendState::default();
@@ -189,29 +223,43 @@ mod tests {
             request(1, "scene.replace", replace_params("legacy", 1, "#112233")),
             &mut state,
         );
-        assert_eq!(response.result.unwrap(), json!({ "sceneId": "legacy", "revision": 1 }));
+        assert_eq!(
+            response.result.unwrap(),
+            json!({
+                "sceneId": "legacy", "revision": 1,
+                "sceneSource": "typescript", "sceneFallbackReason": "flagOff"
+            })
+        );
     }
 
     #[test]
     fn scene_replace_flag_off_does_not_run_builder_or_add_diagnostics() {
         let mut state = BackendState::default();
-        let response = handle_scene_replace_with_dual_run(
+        let response = handle_scene_replace_with_scene_builder(
             1,
             editable_replace_params("flag-off", 1),
             &mut state,
             false,
+            SceneBuilderCutover::default(),
         );
-        assert_eq!(response.result.unwrap(), json!({ "sceneId": "flag-off", "revision": 1 }));
+        assert_eq!(
+            response.result.unwrap(),
+            json!({
+                "sceneId": "flag-off", "revision": 1,
+                "sceneSource": "typescript", "sceneFallbackReason": "flagOff"
+            })
+        );
     }
 
     #[test]
     fn scene_replace_matching_editable_scene_reports_dual_run_match() {
         let mut state = BackendState::default();
-        let response = handle_scene_replace_with_dual_run(
+        let response = handle_scene_replace_with_scene_builder(
             1,
             editable_replace_params("matching", 1),
             &mut state,
             true,
+            SceneBuilderCutover::default(),
         );
         let dual_run = response.result.unwrap()["dualRun"].clone();
         assert_eq!(dual_run["matched"], true);
@@ -225,10 +273,20 @@ mod tests {
         let mut params = editable_replace_params("mismatch", 1);
         params["project"]["tracks"][0]["clips"][0]["opacity"] = json!(0.5);
         let mut state = BackendState::default();
-        let response = handle_scene_replace_with_dual_run(1, params, &mut state, true);
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut state,
+            true,
+            SceneBuilderCutover::default(),
+        );
         let dual_run = response.result.unwrap()["dualRun"].clone();
         assert_eq!(dual_run["matched"], false);
-        assert!(dual_run["diffPaths"].as_array().unwrap().iter().any(|path| path == "project.tracks[0].clips[0].opacity"));
+        assert!(dual_run["diffPaths"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "project.tracks[0].clips[0].opacity"));
         assert_eq!(
             state.scene_sessions["mismatch"].project.tracks[0].clips[0].opacity,
             0.5
@@ -239,16 +297,124 @@ mod tests {
     fn scene_replace_reports_eligibility_mismatch_for_ineligible_rust_graph() {
         let fixture: Value = serde_json::from_str(include_str!(
             "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
-        )).unwrap();
-        let graph: uxfd_rust_core::EditableSceneGraph = serde_json::from_value(fixture["graph"].clone()).unwrap();
+        ))
+        .unwrap();
+        let graph: uxfd_rust_core::EditableSceneGraph =
+            serde_json::from_value(fixture["graph"].clone()).unwrap();
         let built = build_evaluation_scene(&graph);
-        assert!(!built.resident_eligible, "coverage graph must contain resident diagnostics");
+        assert!(
+            !built.resident_eligible,
+            "coverage graph must contain resident diagnostics"
+        );
         let params = json!({ "sceneId": "eligibility", "revision": 1, "project": built.project, "media": built.media, "editableScene": graph });
-        let response = handle_scene_replace_with_dual_run(1, params, &mut BackendState::default(), true);
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            true,
+            SceneBuilderCutover::default(),
+        );
         let dual_run = response.result.unwrap()["dualRun"].clone();
         assert_eq!(dual_run["matched"], false);
         assert_eq!(dual_run["eligibilityMatched"], false);
         assert!(!dual_run["rustDiagnostics"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn scene_builder_cutover_parses_empty_basic_and_rejects_unknown_groups() {
+        assert_eq!(
+            parse_scene_builder_cutover(None).unwrap(),
+            SceneBuilderCutover::default()
+        );
+        assert!(basic_cutover().basic_enabled());
+        assert!(
+            parse_scene_builder_cutover(Some("basic,generated,audio,getcolor,group_control"))
+                .unwrap()
+                .basic_enabled()
+        );
+        assert_eq!(
+            parse_scene_builder_cutover(Some("basic,unknown")),
+            Err("unknown scene builder cut-over kind group 'unknown'".to_string())
+        );
+    }
+
+    #[test]
+    fn scene_replace_cutover_stores_rust_basic_result_when_eligible() {
+        let mut state = BackendState::default();
+        let params = editable_replace_params_for_type("rust-basic", 1, "shape");
+        let expected = serde_json::from_value::<uxfd_rust_core::EditableSceneGraph>(
+            params["editableScene"].clone(),
+        )
+        .unwrap();
+        let built = build_evaluation_scene(&expected);
+        let response =
+            handle_scene_replace_with_scene_builder(1, params, &mut state, false, basic_cutover());
+        assert_eq!(response.result.unwrap()["sceneSource"], "rust");
+        assert_eq!(state.scene_sessions["rust-basic"].project, built.project);
+        assert_eq!(state.scene_sessions["rust-basic"].media, built.media);
+    }
+
+    #[test]
+    fn scene_replace_cutover_falls_back_with_each_reason() {
+        let cases = [
+            (
+                "flag-off",
+                editable_replace_params("flag-off", 1),
+                SceneBuilderCutover::default(),
+                "flagOff",
+            ),
+            (
+                "no-editable",
+                replace_params("no-editable", 1, "#112233"),
+                basic_cutover(),
+                "noEditableScene",
+            ),
+        ];
+        for (scene_id, params, cutover, reason) in cases {
+            let response = handle_scene_replace_with_scene_builder(
+                1,
+                params,
+                &mut BackendState::default(),
+                false,
+                cutover,
+            );
+            let result = response.result.unwrap();
+            assert_eq!(result["sceneSource"], "typescript", "{scene_id}");
+            assert_eq!(result["sceneFallbackReason"], reason, "{scene_id}");
+        }
+
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
+        ))
+        .unwrap();
+        let graph = fixture["graph"].clone();
+        let built = build_evaluation_scene(&serde_json::from_value(graph.clone()).unwrap());
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            json!({ "sceneId": "not-eligible", "revision": 1, "project": built.project, "media": built.media, "editableScene": graph }),
+            &mut BackendState::default(),
+            false,
+            basic_cutover(),
+        );
+        assert_eq!(
+            response.result.unwrap()["sceneFallbackReason"],
+            "notEligible"
+        );
+
+        let params = editable_replace_params_for_type("generated", 1, "particle");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            basic_cutover(),
+        );
+        let result = response.result.unwrap();
+        assert_eq!(result["sceneSource"], "typescript");
+        assert!(result["sceneFallbackReason"]
+            .as_str()
+            .unwrap()
+            .starts_with("kindGroupDisabled:"));
     }
 
     #[test]
@@ -286,7 +452,11 @@ mod tests {
         let mut state = BackendState::default();
         assert!(
             handle_request(
-                request(1, "scene.replace", replace_params("export-scene", 4, "#112233")),
+                request(
+                    1,
+                    "scene.replace",
+                    replace_params("export-scene", 4, "#112233")
+                ),
                 &mut state,
             )
             .ok
@@ -359,7 +529,10 @@ mod tests {
         );
         let result = evaluated.result.expect("scene.evaluate result");
 
-        assert_eq!(result["media"].as_array().expect("evaluated media").len(), 1);
+        assert_eq!(
+            result["media"].as_array().expect("evaluated media").len(),
+            1
+        );
         assert_eq!(result["media"][0]["id"], "media-1");
     }
 

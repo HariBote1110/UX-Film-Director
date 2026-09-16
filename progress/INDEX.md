@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [scene-build-p2a-basic-cutover.md](scene-build-p2a-basic-cutover.md) — `Scene_Build_In_Rust_Plan.md` P2aとして、既定OFFの`UXFD_SCENE_BUILDER_CUTOVER=basic`でshape/text/image/video/PSD由来の7 MediaKindだけをRust-built resident preview sessionへ切替。未知群はログ付き無効化、未実装群は構文予約に留め、TS fallback理由とscene sourceをrenderer診断へ公開（2026-09-17）
+
 - [export-tail-frame-loss.md](export-tail-frame-loss.md) — 音声付きIOSurface書き出しの末尾フレーム欠落を調査。`-shortest`が`-c:v copy`で末尾映像を落とすこと（親実験: 135→133フレーム）と、単純な除去では長い音声が出力を延長することを確認。書込みframe_count/fps由来の`-t`で映像尺を両方向の正に固定し、`-fflags +shortest`は未対応のため不採用（2026-09-13）
 
 - [export-resident-audio-waveform-missing-source.md](export-resident-audio-waveform-missing-source.md) — resident exportがaudio waveform / audio sphereのPCMを渡さずNative WGPUの`MissingSource`で停止する原因を、TS/Rust経路と履歴で調査。常駐RPC内で評価済みmediaからPCMを取得して`audioWaveforms`へ供給するよう修正し、waveform・sphere双方をRust unit testで固定。導入時からの潜在欠落である可能性が高いが、過去のresident export payload記録がないため分類は仮説。Electron E2E未実行、cargo sandbox制約3件を除く検証結果を記録（2026-09-13）

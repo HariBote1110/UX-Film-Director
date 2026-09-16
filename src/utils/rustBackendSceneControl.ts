@@ -17,8 +17,16 @@ export interface RustBackendSceneEvaluatePayload {
 export interface RustBackendSceneReplaceResult {
   sceneId: string;
   revision: number;
+  sceneSource: 'typescript' | 'rust';
+  sceneFallbackReason?: RustBackendSceneFallbackReason;
   dualRun?: RustBackendSceneDualRunDiagnostics;
 }
+
+export type RustBackendSceneFallbackReason =
+  | 'flagOff'
+  | 'noEditableScene'
+  | 'notEligible'
+  | `kindGroupDisabled:${string}`;
 
 export interface RustBackendSceneDualRunDiagnostics {
   matched: boolean;
@@ -97,6 +105,8 @@ const isReplaceResult = (value: unknown): value is RustBackendSceneReplaceResult
   && typeof value.sceneId === 'string'
   && typeof value.revision === 'number'
   && Number.isSafeInteger(value.revision)
+  && (value.sceneSource === 'typescript' || value.sceneSource === 'rust')
+  && (!('sceneFallbackReason' in value) || typeof value.sceneFallbackReason === 'string')
   && (!('dualRun' in value) || isRecord(value.dualRun))
 );
 

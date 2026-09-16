@@ -2,12 +2,12 @@ use crate::rpc::{response_error, RpcResponse};
 use crate::state::{BackendState, SceneSession};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::OnceLock;
 use std::time::Instant;
 use uxfd_rust_core::{
-    build_evaluation_scene, evaluate_frame, EditableSceneGraph, EditableSceneDiagnostic, Project,
-    SceneMediaReference,
+    build_evaluation_scene, evaluate_frame, EditableSceneDiagnostic, EditableSceneGraph, MediaKind,
+    Project, SceneMediaReference,
 };
 
 const DUAL_RUN_DIFF_LIMIT: usize = 16;
@@ -40,6 +40,65 @@ fn dual_run_enabled() -> bool {
     *ENABLED.get_or_init(|| std::env::var("UXFD_SCENE_BUILDER_DUAL_RUN").as_deref() == Ok("1"))
 }
 
+/// P2a の kind 群。`basic` は shape/text/image/video/PSD が builder で生成する
+/// `SolidColour`、`GeneratedGradient`、`GeneratedShape`、`Text`、`Image`、`Video`、`Psd`
+/// のみを許可する。残りの群は将来の切替名を先に予約するが、この段階では未実装である。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct SceneBuilderCutover {
+    basic: bool,
+    generated: bool,
+    audio: bool,
+    getcolor: bool,
+    group_control: bool,
+}
+
+impl SceneBuilderCutover {
+    pub(crate) fn basic_enabled(&self) -> bool {
+        self.basic
+    }
+}
+
+pub(crate) fn parse_scene_builder_cutover(
+    value: Option<&str>,
+) -> Result<SceneBuilderCutover, String> {
+    let mut cutover = SceneBuilderCutover::default();
+    let Some(value) = value.filter(|value| !value.trim().is_empty()) else {
+        return Ok(cutover);
+    };
+    for group in value.split(',').map(str::trim) {
+        match group {
+            "basic" => cutover.basic = true,
+            "generated" => cutover.generated = true,
+            "audio" => cutover.audio = true,
+            "getcolor" => cutover.getcolor = true,
+            "group_control" => cutover.group_control = true,
+            unknown => {
+                return Err(format!(
+                    "unknown scene builder cut-over kind group '{unknown}'"
+                ))
+            }
+        }
+    }
+    Ok(cutover)
+}
+
+fn scene_builder_cutover() -> SceneBuilderCutover {
+    static CUTOVER: OnceLock<SceneBuilderCutover> = OnceLock::new();
+    CUTOVER
+        .get_or_init(|| {
+            match parse_scene_builder_cutover(
+                std::env::var("UXFD_SCENE_BUILDER_CUTOVER").ok().as_deref(),
+            ) {
+                Ok(cutover) => cutover,
+                Err(error) => {
+                    eprintln!("[scene.replace] {error}; scene builder cut-over is disabled");
+                    SceneBuilderCutover::default()
+                }
+            }
+        })
+        .clone()
+}
+
 fn comparable_value(value: &Value, path: &str) -> Value {
     if path.ends_with(".source") {
         if let Value::String(source) = value {
@@ -59,16 +118,24 @@ fn collect_structural_diffs(path: &str, expected: &Value, actual: &Value, diffs:
     let actual = comparable_value(actual, path);
     match (&expected, &actual) {
         (Value::Number(left), Value::Number(right))
-            if (left.as_f64().unwrap_or(f64::NAN) - right.as_f64().unwrap_or(f64::NAN)).abs() <= 1e-5 => {}
+            if (left.as_f64().unwrap_or(f64::NAN) - right.as_f64().unwrap_or(f64::NAN)).abs()
+                <= 1e-5 => {}
         (Value::Object(left), Value::Object(right)) => {
             let mut keys: Vec<&String> = left.keys().collect();
             keys.extend(right.keys().filter(|key| !left.contains_key(*key)));
             for key in keys {
                 if left.contains_key(key) && right.contains_key(key) {
-                    collect_structural_diffs(&format!("{path}.{key}"), &left[key], &right[key], diffs);
+                    collect_structural_diffs(
+                        &format!("{path}.{key}"),
+                        &left[key],
+                        &right[key],
+                        diffs,
+                    );
                 } else {
                     diffs.push(format!("{path}.{key}"));
-                    if diffs.len() >= DUAL_RUN_DIFF_LIMIT { return; }
+                    if diffs.len() >= DUAL_RUN_DIFF_LIMIT {
+                        return;
+                    }
                 }
             }
         }
@@ -78,7 +145,9 @@ fn collect_structural_diffs(path: &str, expected: &Value, actual: &Value, diffs:
             }
             for (index, (left, right)) in left.iter().zip(right).enumerate() {
                 collect_structural_diffs(&format!("{path}[{index}]"), left, right, diffs);
-                if diffs.len() >= DUAL_RUN_DIFF_LIMIT { return; }
+                if diffs.len() >= DUAL_RUN_DIFF_LIMIT {
+                    return;
+                }
             }
         }
         _ if expected != actual => diffs.push(path.to_string()),
@@ -88,17 +157,23 @@ fn collect_structural_diffs(path: &str, expected: &Value, actual: &Value, diffs:
 
 fn dual_run_diagnostics(
     editable_scene: &EditableSceneGraph,
+    built: &uxfd_rust_core::BuiltEvaluationScene,
+    build_micros: u64,
     ts_project: &Project,
     ts_media: &[SceneMediaReference],
 ) -> SceneDualRunDiagnostics {
-    let payload_bytes = serde_json::to_vec(editable_scene).map(|bytes| bytes.len()).unwrap_or(0);
-    let started = Instant::now();
-    let built = build_evaluation_scene(editable_scene);
-    let build_micros = started.elapsed().as_micros().min(u64::MAX as u128) as u64;
+    let payload_bytes = serde_json::to_vec(editable_scene)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0);
     let mut diff_paths = Vec::new();
     let ts_project_value = serde_json::to_value(ts_project).unwrap_or(Value::Null);
     let rust_project_value = serde_json::to_value(&built.project).unwrap_or(Value::Null);
-    collect_structural_diffs("project", &ts_project_value, &rust_project_value, &mut diff_paths);
+    collect_structural_diffs(
+        "project",
+        &ts_project_value,
+        &rust_project_value,
+        &mut diff_paths,
+    );
     let ts_media_value = serde_json::to_value(ts_media).unwrap_or(Value::Null);
     let rust_media_value = serde_json::to_value(&built.media).unwrap_or(Value::Null);
     collect_structural_diffs("media", &ts_media_value, &rust_media_value, &mut diff_paths);
@@ -114,10 +189,55 @@ fn dual_run_diagnostics(
         matched,
         eligibility_matched,
         diff_paths,
-        rust_diagnostics: built.diagnostics,
+        rust_diagnostics: built.diagnostics.clone(),
         build_micros,
         payload_bytes,
     }
+}
+
+fn basic_media_kind(kind: &MediaKind) -> bool {
+    matches!(
+        kind,
+        MediaKind::SolidColour
+            | MediaKind::GeneratedGradient
+            | MediaKind::GeneratedShape
+            | MediaKind::Text
+            | MediaKind::Image
+            | MediaKind::Video
+            | MediaKind::Psd
+    )
+}
+
+fn disabled_kind_names(
+    built: &uxfd_rust_core::BuiltEvaluationScene,
+    cutover: &SceneBuilderCutover,
+) -> Vec<String> {
+    let mut kinds = BTreeSet::new();
+    let mut media_by_id: HashMap<&str, &MediaKind> = HashMap::new();
+    for media in &built.project.media {
+        media_by_id.insert(media.id.as_str(), &media.kind);
+        if !cutover.basic_enabled() || !basic_media_kind(&media.kind) {
+            kinds.insert(format!("{:?}", media.kind));
+        }
+    }
+    for media in &built.media {
+        media_by_id.insert(media.id.as_str(), &media.kind);
+        if !cutover.basic_enabled() || !basic_media_kind(&media.kind) {
+            kinds.insert(format!("{:?}", media.kind));
+        }
+    }
+    for clip in built.project.tracks.iter().flat_map(|track| &track.clips) {
+        match media_by_id.get(clip.media_id.as_str()) {
+            Some(kind) if cutover.basic_enabled() && basic_media_kind(kind) => {}
+            Some(kind) => {
+                kinds.insert(format!("{:?}", kind));
+            }
+            None => {
+                kinds.insert(format!("missingClipMedia:{}", clip.media_id));
+            }
+        }
+    }
+    kinds.into_iter().collect()
 }
 
 #[derive(Debug, Deserialize)]
@@ -133,14 +253,21 @@ pub(crate) fn handle_scene_replace(
     params: Value,
     state: &mut BackendState,
 ) -> RpcResponse {
-    handle_scene_replace_with_dual_run(id, params, state, dual_run_enabled())
+    handle_scene_replace_with_scene_builder(
+        id,
+        params,
+        state,
+        dual_run_enabled(),
+        scene_builder_cutover(),
+    )
 }
 
-pub(crate) fn handle_scene_replace_with_dual_run(
+pub(crate) fn handle_scene_replace_with_scene_builder(
     id: u64,
     params: Value,
     state: &mut BackendState,
     dual_run: bool,
+    cutover: SceneBuilderCutover,
 ) -> RpcResponse {
     let parsed = match serde_json::from_value::<SceneReplaceParams>(params) {
         Ok(value) => value,
@@ -169,9 +296,56 @@ pub(crate) fn handle_scene_replace_with_dual_run(
         }
     }
 
-    let dual_run_result = parsed.editable_scene.as_ref().filter(|_| dual_run).map(|editable_scene| {
-        dual_run_diagnostics(editable_scene, &parsed.project, &parsed.media)
-    });
+    let build_started = Instant::now();
+    let built = parsed
+        .editable_scene
+        .as_ref()
+        .filter(|_| dual_run || cutover.basic_enabled())
+        .map(build_evaluation_scene);
+    let build_micros = build_started.elapsed().as_micros().min(u64::MAX as u128) as u64;
+    let dual_run_result = match (parsed.editable_scene.as_ref(), built.as_ref()) {
+        (Some(editable_scene), Some(built)) if dual_run => Some(dual_run_diagnostics(
+            editable_scene,
+            built,
+            build_micros,
+            &parsed.project,
+            &parsed.media,
+        )),
+        _ => None,
+    };
+    let (project, media, scene_source, scene_fallback_reason) = match built.as_ref() {
+        None if !cutover.basic_enabled() => (
+            parsed.project,
+            parsed.media,
+            "typescript",
+            Some("flagOff".to_string()),
+        ),
+        None => (
+            parsed.project,
+            parsed.media,
+            "typescript",
+            Some("noEditableScene".to_string()),
+        ),
+        Some(built) if !built.resident_eligible => (
+            parsed.project,
+            parsed.media,
+            "typescript",
+            Some("notEligible".to_string()),
+        ),
+        Some(built) => {
+            let disabled_kinds = disabled_kind_names(built, &cutover);
+            if disabled_kinds.is_empty() {
+                (built.project.clone(), built.media.clone(), "rust", None)
+            } else {
+                (
+                    parsed.project,
+                    parsed.media,
+                    "typescript",
+                    Some(format!("kindGroupDisabled:{}", disabled_kinds.join(","))),
+                )
+            }
+        }
+    };
     let scene_id = parsed.scene_id.clone();
     let revision = parsed.revision;
     state.scene_sessions.insert(
@@ -179,12 +353,16 @@ pub(crate) fn handle_scene_replace_with_dual_run(
         SceneSession {
             scene_id: scene_id.clone(),
             revision,
-            project: parsed.project,
-            media: parsed.media,
+            project,
+            media,
         },
     );
 
-    let mut result = json!({ "sceneId": scene_id, "revision": revision });
+    let mut result =
+        json!({ "sceneId": scene_id, "revision": revision, "sceneSource": scene_source });
+    if let Some(reason) = scene_fallback_reason {
+        result["sceneFallbackReason"] = Value::String(reason);
+    }
     if let Some(diagnostics) = dual_run_result {
         result["dualRun"] = serde_json::to_value(diagnostics).unwrap_or(Value::Null);
     }

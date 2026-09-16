@@ -390,6 +390,7 @@ const ensureRustBackendProcess = () => {
       // oracle, not a runtime integrity check (the shared-ring write/read
       // CRC still guards the frame handoff), so skip it in the app.
       UXFD_DISABLE_DECODE_CHECKSUM: process.env.UXFD_DISABLE_DECODE_CHECKSUM ?? '1',
+      UXFD_SCENE_BUILDER_CUTOVER: process.env.UXFD_SCENE_BUILDER_CUTOVER,
     },
   });
   if (!child.stdout || !child.stderr || !child.stdin) {
