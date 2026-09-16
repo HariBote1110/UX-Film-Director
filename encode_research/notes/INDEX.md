@@ -2,6 +2,7 @@
 
 新しいものを上に置く。1行1ノート。
 
+- [fhd-direct-transcode-encoder-ceiling.md](fhd-direct-transcode-encoder-ceiling.md) — **FHD単体動画はdirect transcode(ffmpeg)経路で118fps。律速はM4メディアエンジンのh264_videotoolbox(合成ソースでも155fps、2本並列でも合計159fps)。HWデコード・フィルタ除去はfps不変(CPUは170%→50%)。HEVC+prio_speed=1なら224fps(+44%)。GPU使用率が低いのはVT処理がGPUコア外で動くためで異常ではない**（2026-09-17）
 - [upload-fence-per-frame-removal.md](upload-fence-per-frame-removal.md) — **sourceUpload残存2〜3msの正体は毎フレームのuploadフェンス(submit(empty)+wait ≒2.0ms)。仮説B(revision取りこぼし)は棄却(ミスは起動時42回のみ)。フェンス除去で133〜139fps(中央値135.8、ベースラインの2.64倍)、e2e全success。本実装は/developmentへ**（2026-08-21）
 - [generated-source-cache-verification.md](generated-source-cache-verification.md) — **キャッシュ修正の効果検証: collect 7.03→0.2ms(-96%)、102〜119fps(中央値107、当初ベースラインの2.07倍)。フレーム時間はほぼGPU作業のみ=GPU律速に到達。次はsourceUpload 2〜3ms残存とvsync供給律速の既定経路**（2026-08-21）
 - [collect-sources-cpu-rasterisation.md](collect-sources-cpu-rasterisation.md) — **前処理6〜8msの最終帰属。JSON往復・再パースは<0.1msで無罪(レバー2棄却)。`collect_native_render_sources`が生成系(Text/Shape/Gradient/SolidColour)を毎フレームCPU再ラスタライズしているのが犯人。revisionキー付きCPUキャッシュで130〜140fps見込み**（2026-08-21）
