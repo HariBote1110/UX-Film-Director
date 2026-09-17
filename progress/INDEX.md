@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [scene-build-p2b-kind-group-cutover.md](scene-build-p2b-kind-group-cutover.md) — `UXFD_SCENE_BUILDER_CUTOVER` の5群すべてを実ゲート化。`kind_group` の網羅matchでbasic/generated/audio/getcolorを分類し、group_controlはproject.group_controls非空でゲート。既定OFF・wire形状・fallback理由は不変（2026-09-18）
+
 - [export-codec-selection-plumbing.md](export-codec-selection-plumbing.md) — エクスポートコーデック選択をアプリ設定として保存し、H.264既存ペイロードの不変性、MOV/MP4保存先検証、Rust非対応フォールバックの明示エラー方針を記録（2026-09-17）
 
 - [export-videotoolbox-hardware-acceleration.md](export-videotoolbox-hardware-acceleration.md) — macOS の export/proxy に VideoToolbox デコード・`scale_vt`・HEVC/ProRes 出力選択を導入する方針、CPU フィルター境界と MOV 制約を記録（2026-09-17）
