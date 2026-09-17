@@ -40,9 +40,7 @@ fn dual_run_enabled() -> bool {
     *ENABLED.get_or_init(|| std::env::var("UXFD_SCENE_BUILDER_DUAL_RUN").as_deref() == Ok("1"))
 }
 
-/// P2a の kind 群。`basic` は shape/text/image/video/PSD が builder で生成する
-/// `SolidColour`、`GeneratedGradient`、`GeneratedShape`、`Text`、`Image`、`Video`、`Psd`
-/// のみを許可する。残りの群は将来の切替名を先に予約するが、この段階では未実装である。
+/// Scene builder の MediaKind group 切替。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SceneBuilderCutover {
     basic: bool,
@@ -53,9 +51,26 @@ pub(crate) struct SceneBuilderCutover {
 }
 
 impl SceneBuilderCutover {
-    pub(crate) fn basic_enabled(&self) -> bool {
-        self.basic
+    fn any_group_enabled(&self) -> bool {
+        self.basic || self.generated || self.audio || self.getcolor || self.group_control
     }
+
+    pub(crate) fn allows(&self, kind: &MediaKind) -> bool {
+        match kind_group(kind) {
+            SceneKindGroup::Basic => self.basic,
+            SceneKindGroup::Generated => self.generated,
+            SceneKindGroup::Audio => self.audio,
+            SceneKindGroup::GetColor => self.getcolor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SceneKindGroup {
+    Basic,
+    Generated,
+    Audio,
+    GetColor,
 }
 
 pub(crate) fn parse_scene_builder_cutover(
@@ -195,17 +210,52 @@ fn dual_run_diagnostics(
     }
 }
 
-fn basic_media_kind(kind: &MediaKind) -> bool {
-    matches!(
-        kind,
+fn kind_group(kind: &MediaKind) -> SceneKindGroup {
+    match kind {
         MediaKind::SolidColour
-            | MediaKind::GeneratedGradient
-            | MediaKind::GeneratedShape
-            | MediaKind::Text
-            | MediaKind::Image
-            | MediaKind::Video
-            | MediaKind::Psd
-    )
+        | MediaKind::GeneratedGradient
+        | MediaKind::GeneratedShape
+        | MediaKind::Text
+        | MediaKind::Image
+        | MediaKind::Video
+        | MediaKind::Psd => SceneKindGroup::Basic,
+        MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => {
+            SceneKindGroup::Audio
+        }
+        MediaKind::GeneratedGetColorDots => SceneKindGroup::GetColor,
+        MediaKind::GeneratedParticle
+        | MediaKind::GeneratedBarcode
+        | MediaKind::GeneratedPuzzlePiece
+        | MediaKind::GeneratedColourWheel
+        | MediaKind::GeneratedGourd
+        | MediaKind::GeneratedGear
+        | MediaKind::GeneratedTrackBar
+        | MediaKind::GeneratedPieChart
+        | MediaKind::GeneratedHistogram
+        | MediaKind::GeneratedToneCurve
+        | MediaKind::GeneratedHksyCheckerGrid
+        | MediaKind::GeneratedRegionFrame
+        | MediaKind::GeneratedSimpleTube
+        | MediaKind::GeneratedSphereDots
+        | MediaKind::GeneratedSphericalField
+        | MediaKind::GeneratedSunburst
+        | MediaKind::GeneratedCircularArrow
+        | MediaKind::GeneratedTriangleBracket
+        | MediaKind::GeneratedTartanCheck
+        | MediaKind::GeneratedHoundstooth
+        | MediaKind::GeneratedYagasuri
+        | MediaKind::GeneratedPaperAirplane
+        | MediaKind::GeneratedAsanohaPattern
+        | MediaKind::GeneratedFocusLinesPlus
+        | MediaKind::GeneratedRandomLineEx
+        | MediaKind::GeneratedContourTrace
+        | MediaKind::GeneratedDisplacementPoly
+        | MediaKind::GeneratedPlainEffectorLine
+        | MediaKind::GeneratedHologram
+        | MediaKind::GeneratedProtractor
+        | MediaKind::GeneratedShakingPolygon
+        | MediaKind::GeneratedShatteredSphere => SceneKindGroup::Generated,
+    }
 }
 
 fn disabled_kind_names(
@@ -216,19 +266,19 @@ fn disabled_kind_names(
     let mut media_by_id: HashMap<&str, &MediaKind> = HashMap::new();
     for media in &built.project.media {
         media_by_id.insert(media.id.as_str(), &media.kind);
-        if !cutover.basic_enabled() || !basic_media_kind(&media.kind) {
+        if !cutover.allows(&media.kind) {
             kinds.insert(format!("{:?}", media.kind));
         }
     }
     for media in &built.media {
         media_by_id.insert(media.id.as_str(), &media.kind);
-        if !cutover.basic_enabled() || !basic_media_kind(&media.kind) {
+        if !cutover.allows(&media.kind) {
             kinds.insert(format!("{:?}", media.kind));
         }
     }
     for clip in built.project.tracks.iter().flat_map(|track| &track.clips) {
         match media_by_id.get(clip.media_id.as_str()) {
-            Some(kind) if cutover.basic_enabled() && basic_media_kind(kind) => {}
+            Some(kind) if cutover.allows(kind) => {}
             Some(kind) => {
                 kinds.insert(format!("{:?}", kind));
             }
@@ -236,6 +286,9 @@ fn disabled_kind_names(
                 kinds.insert(format!("missingClipMedia:{}", clip.media_id));
             }
         }
+    }
+    if !built.project.group_controls.is_empty() && !cutover.group_control {
+        kinds.insert("groupControl".to_string());
     }
     kinds.into_iter().collect()
 }
@@ -300,7 +353,7 @@ pub(crate) fn handle_scene_replace_with_scene_builder(
     let built = parsed
         .editable_scene
         .as_ref()
-        .filter(|_| dual_run || cutover.basic_enabled())
+        .filter(|_| dual_run || cutover.any_group_enabled())
         .map(build_evaluation_scene);
     let build_micros = build_started.elapsed().as_micros().min(u64::MAX as u128) as u64;
     let dual_run_result = match (parsed.editable_scene.as_ref(), built.as_ref()) {
@@ -314,7 +367,7 @@ pub(crate) fn handle_scene_replace_with_scene_builder(
         _ => None,
     };
     let (project, media, scene_source, scene_fallback_reason) = match built.as_ref() {
-        None if !cutover.basic_enabled() => (
+        None if !cutover.any_group_enabled() => (
             parsed.project,
             parsed.media,
             "typescript",

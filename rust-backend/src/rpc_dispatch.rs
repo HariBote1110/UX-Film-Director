@@ -105,7 +105,7 @@ mod tests {
         handle_scene_replace_with_scene_builder, parse_scene_builder_cutover, SceneBuilderCutover,
     };
     use serde_json::{json, Value};
-    use uxfd_rust_core::build_evaluation_scene;
+    use uxfd_rust_core::{build_evaluation_scene, MediaKind};
 
     fn request(id: u64, method: &str, params: Value) -> RpcRequest {
         RpcRequest {
@@ -326,11 +326,11 @@ mod tests {
             parse_scene_builder_cutover(None).unwrap(),
             SceneBuilderCutover::default()
         );
-        assert!(basic_cutover().basic_enabled());
+        assert!(basic_cutover().allows(&MediaKind::SolidColour));
         assert!(
             parse_scene_builder_cutover(Some("basic,generated,audio,getcolor,group_control"))
                 .unwrap()
-                .basic_enabled()
+                .allows(&MediaKind::GeneratedParticle)
         );
         assert_eq!(
             parse_scene_builder_cutover(Some("basic,unknown")),
@@ -352,6 +352,120 @@ mod tests {
         assert_eq!(response.result.unwrap()["sceneSource"], "rust");
         assert_eq!(state.scene_sessions["rust-basic"].project, built.project);
         assert_eq!(state.scene_sessions["rust-basic"].media, built.media);
+    }
+
+    #[test]
+    fn scene_replace_generated_cutover_requires_generated_group() {
+        let params = editable_replace_params_for_type("generated-basic-only", 1, "particle");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            basic_cutover(),
+        );
+        let result = response.result.unwrap();
+        assert_eq!(result["sceneSource"], "typescript");
+        assert_eq!(
+            result["sceneFallbackReason"],
+            "kindGroupDisabled:GeneratedParticle"
+        );
+
+        let params = editable_replace_params_for_type("generated-enabled", 1, "particle");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            parse_scene_builder_cutover(Some("basic,generated")).unwrap(),
+        );
+        assert_eq!(response.result.unwrap()["sceneSource"], "rust");
+    }
+
+    #[test]
+    fn scene_replace_audio_cutover_requires_audio_group() {
+        let params = editable_replace_params_for_type("audio-basic-only", 1, "audio_visualization");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            basic_cutover(),
+        );
+        let result = response.result.unwrap();
+        assert_eq!(result["sceneSource"], "typescript");
+        assert_eq!(
+            result["sceneFallbackReason"],
+            "kindGroupDisabled:GeneratedAudioWaveform"
+        );
+
+        let params = editable_replace_params_for_type("audio-enabled", 1, "audio_visualization");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            parse_scene_builder_cutover(Some("basic,audio")).unwrap(),
+        );
+        assert_eq!(response.result.unwrap()["sceneSource"], "rust");
+    }
+
+    #[test]
+    fn scene_replace_getcolor_cutover_requires_getcolor_group() {
+        let params =
+            editable_replace_params_for_type("getcolor-basic-only", 1, "getcolor_dot_field");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            basic_cutover(),
+        );
+        let result = response.result.unwrap();
+        assert_eq!(result["sceneSource"], "typescript");
+        assert_eq!(
+            result["sceneFallbackReason"],
+            "kindGroupDisabled:GeneratedGetColorDots"
+        );
+
+        let params = editable_replace_params_for_type("getcolor-enabled", 1, "getcolor_dot_field");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            parse_scene_builder_cutover(Some("basic,getcolor")).unwrap(),
+        );
+        assert_eq!(response.result.unwrap()["sceneSource"], "rust");
+    }
+
+    #[test]
+    fn scene_replace_group_control_cutover_requires_group_control_group() {
+        let params =
+            editable_replace_params_for_type("group-control-basic-only", 1, "group_control");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            basic_cutover(),
+        );
+        let result = response.result.unwrap();
+        assert_eq!(result["sceneSource"], "typescript");
+        assert_eq!(
+            result["sceneFallbackReason"],
+            "kindGroupDisabled:groupControl"
+        );
+
+        let params = editable_replace_params_for_type("group-control-enabled", 1, "group_control");
+        let response = handle_scene_replace_with_scene_builder(
+            1,
+            params,
+            &mut BackendState::default(),
+            false,
+            parse_scene_builder_cutover(Some("basic,group_control")).unwrap(),
+        );
+        assert_eq!(response.result.unwrap()["sceneSource"], "rust");
     }
 
     #[test]
