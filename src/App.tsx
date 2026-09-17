@@ -15,6 +15,7 @@ import { useTranslation } from './i18n';
 import { FolderOpen, Save, Camera } from 'lucide-react';
 import { RendererTraceProfiler } from './components/RendererTraceProfiler';
 import PreviewHoleBackdrop from './components/PreviewHoleBackdrop';
+import ExportCodecSelect from './components/ExportCodecSelect';
 import './index.css';
 
 const { ipcRenderer } = window;
@@ -183,6 +184,7 @@ const App: React.FC = () => {
           <button className="btn-success" onClick={handleExportMp3} disabled={isUiBusy} style={{ fontSize: '11px' }}>
             {isMp3Exporting ? '...' : 'MP3'}
           </button>
+          <ExportCodecSelect language={language} disabled={isUiBusy} />
           <button className="btn-primary" onClick={handleExport} disabled={isUiBusy} style={{ fontSize: '11px' }}>
             {isExporting ? '...' : language === 'ja' ? '動画出力' : 'Export'}
           </button>
