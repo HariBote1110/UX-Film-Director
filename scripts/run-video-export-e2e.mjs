@@ -74,6 +74,12 @@ const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
 const ADD_MIXED_MEDIA = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA === '1';
 const ADD_PSD = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_PSD === '1';
 const ADD_AVIUTL_GENERATED_EFFECTS = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS === '1';
+// P2b の受入材料: generated/audio/getcolor に加え group_control も混在させた
+// シーンを export E2E で確認するための opt-in knob（既定OFF、既定挙動は不変）。
+// `ADD_AVIUTL_GENERATED_EFFECTS` がまだ持たない group_control を対象にする。
+// 対応する renderer 側 window hook（__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__）は
+// このスライスでは未実装。フラグを有効化すると hook 欠如を明確なエラーとして検出する。
+const ADD_GROUP_CONTROL = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL === '1';
 const IMAGE_PATH = resolve(ROOT, 'public/icon.jpg');
 const PSD_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH
   ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH)
@@ -690,6 +696,30 @@ const addAviUtlGeneratedEffectsToTimeline = async (client) => {
   };
 };
 
+const addGroupControlToTimeline = async (client) => {
+  if (!ADD_GROUP_CONTROL) {
+    return { enabled: false };
+  }
+
+  const hookResult = await client.evaluate(`
+    window.__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
+  `);
+  if (!hookResult?.ok) {
+    return { ok: false, enabled: true, stage: 'hook', hookResult };
+  }
+  const timelineNames = Array.isArray(hookResult.timelineNames) && hookResult.timelineNames.length > 0
+    ? hookResult.timelineNames
+    : ['e2e-group-control'];
+  const timelineResult = await waitForTimelineItems(client, timelineNames, 30000);
+  return {
+    ...timelineResult,
+    enabled: true,
+    stage: 'complete',
+    hookResult,
+    timelineNames,
+  };
+};
+
 const shortenAllObjectsForExport = async (client) => client.evaluate(`
   window.__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
 `);
@@ -1043,7 +1073,11 @@ const main = async () => {
   if (ADD_AVIUTL_GENERATED_EFFECTS && !aviUtlGeneratedEffectsResult?.ok) {
     throw new Error(`AviUtl生成効果追加に失敗しました: ${JSON.stringify(aviUtlGeneratedEffectsResult)}`);
   }
-  const shouldShortenAllObjects = ADD_MIXED_MEDIA || ADD_PSD || ADD_AVIUTL_GENERATED_EFFECTS;
+  const groupControlResult = await addGroupControlToTimeline(client);
+  if (ADD_GROUP_CONTROL && !groupControlResult?.ok) {
+    throw new Error(`group_control追加に失敗しました: ${JSON.stringify(groupControlResult)}`);
+  }
+  const shouldShortenAllObjects = ADD_MIXED_MEDIA || ADD_PSD || ADD_AVIUTL_GENERATED_EFFECTS || ADD_GROUP_CONTROL;
   const mixedMediaDurationResult = shouldShortenAllObjects
     ? await shortenAllObjectsForExport(client)
     : null;
@@ -1084,6 +1118,7 @@ const main = async () => {
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
       && (!ADD_PSD || psdMediaResult?.ok)
       && (!ADD_AVIUTL_GENERATED_EFFECTS || aviUtlGeneratedEffectsResult?.ok)
+      && (!ADD_GROUP_CONTROL || groupControlResult?.ok)
       && (!shouldShortenAllObjects || mixedMediaDurationResult?.ok)
       && (!directTranscodeRequired || exportAttempts.every((attempt) => attempt.exportUsedDirectTranscode))
       && (!EXPECT_REPEAT_SPEEDUP || repeatSpeedupObserved)
