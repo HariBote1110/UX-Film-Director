@@ -189,6 +189,22 @@ resident sessionは従来どおりTS送信値だけを保持する。renderer側
 - **受入条件**: preview、native overlay、export、Windows interim presenter が同じ Rust-built media を消費する。各 cut-over で 447-frame parity と export parity が緑。audio direct-ID / layer fallback、GetColor 4規則、group-control 4規則が Rust unit test と E2E fixture に存在する。
 - **rollback**: kind feature flag を旧 direct serializer に戻す。P2 完了まで旧 serializer と bridge は残す。
 
+### P2c: cut-over 下の常駐 scene export revision 収束（中、2026-09-18 追加）
+
+P2b の受入検証で判明した未解決項目である。cut-over 有効時は renderer の acknowledged revision が
+楽観 revision へ収束せず、常駐 scene export が `Resident scene export revision does not match the
+active scene` で失敗する。現状は `getRustExportFrameSource` の明示ガードで常駐経路を使わず、
+`uxfdRustExportFrameSourceStatus = residentSceneDisabledUnderSceneBuilderCutover` として可視化している。
+
+- **Scope**: `onRemoteReady` が not-ready のたび acknowledged revision を捨てる設計の見直し、または
+  export が scene lifecycle を所有して開始時に scene を確定させる構造への変更。どちらを採るかは
+  収束しない根本原因の確定後に決める。
+- **受入条件**: cut-over 全群ONの混在kind export E2E が exit 0 かつ
+  `uxfdRustExportFrameSourceStatus = residentScene` になること。対照構成も `residentScene` のままであること。
+- **注意**: 収束待ちの追加（scheduler の `waitForReady` 等）は一度実装して棄却済みである。
+  タイミングパッチでは解けないことが実機で確認されている。詳細は
+  `progress/scene-build-p2b-kind-group-cutover.md` の末尾節を参照する。
+
 ### P3: TS serializer の撤去と責務台帳の解消（中、4–7日）
 
 - **Scope**: `mediaReferenceForObject`、3 resolver、generator source の TS serialization、`buildEditableRustScene`、`buildRustSceneSnapshotForTimeline` を削除または Rust RPC の型-only adaptor に縮小する。TS boundary validator は Rust response の防御として残すかをレビューする。ADR-014 の逸脱記録と責務台帳を更新する。

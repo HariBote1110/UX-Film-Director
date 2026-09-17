@@ -41,3 +41,38 @@
   `UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL`（既定OFF）を足したが、対応する renderer hook
   `window.__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__` は未実装で、有効化すると明示エラーで落ちる。
   実機検証はこの hook 実装が前提になる。
+
+## cut-over 下の常駐 scene export（2026-09-18、未解決・P2cへ）
+
+### 事実
+
+- 混在kindシーン（mixed media + PSD + AviUtl生成系 + group_control）を実機 Electron の export E2E にかけると、
+  cut-over 全群ON＋dual-run では `Resident scene export revision does not match the active scene`
+  （`rust-backend/src/native_render.rs:59`）で失敗する。同一構成から scene-builder 系4つの環境変数だけ
+  外した対照実行は exit 0 で成功する。環境要因ではない。
+- renderer 側の acknowledged revision（`onRemoteReady` 由来）が楽観 revision へ収束しない。
+  承認待ちを入れた実装では 15 秒待っても一致せず、必ずタイムアウトした。
+- scene RPC カウンタは対照と cut-over で同一（requested=4 / resolved=4 / stale=1 / failed=0）。
+  `stale=1` は latest-wins の正常動作であり、両者の差ではない。
+- `Viewport.tsx` の `onRemoteReady` は `ready ? ready.revision : null` であり、not-ready のたびに
+  acknowledged revision を null へ落とす。承認待ちは `residentRevision === optimisticRevision` を
+  条件にするため、この経路がある限り成立しない。
+- backend 側は最新 revision を保持していると考えられる。対照実行は楽観 revision のまま常駐 export に
+  成功しており、backend がそれを受理しているためである。
+
+### 決定
+
+- 収束させる修正は P2b のスコープを超えるため、本スライスでは追わない。計画の P2c（export 収束）として積む。
+- 代わりに `getRustExportFrameSource` へ明示ガードを置き、cut-over 有効時は常駐 scene export を使わず
+  既存の fallback 経路へ落とす。その際 `uxfdRustExportFrameSourceStatus` を
+  `residentSceneDisabledUnderSceneBuilderCutover` にし、通常実行と区別できるようにする。
+  黙ってフォールバックする実装は一度作って棄却した（E2E がグリーンになるだけで、cut-over 経路上で
+  export が動く証跡にならないため）。
+- 収束待ち（scheduler の `waitForReady` と export 側ポーリング）は動かなかったので撤去した。
+
+### 実機確認（2026-09-18、親環境で親が実行）
+
+| 構成 | exit | `uxfdRustExportFrameSourceStatus` |
+| --- | --- | --- |
+| cut-over 全群ON + dual-run | 0 | `residentSceneDisabledUnderSceneBuilderCutover` |
+| 対照（scene-builder 環境変数なし） | 0 | `residentScene` |
