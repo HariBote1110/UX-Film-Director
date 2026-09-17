@@ -2641,9 +2641,7 @@ const Viewport: React.FC = () => {
     // exportを使わずTypeScript側のfallback経路へ落とす。ここを消して収束待ちを
     // 復活させないこと。
     if (rustEditableSceneCutoverEnabled) {
-      document.documentElement.dataset.uxfdRustExportFrameSourceStatus =
-        'residentSceneDisabledUnderSceneBuilderCutover';
-      return buildViewportRustExportFrameSource({
+      const fallbackSource = buildViewportRustExportFrameSource({
         exportEnabled: sharedRendererExportEnabled,
         canvas: sharedRendererSurfaceCanvasRef.current,
         projectSettings,
@@ -2661,6 +2659,12 @@ const Viewport: React.FC = () => {
         onFrameSourceUnavailable: context.onFrameSourceUnavailable,
         diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
       });
+      // buildViewportRustExportFrameSourceが内部でuxfdRustExportFrameSourceStatusを
+      // 'ready'/'fallback'/'blocked'へ上書きするため、cut-over時の明示ステータスは
+      // そのあとに立て直す。
+      document.documentElement.dataset.uxfdRustExportFrameSourceStatus =
+        'residentSceneDisabledUnderSceneBuilderCutover';
+      return fallbackSource;
     }
     const canUseResidentScene = (
       sharedRendererExportEnabled
