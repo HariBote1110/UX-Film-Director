@@ -1,8 +1,39 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import packageJson from '../../package.json';
 
 describe('package scripts', () => {
+  it('parses video export codec E2E settings and validates probed output', () => {
+    const scriptUrl = new URL('../../scripts/run-video-export-e2e.mjs', import.meta.url).href;
+    const result = JSON.parse(execFileSync(process.execPath, [
+      '--input-type=module',
+      '--eval',
+      `import { parseVideoExportE2eVideoCodec, resolveVideoExportE2eOutputExtension, matchesVideoExportE2eProbe } from ${JSON.stringify(scriptUrl)};
+      let invalidCodecMessage = null;
+      try { parseVideoExportE2eVideoCodec('av1'); } catch (error) { invalidCodecMessage = error.message; }
+      console.log(JSON.stringify({
+        codecs: [parseVideoExportE2eVideoCodec(undefined), parseVideoExportE2eVideoCodec('hevc'), parseVideoExportE2eVideoCodec('prores')],
+        invalidCodecMessage,
+        extensions: ['h264', 'hevc', 'prores'].map(resolveVideoExportE2eOutputExtension),
+        h264Matches: matchesVideoExportE2eProbe('h264', { codecName: 'h264', codecTagString: 'avc1', formatName: 'mov,mp4,m4a,3gp,3g2,mj2' }),
+        hevcMatches: matchesVideoExportE2eProbe('hevc', { codecName: 'hevc', codecTagString: 'hvc1', formatName: 'mov,mp4,m4a,3gp,3g2,mj2' }),
+        hevcWrongTagMatches: matchesVideoExportE2eProbe('hevc', { codecName: 'hevc', codecTagString: 'hev1', formatName: 'mov,mp4,m4a,3gp,3g2,mj2' }),
+        proresMatches: matchesVideoExportE2eProbe('prores', { codecName: 'prores', codecTagString: 'apcn', formatName: 'mov,mp4,m4a,3gp,3g2,mj2' }),
+        proresWrongContainerMatches: matchesVideoExportE2eProbe('prores', { codecName: 'prores', codecTagString: 'apcn', formatName: 'mp4' }),
+      }));`,
+    ], { encoding: 'utf8' }));
+
+    expect(result.codecs).toEqual(['h264', 'hevc', 'prores']);
+    expect(result.invalidCodecMessage).toContain('UXFD_VIDEO_EXPORT_E2E_VIDEO_CODEC');
+    expect(result.extensions).toEqual(['mp4', 'mp4', 'mov']);
+    expect(result.h264Matches).toBe(true);
+    expect(result.hevcMatches).toBe(true);
+    expect(result.hevcWrongTagMatches).toBe(false);
+    expect(result.proresMatches).toBe(true);
+    expect(result.proresWrongContainerMatches).toBe(false);
+  });
+
   it('provides a cross-platform Rust video preview/export dev command', () => {
     expect(packageJson.scripts['dev:rust-video']).toBe('node scripts/dev-rust-video.mjs');
 
@@ -145,6 +176,11 @@ describe('package scripts', () => {
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_PSD');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_VIDEO_CODEC');
+    expect(script).toContain('videoCodecRequested');
+    expect(script).toContain('probedCodecName');
+    expect(script).toContain('videoCodecMatchesRequest');
+    expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP');
     expect(script).toContain('mixedMediaResult');
     expect(script).toContain('psdMediaResult');
@@ -180,6 +216,8 @@ describe('package scripts', () => {
   it('keeps mixed-media video export E2E duration controlled by the renderer hook', () => {
     const main = readFileSync(new URL('../../src/main.tsx', import.meta.url), 'utf8');
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
+    expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__');
+    expect(main).toContain('setExportVideoCodec(codec)');
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__');
     expect(main).toContain('GetColor V2R ドットフィールド');
     expect(main).toContain('hksyチェッカー/グリッド');

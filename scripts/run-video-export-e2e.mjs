@@ -1,9 +1,27 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const VIDEO_EXPORT_E2E_CODECS = new Set(['h264', 'hevc', 'prores']);
+
+export const parseVideoExportE2eVideoCodec = (value) => {
+  const codec = value ?? 'h264';
+  if (typeof codec === 'string' && VIDEO_EXPORT_E2E_CODECS.has(codec)) return codec;
+  throw new Error(
+    `UXFD_VIDEO_EXPORT_E2E_VIDEO_CODEC must be one of: h264, hevc, prores (received ${JSON.stringify(value)})`,
+  );
+};
+
+export const resolveVideoExportE2eOutputExtension = (codec) => codec === 'prores' ? 'mov' : 'mp4';
+
+export const matchesVideoExportE2eProbe = (codec, { codecName, codecTagString, formatName }) => {
+  if (codec === 'h264') return codecName === 'h264';
+  if (codec === 'hevc') return codecName === 'hevc' && codecTagString === 'hvc1';
+  return codecName === 'prores' && formatName?.split(',').includes('mov');
+};
+
 const VITE_PORT = Number(process.env.UXFD_VIDEO_EXPORT_E2E_VITE_PORT ?? 5302);
 const DEBUG_PORT = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DEBUG_PORT ?? 9334);
 const VIDEO_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH
@@ -28,9 +46,11 @@ const OUTPUT_DIR = resolve(ROOT, '.codex/video-export-e2e');
 const AGENT_PROJECT_BASENAME = AGENT_PROJECT_PATH
   ? AGENT_PROJECT_PATH.split('/').pop()?.replace(/\.[^./]+$/, '') ?? 'agent-project'
   : null;
+const VIDEO_CODEC_REQUESTED = parseVideoExportE2eVideoCodec(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_CODEC);
+const OUTPUT_EXTENSION = resolveVideoExportE2eOutputExtension(VIDEO_CODEC_REQUESTED);
 const OUTPUT_MP4 = AGENT_PROJECT_PATH
-  ? resolve(OUTPUT_DIR, `${AGENT_PROJECT_BASENAME}-e2e-${process.pid}.mp4`)
-  : resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
+  ? resolve(OUTPUT_DIR, `${AGENT_PROJECT_BASENAME}-e2e-${process.pid}.${OUTPUT_EXTENSION}`)
+  : resolve(OUTPUT_DIR, `video-export-e2e-output.${OUTPUT_EXTENSION}`);
 const OUTPUT_FRAME_RGBA = resolve(OUTPUT_DIR, 'video-export-e2e-frame0.rgba');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
@@ -82,9 +102,6 @@ const finish = (code) => {
   writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
   process.exit(code);
 };
-
-process.on('SIGINT', () => finish(130));
-process.on('SIGTERM', () => finish(143));
 
 const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 
@@ -677,6 +694,41 @@ const shortenAllObjectsForExport = async (client) => client.evaluate(`
   window.__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
 `);
 
+const probeExportedVideoCodec = (outputPath) => {
+  if (!existsSync(outputPath)) {
+    return {
+      codecName: null,
+      codecTagString: null,
+      formatName: null,
+      error: 'output file does not exist',
+    };
+  }
+  try {
+    const output = execFileSync('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_name,codec_tag_string:format=format_name',
+      '-of', 'json',
+      outputPath,
+    ], { encoding: 'utf8' });
+    const probe = JSON.parse(output);
+    const stream = probe.streams?.[0] ?? {};
+    return {
+      codecName: stream.codec_name ?? null,
+      codecTagString: stream.codec_tag_string ?? null,
+      formatName: probe.format?.format_name ?? null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      codecName: null,
+      codecTagString: null,
+      formatName: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+};
+
 const runVideoExportAttempt = async (client, attemptIndex) => {
   client.dialogs.length = 0;
   log(`動画出力を開始(${attemptIndex}/${REPEAT_EXPORTS}): ${OUTPUT_MP4}`);
@@ -760,11 +812,18 @@ const runVideoExportAttempt = async (client, attemptIndex) => {
       size: statSync(OUTPUT_MP4).size,
     }
     : { exists: false, size: 0 };
+  const codecProbe = probeExportedVideoCodec(OUTPUT_MP4);
+  const videoCodecMatchesRequest = matchesVideoExportE2eProbe(VIDEO_CODEC_REQUESTED, codecProbe);
 
   return {
     attemptIndex,
     outputPath: OUTPUT_MP4,
     outputStat,
+    probedCodecName: codecProbe.codecName,
+    probedCodecTagString: codecProbe.codecTagString,
+    probedContainerFormatName: codecProbe.formatName,
+    videoCodecProbeError: codecProbe.error,
+    videoCodecMatchesRequest,
     exportDurationMs,
     exportedFrameCount,
     encoderPath,
@@ -786,7 +845,7 @@ const main = async () => {
     throw new Error(`video fixture is missing: ${VIDEO_PATH}`);
   }
 
-  // エージェント用レシピの実行では、OUTPUT_DIR 配下に過去の一意な出力 mp4 が残っている可能性があるため
+  // エージェント用レシピの実行では、OUTPUT_DIR 配下に過去の一意な出力動画が残っている可能性があるため
   // ディレクトリごと削除しない(結果としてレシピごとの出力を積み上げて比較できる)。
   // 従来どおりの呼び出し元(固定パス運用)では、これまでと同じくディレクトリを丸ごと作り直す。
   if (!AGENT_PROJECT_PATH) {
@@ -991,6 +1050,12 @@ const main = async () => {
   if (shouldShortenAllObjects && !mixedMediaDurationResult?.ok) {
     throw new Error(`混在メディア短尺化に失敗しました: ${JSON.stringify(mixedMediaDurationResult)}`);
   }
+  const videoCodecSet = await client.evaluate(`
+    window.__UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__?.(${JSON.stringify(VIDEO_CODEC_REQUESTED)}) ?? false
+  `);
+  if (videoCodecSet !== true) {
+    throw new Error(`動画export E2E用のcodec設定に失敗しました: ${VIDEO_CODEC_REQUESTED}`);
+  }
 
   const exportAttempts = [];
   for (let attemptIndex = 1; attemptIndex <= REPEAT_EXPORTS; attemptIndex += 1) {
@@ -1013,6 +1078,7 @@ const main = async () => {
         && attempt.outputStat.size > 0
         && attempt.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
         && attempt.frameCountMatchesDuration
+        && attempt.videoCodecMatchesRequest
         && (!EXPECT_ENCODER_PATH || attempt.encoderPath === EXPECT_ENCODER_PATH)
       ))
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
@@ -1028,6 +1094,12 @@ const main = async () => {
     agentProjectPath: AGENT_PROJECT_PATH,
     outputPath: OUTPUT_MP4,
     outputStat: lastAttempt.outputStat,
+    videoCodecRequested: VIDEO_CODEC_REQUESTED,
+    probedCodecName: lastAttempt.probedCodecName,
+    probedCodecTagString: lastAttempt.probedCodecTagString,
+    probedContainerFormatName: lastAttempt.probedContainerFormatName,
+    videoCodecProbeError: lastAttempt.videoCodecProbeError,
+    videoCodecMatchesRequest: lastAttempt.videoCodecMatchesRequest,
     exportDurationSeconds: EXPORT_DURATION_SECONDS,
     repeatExports: REPEAT_EXPORTS,
     expectRepeatSpeedup: EXPECT_REPEAT_SPEEDUP,
@@ -1065,11 +1137,15 @@ const main = async () => {
   finish(result.passed ? 0 : 1);
 };
 
-main().catch((error) => {
-  writeResult({
-    passed: false,
-    error: error instanceof Error ? error.message : String(error),
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.on('SIGINT', () => finish(130));
+  process.on('SIGTERM', () => finish(143));
+  main().catch((error) => {
+    writeResult({
+      passed: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    log(`失敗: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+    finish(1);
   });
-  log(`失敗: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-  finish(1);
-});
+}

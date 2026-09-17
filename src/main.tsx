@@ -7,6 +7,7 @@ import { buildAviUtlAudioSphereObject } from './utils/objectFactories/audioSpher
 import { buildGetColorDotFieldObject } from './utils/objectFactories/getColorDotFieldObjectFactory'
 import { buildHksyCheckerGridObject } from './utils/objectFactories/hksyCheckerGridObjectFactory'
 import { buildAviUtlShatteredSphereObject } from './utils/objectFactories/shatteredSphereObjectFactory'
+import type { VideoExportCodec } from './utils/videoExportEncodeSettings'
 import type { AudioObject, AudioVisualizationObject, ParticleObject, ShapeObject } from './types'
 import { buildAgentProjectFile } from './agentProject/agentProject'
 
@@ -173,6 +174,7 @@ if (urlSearchParams.has('videoExportE2e')) {
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?: (duration: number) => boolean;
     __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
+    __UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__?: (codec: VideoExportCodec) => boolean;
     __UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?: (duration: number) => VideoExportE2eDurationResult;
     __UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__?: (duration: number) => VideoExportE2eGeneratedEffectsResult;
   }).__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__ = (duration: number) => {
@@ -183,6 +185,12 @@ if (urlSearchParams.has('videoExportE2e')) {
     });
     state.setDuration(duration);
     return videoObjects.length > 0;
+  };
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__?: (codec: VideoExportCodec) => boolean;
+  }).__UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__ = (codec: VideoExportCodec) => {
+    useStore.getState().setExportVideoCodec(codec);
+    return true;
   };
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?: (duration: number) => VideoExportE2eDurationResult;
