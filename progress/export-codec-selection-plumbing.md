@@ -12,3 +12,16 @@
 
 - Rust バックエンドは ProRes の MP4 出力を拒否するため、UI は descriptor の `fileExtension` に従う必要がある。
 - 実 Electron の保存ダイアログおよび実書き出しはこの環境では実行していない。ユニットテストではダイアログ引数、拡張子検証、Rust ペイロードを検証する。
+
+## 実機確認（2026-09-17、Apple M4、親環境）
+
+`scripts/run-video-export-e2e.mjs` に `UXFD_VIDEO_EXPORT_E2E_VIDEO_CODEC` を指定し、FHD 60fps の HEVC 素材（`perf/heavy-media/20000kbps_60fps.mp4`）を10秒（600フレーム）書き出した。3件とも総合PASSで、経路はすべて `Rust backend direct transcode`。
+
+| コーデック | 所要時間 | fps | ffprobe（codec / tag / 拡張子） |
+| --- | --- | --- | --- |
+| H.264 | 3623 ms | 166 | h264 / avc1 / .mp4 |
+| HEVC | 2549 ms | 235 | hevc / hvc1 / .mp4 |
+| ProRes | 2564 ms | 234 | prores / apcn（ProRes 422）/ .mov |
+
+- ヘッダーのコーデック選択欄は、CDP 上で `aria-label="書き出しコーデック"` の select（92×13px、y=13.5）として描画され、選択肢は H.264 / HEVC (H.265) / Apple ProRes だった。
+- スクリーンショットはウィンドウが透過（hole-punch）状態のため暗く、見た目の目視確認はできていない。
