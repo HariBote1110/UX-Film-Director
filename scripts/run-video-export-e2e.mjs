@@ -78,7 +78,7 @@ const ADD_AVIUTL_GENERATED_EFFECTS = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_AVIUT
 // シーンを export E2E で確認するための opt-in knob（既定OFF、既定挙動は不変）。
 // `ADD_AVIUTL_GENERATED_EFFECTS` がまだ持たない group_control を対象にする。
 // 対応する renderer 側 window hook（__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__）は
-// このスライスでは未実装。フラグを有効化すると hook 欠如を明確なエラーとして検出する。
+// src/main.tsx に実装済み。group_control 1個とその配下 member を2個追加する。
 const ADD_GROUP_CONTROL = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL === '1';
 const IMAGE_PATH = resolve(ROOT, 'public/icon.jpg');
 const PSD_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH
@@ -1144,6 +1144,7 @@ const main = async () => {
     mixedMediaResult,
     psdMediaResult,
     aviUtlGeneratedEffectsResult,
+    groupControlResult,
     generatedEffectsFrameInspection,
     mixedMediaDurationResult,
     directTranscodeRequired,
