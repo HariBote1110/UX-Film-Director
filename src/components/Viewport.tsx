@@ -2635,6 +2635,33 @@ const Viewport: React.FC = () => {
   }, []);
 
   const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => {
+    // Scene-builder cut-over時はresident sceneのacknowledged revisionが
+    // 楽観revisionへ収束しない（P2c未解決）。無理にresident経路へ進ませると
+    // 常にrevision timeoutで失敗するため、cut-over有効時は明示的にresident scene
+    // exportを使わずTypeScript側のfallback経路へ落とす。ここを消して収束待ちを
+    // 復活させないこと。
+    if (rustEditableSceneCutoverEnabled) {
+      document.documentElement.dataset.uxfdRustExportFrameSourceStatus =
+        'residentSceneDisabledUnderSceneBuilderCutover';
+      return buildViewportRustExportFrameSource({
+        exportEnabled: sharedRendererExportEnabled,
+        canvas: sharedRendererSurfaceCanvasRef.current,
+        projectSettings,
+        layers,
+        editorMode,
+        webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+        fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
+        videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
+        hasVideoObjects: context.hasVideoObjects,
+        hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
+        objects: context.objects,
+        time: context.time,
+        preferEncodeOnly: context.preferEncodeOnly,
+        presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
+        onFrameSourceUnavailable: context.onFrameSourceUnavailable,
+        diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
+      });
+    }
     const canUseResidentScene = (
       sharedRendererExportEnabled
       && rustTimelineSceneRpcEnabled
@@ -2673,6 +2700,7 @@ const Viewport: React.FC = () => {
     editorMode,
     layers,
     projectSettings,
+    rustEditableSceneCutoverEnabled,
     rustTimelineSceneRevision,
     rustTimelineSceneRpcEnabled,
     sharedRendererExportEnabled,
@@ -2681,7 +2709,7 @@ const Viewport: React.FC = () => {
     sharedRendererVideoCutoverEnabled,
     rustVideoOnlyEnabled,
   ]);
-  
+
   useProjectExport(renderScene, getExportCanvas, getRustExportFrameSource);
 
   // --- Snapshot Logic (after renderScene is defined) ---

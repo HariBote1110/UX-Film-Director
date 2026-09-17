@@ -45,6 +45,16 @@ describe('常駐 Rust scene export 境界', () => {
     expect(viewport).not.toContain('&& !context.hasVideoObjects');
   });
 
+  it('scene-builder cut-over有効時はresident scene経路を使わず明示ステータスへ落とす', () => {
+    const viewport = viewportSource();
+
+    expect(viewport).toContain('if (rustEditableSceneCutoverEnabled) {');
+    expect(viewport).toContain(
+      "'residentSceneDisabledUnderSceneBuilderCutover'",
+    );
+    expect(viewport).toContain('buildViewportRustExportFrameSource');
+  });
+
   it('frame要求をsnapshotなしのresident scene encode payloadへ変換する', async () => {
     const source = createResidentSceneExportFrameSource({
       sceneId: 'export-scene',
