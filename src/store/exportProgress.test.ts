@@ -14,6 +14,14 @@ describe('export progress state', () => {
     expect(state.exportProgress).toEqual({ phase: 'preparing', currentFrame: 0, totalFrames: 0 });
   });
 
+  it('defaults the app-level export codec to H.264 and updates it through its setter', () => {
+    expect(useStore.getState().exportVideoCodec).toBe('h264');
+
+    useStore.getState().setExportVideoCodec('prores');
+
+    expect(useStore.getState().exportVideoCodec).toBe('prores');
+  });
+
   it('updates the progress payload', () => {
     useStore.getState().setExporting(true);
     useStore.getState().setExportProgress({ phase: 'rendering', currentFrame: 12, totalFrames: 120 });

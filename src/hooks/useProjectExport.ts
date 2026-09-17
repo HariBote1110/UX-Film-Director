@@ -23,6 +23,12 @@ import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
 import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
 import { resolveProjectExportVideoTranscodeFastPath } from '../utils/projectExportVideoTranscodeFastPath';
 import { resolveVideoExportEncodeSettings } from '../utils/videoExportEncodeSettings';
+import {
+  buildVideoExportCodecPayload,
+  getVideoExportCodecDescriptor,
+  resolveVideoExportSaveDialogOptions,
+  validateVideoExportOutputPath,
+} from '../utils/videoExportEncodeSettings';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeNativeFramePayloadFrame,
@@ -121,7 +127,9 @@ export const useProjectExport = (
         videoBitrateKbps: Number(import.meta.env.VITE_UXFD_VIDEO_EXPORT_BITRATE_KBPS),
       });
       const rustExportRenderAheadFrameCount = Number(import.meta.env.VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES);
-      const { projectSettings, objects, layers } = useStore.getState();
+      const { projectSettings, objects, layers, exportVideoCodec } = useStore.getState();
+      const exportCodecDescriptor = getVideoExportCodecDescriptor(exportVideoCodec);
+      const exportCodecPayload = buildVideoExportCodecPayload(exportVideoCodec);
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
       const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
       const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
@@ -204,11 +212,17 @@ export const useProjectExport = (
         });
 
         // ファイル保存先を先に決定（ユーザー操作が必要なため）
-        const savePath = await ipcRenderer.invoke('show-save-dialog', {
-          defaultPath: 'output.mp4',
-          filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
-        });
+        const savePath = await ipcRenderer.invoke(
+          'show-save-dialog',
+          resolveVideoExportSaveDialogOptions(exportVideoCodec),
+        );
         if (!savePath) { setExporting(false); return; }
+        const invalidSavePathMessage = validateVideoExportOutputPath(savePath, exportVideoCodec);
+        if (invalidSavePathMessage) {
+          alert(`エクスポート失敗: ${invalidSavePathMessage}`);
+          setExporting(false);
+          return;
+        }
         setExportProgress({
           phase: 'preparing',
           currentFrame: 0,
@@ -265,6 +279,7 @@ export const useProjectExport = (
               return await transcodeRustBackendVideo({
                 ...transcodePayload,
                 ...exportEncodeSettings,
+                ...exportCodecPayload,
                 audioPath: transcodeAudioPath,
                 sessionId: rustEncodeSessionId,
                 outputPath: savePath,
@@ -288,7 +303,7 @@ export const useProjectExport = (
             totalFrames,
             stepDetail: 'Rust export: direct video transcode finished',
           }));
-          alert(`エクスポート完了！\nコーデック: Rust backend direct transcode\nフレーム: ${transcodeResult?.frameCount ?? totalFrames}\n保存先: ${savePath}`);
+          alert(`エクスポート完了！\nコーデック: Rust backend direct transcode\n選択コーデック: ${exportCodecDescriptor.label}\nフレーム: ${transcodeResult?.frameCount ?? totalFrames}\n保存先: ${savePath}`);
           return;
         }
 
@@ -401,6 +416,7 @@ export const useProjectExport = (
               width: encWidth,
               height: encHeight,
               fps,
+              ...exportCodecPayload,
               iosurfaceEncode: (
                 exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
                 && exportFrameSourcePlan.frameSource.encodeTarget === 'iosurfaceVideoToolbox'
@@ -426,13 +442,17 @@ export const useProjectExport = (
               totalFrames,
               stepDetail: 'Rust export: finishing encoder',
             }));
-            alert(`エクスポート完了！\nコーデック: ${result.encoderPath}\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
+            alert(`エクスポート完了！\nコーデック: ${result.encoderPath}\n選択コーデック: ${exportCodecDescriptor.label}\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
           } finally {
             if (audioPath) {
               await ipcRenderer.invoke('delete-temp-file', { filePath: audioPath }).catch(() => {});
             }
           }
           return;
+        }
+
+        if (exportVideoCodec !== 'h264') {
+          throw new Error(`${exportCodecDescriptor.label} は Rust バックエンドのエンコーダーでのみ書き出せます。`);
         }
 
         if (hasVideoObjects) {
@@ -493,7 +513,7 @@ export const useProjectExport = (
             totalFrames,
             stepDetail: 'Rust export: compatibility encode finished',
           }));
-          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(writtenBytes / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
+          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\n選択コーデック: ${exportCodecDescriptor.label}\nサイズ: ${(writtenBytes / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
         }
 
       } catch (error) {

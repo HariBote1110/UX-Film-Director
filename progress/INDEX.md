@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [export-codec-selection-plumbing.md](export-codec-selection-plumbing.md) — エクスポートコーデック選択をアプリ設定として保存し、H.264既存ペイロードの不変性、MOV/MP4保存先検証、Rust非対応フォールバックの明示エラー方針を記録（2026-09-17）
+
 - [export-videotoolbox-hardware-acceleration.md](export-videotoolbox-hardware-acceleration.md) — macOS の export/proxy に VideoToolbox デコード・`scale_vt`・HEVC/ProRes 出力選択を導入する方針、CPU フィルター境界と MOV 制約を記録（2026-09-17）
 
 - [scene-build-p2a-basic-cutover.md](scene-build-p2a-basic-cutover.md) — `Scene_Build_In_Rust_Plan.md` P2aとして、既定OFFの`UXFD_SCENE_BUILDER_CUTOVER=basic`でshape/text/image/video/PSD由来の7 MediaKindだけをRust-built resident preview sessionへ切替。未知群はログ付き無効化、未実装群は構文予約に留め、TS fallback理由とscene sourceをrenderer診断へ公開（2026-09-17）

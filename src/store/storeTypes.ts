@@ -14,6 +14,7 @@ import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
 import type { AviUtlCoordinateStoreSnapshot } from '../utils/aviutl/aviutlCoordinateStore';
 import type { ProjectExportFrameSourcePlanResult } from '../utils/projectExportFrameCanvas';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
+import type { VideoExportCodec } from '../utils/videoExportEncodeSettings';
 import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
 import type { Command } from '../generated/rustCore/Command';
 
@@ -75,6 +76,7 @@ export interface AppState {
   exportProgress: ExportProgress | null;
   lastExportDiagnostics: ExportDiagnostics | null;
   exportCancelRequested: boolean;
+  exportVideoCodec: VideoExportCodec;
 
   isSnapshotRequested: boolean;
   /** 現在進行中のプロキシ生成数。0 より大きいとき「プロキシ生成中」表示を出す。 */
@@ -147,6 +149,7 @@ export interface AppState {
   setExporting: (isExporting: boolean) => void;
   setExportProgress: (progress: ExportProgress | null) => void;
   requestExportCancel: () => void;
+  setExportVideoCodec: (codec: VideoExportCodec) => void;
 
   requestSnapshot: () => void;
   finishSnapshot: () => void;

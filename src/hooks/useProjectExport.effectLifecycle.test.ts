@@ -97,6 +97,7 @@ function renderHook<Args extends unknown[]>(hookFn: (...args: Args) => void, arg
 
 type FakeState = {
   isExporting: boolean;
+  exportVideoCodec: 'h264' | 'hevc' | 'prores';
   exportCancelRequested: boolean;
   projectSettings: { fps: number; width: number; height: number; sampleRate: number };
   objects: unknown[];
@@ -110,6 +111,7 @@ type FakeState = {
 
 const state: FakeState = {
   isExporting: false,
+  exportVideoCodec: 'h264',
   exportCancelRequested: false,
   projectSettings: { fps: 30, width: 640, height: 360, sampleRate: 44100 },
   objects: [],
@@ -209,6 +211,17 @@ vi.mock('../utils/exportProgressDiagnostics', () => ({
 
 vi.mock('../utils/videoExportEncodeSettings', () => ({
   resolveVideoExportEncodeSettings: () => ({}),
+  getVideoExportCodecDescriptor: (codec: string) => ({
+    label: codec === 'prores' ? 'Apple ProRes' : codec === 'hevc' ? 'HEVC (H.265)' : 'H.264',
+    fileExtension: codec === 'prores' ? 'mov' : 'mp4',
+  }),
+  buildVideoExportCodecPayload: (codec: string) => codec === 'h264' ? {} : { videoCodec: codec },
+  resolveVideoExportSaveDialogOptions: (codec: string) => ({
+    defaultPath: codec === 'prores' ? 'output.mov' : 'output.mp4',
+    filters: [{ name: codec === 'prores' ? 'MOV Video' : 'MP4 Video', extensions: [codec === 'prores' ? 'mov' : 'mp4'] }],
+  }),
+  validateVideoExportOutputPath: (filePath: string, codec: string) =>
+    filePath.endsWith(codec === 'prores' ? '.mov' : '.mp4') ? null : '保存先の拡張子が不正です。',
 }));
 
 // ---------------------------------------------------------------------------
@@ -247,6 +260,7 @@ const flush = async () => {
 describe('useProjectExport effect lifecycle', () => {
   beforeEach(() => {
     state.isExporting = false;
+    state.exportVideoCodec = 'h264';
     state.exportCancelRequested = false;
     state.exportProgress = undefined;
     state.lastExportDiagnostics = undefined;
@@ -327,6 +341,37 @@ describe('useProjectExport effect lifecycle', () => {
     const callOptions = renderProjectExportFrameMock.mock.calls[0][0] as { renderScene: unknown };
     expect(callOptions.renderScene).toBe(renderSceneB);
     expect(callOptions.renderScene).not.toBe(renderSceneA);
+  });
+
+  it('omits videoCodec from the H.264 Rust encode payload', async () => {
+    const { useProjectExport } = await import('./useProjectExport');
+    const { rerender } = renderHook(useProjectExport, [() => {}, undefined, undefined] as const);
+
+    state.isExporting = true;
+    rerender([() => {}, undefined, undefined] as const);
+    await flush();
+    showSaveDialogDeferred.resolve('/tmp/output.mp4');
+    await flush();
+
+    expect(runRustBackendVideoEncodeExportMock.mock.calls[0][0]).not.toHaveProperty('videoCodec');
+  });
+
+  it('passes the selected non-H.264 codec into the Rust encode payload', async () => {
+    const { useProjectExport } = await import('./useProjectExport');
+    state.exportVideoCodec = 'prores';
+    const { rerender } = renderHook(useProjectExport, [() => {}, undefined, undefined] as const);
+
+    state.isExporting = true;
+    rerender([() => {}, undefined, undefined] as const);
+    await flush();
+    showSaveDialogDeferred.resolve('/tmp/output.mov');
+    await flush();
+
+    expect(runRustBackendVideoEncodeExportMock.mock.calls[0][0]).toMatchObject({ videoCodec: 'prores' });
+    expect(ipcInvokeMock).toHaveBeenCalledWith('show-save-dialog', {
+      defaultPath: 'output.mov',
+      filters: [{ name: 'MOV Video', extensions: ['mov'] }],
+    });
   });
 
   it('preserves cancellation on unmount / isExporting -> false', async () => {

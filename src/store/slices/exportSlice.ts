@@ -4,6 +4,18 @@ import {
   collectExportDiagnostics,
   normaliseExportProgressDiagnostics,
 } from '../storeHelpers';
+import type { VideoExportCodec } from '../../utils/videoExportEncodeSettings';
+
+const EXPORT_VIDEO_CODEC_STORAGE_KEY = 'uxfd-export-video-codec';
+
+const loadExportVideoCodec = (): VideoExportCodec => {
+  try {
+    const savedCodec = localStorage.getItem(EXPORT_VIDEO_CODEC_STORAGE_KEY);
+    return savedCodec === 'hevc' || savedCodec === 'prores' ? savedCodec : 'h264';
+  } catch {
+    return 'h264';
+  }
+};
 
 type ExportSlice = Pick<
   AppState,
@@ -11,9 +23,11 @@ type ExportSlice = Pick<
   | 'exportProgress'
   | 'lastExportDiagnostics'
   | 'exportCancelRequested'
+  | 'exportVideoCodec'
   | 'setExporting'
   | 'setExportProgress'
   | 'requestExportCancel'
+  | 'setExportVideoCodec'
 >;
 
 type SetState = StoreApi<AppState>['setState'];
@@ -23,6 +37,7 @@ export const createExportSlice = (set: SetState): ExportSlice => ({
   exportProgress: null,
   lastExportDiagnostics: null,
   exportCancelRequested: false,
+  exportVideoCodec: loadExportVideoCodec(),
 
   setExporting: (isExporting) => set((state) => (
     isExporting
@@ -56,4 +71,13 @@ export const createExportSlice = (set: SetState): ExportSlice => ({
         }
       : {}
   )),
+
+  setExportVideoCodec: (codec) => {
+    try {
+      localStorage.setItem(EXPORT_VIDEO_CODEC_STORAGE_KEY, codec);
+    } catch {
+      // Keep the value in memory when localStorage is unavailable.
+    }
+    set({ exportVideoCodec: codec });
+  },
 });
