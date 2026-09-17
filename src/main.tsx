@@ -8,7 +8,7 @@ import { buildGetColorDotFieldObject } from './utils/objectFactories/getColorDot
 import { buildHksyCheckerGridObject } from './utils/objectFactories/hksyCheckerGridObjectFactory'
 import { buildAviUtlShatteredSphereObject } from './utils/objectFactories/shatteredSphereObjectFactory'
 import type { VideoExportCodec } from './utils/videoExportEncodeSettings'
-import type { AudioObject, AudioVisualizationObject, ParticleObject, ShapeObject } from './types'
+import type { AudioObject, AudioVisualizationObject, GroupControlObject, ParticleObject, ShapeObject } from './types'
 import { buildAgentProjectFile } from './agentProject/agentProject'
 
 schedulePerformanceHarness()
@@ -170,6 +170,13 @@ if (urlSearchParams.has('videoExportE2e')) {
     timelineNames: string[];
     objectCount: number;
   };
+  type VideoExportE2eGroupControlResult = {
+    ok: boolean;
+    addedIds: string[];
+    timelineNames: string[];
+    memberCount: number;
+    objectCount: number;
+  };
 
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?: (duration: number) => boolean;
@@ -177,6 +184,7 @@ if (urlSearchParams.has('videoExportE2e')) {
     __UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__?: (codec: VideoExportCodec) => boolean;
     __UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?: (duration: number) => VideoExportE2eDurationResult;
     __UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__?: (duration: number) => VideoExportE2eGeneratedEffectsResult;
+    __UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__?: (duration: number) => VideoExportE2eGroupControlResult;
   }).__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__ = (duration: number) => {
     const state = useStore.getState();
     const videoObjects = state.objects.filter((object) => object.type === 'video');
@@ -365,6 +373,91 @@ if (urlSearchParams.has('videoExportE2e')) {
       audioTargetFound: audioTarget !== null,
       addedIds,
       timelineNames,
+      objectCount: useStore.getState().objects.length,
+    };
+  };
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__?: (duration: number) => VideoExportE2eGroupControlResult;
+  }).__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__ = (duration: number) => {
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 1;
+    const state = useStore.getState();
+    const maxLayer = state.objects.reduce((current, object) => Math.max(current, object.layer), 0);
+    const addedIds: string[] = [];
+    const timelineNames: string[] = [];
+    const groupControlLayer = 0;
+    const memberOne: ShapeObject = {
+      id: 'e2e-group-control-member-rect',
+      type: 'shape',
+      name: 'e2e-group-control-member-rect',
+      layer: Math.min(99, maxLayer + 1),
+      startTime: 0,
+      duration: safeDuration,
+      x: 640,
+      y: 300,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 640,
+      endY: 300,
+      easing: 'linear',
+      shapeType: 'rect',
+      width: 240,
+      height: 160,
+      fill: '#ff5533',
+    };
+    const memberTwo: ShapeObject = {
+      id: 'e2e-group-control-member-ellipse',
+      type: 'shape',
+      name: 'e2e-group-control-member-ellipse',
+      layer: Math.min(99, maxLayer + 2),
+      startTime: 0,
+      duration: safeDuration,
+      x: 1280,
+      y: 300,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 1280,
+      endY: 300,
+      easing: 'linear',
+      shapeType: 'ellipse',
+      width: 240,
+      height: 160,
+      fill: '#33aaff',
+    };
+    const groupControl: GroupControlObject = {
+      id: 'e2e-group-control',
+      type: 'group_control',
+      name: 'e2e-group-control',
+      layer: groupControlLayer,
+      startTime: 0,
+      duration: safeDuration,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 0,
+      endY: 0,
+      easing: 'linear',
+      targetLayerCount: 0,
+    };
+    state.addObject(memberOne);
+    state.addObject(memberTwo);
+    state.addObject(groupControl);
+    addedIds.push(memberOne.id, memberTwo.id, groupControl.id);
+    timelineNames.push(memberOne.name, memberTwo.name, groupControl.name);
+    return {
+      ok: addedIds.length >= 3,
+      addedIds,
+      timelineNames,
+      memberCount: 2,
       objectCount: useStore.getState().objects.length,
     };
   };
