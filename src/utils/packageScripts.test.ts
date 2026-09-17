@@ -185,6 +185,9 @@ describe('package scripts', () => {
     expect(script).toContain('mixedMediaResult');
     expect(script).toContain('psdMediaResult');
     expect(script).toContain('aviUtlGeneratedEffectsResult');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL');
+    expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__');
+    expect(script).toContain('groupControlResult');
     expect(script).toContain('exportAttempts');
     expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
     expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__');
@@ -219,6 +222,7 @@ describe('package scripts', () => {
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_EXPORT_VIDEO_CODEC__');
     expect(main).toContain('setExportVideoCodec(codec)');
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__');
+    expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__');
     expect(main).toContain('GetColor V2R ドットフィールド');
     expect(main).toContain('hksyチェッカー/グリッド');
     expect(main).toContain('93 SpotLight Probe');
