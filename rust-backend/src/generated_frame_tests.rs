@@ -2,6 +2,18 @@ use super::*;
 use flate2::{write::ZlibEncoder, Compression};
 use std::io::Write;
 use uxfd_golden_harness::RgbaFrame;
+use uxfd_rust_core::{
+    build_evaluation_scene, AsanohaPatternObjectFields, AudioWaveformSource, BarcodeObjectFields,
+    CircularArrowObjectFields, ColourWheelObjectFields, ContourTraceObjectFields,
+    DisplacementPolyObjectFields, EditableSceneGraph, FocusLinesPlusObjectFields, GearObjectFields,
+    GourdObjectFields, HistogramObjectFields, HksyCheckerGridObjectFields, HologramObjectFields,
+    HoundstoothObjectFields, PaperAirplaneObjectFields, ParticleObjectFields, PieChartObjectFields,
+    PlainEffectorLineObjectFields, ProtractorObjectFields, PuzzlePieceObjectFields,
+    RandomLineExObjectFields, RegionFrameObjectFields, ShakingPolygonObjectFields,
+    ShapeObjectFields, ShatteredSphereObjectFields, SimpleTubeObjectFields, SphereDotsObjectFields,
+    SphericalFieldObjectFields, SunburstObjectFields, TartanCheckObjectFields,
+    ToneCurveObjectFields, TrackBarObjectFields, TriangleBracketObjectFields, YagasuriObjectFields,
+};
 
 /// Escapes a filesystem path for embedding as the contents of a JSON string
 /// literal built by hand (e.g. inside a `format!(r##"...{}..."##, ...)`
@@ -12,6 +24,197 @@ fn json_escape_path(path: &std::path::Path) -> String {
     path.to_string_lossy()
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
+}
+
+#[test]
+fn editable_scene_builder_generated_sources_deserialise_in_backend() {
+    let fixture =
+        include_str!("../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: serde_json::Value = serde_json::from_str(fixture).expect("coverage fixture JSON");
+    let graph: EditableSceneGraph = serde_json::from_value(
+        fixture
+            .get("graph")
+            .expect("coverage fixture graph")
+            .clone(),
+    )
+    .expect("coverage fixture graph");
+    let built = build_evaluation_scene(&graph);
+    let mut generated_kinds = Vec::new();
+
+    macro_rules! assert_source_deserialises {
+        ($source:expr, $type:ty, $media:expr) => {{
+            let _: $type = serde_json::from_str($source).unwrap_or_else(|error| {
+                panic!(
+                    "{:?} source '{}' must deserialise in the backend: {error}",
+                    $media.kind, $media.id
+                )
+            });
+        }};
+    }
+
+    for media in built.media {
+        if !matches!(
+            media.kind,
+            MediaKind::GeneratedGradient
+                | MediaKind::GeneratedAudioWaveform
+                | MediaKind::GeneratedAudioSphere
+                | MediaKind::GeneratedParticle
+                | MediaKind::GeneratedBarcode
+                | MediaKind::GeneratedPuzzlePiece
+                | MediaKind::GeneratedColourWheel
+                | MediaKind::GeneratedGourd
+                | MediaKind::GeneratedGear
+                | MediaKind::GeneratedTrackBar
+                | MediaKind::GeneratedPieChart
+                | MediaKind::GeneratedHistogram
+                | MediaKind::GeneratedToneCurve
+                | MediaKind::GeneratedGetColorDots
+                | MediaKind::GeneratedHksyCheckerGrid
+                | MediaKind::GeneratedRegionFrame
+                | MediaKind::GeneratedSimpleTube
+                | MediaKind::GeneratedSphereDots
+                | MediaKind::GeneratedSphericalField
+                | MediaKind::GeneratedSunburst
+                | MediaKind::GeneratedCircularArrow
+                | MediaKind::GeneratedTriangleBracket
+                | MediaKind::GeneratedTartanCheck
+                | MediaKind::GeneratedHoundstooth
+                | MediaKind::GeneratedYagasuri
+                | MediaKind::GeneratedPaperAirplane
+                | MediaKind::GeneratedAsanohaPattern
+                | MediaKind::GeneratedFocusLinesPlus
+                | MediaKind::GeneratedRandomLineEx
+                | MediaKind::GeneratedContourTrace
+                | MediaKind::GeneratedDisplacementPoly
+                | MediaKind::GeneratedPlainEffectorLine
+                | MediaKind::GeneratedHologram
+                | MediaKind::GeneratedProtractor
+                | MediaKind::GeneratedShakingPolygon
+                | MediaKind::GeneratedShatteredSphere
+                | MediaKind::GeneratedShape
+        ) {
+            continue;
+        }
+
+        generated_kinds.push(media.kind.clone());
+        match media.kind {
+            MediaKind::GeneratedGradient => {
+                assert_source_deserialises!(&media.source, GeneratedGradientSource, media)
+            }
+            MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => {
+                assert_source_deserialises!(&media.source, AudioWaveformSource, media)
+            }
+            MediaKind::GeneratedParticle => {
+                assert_source_deserialises!(&media.source, ParticleObjectFields, media)
+            }
+            MediaKind::GeneratedBarcode => {
+                assert_source_deserialises!(&media.source, BarcodeObjectFields, media)
+            }
+            MediaKind::GeneratedPuzzlePiece => {
+                assert_source_deserialises!(&media.source, PuzzlePieceObjectFields, media)
+            }
+            MediaKind::GeneratedColourWheel => {
+                assert_source_deserialises!(&media.source, ColourWheelObjectFields, media)
+            }
+            MediaKind::GeneratedGourd => {
+                assert_source_deserialises!(&media.source, GourdObjectFields, media)
+            }
+            MediaKind::GeneratedGear => {
+                assert_source_deserialises!(&media.source, GearObjectFields, media)
+            }
+            MediaKind::GeneratedTrackBar => {
+                assert_source_deserialises!(&media.source, TrackBarObjectFields, media)
+            }
+            MediaKind::GeneratedPieChart => {
+                assert_source_deserialises!(&media.source, PieChartObjectFields, media)
+            }
+            MediaKind::GeneratedHistogram => {
+                assert_source_deserialises!(&media.source, HistogramObjectFields, media)
+            }
+            MediaKind::GeneratedToneCurve => {
+                assert_source_deserialises!(&media.source, ToneCurveObjectFields, media)
+            }
+            MediaKind::GeneratedGetColorDots => {
+                assert_source_deserialises!(&media.source, GeneratedGetColorDotsSource, media)
+            }
+            MediaKind::GeneratedHksyCheckerGrid => {
+                assert_source_deserialises!(&media.source, HksyCheckerGridObjectFields, media)
+            }
+            MediaKind::GeneratedRegionFrame => {
+                assert_source_deserialises!(&media.source, RegionFrameObjectFields, media)
+            }
+            MediaKind::GeneratedSimpleTube => {
+                assert_source_deserialises!(&media.source, SimpleTubeObjectFields, media)
+            }
+            MediaKind::GeneratedSphereDots => {
+                assert_source_deserialises!(&media.source, SphereDotsObjectFields, media)
+            }
+            MediaKind::GeneratedSphericalField => {
+                assert_source_deserialises!(&media.source, SphericalFieldObjectFields, media)
+            }
+            MediaKind::GeneratedSunburst => {
+                assert_source_deserialises!(&media.source, SunburstObjectFields, media)
+            }
+            MediaKind::GeneratedCircularArrow => {
+                assert_source_deserialises!(&media.source, CircularArrowObjectFields, media)
+            }
+            MediaKind::GeneratedTriangleBracket => {
+                assert_source_deserialises!(&media.source, TriangleBracketObjectFields, media)
+            }
+            MediaKind::GeneratedTartanCheck => {
+                assert_source_deserialises!(&media.source, TartanCheckObjectFields, media)
+            }
+            MediaKind::GeneratedHoundstooth => {
+                assert_source_deserialises!(&media.source, HoundstoothObjectFields, media)
+            }
+            MediaKind::GeneratedYagasuri => {
+                assert_source_deserialises!(&media.source, YagasuriObjectFields, media)
+            }
+            MediaKind::GeneratedPaperAirplane => {
+                assert_source_deserialises!(&media.source, PaperAirplaneObjectFields, media)
+            }
+            MediaKind::GeneratedAsanohaPattern => {
+                assert_source_deserialises!(&media.source, AsanohaPatternObjectFields, media)
+            }
+            MediaKind::GeneratedFocusLinesPlus => {
+                assert_source_deserialises!(&media.source, FocusLinesPlusObjectFields, media)
+            }
+            MediaKind::GeneratedRandomLineEx => {
+                assert_source_deserialises!(&media.source, RandomLineExObjectFields, media)
+            }
+            MediaKind::GeneratedContourTrace => {
+                assert_source_deserialises!(&media.source, ContourTraceObjectFields, media)
+            }
+            MediaKind::GeneratedDisplacementPoly => {
+                assert_source_deserialises!(&media.source, DisplacementPolyObjectFields, media)
+            }
+            MediaKind::GeneratedPlainEffectorLine => {
+                assert_source_deserialises!(&media.source, PlainEffectorLineObjectFields, media)
+            }
+            MediaKind::GeneratedHologram => {
+                assert_source_deserialises!(&media.source, HologramObjectFields, media)
+            }
+            MediaKind::GeneratedProtractor => {
+                assert_source_deserialises!(&media.source, ProtractorObjectFields, media)
+            }
+            MediaKind::GeneratedShakingPolygon => {
+                assert_source_deserialises!(&media.source, ShakingPolygonObjectFields, media)
+            }
+            MediaKind::GeneratedShatteredSphere => {
+                assert_source_deserialises!(&media.source, ShatteredSphereObjectFields, media)
+            }
+            MediaKind::GeneratedShape => {
+                assert_source_deserialises!(&media.source, ShapeObjectFields, media)
+            }
+            _ => unreachable!("generated media was filtered above"),
+        }
+    }
+
+    assert_eq!(
+        generated_kinds.len(),
+        36,
+        "coverage fixture must exercise every generated kind"
+    );
 }
 
 fn write_test_rgba_png(name: &str, width: u32, height: u32, rgba: &[u8]) -> std::path::PathBuf {
@@ -713,7 +916,14 @@ fn generated_plain_effector_line_source_frame_contains_coloured_field_lines_and_
     let line_count = frame
         .pixels
         .chunks_exact(4)
-        .filter(|rgba| rgba[0] > 200 && rgba[1] > 50 && rgba[1] < 120 && rgba[2] > 60 && rgba[2] < 120 && rgba[3] > 180)
+        .filter(|rgba| {
+            rgba[0] > 200
+                && rgba[1] > 50
+                && rgba[1] < 120
+                && rgba[2] > 60
+                && rgba[2] < 120
+                && rgba[3] > 180
+        })
         .count();
     let transparent_count = frame
         .pixels
@@ -1520,7 +1730,8 @@ fn generated_text_source_frame_renders_non_transparent_glyphs_for_latin_text() {
     let media = SceneMediaReference {
         id: "text-1".to_string(),
         kind: MediaKind::Text,
-        source: r##"{"text":"Hi","fontFamily":"Arial","fontSize":64,"fill":"#ffffff"}"##.to_string(),
+        source: r##"{"text":"Hi","fontFamily":"Arial","fontSize":64,"fill":"#ffffff"}"##
+            .to_string(),
         width: 200,
         height: 100,
         source_rate: None,
@@ -1554,7 +1765,9 @@ fn generated_text_source_frame_renders_non_empty_output_for_cjk_text() {
     let media = SceneMediaReference {
         id: "text-cjk-1".to_string(),
         kind: MediaKind::Text,
-        source: r##"{"text":"こんにちは","fontFamily":"Hiragino Sans","fontSize":48,"fill":"#ffffff"}"##.to_string(),
+        source:
+            r##"{"text":"こんにちは","fontFamily":"Hiragino Sans","fontSize":48,"fill":"#ffffff"}"##
+                .to_string(),
         width: 320,
         height: 100,
         source_rate: None,
@@ -1576,7 +1789,8 @@ fn generated_text_source_frame_rejects_non_positive_dimensions() {
     let media = SceneMediaReference {
         id: "text-invalid-1".to_string(),
         kind: MediaKind::Text,
-        source: r##"{"text":"Hi","fontFamily":"Arial","fontSize":32,"fill":"#ffffff"}"##.to_string(),
+        source: r##"{"text":"Hi","fontFamily":"Arial","fontSize":32,"fill":"#ffffff"}"##
+            .to_string(),
         width: 0,
         height: 100,
         source_rate: None,
@@ -1830,7 +2044,10 @@ fn generated_shape_source_frame_renders_filled_circle_with_transparent_corners()
     );
 
     let corner_offset = 0usize;
-    assert_eq!(&frame.pixels[corner_offset..corner_offset + 4], &[0, 0, 0, 0]);
+    assert_eq!(
+        &frame.pixels[corner_offset..corner_offset + 4],
+        &[0, 0, 0, 0]
+    );
 }
 
 #[test]
@@ -1865,15 +2082,16 @@ fn generated_shape_source_frame_renders_triangle_with_apex_filled_and_bottom_cor
     let media = SceneMediaReference {
         id: "shape-triangle-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"shapeType":"triangle","width":200,"height":200,"fill":"#0000ff"}"##.to_string(),
+        source: r##"{"shapeType":"triangle","width":200,"height":200,"fill":"#0000ff"}"##
+            .to_string(),
         width: 200,
         height: 200,
         source_rate: None,
         active_layer_ids: Vec::new(),
     };
 
-    let frame = build_generated_shape_source_frame(&media)
-        .expect("generated shape triangle should render");
+    let frame =
+        build_generated_shape_source_frame(&media).expect("generated shape triangle should render");
 
     let apex_offset = ((1 * 200 + 100) * 4) as usize;
     assert_eq!(
@@ -1910,7 +2128,10 @@ fn generated_shape_source_frame_renders_rounded_rect_with_transparent_corner_and
     );
 
     let corner_offset = 0usize;
-    assert_eq!(&frame.pixels[corner_offset..corner_offset + 4], &[0, 0, 0, 0]);
+    assert_eq!(
+        &frame.pixels[corner_offset..corner_offset + 4],
+        &[0, 0, 0, 0]
+    );
 }
 
 #[test]
@@ -1935,8 +2156,14 @@ fn generated_shape_source_frame_applies_linear_gradient_across_width() {
 
     assert!(left_pixel[3] > 0);
     assert!(right_pixel[3] > 0);
-    assert!(left_pixel[0] > right_pixel[0], "left should be more red than right");
-    assert!(right_pixel[2] > left_pixel[2], "right should be more blue than left");
+    assert!(
+        left_pixel[0] > right_pixel[0],
+        "left should be more red than right"
+    );
+    assert!(
+        right_pixel[2] > left_pixel[2],
+        "right should be more blue than left"
+    );
 }
 
 #[test]
@@ -1944,7 +2171,8 @@ fn generated_shape_source_frame_rejects_unknown_shape_type() {
     let media = SceneMediaReference {
         id: "shape-invalid-1".to_string(),
         kind: MediaKind::GeneratedShape,
-        source: r##"{"shapeType":"unknown_shape","width":200,"height":200,"fill":"#ffffff"}"##.to_string(),
+        source: r##"{"shapeType":"unknown_shape","width":200,"height":200,"fill":"#ffffff"}"##
+            .to_string(),
         width: 200,
         height: 200,
         source_rate: None,

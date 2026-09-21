@@ -14,8 +14,8 @@ fn hksy_checker_grid_object_fields_default_matches_existing_ui_defaults() {
     assert_eq!(defaults.width, 0.0);
     assert_eq!(defaults.height, 0.0);
     assert_eq!(defaults.pattern, None);
-    assert_eq!(defaults.cell_size, 50.0);
-    assert_eq!(defaults.line_width, 2.0);
+    assert_eq!(defaults.cell_size, 50);
+    assert_eq!(defaults.line_width, 2);
     assert_eq!(defaults.checker_enabled, true);
     assert_eq!(defaults.grid_enabled, true);
     assert_eq!(defaults.foreground_colour, "#ffffff");
@@ -35,16 +35,16 @@ fn hksy_checker_grid_object_fields_serialise_with_camel_case_field_names() {
         width: 320.0,
         height: 120.0,
         pattern: Some("anchor-line".to_string()),
-        cell_size: 64.0,
-        line_width: 20.0,
+        cell_size: 64,
+        line_width: 20,
         checker_enabled: false,
         grid_enabled: false,
         foreground_colour: "#ffffff".to_string(),
         secondary_colour: "#ffffff".to_string(),
         background_colour: "#000000".to_string(),
         palette_colours: Some(vec!["#ff5c8a".to_string(), "#36c2ff".to_string()]),
-        separate_interval: Some(5.0),
-        separate_line_width: Some(3.0),
+        separate_interval: Some(5),
+        separate_line_width: Some(3),
         anchor_points: Some(vec![
             HksyAnchorPoint { x: -88.0, y: 50.0 },
             HksyAnchorPoint { x: 0.0, y: -100.0 },
@@ -56,8 +56,8 @@ fn hksy_checker_grid_object_fields_serialise_with_camel_case_field_names() {
     let value =
         serde_json::to_value(&fields).expect("HksyCheckerGridObjectFields must serialise");
 
-    assert_eq!(value["cellSize"], 64.0);
-    assert_eq!(value["lineWidth"], 20.0);
+    assert_eq!(value["cellSize"], 64);
+    assert_eq!(value["lineWidth"], 20);
     assert_eq!(value["checkerEnabled"], false);
     assert_eq!(value["gridEnabled"], false);
     assert_eq!(value["foregroundColour"], "#ffffff");
@@ -67,8 +67,8 @@ fn hksy_checker_grid_object_fields_serialise_with_camel_case_field_names() {
         value["paletteColours"],
         serde_json::json!(["#ff5c8a", "#36c2ff"])
     );
-    assert_eq!(value["separateInterval"], 5.0);
-    assert_eq!(value["separateLineWidth"], 3.0);
+    assert_eq!(value["separateInterval"], 5);
+    assert_eq!(value["separateLineWidth"], 3);
     assert_eq!(
         value["anchorPoints"],
         serde_json::json!([{ "x": -88.0, "y": 50.0 }, { "x": 0.0, "y": -100.0 }])

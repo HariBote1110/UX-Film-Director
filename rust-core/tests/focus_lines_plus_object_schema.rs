@@ -26,7 +26,7 @@ fn focus_lines_plus_object_fields_default_matches_existing_ui_defaults() {
     assert_eq!(defaults.centre_y, 225.0);
     assert_eq!(defaults.centre_jitter_percent, 20.0);
     assert_eq!(defaults.seed, 0);
-    assert_eq!(defaults.keyframe_interval, 0.0);
+    assert_eq!(defaults.keyframe_interval, 0);
     assert_eq!(defaults.line_colour, "#ffffff");
 }
 
@@ -43,7 +43,7 @@ fn focus_lines_plus_object_fields_serialise_with_camel_case_field_names() {
         centre_y: 250.0,
         centre_jitter_percent: 25.0,
         seed: 7,
-        keyframe_interval: 12.0,
+        keyframe_interval: 12,
         line_colour: "#111111".to_string(),
     };
 

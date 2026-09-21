@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
 use serde_json::Value;
 use uxfd_rust_core::{
     build_evaluation_scene, EditableSceneGraph, EditableSceneMediaContext,
@@ -568,6 +569,109 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
         full_graph.objects.iter().map(object_type_name).collect();
     assert_eq!(types.len(), 42, "coverage scene は42 kindを含む必要がある");
     assert_eq!(types, all_object_type_names().into_iter().collect());
+}
+
+#[derive(Deserialize)]
+struct NativeHksyIntegerContract {
+    #[serde(rename = "cellSize")]
+    _cell_size: u32,
+    #[serde(rename = "lineWidth")]
+    _line_width: u32,
+    #[serde(rename = "separateInterval", default)]
+    _separate_interval: Option<u32>,
+    #[serde(rename = "separateLineWidth", default)]
+    _separate_line_width: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct NativeHologramIntegerContract {
+    #[serde(rename = "tileSize")]
+    _tile_size: u32,
+    #[serde(rename = "colourMode")]
+    _colour_mode: u32,
+}
+
+#[derive(Deserialize)]
+struct NativeFocusLinesIntegerContract {
+    #[serde(rename = "keyframeInterval")]
+    _keyframe_interval: u64,
+}
+
+#[derive(Deserialize)]
+struct GeneratedPlainEffectorLineIntegerContract {
+    #[serde(rename = "lineCount")]
+    _line_count: u32,
+}
+
+#[derive(Deserialize)]
+struct GeneratedProtractorIntegerContract {
+    #[serde(rename = "radius")]
+    _radius: u32,
+    #[serde(rename = "tickStepDegrees")]
+    _tick_step_degrees: u32,
+    #[serde(rename = "majorTickStepDegrees")]
+    _major_tick_step_degrees: u32,
+    #[serde(rename = "decimalPlaces")]
+    _decimal_places: u32,
+}
+
+#[derive(Deserialize)]
+struct NativeShakingPolygonIntegerContract {
+    #[serde(rename = "lineWidth")]
+    _line_width: u32,
+    #[serde(rename = "vertexCount")]
+    _vertex_count: u32,
+    #[serde(rename = "fixedDiameter")]
+    _fixed_diameter: u32,
+    #[serde(rename = "repeatCount")]
+    _repeat_count: u32,
+    #[serde(rename = "repeatFrequency")]
+    _repeat_frequency: u32,
+    #[serde(rename = "jitterInterval")]
+    _jitter_interval: u32,
+}
+
+#[test]
+fn generated_sources_round_trip_through_native_integer_contracts() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+            .expect("coverage fixture JSON");
+    let graph: EditableSceneGraph =
+        serde_json::from_value(required(&fixture, "graph", "coverage").clone())
+            .expect("coverage graph");
+    let built = build_evaluation_scene(&graph);
+
+    let source_for = |kind| {
+        built
+            .media
+            .iter()
+            .find(|media| media.kind == kind)
+            .unwrap_or_else(|| panic!("{kind:?} media is required by the coverage fixture"))
+            .source
+            .as_str()
+    };
+
+    let hksy = source_for(uxfd_rust_core::MediaKind::GeneratedHksyCheckerGrid);
+    let hologram = source_for(uxfd_rust_core::MediaKind::GeneratedHologram);
+    let focus_lines = source_for(uxfd_rust_core::MediaKind::GeneratedFocusLinesPlus);
+    let plain_effector = source_for(uxfd_rust_core::MediaKind::GeneratedPlainEffectorLine);
+    let protractor = source_for(uxfd_rust_core::MediaKind::GeneratedProtractor);
+    let shaking_polygon = source_for(uxfd_rust_core::MediaKind::GeneratedShakingPolygon);
+
+    serde_json::from_str::<NativeHksyIntegerContract>(hksy)
+        .expect("HKSY builder source must satisfy the native integer contract");
+    serde_json::from_str::<NativeHologramIntegerContract>(hologram)
+        .expect("Hologram builder source must satisfy the native integer contract");
+    serde_json::from_str::<NativeFocusLinesIntegerContract>(focus_lines)
+        .expect("FocusLines builder source must satisfy the native integer contract");
+    serde_json::from_str::<GeneratedPlainEffectorLineIntegerContract>(plain_effector)
+        .expect("PlainEffectorLine builder source must satisfy the generated integer contract");
+    serde_json::from_str::<GeneratedProtractorIntegerContract>(protractor)
+        .expect("Protractor builder source must satisfy the generated integer contract");
+    serde_json::from_str::<NativeShakingPolygonIntegerContract>(shaking_polygon)
+        .expect("ShakingPolygon builder source must satisfy the native integer contract");
 }
 
 fn all_object_type_names() -> Vec<String> {
