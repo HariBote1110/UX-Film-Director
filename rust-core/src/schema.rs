@@ -1430,10 +1430,10 @@ pub struct HksyCheckerGridObjectFields {
     pub pattern: Option<String>,
     #[serde(rename = "cellSize")]
     #[ts(rename = "cellSize")]
-    pub cell_size: f32,
+    pub cell_size: u32,
     #[serde(rename = "lineWidth")]
     #[ts(rename = "lineWidth")]
-    pub line_width: f32,
+    pub line_width: u32,
     #[serde(rename = "checkerEnabled")]
     #[ts(rename = "checkerEnabled")]
     pub checker_enabled: bool,
@@ -1454,14 +1454,14 @@ pub struct HksyCheckerGridObjectFields {
     pub palette_colours: Option<Vec<String>>,
     #[serde(rename = "separateInterval", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "separateInterval")]
-    pub separate_interval: Option<f32>,
+    pub separate_interval: Option<u32>,
     #[serde(
         rename = "separateLineWidth",
         default,
         skip_serializing_if = "Option::is_none"
     )]
     #[ts(rename = "separateLineWidth")]
-    pub separate_line_width: Option<f32>,
+    pub separate_line_width: Option<u32>,
     #[serde(rename = "anchorPoints", default, skip_serializing_if = "Option::is_none")]
     #[ts(rename = "anchorPoints")]
     pub anchor_points: Option<Vec<HksyAnchorPoint>>,
@@ -1483,8 +1483,8 @@ impl Default for HksyCheckerGridObjectFields {
             width: 0.0,
             height: 0.0,
             pattern: None,
-            cell_size: 50.0,
-            line_width: 2.0,
+            cell_size: 50,
+            line_width: 2,
             checker_enabled: true,
             grid_enabled: true,
             foreground_colour: "#ffffff".to_string(),
@@ -2278,7 +2278,7 @@ pub struct FocusLinesPlusObjectFields {
     pub seed: u32,
     #[serde(rename = "keyframeInterval")]
     #[ts(rename = "keyframeInterval")]
-    pub keyframe_interval: f32,
+    pub keyframe_interval: u64,
     #[serde(rename = "lineColour")]
     #[ts(rename = "lineColour")]
     pub line_colour: String,
@@ -2297,7 +2297,7 @@ impl Default for FocusLinesPlusObjectFields {
             centre_y: 225.0,
             centre_jitter_percent: 20.0,
             seed: 0,
-            keyframe_interval: 0.0,
+            keyframe_interval: 0,
             line_colour: "#ffffff".to_string(),
         }
     }

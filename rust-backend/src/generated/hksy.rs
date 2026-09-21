@@ -25,16 +25,10 @@ pub(crate) fn build_generated_hksy_checker_grid_source_frame(
             media.id
         )
     })?;
-    let cell_size = checker_grid.cell_size.round().max(1.0) as u32;
-    let line_width_u32 = checker_grid.line_width.round().max(0.0) as u32;
-    let separate_interval = checker_grid
-        .separate_interval
-        .map(|value| value.round().max(1.0) as u32)
-        .unwrap_or(5);
-    let separate_line_width = checker_grid
-        .separate_line_width
-        .map(|value| value.round().max(0.0) as u32)
-        .unwrap_or(3);
+    let cell_size = checker_grid.cell_size;
+    let line_width_u32 = checker_grid.line_width;
+    let separate_interval = checker_grid.separate_interval.unwrap_or(5);
+    let separate_line_width = checker_grid.separate_line_width.unwrap_or(3);
     let foreground =
         parse_hex_colour_source(&checker_grid.foreground_colour).map_err(|message| {
             format!(

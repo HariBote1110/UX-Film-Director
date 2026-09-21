@@ -565,10 +565,10 @@ pub(crate) fn validate_generated_hksy_checker_grid_source(
             );
         }
     }
-    if !source.cell_size.is_finite() || !(1.0..=1000.0).contains(&source.cell_size) {
+    if !(1..=1000).contains(&source.cell_size) {
         return Err("cell_size must be 1..1000".to_string());
     }
-    if !source.line_width.is_finite() || !(0.0..=100.0).contains(&source.line_width) {
+    if source.line_width > 100 {
         return Err("line_width must be 0..100".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;
@@ -583,12 +583,12 @@ pub(crate) fn validate_generated_hksy_checker_grid_source(
         }
     }
     if let Some(separate_interval) = source.separate_interval {
-        if !separate_interval.is_finite() || !(1.0..=1000.0).contains(&separate_interval) {
+        if !(1..=1000).contains(&separate_interval) {
             return Err("separate_interval must be 1..1000".to_string());
         }
     }
     if let Some(separate_line_width) = source.separate_line_width {
-        if !separate_line_width.is_finite() || !(0.0..=100.0).contains(&separate_line_width) {
+        if separate_line_width > 100 {
             return Err("separate_line_width must be 0..100".to_string());
         }
     }
