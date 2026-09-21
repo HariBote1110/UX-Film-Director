@@ -32,6 +32,7 @@ export interface SharedRendererScenePreviewSchedulerDiagnostics {
 
 export interface SharedRendererScenePreviewScheduler {
   submitRevision: (payload: RustBackendSceneReplacePayload) => void;
+  confirmExportRevision: (payload: RustBackendSceneReplacePayload) => Promise<ResidentSceneRevision>;
   requestFrame: (frameIndex: number) => void;
   invalidate: () => void;
   dispose: () => void;
@@ -283,6 +284,12 @@ export const createSharedRendererScenePreviewScheduler = ({
       notifyRemoteReady(null);
       if (lastRequestedFrame !== null) queueLatestFrame(lastRequestedFrame);
       pump();
+    },
+    confirmExportRevision: async (payload) => {
+      if (disposed) throw new Error('Rust resident scene scheduler was disposed.');
+      const result = await rpc.replaceScene(payload);
+      if (!result.ok) throw new Error(result.detail);
+      return { sceneId: result.value.sceneId, revision: result.value.revision };
     },
     requestFrame: (frameIndex) => {
       if (disposed || !Number.isSafeInteger(frameIndex) || frameIndex < 0) return;

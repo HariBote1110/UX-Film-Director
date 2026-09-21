@@ -17,6 +17,7 @@ export interface ResidentSceneExportDynamicSources {
 export interface CreateResidentSceneExportFrameSourceInput {
   sceneId: string;
   revision: number;
+  confirmedScene?: Promise<{ sceneId: string; revision: number }>;
   prepareDynamicSources?: (
     request: ProjectExportRustEncodeFrameRequest
   ) => Promise<ResidentSceneExportDynamicSources>;
@@ -46,17 +47,19 @@ const writeResidentSceneEncodeFramePayload = ({
 export const createResidentSceneExportFrameSource = ({
   sceneId,
   revision,
+  confirmedScene,
   prepareDynamicSources,
 }: CreateResidentSceneExportFrameSourceInput): ProjectExportRustFrameSource => ({
   encodeTarget: 'iosurfaceVideoToolbox',
   async renderEncodeFrame(request) {
+    const confirmed = await confirmedScene;
     const dynamicSources = await prepareDynamicSources?.(request) ?? {};
     return {
       timestamp: request.timestampUs,
       residentSceneEncodeFramePayload: writeResidentSceneEncodeFramePayload({
         request,
-        sceneId,
-        revision,
+        sceneId: confirmed?.sceneId ?? sceneId,
+        revision: confirmed?.revision ?? revision,
         dynamicSources,
       }),
       releaseResidentSceneSourcesAfterWrite: {

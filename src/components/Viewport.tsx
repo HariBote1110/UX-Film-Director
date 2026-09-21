@@ -240,7 +240,10 @@ const writeRustTimelineSceneRpcDiagnostics = (diagnostics: RustTimelineSceneRpcD
 type RustTimelineSceneControllerTraceEvent =
   | { kind: 'created' }
   | { kind: 'cleanup'; clearedRef: boolean }
-  | { kind: 'exportSource'; refPresent: boolean };
+  | { kind: 'exportSource'; refPresent: boolean }
+  | { kind: 'exportConfirmIssued' }
+  | { kind: 'exportConfirmResolved'; sceneId: string; revision: number }
+  | { kind: 'exportConfirmRejected' };
 
 export interface RustTimelineSceneControllerTrace {
   sequence: number;
@@ -292,12 +295,19 @@ export const recordRustTimelineSceneControllerTrace = (
   if (event.kind === 'created' || event.kind === 'cleanup') {
     trace.lastLifecycleSequence = trace.sequence;
     if (event.kind === 'cleanup') entry += event.clearedRef ? ':cleared' : ':retained';
-  } else {
+  } else if (event.kind === 'exportSource') {
     trace.exportSourceCalls += 1;
     const lifecycle = trace.lastLifecycleSequence ?? 'none';
     entry += `:${event.refPresent ? 'present' : 'null'}:lastLifecycle=${lifecycle}`;
     dataset.uxfdRustTimelineSceneControllerExportSourceCalls = String(trace.exportSourceCalls);
     dataset.uxfdRustTimelineSceneControllerExportSourceState = `${event.refPresent ? 'present' : 'null'}:lastLifecycle=${lifecycle}`;
+  } else if (event.kind === 'exportConfirmResolved') {
+    entry += `:sceneId=${event.sceneId}:revision=${event.revision}`;
+    dataset.uxfdRustTimelineSceneControllerExportConfirmation = `resolved:sceneId=${event.sceneId}:revision=${event.revision}`;
+  } else if (event.kind === 'exportConfirmRejected') {
+    dataset.uxfdRustTimelineSceneControllerExportConfirmation = 'rejected';
+  } else {
+    dataset.uxfdRustTimelineSceneControllerExportConfirmation = 'issued';
   }
   trace.events.push(entry);
   dataset.uxfdRustTimelineSceneControllerTrace = trace.events.join('|');
@@ -791,6 +801,7 @@ const Viewport: React.FC = () => {
   const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
   const rustTimelineScenePreviewControllerRef = useRef<EditableRustScenePreviewController | null>(null);
   const rustTimelineSceneControllerTraceRef = useRef<RustTimelineSceneControllerTrace | null>(null);
+  const rustTimelineSceneExportGenerationRef = useRef(0);
   const rustNativePlaybackStartGenerationRef = useRef(0);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
@@ -2731,12 +2742,38 @@ const Viewport: React.FC = () => {
       && window.rustVideoEncoder.nativeDirectEncodeEnabled === true
       && typeof window.rustVideoEncoder.writeResidentSceneEncodeFrame === 'function'
     );
-    if (residentSceneAvailable && rustTimelineSceneExportRevision !== null) {
-      document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
-      return createResidentSceneExportFrameSource({
-        sceneId: 'viewport-rust-timeline',
-        revision: rustTimelineSceneExportRevision,
-      });
+    if (residentSceneAvailable) {
+      const controller = rustTimelineScenePreviewControllerRef.current;
+      if (controller) {
+        const exportSceneId = `viewport-rust-timeline-export-${Date.now()}-${++rustTimelineSceneExportGenerationRef.current}`;
+        const confirmation = controller.confirmSceneForExport({
+          sceneId: exportSceneId,
+          projectSettings,
+          layers,
+          objects: context.objects,
+        });
+        recordRustTimelineSceneControllerTraceEvent({ kind: 'exportConfirmIssued' });
+        document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirming';
+        const confirmedScene = confirmation.then(
+          (confirmed) => {
+            recordRustTimelineSceneControllerTraceEvent({
+              kind: 'exportConfirmResolved', sceneId: confirmed.sceneId, revision: confirmed.revision,
+            });
+            document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
+            return confirmed;
+          },
+          (error) => {
+            recordRustTimelineSceneControllerTraceEvent({ kind: 'exportConfirmRejected' });
+            document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirmationFailed';
+            throw error;
+          },
+        );
+        return createResidentSceneExportFrameSource({
+          sceneId: exportSceneId,
+          revision: 0,
+          confirmedScene,
+        });
+      }
     }
     const fallbackSource = buildViewportRustExportFrameSource({
       exportEnabled: sharedRendererExportEnabled,
@@ -2756,7 +2793,7 @@ const Viewport: React.FC = () => {
       onFrameSourceUnavailable: context.onFrameSourceUnavailable,
       diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
     });
-    if (residentSceneAvailable && rustTimelineSceneExportRevision === null) {
+    if (residentSceneAvailable) {
       document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneUnacknowledged';
     }
     return fallbackSource;
@@ -2764,7 +2801,6 @@ const Viewport: React.FC = () => {
     editorMode,
     layers,
     projectSettings,
-    rustTimelineSceneExportRevision,
     rustTimelineSceneRpcEnabled,
     sharedRendererExportEnabled,
     sharedRendererGpuStatus.fallbackAdapter,
