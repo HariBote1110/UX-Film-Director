@@ -189,23 +189,38 @@ resident sessionは従来どおりTS送信値だけを保持する。renderer側
 - **受入条件**: preview、native overlay、export、Windows interim presenter が同じ Rust-built media を消費する。各 cut-over で 447-frame parity と export parity が緑。audio direct-ID / layer fallback、GetColor 4規則、group-control 4規則が Rust unit test と E2E fixture に存在する。
 - **rollback**: kind feature flag を旧 direct serializer に戻す。P2 完了まで旧 serializer と bridge は残す。
 
-### P2c: cut-over 下の常駐 scene export revision 収束（中、2026-09-18 追加）
+### P2c: cut-over 下の常駐 scene export revision 収束（中、2026-09-18 追加、2026-09-22 完了）
 
-**進捗（2026-09-21、原因確定）**: Rust builder は成功した `scene.replace` のrevisionを拒否・降格せず、そのままresident sessionへ保存することを確認した。不一致の原因は、cut-overでreplace処理中にもexportが開始され得るのに、schedulerが新規submitのたびにbackend確認済みrevisionを`null`へ捨て、exportが未確認のoptimistic revisionを送っていたことである。候補(a)として確認済みrevisionを保持してexportへ渡す。待機は実機で15秒タイムアウト済みのため再導入せず、候補(b)のexport専用lifecycleは既存sessionの所有権を重複させるため採らない。詳細は`progress/scene-build-p2c-resident-scene-export-revision.md`を参照する。
+**★完了（2026-09-22）**: cut-over 全群ONの混在kind export E2E が exit 0、
+`uxfdRustExportFrameSourceStatus = residentScene`、60/60 フレーム出力で受入条件を満たした。
+対照構成（scene-builder 環境変数なし）も `residentScene` のままである。
 
-P2b の受入検証で判明した未解決項目である。cut-over 有効時は renderer の acknowledged revision が
-楽観 revision へ収束せず、常駐 scene export が `Resident scene export revision does not match the
-active scene` で失敗する。現状は `getRustExportFrameSource` の明示ガードで常駐経路を使わず、
-`uxfdRustExportFrameSourceStatus = residentSceneDisabledUnderSceneBuilderCutover` として可視化している。
+**真因**: 当初「acknowledged revision が楽観 revision へ収束しない」と観測していた現象の実体は、
+PSD オブジェクトが保持する runtime 値 — `objects[PSD].file`（`File`）と
+`rootLayer….textureSource`（`ImageBitmap`）— が Electron contextBridge の構造化クローンを
+通れず、`scene.replace` が IPC 境界で同期的に拒否されていたことである。preview 側の replace も
+同じ値を送るため、PSD 追加後は scene RPC が `ready` へ到達せず `pending` のままだった。
+収束待ちが機能しなかったのは、待っても確認され得ない状態だったためである。
 
-- **Scope**: `onRemoteReady` が not-ready のたび acknowledged revision を捨てる設計の見直し、または
-  export が scene lifecycle を所有して開始時に scene を確定させる構造への変更。どちらを採るかは
-  収束しない根本原因の確定後に決める。
-- **受入条件**: cut-over 全群ONの混在kind export E2E が exit 0 かつ
-  `uxfdRustExportFrameSourceStatus = residentScene` になること。対照構成も `residentScene` のままであること。
-- **注意**: 収束待ちの追加（scheduler の `waitForReady` 等）は一度実装して棄却済みである。
-  タイミングパッチでは解けないことが実機で確認されている。詳細は
-  `progress/scene-build-p2b-kind-group-cutover.md` の末尾節を参照する。
+**対応**:
+- editable graph 生成境界で既存の `stripPsdLayerNodeForPersistence` を再利用し、PSD の
+  `file` と `textureSource` を除去する。`filePath`、レイヤー metadata、表示設定は保持する。
+- export 開始時に export 専用 scene ID で一度だけ `scene.replace` を発行し、その成功応答で
+  確認した scene ID/revision を最初の resident encode へ渡す（候補(b)）。待機・ポーリングは
+  行わず、未確認 revision を native encoder へ送らない。
+- status を実態へ追従させる: 確認中 `residentSceneConfirming`、成功 `residentScene`、
+  失敗 `residentSceneConfirmationFailed`。
+- resident export 経路が初めて通ったことで露出した整数 wire 契約違反を修正した。Rust 編集
+  schema が整数意味論の値を f32 で保持していたため、HKSY `cellSize` が `50.0` として送られ
+  native 側の `u32` deserialiser に拒否されていた。HKSY のほか Hologram、Focus Lines、
+  Plain Effector Line、Protractor、Shaking Polygon の同種フィールドも u32 化した。
+
+**再発防止**: export 確認 payload の `structuredClone` 可能性を vitest で、builder が生成する
+全 36 generated kind の source JSON が backend の対応 Rust 型へ deserialise できることを
+cargo test で固定した。いずれも GUI export ではなくテストで落ちる。
+
+**残作業**: 原因確定のために入れた controller lifecycle 診断
+（`uxfdRustTimelineSceneControllerTrace` ほか）は scaffolding であり、撤去または縮小する。
 
 ### P3: TS serializer の撤去と責務台帳の解消（中、4–7日）
 
