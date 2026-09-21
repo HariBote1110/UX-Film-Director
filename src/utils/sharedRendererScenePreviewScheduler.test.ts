@@ -221,6 +221,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
   it('replace r1の解決がr3提出後にずれ込んでも、supersededなr1をonRemoteReadyへreportしない', async () => {
     const replaces: Array<{ input: { revision: number }; deferred: Deferred<any> }> = [];
     const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
+    const residentRevisionEvents: Array<{ sceneId: string; revision: number } | null> = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {
       replaceScene: (input) => {
         const next = deferred<any>();
@@ -233,6 +234,7 @@ describe('sharedRendererScenePreviewScheduler', () => {
       rpc,
       onEvaluation: () => {},
       onRemoteReady: (ready) => remoteReadyEvents.push(ready),
+      onResidentRevision: (resident) => residentRevisionEvents.push(resident),
     });
 
     scheduler.submitRevision(revision(1));
@@ -243,11 +245,16 @@ describe('sharedRendererScenePreviewScheduler', () => {
     replaces[0].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 1, sceneSource: 'typescript' } });
     await flush();
     expect(remoteReadyEvents).toEqual([]);
+    expect(residentRevisionEvents).toEqual([{ sceneId: 'preview:main', revision: 1 }]);
 
     expect(replaces.map((entry) => entry.input.revision)).toEqual([1, 3]);
     replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 3, sceneSource: 'typescript' } });
     await flush();
     expect(remoteReadyEvents).toEqual([{ sceneId: 'preview:main', revision: 3 }]);
+    expect(residentRevisionEvents).toEqual([
+      { sceneId: 'preview:main', revision: 1 },
+      { sceneId: 'preview:main', revision: 3 },
+    ]);
   });
 
   it('scene RPC失敗時はonRemoteReadyへnullを通知する', async () => {

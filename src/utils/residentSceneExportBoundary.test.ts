@@ -36,23 +36,22 @@ describe('常駐 Rust scene export 境界', () => {
     expect(dispatch).toContain('"encode.writeResidentSceneFrame"');
   });
 
-  it('Viewportの2D native encodeはresident scene revisionを再利用する', () => {
+  it('Viewportの2D native encodeはbackend確認済みのresident scene revisionを再利用する', () => {
     const viewport = viewportSource();
 
     expect(viewport).toContain('createResidentSceneExportFrameSource');
     expect(viewport).toContain("sceneId: 'viewport-rust-timeline'");
-    expect(viewport).toContain('revision: rustTimelineSceneRevision');
+    expect(viewport).toContain('revision: rustTimelineSceneExportRevision');
+    expect(viewport).toContain('onResidentRevision: (resident) => {');
     expect(viewport).not.toContain('&& !context.hasVideoObjects');
   });
 
-  it('scene-builder cut-over有効時はresident scene経路を使わず明示ステータスへ落とす', () => {
+  it('scene-builder cut-overでもresident scene経路を維持し、未確認時だけ既存fallbackへ区別して落とす', () => {
     const viewport = viewportSource();
 
-    expect(viewport).toContain('if (rustEditableSceneCutoverEnabled) {');
-    expect(viewport).toContain(
-      "'residentSceneDisabledUnderSceneBuilderCutover'",
-    );
-    expect(viewport).toContain('buildViewportRustExportFrameSource');
+    expect(viewport).not.toContain('residentSceneDisabledUnderSceneBuilderCutover');
+    expect(viewport).toContain("'residentSceneUnacknowledged'");
+    expect(viewport).toContain('rustTimelineSceneExportRevision === null');
   });
 
   it('frame要求をsnapshotなしのresident scene encode payloadへ変換する', async () => {
