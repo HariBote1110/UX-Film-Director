@@ -191,6 +191,8 @@ resident sessionは従来どおりTS送信値だけを保持する。renderer側
 
 ### P2c: cut-over 下の常駐 scene export revision 収束（中、2026-09-18 追加）
 
+**進捗（2026-09-21、原因確定）**: Rust builder は成功した `scene.replace` のrevisionを拒否・降格せず、そのままresident sessionへ保存することを確認した。不一致の原因は、cut-overでreplace処理中にもexportが開始され得るのに、schedulerが新規submitのたびにbackend確認済みrevisionを`null`へ捨て、exportが未確認のoptimistic revisionを送っていたことである。候補(a)として確認済みrevisionを保持してexportへ渡す。待機は実機で15秒タイムアウト済みのため再導入せず、候補(b)のexport専用lifecycleは既存sessionの所有権を重複させるため採らない。詳細は`progress/scene-build-p2c-resident-scene-export-revision.md`を参照する。
+
 P2b の受入検証で判明した未解決項目である。cut-over 有効時は renderer の acknowledged revision が
 楽観 revision へ収束せず、常駐 scene export が `Resident scene export revision does not match the
 active scene` で失敗する。現状は `getRustExportFrameSource` の明示ガードで常駐経路を使わず、

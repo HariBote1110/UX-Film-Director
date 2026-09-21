@@ -1,5 +1,7 @@
 # 決定ログ索引
 
+- [scene-build-p2c-resident-scene-export-revision.md](scene-build-p2c-resident-scene-export-revision.md) — P2cの常駐scene export revision不一致を、cut-over時の未確認optimistic revision送信として確定。backend確認済みrevisionを保持してexportへ渡す方針を採用し、待機・export専用lifecycleは不採用（2026-09-21）
+
 - [scene-build-p2b-kind-group-cutover.md](scene-build-p2b-kind-group-cutover.md) — `UXFD_SCENE_BUILDER_CUTOVER` の5群すべてを実ゲート化。`kind_group` の網羅matchでbasic/generated/audio/getcolorを分類し、group_controlはproject.group_controls非空でゲート。既定OFF・wire形状・fallback理由は不変（2026-09-18）
 
 - [export-codec-selection-plumbing.md](export-codec-selection-plumbing.md) — エクスポートコーデック選択をアプリ設定として保存し、H.264既存ペイロードの不変性、MOV/MP4保存先検証、Rust非対応フォールバックの明示エラー方針を記録（2026-09-17）
