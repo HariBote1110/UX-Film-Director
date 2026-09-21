@@ -93,3 +93,39 @@ Rust全体テストの3失敗は従来どおりsandboxのPOSIX shared memory権�
 - `uxfdRustTimelineSceneControllerExportSourceCalls`はexport source取得回数、`uxfdRustTimelineSceneControllerExportSourceState`は最後の取得時のref状態と直前lifecycle連番である。実際のunmount/remount後も既存datasetからtraceを復元して連番を継続する。
 - これは原因特定後に削除または縮小する一時的な診断scaffoldingである。
 - `ViewportDiagnostics.test.ts`で作成・cleanup・exportSourceの順序とremount後の連番継続を固定した。関連8 files / 119 testsと`npx tsc --noEmit`は成功した。
+
+## export 専用 scene 確認の clone 境界（2026-09-22）
+
+### 事実
+
+- 以前のcandidate (b)回帰報告は、古いElectron processにCDP接続していた測定誤りだった。port解放後の再測定では、controllerはStrictModeの`created → cleanup:cleared → created`後も存在し、`getRustExportFrameSource`は1回だけ呼ばれ、export専用`scene.replace`の発行まで到達した。
+- export確認は発行直後（同一ミリ秒帯）に`An object could not be cloned.`で拒否された。これはRust RPC往復前のElectron contextBridge境界である。
+- 混在E2Eが追加するPSDは`parsePsdAsObject`から`editableScene.objects[<PSD>].file`に元の`File`を保持する。さらにPSDレイヤーツリーは`editableScene.objects[<PSD>].rootLayer.children[*].textureSource`に`ImageBitmap`を持ちうる。どちらもTS runtime専用であり、Rustの編集graph / JSON wireに含める値ではない。
+- previewとexportの意味上の入力は同じZustand objectである。previewの最後の`pending`は、PSD追加後のreplaceがこの非clone値を含み得ることと整合する。export確認はschedulerを経由せず直ちにcontextBridgeへ渡すため、同期拒否が明確に観測された。
+
+### 決定
+
+- candidate (b) を再採用する。exportは新しいexport専用scene IDで最新graphの`scene.replace`成功を確認し、その確認済みrevisionだけをresident encoderへ渡す。待機・ポーリングは追加しない。
+- `editableScene`を作る境界でPSDのruntime値を除去する。既存の永続化処理と同じ`stripPsdLayerNodeForPersistence`を再利用して`rootLayer`の`textureSource`を落とし、`PsdObject.file`も除外する。`filePath`、PSDレイヤーmetadata、表示設定は保持する。
+- statusは確認開始時`residentSceneConfirming`、確認成功後のみ`residentScene`、拒否時`residentSceneConfirmationFailed`とする。acceptance signalが未完了の成功を示さないようにする。
+
+### 代替案として退けたもの
+
+- clone失敗をfallbackへ隠すことは採らない。export専用sceneを確認できない以上、resident encoderへ未確認revisionを送れず、statusは失敗を明示する必要がある。
+- `File`や`ImageBitmap`をwireへ変換して送ることは採らない。Rust editable sceneの意味論はファイルパスとPSD metadataで足り、runtime resourceをIPC越しに送る設計は既存の保存・preload境界にも反する。
+
+### 制約・注意点
+
+- `Viewport`のcontroller traceは原因確定後に削除または縮小する診断scaffoldingであり、現時点では`exportConfirmIssued` / `exportConfirmResolved` / `exportConfirmRejected`も記録する。
+- `editableRustScenePreviewController.test.ts`はPSD runtime値を含むexport確認payloadに対し、runtime値の不在と`structuredClone`成功を固定する。Electron contextBridgeは標準structured cloneより厳しい場合があるため、runtimeフィールド自体をwireから除去することを主契約とする。
+
+### 検証
+
+```text
+$ npm test -- --run src/utils/residentSceneExportBoundary.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererScenePreviewScheduler.test.ts src/utils/editableRustScenePreviewController.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/rustSceneNativePlaybackBoundary.test.ts src/components/ViewportDiagnostics.test.ts src/components/ViewportRustTimelineSceneRpc.test.ts --reporter=dot
+Test Files  8 passed (8)
+Tests  124 passed (124)
+
+$ npx tsc --noEmit
+(exit 0; outputなし)
+```
