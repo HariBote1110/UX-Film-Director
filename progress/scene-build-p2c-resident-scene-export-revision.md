@@ -9,12 +9,12 @@
 
 ## 決定
 
-- P2c は候補 (a) を採る。新しい希望 revision の送信中も backend が実際に保持する acknowledged revision を捨てず、resident export は optimistic revision ではなくその acknowledged revision を渡す。
+- P2c は候補 (a) を維持する。新しい希望 revision の送信中も backend が実際に保持する acknowledged revision を捨てず、resident export は optimistic revision ではなくその acknowledged revision を渡す。
 - この変更は export を待機させない。export 時点で backend が確認済みの scene を明示的に pin するため、native encode の revision 比較と一致する。
 
 ## 代替案として退けたもの
 
-- 候補 (b) の export 専用 lifecycle は採らない。既存 scene session と別に export 開始時の replace / 確認 API と所有権を増やす必要があり、確認済みrevisionを既に scheduler が保持する今回の不一致には過剰である。
+- 候補 (b) の export 専用 lifecycle は撤回した。実装試行はE2Eでoutput未生成・`exportSessionBlocked`を起こした。Rust backend の`scene_sessions`はscene IDごとの`HashMap`であり、surface gateもbackend sessionを参照しないため、export IDがpreview slotを置換したという仮説は成立しなかった。さらにE2Eの唯一の`getRustExportFrameSource`呼出はcontroller不在でfallbackしており、export専用replaceは当該runでは実行されていない。
 - `waitForReady` / export 側ポーリングは再導入しない。既存試行で実機15秒タイムアウトとなり、根本の「未確認 optimistic revision を送る」問題を解かない。
 
 ## 制約・注意点
@@ -54,3 +54,34 @@ native_shared::tests::read_native_render_source_frame_releases_only_the_slot_it_
 encode::tests::iosurface_transport_with_audio_path_mux_es_into_final_file
   Failed to start IOSurface VideoToolbox encoder: StartFailed(\"The operation could not be completed\")
 ```
+
+## 再調査（2026-09-21、E2E未達）
+
+### 事実
+
+- cut-over E2Eは`uxfdRustExportFrameSourceStatus=residentSceneUnacknowledged`かつ`uxfdRustTimelineSceneRpcStatus=pending`で終了した。これはexport時に確認済みrevisionが無く、fallbackへ進んだことを示す。
+- controller生成effectの依存は`rustEditableSceneCutoverEnabled`と`rustTimelineSceneRpcEnabled`だけであり、どちらも起動時の環境変数から決まる。export開始はこのeffectを再生成しない。`pending`はcontroller生成時だけでなく、objects/layers変更後の`replaceScene` effectと評価要求時にも書かれるため、E2Eの`pending`単独からcontroller再生成は結論できない。
+- E2Eは混在kind追加・全object短尺化の直後にexportボタンを押し、最後のZustand変更に対応するReact passive effect（`scene.replace`送信）完了を待たない。export中はpreview評価要求も意図的に停止する。したがって、E2Eのexport routeには、現行preview lifecycleが最新sceneを確認する前にframe source選択へ進む構造的な窓がある。
+- `useProjectExport`はframe sourceを初期plan作成時に一度だけ取得する。candidate (b) runの最終datasetが`residentSceneUnacknowledged`であるため、その唯一の呼出で`rustTimelineScenePreviewControllerRef.current`は`null`だった。controller refを`null`にするコードは、RPC flag無効化またはcontroller setup effectのcleanupだけである。両flagはimport時の環境変数にのみ依存するため、既存datasetだけではcleanupを起こした実行時イベントを特定できない。
+- candidate (b) のexport専用replaceがsurface gateを破壊したという因果は確認できない。backendはscene IDごとにsessionを保持し、surface gateは`context.objects`から純粋に作るpayloadだけを検証する。かつ、上記のcontroller不在により当該runではexport専用replace自体が発行されない。
+
+### 決定の更新
+
+- candidate (b) は回帰を起こしたため撤回し、実装をcommit済み候補(a)相当へ戻した。これにより、exportが開始不能になる回帰は残さない。
+- 現在の証拠では、`residentScene`がE2E routeで構造的に不可能とは結論できない。一方でcontroller不在の原因を示す診断がなく、候補(a)では確認済みrevisionが存在しないため、acceptance条件はなお未達である。
+
+### 検証（rollback後）
+
+```text
+$ npm test -- --run src/utils/residentSceneExportBoundary.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererScenePreviewScheduler.test.ts src/utils/editableRustScenePreviewController.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/rustSceneNativePlaybackBoundary.test.ts src/components/ViewportDiagnostics.test.ts src/components/ViewportRustTimelineSceneRpc.test.ts --reporter=dot
+Test Files  8 passed (8)
+Tests  117 passed (117)
+
+$ npx tsc --noEmit
+(exit 0; outputなし)
+
+$ cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend -- --nocapture
+test result: FAILED. 193 passed; 3 failed; 2 ignored
+```
+
+Rust全体テストの3失敗は従来どおりsandboxのPOSIX shared memory権限とVideoToolbox起動制限による。

@@ -37,10 +37,10 @@
   `collect_structural_diffs` / `comparable_value` と同じ意味論（数値1e-5許容、`.source` は
   JSON parse 後に比較）で照合している。現時点で乖離はない。ただし比較対象は media list であり、
   project 全体および 447-frame 評価パリティは未実施である。
-- 実機（Electron）での群ごとの cut-over 検証は未実施である。`scripts/run-video-export-e2e.mjs` に
-  `UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL`（既定OFF）を足したが、対応する renderer hook
-  `window.__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__` は未実装で、有効化すると明示エラーで落ちる。
-  実機検証はこの hook 実装が前提になる。
+- 実機（Electron）での群ごとの cut-over 検証は未実施である。`scripts/run-video-export-e2e.mjs` の
+  `UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL`（既定OFF）は、`src/main.tsx` の
+  `window.__UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL__` hookを通じてgroup_control 1個と配下member 2個を追加する。
+  実機検証ではこのknobを有効化する。
 
 ## cut-over 下の常駐 scene export（2026-09-18、未解決・P2cへ）
 
