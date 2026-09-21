@@ -42,6 +42,45 @@ $ npx tsc --noEmit
 (exit 0; outputなし)
 ```
 
+## generated source 整数 wire 修正（2026-09-22）
+
+### 事実
+
+- clone-safe export確認後のcut-over E2Eは`residentScene`まで到達し、初めてnative WebGPUのHKSY sourceを読んだ。`cellSize: 50.0`が`native-wgpu-renderer`の`u32` deserialiserで拒否された。
+- Rust scene builderはHKSYを`HksyCheckerGridObjectFields`から直接serialiseするが、その編集モデルの`cell_size`、`line_width`、`separate_interval`、`separate_line_width`が`f32`だった。そのため、整数意味論の値がJSONでは浮動小数点数になっていた。TS serialiserは同じ値を整数JSON numberとして出す。
+- 同じ「整数を一度`f32`へcastして`trunc`する」経路を監査した結果、Hologram（`tileSize`、`colourMode`）、Focus Lines（`keyframeInterval`）、Plain Effector Line（`lineCount`）、Protractor（4フィールド）、Shaking Polygon（6フィールド）にも同種の不整合があった。GetColor Dots、Particle、Audio Sphere/Waveform、Simple Tube、Shattered Sphereおよび残るgenerated kindは、builderとconsumerの整数・浮動小数点型が一致していた。
+
+### 決定
+
+- 整数パラメータはbuilder/編集schemaから整数型で保持し、整数JSON numberとしてserialiseする。native deserialiserを浮動小数点許容・丸めへ緩めない。TS wireとの互換性を保ち、非整数入力を静かに丸めないためである。
+- `all-object-types.json`からRust builderで作る36種すべてのgenerated sourceを、backendが用いる対応Rust source型へdeserialiseするテストを追加した。HKSY等native固有の整数契約はrust-core parity testでも明示的に固定する。
+
+### 代替案として退けたもの
+
+- native HKSY deserialiserで`50.0`を受け入れて丸める案は採らない。TS pathが整数を送っており、値の意味論も整数なので、producerの型を正すべきである。
+- HKSYだけの局所修正は採らない。同じbuilderを通る全generated kindを監査し、同じf32化があった5種を同時に修正・回帰テスト化した。
+
+### 制約・注意点
+
+- この変更はcut-over既定値、scene.replace wire形状、fallback優先順位を変えない。JSON numberというwire表現は同じで、浮動小数点の小数部だけを出さなくする。
+- Electron E2Eはこの環境では実行していない。次のclean-port E2Eでnative WebGPUの後続描画を確認する。
+
+### 検証
+
+```text
+$ cargo test --manifest-path rust-core/Cargo.toml -- --nocapture
+test result: ok. 全rust-core tests passed
+
+$ cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend editable_scene_builder_generated_sources_deserialise_in_backend -- --nocapture
+test generated_frame_tests::editable_scene_builder_generated_sources_deserialise_in_backend ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 198 filtered out
+
+$ cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend rpc_dispatch::tests:: -- --nocapture
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 182 filtered out
+```
+
+`native-wgpu-renderer`全体テストはsandboxにGPU adapterが無いため5件が同じadapter取得失敗で失敗し、52 passed / 5 failedとなった。`rust-backend` bin全体は従来どおりPOSIX shared memory 2件とVideoToolbox 1件のみ失敗し、194 passed / 3 failed / 2 ignoredだった。いずれも今回のsource型変更による失敗ではない。
+
 指定のbin全体テストは2回とも、sandboxが許可しないPOSIX shared memoryとVideoToolboxのため同じ3件で失敗した。変更対象の`rpc_dispatch::tests`は17件すべて成功した。
 
 ```text
