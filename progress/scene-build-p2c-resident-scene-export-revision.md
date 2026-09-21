@@ -85,3 +85,11 @@ test result: FAILED. 193 passed; 3 failed; 2 ignored
 ```
 
 Rust全体テストの3失敗は従来どおりsandboxのPOSIX shared memory権限とVideoToolbox起動制限による。
+
+## controller lifecycle 計測（2026-09-21、診断専用）
+
+- `rustTimelineScenePreviewControllerRef.current`がexport source取得時にnullとなる理由を測定するため、挙動を変えないdataset traceを追加した。RPC、scene.replace、fallback順序、statusは変更しない。
+- `uxfdRustTimelineSceneControllerTrace`は`<連番>:<created|cleanup|exportSource>@<Date.now milliseconds>`を`|`で連結する。cleanupには`:cleared`（identity check一致でrefをnull化）または`:retained`を、exportSourceには`:present|null:lastLifecycle=<連番|none>`を追加する。
+- `uxfdRustTimelineSceneControllerExportSourceCalls`はexport source取得回数、`uxfdRustTimelineSceneControllerExportSourceState`は最後の取得時のref状態と直前lifecycle連番である。実際のunmount/remount後も既存datasetからtraceを復元して連番を継続する。
+- これは原因特定後に削除または縮小する一時的な診断scaffoldingである。
+- `ViewportDiagnostics.test.ts`で作成・cleanup・exportSourceの順序とremount後の連番継続を固定した。関連8 files / 119 testsと`npx tsc --noEmit`は成功した。
