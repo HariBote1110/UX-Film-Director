@@ -120,6 +120,22 @@ describe('Rust timeline scene controller lifecycle trace', () => {
       '1:created@100|2:exportSource@110:present:lastLifecycle=1|3:cleanup@120:cleared'
     );
   });
+
+  it('export用sceneの確認発行・成功・失敗を同じtraceへ記録する', () => {
+    const dataset: Record<string, string | undefined> = {};
+    const trace = createRustTimelineSceneControllerTrace(dataset);
+
+    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'exportConfirmIssued' }, 100);
+    recordRustTimelineSceneControllerTrace(trace, dataset, {
+      kind: 'exportConfirmResolved', sceneId: 'export-scene', revision: 12,
+    }, 120);
+    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'exportConfirmRejected' }, 140);
+
+    expect(dataset).toMatchObject({
+      uxfdRustTimelineSceneControllerTrace: '1:exportConfirmIssued@100|2:exportConfirmResolved@120:sceneId=export-scene:revision=12|3:exportConfirmRejected@140',
+      uxfdRustTimelineSceneControllerExportConfirmation: 'rejected',
+    });
+  });
 });
 
 describe('isTransientExternalVideoPresentationFailure', () => {

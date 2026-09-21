@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LayerState, ProjectSettings, ShapeObject } from '../types';
+import type { LayerState, ProjectSettings, PsdObject, ShapeObject } from '../types';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import {
   createEditableRustScenePreviewController,
@@ -43,8 +43,45 @@ const shape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   ...patch,
 });
 
+const psdWithRuntimeFields = (): PsdObject => ({
+  ...shape(),
+  id: 'psd-1',
+  type: 'psd',
+  name: 'PSD',
+  src: 'file:///tmp/example.psd',
+  filePath: '/tmp/example.psd',
+  scale: 1,
+  file: { runtimeOnly: true } as unknown as File,
+  rootLayer: {
+    id: 'root',
+    name: 'Root',
+    isGroup: true,
+    isRadio: false,
+    children: [{
+      id: 'psd-layer-1',
+      name: 'Layer',
+      isGroup: false,
+      isRadio: false,
+      children: [],
+      width: 320,
+      height: 180,
+      left: 0,
+      top: 0,
+      defaultVisible: true,
+      src: 'uxfd:psd-layer:psd-layer-1',
+      textureSource: (() => undefined) as unknown as ImageBitmap,
+    }],
+    width: 320,
+    height: 180,
+    left: 0,
+    top: 0,
+    defaultVisible: true,
+  },
+});
+
 const scheduler = () => ({
   submitRevision: vi.fn(),
+  confirmExportRevision: vi.fn().mockResolvedValue({ sceneId: 'export:project-1', revision: 41 }),
   requestFrame: vi.fn(),
   invalidate: vi.fn(),
   dispose: vi.fn(),
@@ -107,6 +144,43 @@ describe('editableRustScenePreviewController', () => {
         mediaContext: { purpose: 'previewProxy', sceneId: 'preview:project-1' },
       },
     });
+  });
+
+  it('exportは現在graphのreplace成功を確認したrevisionを取得する', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      initialRevision: 40,
+      includeEditableScene: true,
+    });
+
+    await expect(controller.confirmSceneForExport({
+      sceneId: 'export:project-1', projectSettings, layers, objects: [shape()],
+    })).resolves.toEqual({ sceneId: 'export:project-1', revision: 41 });
+    expect(sceneScheduler.confirmExportRevision).toHaveBeenCalledWith(expect.objectContaining({
+      sceneId: 'export:project-1', revision: 41, editableScene: expect.any(Object),
+    }));
+  });
+
+  it('export確認のeditableSceneからPSDのIPC非clone runtime値を除去する', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      initialRevision: 40,
+      includeEditableScene: true,
+    });
+
+    await controller.confirmSceneForExport({
+      sceneId: 'export:project-1', projectSettings, layers, objects: [psdWithRuntimeFields()],
+    });
+
+    const payload = sceneScheduler.confirmExportRevision.mock.calls[0][0];
+    const psd = payload.editableScene?.objects[0] as PsdObject;
+    expect(psd.file).toBeUndefined();
+    expect(psd.rootLayer?.children[0].textureSource).toBeUndefined();
+    expect(() => structuredClone(payload)).not.toThrow();
   });
 
   it('未対応編集は旧sceneを無効化し、問題を呼び出し側へ返す', () => {

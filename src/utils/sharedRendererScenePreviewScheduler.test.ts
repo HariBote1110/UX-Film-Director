@@ -218,6 +218,30 @@ describe('sharedRendererScenePreviewScheduler', () => {
     ]);
   });
 
+  it('export専用sceneのreplaceはpreviewの保留revisionを待たずに確認する', async () => {
+    const previewReplace = deferred<any>();
+    const exportReplace = deferred<any>();
+    const replaceCalls: Array<{ sceneId: string; revision: number }> = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: (input) => {
+        replaceCalls.push(input);
+        return input.sceneId === 'export:main' ? exportReplace.promise : previewReplace.promise;
+      },
+      evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({ rpc, onEvaluation: () => {} });
+
+    scheduler.submitRevision(revision(4));
+    const confirmation = scheduler.confirmExportRevision({ ...revision(5), sceneId: 'export:main' });
+    exportReplace.resolve({ ok: true, value: { sceneId: 'export:main', revision: 5, sceneSource: 'rust' } });
+
+    await expect(confirmation).resolves.toEqual({ sceneId: 'export:main', revision: 5 });
+    expect(replaceCalls.map(({ sceneId, revision }) => ({ sceneId, revision }))).toEqual([
+      { sceneId: 'preview:main', revision: 4 },
+      { sceneId: 'export:main', revision: 5 },
+    ]);
+  });
+
   it('replace r1の解決がr3提出後にずれ込んでも、supersededなr1をonRemoteReadyへreportしない', async () => {
     const replaces: Array<{ input: { revision: number }; deferred: Deferred<any> }> = [];
     const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];

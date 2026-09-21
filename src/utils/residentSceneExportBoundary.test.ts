@@ -36,13 +36,15 @@ describe('常駐 Rust scene export 境界', () => {
     expect(dispatch).toContain('"encode.writeResidentSceneFrame"');
   });
 
-  it('Viewportの2D native encodeはbackend確認済みのresident scene revisionを再利用する', () => {
+  it('Viewportの2D native encodeはexport専用sceneの確認済みrevisionを再利用する', () => {
     const viewport = viewportSource();
 
     expect(viewport).toContain('createResidentSceneExportFrameSource');
-    expect(viewport).toContain("sceneId: 'viewport-rust-timeline'");
-    expect(viewport).toContain('revision: rustTimelineSceneExportRevision');
-    expect(viewport).toContain('onResidentRevision: (resident) => {');
+    expect(viewport).toContain('confirmSceneForExport');
+    expect(viewport).toContain('confirmedScene,');
+    expect(viewport).toContain('viewport-rust-timeline-export-');
+    expect(viewport).toContain("'residentSceneConfirming'");
+    expect(viewport).toContain("'residentSceneConfirmationFailed'");
     expect(viewport).not.toContain('&& !context.hasVideoObjects');
   });
 
@@ -51,7 +53,7 @@ describe('常駐 Rust scene export 境界', () => {
 
     expect(viewport).not.toContain('residentSceneDisabledUnderSceneBuilderCutover');
     expect(viewport).toContain("'residentSceneUnacknowledged'");
-    expect(viewport).toContain('rustTimelineSceneExportRevision === null');
+    expect(viewport).not.toContain('rustTimelineSceneExportRevision === null');
   });
 
   it('frame要求をsnapshotなしのresident scene encode payloadへ変換する', async () => {
@@ -77,6 +79,27 @@ describe('常駐 Rust scene export 境界', () => {
         revision: 12,
         frameIndex: 42,
       },
+    });
+  });
+
+  it('export開始時のscene.replace確認結果を最初のresident frameへ使う', async () => {
+    let confirm!: (value: { sceneId: string; revision: number }) => void;
+    const confirmedScene = new Promise<{ sceneId: string; revision: number }>((resolve) => {
+      confirm = resolve;
+    });
+    const source = createResidentSceneExportFrameSource({
+      sceneId: 'export-scene',
+      revision: 0,
+      confirmedScene,
+    });
+    const frame = source.renderEncodeFrame?.({
+      encodeSessionId: 'encode-1', frameIndex: 42, timestampUs: 700_000, time: 0.7,
+      width: 1920, height: 1080, objects: [],
+    });
+    confirm({ sceneId: 'export-scene', revision: 12 });
+
+    await expect(frame).resolves.toMatchObject({
+      residentSceneEncodeFramePayload: { sceneId: 'export-scene', revision: 12 },
     });
   });
 });
