@@ -735,6 +735,9 @@ const Viewport: React.FC = () => {
   // 前提にする経路はこちらを使う（diag-debug-1で計測したrevision不一致による
   // native再生失敗の再発防止）。
   const [rustTimelineSceneResidentRevision, setRustTimelineSceneResidentRevision] = useState<number | null>(null);
+  // backendが現在保持するrevision。新しいreplaceの送信中も直前に確認済みの値を
+  // 維持し、resident exportが楽観revisionを送らないために使う。
+  const [rustTimelineSceneExportRevision, setRustTimelineSceneExportRevision] = useState<number | null>(null);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0';
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
@@ -1883,6 +1886,9 @@ const Viewport: React.FC = () => {
       onRemoteReady: (ready) => {
         setRustTimelineSceneResidentRevision(ready ? ready.revision : null);
       },
+      onResidentRevision: (resident) => {
+        setRustTimelineSceneExportRevision(resident ? resident.revision : null);
+      },
     });
     const controller = createEditableRustScenePreviewController({
       sceneId: 'viewport-rust-timeline',
@@ -2635,54 +2641,22 @@ const Viewport: React.FC = () => {
   }, []);
 
   const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => {
-    // Scene-builder cut-over時はresident sceneのacknowledged revisionが
-    // 楽観revisionへ収束しない（P2c未解決）。無理にresident経路へ進ませると
-    // 常にrevision timeoutで失敗するため、cut-over有効時は明示的にresident scene
-    // exportを使わずTypeScript側のfallback経路へ落とす。ここを消して収束待ちを
-    // 復活させないこと。
-    if (rustEditableSceneCutoverEnabled) {
-      const fallbackSource = buildViewportRustExportFrameSource({
-        exportEnabled: sharedRendererExportEnabled,
-        canvas: sharedRendererSurfaceCanvasRef.current,
-        projectSettings,
-        layers,
-        editorMode,
-        webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
-        fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
-        videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
-        hasVideoObjects: context.hasVideoObjects,
-        hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
-        objects: context.objects,
-        time: context.time,
-        preferEncodeOnly: context.preferEncodeOnly,
-        presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
-        onFrameSourceUnavailable: context.onFrameSourceUnavailable,
-        diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
-      });
-      // buildViewportRustExportFrameSourceが内部でuxfdRustExportFrameSourceStatusを
-      // 'ready'/'fallback'/'blocked'へ上書きするため、cut-over時の明示ステータスは
-      // そのあとに立て直す。
-      document.documentElement.dataset.uxfdRustExportFrameSourceStatus =
-        'residentSceneDisabledUnderSceneBuilderCutover';
-      return fallbackSource;
-    }
-    const canUseResidentScene = (
+    const residentSceneAvailable = (
       sharedRendererExportEnabled
       && rustTimelineSceneRpcEnabled
-      && rustTimelineSceneRevision !== null
       && editorMode === '2d'
       && context.preferEncodeOnly === true
       && window.rustVideoEncoder.nativeDirectEncodeEnabled === true
       && typeof window.rustVideoEncoder.writeResidentSceneEncodeFrame === 'function'
     );
-    if (canUseResidentScene) {
+    if (residentSceneAvailable && rustTimelineSceneExportRevision !== null) {
       document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
       return createResidentSceneExportFrameSource({
         sceneId: 'viewport-rust-timeline',
-        revision: rustTimelineSceneRevision,
+        revision: rustTimelineSceneExportRevision,
       });
     }
-    return buildViewportRustExportFrameSource({
+    const fallbackSource = buildViewportRustExportFrameSource({
       exportEnabled: sharedRendererExportEnabled,
       canvas: sharedRendererSurfaceCanvasRef.current,
       projectSettings,
@@ -2700,12 +2674,15 @@ const Viewport: React.FC = () => {
       onFrameSourceUnavailable: context.onFrameSourceUnavailable,
       diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
     });
+    if (residentSceneAvailable && rustTimelineSceneExportRevision === null) {
+      document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneUnacknowledged';
+    }
+    return fallbackSource;
   }, [
     editorMode,
     layers,
     projectSettings,
-    rustEditableSceneCutoverEnabled,
-    rustTimelineSceneRevision,
+    rustTimelineSceneExportRevision,
     rustTimelineSceneRpcEnabled,
     sharedRendererExportEnabled,
     sharedRendererGpuStatus.fallbackAdapter,

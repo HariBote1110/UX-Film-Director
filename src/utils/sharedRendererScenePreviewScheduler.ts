@@ -45,11 +45,14 @@ export interface SharedRendererScenePreviewSchedulerFailure {
   errorCode?: number;
 }
 
+type ResidentSceneRevision = { sceneId: string; revision: number };
+
 export const createSharedRendererScenePreviewScheduler = ({
   rpc,
   onEvaluation,
   onFailure,
   onRemoteReady,
+  onResidentRevision,
 }: {
   rpc: SharedRendererScenePreviewSchedulerRpc;
   onEvaluation: (evaluation: SharedRendererSceneEvaluation) => void;
@@ -58,7 +61,11 @@ export const createSharedRendererScenePreviewScheduler = ({
   // 一致しているときだけ呼ばれる。supersededなrevisionが遅れて解決しても
   // reportされない。null は「常駐scene が現在の希望revisionと一致しない」状態
   // （新しいsubmitRevision・replace失敗・invalidate）を表す。
-  onRemoteReady?: (ready: { sceneId: string; revision: number } | null) => void;
+  onRemoteReady?: (ready: ResidentSceneRevision | null) => void;
+  // backendが現在保持しているrevisionを通知する。onRemoteReadyと異なり、次の
+  // revisionを送信中でも直前に確認済みのrevisionを維持する。resident exportは
+  // この値を使い、native playbackの「present済み」判定とは混同しない。
+  onResidentRevision?: (resident: ResidentSceneRevision | null) => void;
 }): SharedRendererScenePreviewScheduler => {
   const diagnostics: SharedRendererScenePreviewSchedulerDiagnostics = {
     requested: 0,
@@ -69,24 +76,36 @@ export const createSharedRendererScenePreviewScheduler = ({
   };
   let disposed = false;
   let desiredRevision: RustBackendSceneReplacePayload | null = null;
-  let remoteReadyRevision: { sceneId: string; revision: number } | null = null;
+  let remoteReadyRevision: ResidentSceneRevision | null = null;
   let replaceInFlight = false;
   let evaluateInFlight = false;
   let pendingLatestFrame: number | null = null;
   let lastRequestedFrame: number | null = null;
   let failedRevisionKey: string | null = null;
-  let lastNotifiedRemoteReady: { sceneId: string; revision: number } | null = null;
+  let lastNotifiedRemoteReady: ResidentSceneRevision | null = null;
+  let lastNotifiedResidentRevision: ResidentSceneRevision | null = null;
 
-  const notifyRemoteReady = (ready: { sceneId: string; revision: number } | null) => {
+  const sameResidentRevision = (
+    first: ResidentSceneRevision | null,
+    second: ResidentSceneRevision | null,
+  ) => first === null
+    ? second === null
+    : second !== null
+      && first.sceneId === second.sceneId
+      && first.revision === second.revision;
+
+  const notifyRemoteReady = (ready: ResidentSceneRevision | null) => {
     if (!onRemoteReady) return;
-    const same = ready === null
-      ? lastNotifiedRemoteReady === null
-      : lastNotifiedRemoteReady !== null
-        && lastNotifiedRemoteReady.sceneId === ready.sceneId
-        && lastNotifiedRemoteReady.revision === ready.revision;
-    if (same) return;
+    if (sameResidentRevision(lastNotifiedRemoteReady, ready)) return;
     lastNotifiedRemoteReady = ready;
     onRemoteReady(ready);
+  };
+
+  const notifyResidentRevision = (resident: ResidentSceneRevision | null) => {
+    if (!onResidentRevision) return;
+    if (sameResidentRevision(lastNotifiedResidentRevision, resident)) return;
+    lastNotifiedResidentRevision = resident;
+    onResidentRevision(resident);
   };
 
   const blockAfterFailure = (failure: SharedRendererScenePreviewSchedulerFailure) => {
@@ -96,6 +115,7 @@ export const createSharedRendererScenePreviewScheduler = ({
     lastRequestedFrame = null;
     failedRevisionKey = null;
     notifyRemoteReady(null);
+    notifyResidentRevision(null);
     onFailure?.(failure);
   };
 
@@ -148,6 +168,7 @@ export const createSharedRendererScenePreviewScheduler = ({
         diagnostics.sceneFallbackReason = result.value.sceneFallbackReason;
         const remoteReady = { sceneId: result.value.sceneId, revision: result.value.revision };
         remoteReadyRevision = remoteReady;
+        notifyResidentRevision(remoteReady);
         const isStillDesired = desiredRevision?.sceneId === remoteReady.sceneId
           && desiredRevision.revision === remoteReady.revision;
         if (isStillDesired) notifyRemoteReady(remoteReady);
@@ -277,6 +298,7 @@ export const createSharedRendererScenePreviewScheduler = ({
       lastRequestedFrame = null;
       failedRevisionKey = null;
       notifyRemoteReady(null);
+      notifyResidentRevision(null);
     },
     dispose: () => {
       disposed = true;
