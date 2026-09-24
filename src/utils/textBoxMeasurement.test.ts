@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { LINE_HEIGHT_RATIO, measureLineWithContext, measureTextBoxSize } from './textBoxMeasurement';
 
 describe('measureTextBoxSize', () => {
+  it('小数幅は切り上げてグリフが収まる幅を返す', () => {
+    const size = measureTextBoxSize(
+      { text: 'Alize', fontSize: 20 },
+      () => ({ width: 100.3 })
+    );
+    expect(size?.width).toBe(Math.ceil(100.3));
+  });
   // バグ1修正: 行送り比率を Rust 側 cosmic-text の実描画値（1.25）に合わせる。
   // 旧テストは旧 PIXI.Text の既定値 1.2 を前提にしていたが、実描画を担う
   // rust-backend/src/generated/text.rs は

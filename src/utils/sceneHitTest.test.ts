@@ -6,7 +6,8 @@ import {
   type SceneCamera,
   type SceneHitTestViewport,
 } from './sceneHitTest';
-import type { LayerState, ShapeObject, TimelineObject } from '../types';
+import type { LayerState, ShapeObject, TextObject, TimelineObject } from '../types';
+import { textMediaBox } from './rustSceneSnapshot';
 
 const identityCamera: SceneCamera = { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 };
 
@@ -40,6 +41,35 @@ const shape = (overrides: Partial<ShapeObject> = {}): ShapeObject => ({
   height: 40,
   fill: '#fff',
   ...overrides,
+});
+
+const textObject = (overrides: Partial<TextObject> = {}): TextObject => ({
+  id: 'text-1', type: 'text', name: 'Text', layer: 0,
+  startTime: 0, duration: 10, x: 100, y: 100,
+  rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
+  enableAnimation: false, endX: 0, endY: 0, easing: 'linear',
+  text: 'Alize', fontSize: 20, fontFamily: 'Arial', fill: '#ffffff',
+  ...overrides,
+});
+
+describe('hitTestSceneObjects: テキストの描画領域', () => {
+  it('実測済みテキストは領域内でヒットし、領域外ではヒットしない', () => {
+    const object = textObject({ measuredWidth: 80, measuredHeight: 25 });
+    const objects = [object];
+    const box = textMediaBox(object);
+    expect(hitTestSceneObjects({ cssX: object.x + box.width / 2, cssY: object.y + box.height / 2, time: 0, objects, viewport: viewport() })).toBe(object.id);
+    expect(hitTestSceneObjects({ cssX: object.x + box.width + 1, cssY: object.y + box.height / 2, time: 0, objects, viewport: viewport() })).toBeNull();
+    expect(getObjectWorldCorners(object, 0, objects)?.bottomRight).toEqual({ x: object.x + box.width, y: object.y + box.height });
+  });
+
+  it('未計測テキストは共有ヒューリスティックの領域でヒットする', () => {
+    const object = textObject();
+    const objects = [object];
+    const box = textMediaBox(object);
+    expect(hitTestSceneObjects({ cssX: object.x + box.width / 2, cssY: object.y + box.height / 2, time: 0, objects, viewport: viewport() })).toBe(object.id);
+    expect(hitTestSceneObjects({ cssX: object.x + box.width + 1, cssY: object.y + box.height / 2, time: 0, objects, viewport: viewport() })).toBeNull();
+    expect(getObjectWorldCorners(object, 0, objects)?.bottomRight).toEqual({ x: object.x + box.width, y: object.y + box.height });
+  });
 });
 
 describe('hitTestSceneObjects: 基本のCSS座標→ワールド座標変換', () => {

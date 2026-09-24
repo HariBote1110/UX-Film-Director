@@ -58,6 +58,23 @@ const imageObject = (overrides: Partial<Record<string, unknown>> = {}): Timeline
   ...overrides,
 } as unknown as TimelineObject);
 
+it('テキストは選択枠を描くがリサイズハンドルを描かない', () => {
+  const { width: _width, height: _height, ...base } = imageObject({ id: 'text-1', type: 'text' }) as TimelineObject & { width: number; height: number };
+  const object = {
+    ...base,
+    text: 'Alize', fontSize: 20, fontFamily: 'Arial', fill: '#ffffff',
+    measuredWidth: 80, measuredHeight: 25,
+  } as TimelineObject;
+  const markup = renderToStaticMarkup(React.createElement(SceneSelectionOverlay, {
+    selectedIds: [object.id], objects: [object], time: 5,
+    viewport, width: 400, height: 300,
+    onHandlePointerDown: () => {},
+  }));
+  expect(markup).toContain('<polygon');
+  expect(markup.match(/<rect/g)).toHaveLength(4);
+  expect(markup.match(/style="display:none;pointer-events:none/g)).toHaveLength(4);
+});
+
 describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジェクトは描かない）', () => {
   it('プレイヘッドが選択オブジェクトの時間帯外なら <g> はレンダーされるが display:none で不可視・非操作になる', () => {
     // 新契約: 要素そのものは消えず、常に data-object-id 付きの <g> が
