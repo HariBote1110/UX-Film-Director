@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [text-box-wrap-and-hit-test.md](text-box-wrap-and-hit-test.md) — テキスト末尾文字欠落はcosmic-textの自動折り返し＋計測幅の四捨五入が真因、Wrap::None＋ceilで修正。テキスト選択不可はヒットテストがwidth/height前提だったためtextMediaBoxを共通化。fpsは整数自由入力、小数fpsは書き出し側がu32のため見送り（2026-09-24）
 - [scene-build-p2c-resident-scene-export-revision.md](scene-build-p2c-resident-scene-export-revision.md) — P2cの常駐scene export revision不一致を、cut-over時の未確認optimistic revision送信として確定。backend確認済みrevisionを保持してexportへ渡す方針を採用し、待機・export専用lifecycleは不採用（2026-09-21）
 
 - [scene-build-p2b-kind-group-cutover.md](scene-build-p2b-kind-group-cutover.md) — `UXFD_SCENE_BUILDER_CUTOVER` の5群すべてを実ゲート化。`kind_group` の網羅matchでbasic/generated/audio/getcolorを分類し、group_controlはproject.group_controls非空でゲート。既定OFF・wire形状・fallback理由は不変（2026-09-18）
