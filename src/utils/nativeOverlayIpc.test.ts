@@ -251,6 +251,7 @@ describe('nativeOverlayIpc', () => {
         topRightX: 110, topRightY: 20,
         bottomRightX: 110, bottomRightY: 70,
         bottomLeftX: 10, bottomLeftY: 70,
+        showHandles: false,
       }],
     };
     await expect(handlers.get(nativeOverlayIpcChannels.setSelectionDecoration)?.(

@@ -59,7 +59,34 @@ describe('buildSelectionDecorationQuads', () => {
       bottomRightY: 70,
       bottomLeftX: 10,
       bottomLeftY: 70,
+      showHandles: true,
     }]);
+  });
+
+  it('hides native resize handles for text while retaining shape handles', () => {
+    const text = imageObject({ id: 'text-1', type: 'text', text: 'Hello', fontSize: 37, measuredWidth: 80, measuredHeight: 45 });
+    const shape = imageObject({ id: 'shape-1', type: 'shape' });
+    const quads = buildSelectionDecorationQuads({ selectedIds: ['text-1', 'shape-1'], objects: [text, shape], time: 1 });
+    expect(quads.map((quad) => quad.showHandles)).toEqual([false, true]);
+  });
+
+  it('sends the measured text box from the second object update through the restart decoration path', async () => {
+    const viewport = readFileSync(resolve(root, 'src/components/Viewport.tsx'), 'utf8');
+    expect(viewport).toMatch(/presentNativeOverlayDecodedFrame:[\s\S]*?prepareSharedRendererViewportNativeRenderOverlayPresent\(\{[\s\S]*?selectionDecoration:/);
+    expect(viewport).toMatch(/presentNativeOverlayDecodedFrame:[\s\S]*?prepareSharedRendererViewportNativeOverlayPresent\(\{[\s\S]*?selectionDecoration:/);
+
+    const send = vi.fn(async () => ({}));
+    const sender = createNativeOverlaySelectionDecorationSender(send);
+    const first = imageObject({ type: 'text', text: 'Hello', fontSize: 37, measuredWidth: 80, measuredHeight: 45 });
+    const fontUpdated = { ...first, fontSize: 50 } as TimelineObject;
+    const measured = { ...fontUpdated, measuredWidth: 120, measuredHeight: 65 } as TimelineObject;
+    const payloadFor = (object: TimelineObject) => ({ canvasWidth: 1920, canvasHeight: 1080,
+      quads: buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects: [object], time: 1 }) });
+    await sender.update(payloadFor(first));
+    await sender.update(payloadFor(fontUpdated));
+    await sender.update(payloadFor(measured));
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith(payloadFor(measured));
   });
 
   it('skips selected ids without a sized object and returns an empty list when nothing is selected', () => {
@@ -133,6 +160,14 @@ describe('createNativeOverlaySelectionDecorationSender', () => {
 
     expect(send).toHaveBeenCalledTimes(2);
     expect(send).toHaveBeenLastCalledWith(moved);
+  });
+
+  it('re-sends when only handle visibility changes', async () => {
+    const send = vi.fn(async () => ({}));
+    const sender = createNativeOverlaySelectionDecorationSender(send);
+    await sender.update({ ...payload, quads: [{ ...payload.quads[0], showHandles: true }] });
+    await sender.update({ ...payload, quads: [{ ...payload.quads[0], showHandles: false }] });
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it('sends an empty quads payload when the previous payload had quads (clears a ghost decoration for an off-time object)', async () => {

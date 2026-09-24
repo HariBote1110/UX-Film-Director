@@ -413,6 +413,7 @@ describe('createNativeOverlayMainBridge', () => {
         topRightX: 3, topRightY: 2,
         bottomRightX: 3, bottomRightY: 4,
         bottomLeftX: 1, bottomLeftY: 4,
+        showHandles: false,
       }],
     };
     const payload = {
@@ -655,6 +656,7 @@ describe('createNativeOverlayMainBridge', () => {
         topRightX: 110, topRightY: 20,
         bottomRightX: 110, bottomRightY: 70,
         bottomLeftX: 10, bottomLeftY: 70,
+        showHandles: false,
       }],
     };
     await expect(bridge.setSelectionDecoration(payload)).resolves.toEqual({

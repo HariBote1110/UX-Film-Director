@@ -422,6 +422,47 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     ]);
   });
 
+  it('presents the latest measured text quad when the decoded frame is unchanged', async () => {
+    resetNativeOverlayVisualFrameCache();
+    const delivered: number[] = [];
+    const quad = {
+      topLeftX: 10, topLeftY: 20,
+      topRightX: 90, topRightY: 20,
+      bottomRightX: 90, bottomRightY: 65,
+      bottomLeftX: 10, bottomLeftY: 65,
+      showHandles: false,
+    };
+    const input: PresentNativeOverlayRustDecodedVideoFrameInput = {
+      windowId: 77,
+      mediaId: 'steady-video-text-size',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      selectionDecoration: { canvasWidth: 1920, canvasHeight: 1080, quads: [quad] },
+      nativeOverlayBridge: {
+        presentSharedFrame: async (payload) => {
+          delivered.push(payload.selectionDecoration?.quads[0]?.topRightX ?? -1);
+          return { success: true, attached: true, releaseFrame: {
+            ...payload.frame.descriptor,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled',
+          } };
+        },
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async () => ({ success: true, result: { released: true } }),
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    };
+    await presentNativeOverlayRustDecodedVideoFrame(input);
+    await presentNativeOverlayRustDecodedVideoFrame({ ...input, selectionDecoration: input.selectionDecoration });
+    await presentNativeOverlayRustDecodedVideoFrame({ ...input, selectionDecoration: {
+      ...input.selectionDecoration!, quads: [{ ...quad, topRightX: 130, bottomRightX: 130 }],
+    } });
+    expect(delivered).toEqual([90, 130]);
+  });
+
   it('presents the next frame again after resetting the Native Overlay visual frame cache', async () => {
     const calls: unknown[] = [];
     const rustBackendBridge: RustBackendVideoDecodeBridge = {
