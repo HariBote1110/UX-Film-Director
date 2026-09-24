@@ -209,6 +209,7 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
     ptsFrame: frame.ptsFrame,
     snapshot,
     media,
+    selectionDecoration,
   });
   const visualFrameTarget = `${windowId ?? 'default'}:${mediaId ?? jobId}`;
   if (lastNativeOverlayVisualFrameKeyByTarget.get(visualFrameTarget) === visualFrameKey) {
@@ -299,12 +300,14 @@ const buildNativeOverlayVisualFrameKey = ({
   ptsFrame,
   snapshot,
   media,
+  selectionDecoration,
 }: {
   windowId?: number;
   mediaId: string;
   ptsFrame: number;
   snapshot?: RustSceneSnapshot;
   media?: readonly RustSceneMediaReference[];
+  selectionDecoration?: SelectionDecorationPayload;
 }): string => JSON.stringify({
   windowId: windowId ?? null,
   mediaId,
@@ -319,6 +322,7 @@ const buildNativeOverlayVisualFrameKey = ({
     clips: snapshot.clips,
   } : null,
   media: media ?? null,
+  selectionDecoration: selectionDecoration ?? null,
 });
 
 export const toNativeOverlaySceneSnapshotPayload = (

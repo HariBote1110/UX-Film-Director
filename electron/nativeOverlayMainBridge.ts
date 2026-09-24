@@ -39,6 +39,7 @@ export interface NativeOverlaySelectionDecorationQuad {
   bottomRightY: number
   bottomLeftX: number
   bottomLeftY: number
+  showHandles?: boolean
 }
 
 export interface NativeOverlaySelectionDecorationPayload {

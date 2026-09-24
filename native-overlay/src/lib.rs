@@ -80,6 +80,7 @@ pub struct NativeOverlaySelectionDecorationQuadPayload {
     pub bottom_right_y: f64,
     pub bottom_left_x: f64,
     pub bottom_left_y: f64,
+    pub show_handles: Option<bool>,
 }
 
 #[napi(object)]
@@ -2705,6 +2706,7 @@ pub struct SelectionDecorationQuad {
     pub top_right: (f64, f64),
     pub bottom_right: (f64, f64),
     pub bottom_left: (f64, f64),
+    pub show_handles: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2772,6 +2774,7 @@ fn selection_decoration_state_from_quad_payloads(
                 top_right: (quad.top_right_x, quad.top_right_y),
                 bottom_right: (quad.bottom_right_x, quad.bottom_right_y),
                 bottom_left: (quad.bottom_left_x, quad.bottom_left_y),
+                show_handles: quad.show_handles,
             })
             .collect(),
     }
@@ -2956,6 +2959,9 @@ pub fn build_selection_decoration_clips(
             ) {
                 clips.push(clip);
             }
+        }
+        if quad.show_handles == Some(false) {
+            continue;
         }
         for (corner_index, corner) in corners.iter().enumerate() {
             let half = handle_frame_size * 0.5;
@@ -6804,7 +6810,25 @@ mod tests {
                 top_right: (300.0, 100.0),
                 bottom_right: (300.0, 200.0),
                 bottom_left: (100.0, 200.0),
+                show_handles: None,
             }],
+        }
+    }
+
+    #[test]
+    fn selection_decoration_clips_respect_optional_handle_visibility() {
+        for (show_handles, expected_clips) in [(None, 12), (Some(true), 12), (Some(false), 4)] {
+            let mut state = axis_aligned_selection_state(1920, 1080);
+            state.quads[0].show_handles = show_handles;
+            let (clips, _) = build_selection_decoration_clips(&state, 960, 540, 1.0);
+            assert_eq!(clips.len(), expected_clips);
+            assert_eq!(
+                clips
+                    .iter()
+                    .filter(|clip| clip.clip_id.contains("handle"))
+                    .count(),
+                expected_clips - 4
+            );
         }
     }
 
@@ -6939,6 +6963,7 @@ mod tests {
                 top_right: (110.0, 10.0),
                 bottom_right: (110.0, 110.0),
                 bottom_left: (10.0, 110.0),
+                show_handles: None,
             }],
         };
         let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 2.0);
@@ -6966,6 +6991,7 @@ mod tests {
                 top_right: (0.0, 100.0),
                 bottom_right: (-100.0, 100.0),
                 bottom_left: (-100.0, 0.0),
+                show_handles: None,
             }],
         };
         let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 1.0);
@@ -7222,6 +7248,7 @@ mod tests {
                 top_right: (20.0, 10.0),
                 bottom_right: (20.0, 20.0),
                 bottom_left: (10.0, 20.0),
+                show_handles: None,
             }],
         };
 
@@ -7305,6 +7332,7 @@ mod tests {
                 top_right: (160.0, 40.0),
                 bottom_right: (160.0, 160.0),
                 bottom_left: (40.0, 160.0),
+                show_handles: None,
             }],
         };
         let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
@@ -7367,6 +7395,7 @@ mod tests {
                 top_right: (300.0, 100.0),
                 bottom_right: (300.0, 200.0),
                 bottom_left: (100.0, 200.0),
+                show_handles: None,
             }],
         };
         let (clips, _sources) = build_selection_decoration_clips(&state, 960, 540, 1.0);
@@ -7413,6 +7442,7 @@ mod tests {
                 top_right: (700.0, 500.0),
                 bottom_right: (700.0, 700.0),
                 bottom_left: (500.0, 700.0),
+                show_handles: None,
             }],
         };
         let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();

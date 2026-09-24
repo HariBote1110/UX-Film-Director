@@ -28,6 +28,7 @@ export interface SelectionDecorationQuadPayload {
   bottomRightY: number;
   bottomLeftX: number;
   bottomLeftY: number;
+  showHandles?: boolean;
 }
 
 export interface SelectionDecorationPayload {
@@ -67,6 +68,7 @@ export const buildSelectionDecorationQuads = ({
       bottomRightY: corners.bottomRight.y,
       bottomLeftX: corners.bottomLeft.x,
       bottomLeftY: corners.bottomLeft.y,
+      showHandles: object.type !== 'text',
     });
   }
   return quads;

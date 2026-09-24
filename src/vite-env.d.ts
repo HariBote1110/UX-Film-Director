@@ -436,6 +436,7 @@ interface Window {
           bottomRightY: number;
           bottomLeftX: number;
           bottomLeftY: number;
+          showHandles?: boolean;
         }[];
       };
     }) => Promise<{
@@ -478,6 +479,7 @@ interface Window {
           bottomRightY: number;
           bottomLeftX: number;
           bottomLeftY: number;
+          showHandles?: boolean;
         }[];
       };
     }) => Promise<{
@@ -519,6 +521,7 @@ interface Window {
         bottomRightY: number;
         bottomLeftX: number;
         bottomLeftY: number;
+        showHandles?: boolean;
       }[];
     }) => Promise<{
       success: boolean;

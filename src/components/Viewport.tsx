@@ -2315,6 +2315,19 @@ const Viewport: React.FC = () => {
     const nativeOverlayDirectSceneEligible = nativeOverlayReady
       && isNativeOverlayDirectSceneSession(presenterRestartSession);
 
+    const restartObjects = latestObjectsRef.current;
+    const restartSelectionDecoration = (session: SharedRendererPreviewSession) => ({
+      canvasWidth: projectSettings.width,
+      canvasHeight: projectSettings.height,
+      quads: buildSelectionDecorationQuads({
+        selectedIds: latestSelectedIdsRef.current,
+        objects: restartObjects,
+        time: session.surfaceGate.ok
+          ? session.surfaceGate.snapshot.frame_index / projectSettings.fps
+          : useStore.getState().currentTime,
+      }),
+    });
+
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
       session: presenterRestartSession,
@@ -2335,11 +2348,13 @@ const Viewport: React.FC = () => {
             session: input.session,
             requestId: input.requestId,
             nativeOverlayBridge: window.nativeOverlay,
+            selectionDecoration: restartSelectionDecoration(input.session),
           })
           : prepareSharedRendererViewportNativeOverlayPresent({
             ...input,
             nativeOverlayBridge: window.nativeOverlay,
             rustBackendBridge: window.rustBackend,
+            selectionDecoration: restartSelectionDecoration(input.session),
             // この再起動より新しい要求（さらに新しい再起動 / reuse tick）が
             // 始まっていたら、decode 完了後の present を抑止して古いフレームの
             // 上書きを防ぐ。
