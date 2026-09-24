@@ -27,6 +27,7 @@ export const locales = {
   width: { ja: '幅', en: 'Width' },
   height: { ja: '高さ', en: 'Height' },
   fps: { ja: 'フレームレート', en: 'FPS' },
+  fpsInvalidRange: { ja: '1〜240の整数を入力してください', en: 'Enter an integer between 1 and 240.' },
   sampleRate: { ja: 'サンプリングレート', en: 'Sample Rate' },
   create: { ja: '作成', en: 'Create' },
   openExistingProject: { ja: '既存のプロジェクトを開く', en: 'Open Existing Project' },

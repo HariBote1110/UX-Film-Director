@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useTranslation } from '../i18n';
 import { ProjectSettings } from '../types';
+import { parseFpsInput } from './projectSetupFps';
 
 const STORAGE_KEY = 'ux-film-director-last-settings';
 
@@ -23,6 +24,10 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
   });
 
   const [hasLastSettings, setHasLastSettings] = useState(false);
+  const [fpsDraft, setFpsDraft] = useState(String(settings.fps));
+
+  const fpsValue = parseFpsInput(fpsDraft);
+  const isFpsInvalid = fpsValue === null;
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -36,9 +41,13 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
   };
 
   const handleCreate = () => {
+    if (fpsValue === null) {
+      return;
+    }
+    const finalSettings: ProjectSettings = { ...settings, fps: fpsValue };
     // Save to local storage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    initializeProject(settings);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(finalSettings));
+    initializeProject(finalSettings);
   };
 
   const handleContinue = () => {
@@ -98,15 +107,27 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
 
         <div style={{ marginBottom: '16px' }}>
           <label className="input-label">{t('fps')}</label>
-          <select 
-            value={settings.fps} 
-            onChange={(e) => handleChange('fps', parseInt(e.target.value))}
+          <input
+            type="number"
+            min={1}
+            max={240}
+            step={1}
+            list="fps-suggestions"
+            value={fpsDraft}
+            onChange={(e) => setFpsDraft(e.target.value)}
+            aria-invalid={isFpsInvalid}
             style={{ width: '100%' }}
-          >
-            <option value="24">24 fps</option>
-            <option value="30">30 fps</option>
-            <option value="60">60 fps</option>
-          </select>
+          />
+          <datalist id="fps-suggestions">
+            <option value="24" />
+            <option value="30" />
+            <option value="60" />
+          </datalist>
+          {isFpsInvalid && (
+            <div style={{ marginTop: '4px', fontSize: '12px', color: '#f87171' }}>
+              {t('fpsInvalidRange')}
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: '28px' }}>
@@ -121,9 +142,10 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
           </select>
         </div>
 
-        <button 
+        <button
           className="btn-primary"
           onClick={handleCreate}
+          disabled={isFpsInvalid}
           style={{ width: '100%', height: '44px', fontWeight: 600 }}
         >
           {t('create')}
