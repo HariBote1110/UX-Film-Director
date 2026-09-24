@@ -96,7 +96,7 @@ export const measureTextBoxSize = (
   }
 
   return {
-    width: Math.round(maxWidth),
+    width: Math.ceil(maxWidth),
     height: Math.round(lines.length * fontSize * LINE_HEIGHT_RATIO),
   };
 };

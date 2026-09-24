@@ -138,6 +138,7 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
       }}
     >
       {geometries.map((entry) => {
+        const isText = objects.find((object) => object.id === entry.objectId)?.type === 'text';
         return (
           <g
             key={entry.objectId}
@@ -168,8 +169,8 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
                   fill={visualsHidden ? 'transparent' : '#ffffff'}
                   stroke={visualsHidden ? 'transparent' : '#ffd700'}
                   strokeWidth={1.2}
-                  style={{ pointerEvents: onHandlePointerDown ? 'auto' : 'none', cursor: RESIZE_CURSORS[corner] }}
-                  onPointerDown={(e) => onHandlePointerDown?.(entry.objectId, corner, e)}
+                  style={{ display: isText ? 'none' : undefined, pointerEvents: !isText && onHandlePointerDown ? 'auto' : 'none', cursor: RESIZE_CURSORS[corner] }}
+                  onPointerDown={(e) => { if (!isText) onHandlePointerDown?.(entry.objectId, corner, e); }}
                 />
               );
             })}

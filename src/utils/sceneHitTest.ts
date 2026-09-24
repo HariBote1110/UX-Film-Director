@@ -27,6 +27,7 @@ import type { LayerState, TimelineObject } from '../types';
 import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { isObjectVisibleAtTime } from './objectVisibility';
+import { textMediaBox } from './rustSceneSnapshot';
 
 export interface SceneCamera {
   centreOffsetX: number;
@@ -66,8 +67,9 @@ const rotateVec = (v: Vec2, rad: number): Vec2 => {
   };
 };
 
-/** 種別ごとに `width`/`height` を持つオブジェクトのみを対象とする（group_control 等は除外）。 */
+/** テキストは描画と同じ領域を使い、それ以外は `width`/`height` を持つ種別のみ対象とする。 */
 const getObjectSize = (obj: TimelineObject): { width: number; height: number } | null => {
+  if (obj.type === 'text') return textMediaBox(obj);
   const width = (obj as { width?: unknown }).width;
   const height = (obj as { height?: unknown }).height;
   if (typeof width !== 'number' || typeof height !== 'number') return null;

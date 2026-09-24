@@ -1383,7 +1383,7 @@ const serialiseTextSource = (object: TextObject): string =>
  * ヒューリスティックに見積もる。cutover が既定 OFF のあいだは実測値が
  * 無いケースを想定しておく必要があるため、常に正の値を返す。
  */
-const textMediaBox = (object: TextObject): { width: number; height: number } => {
+export const textMediaBox = (object: TextObject): { width: number; height: number } => {
   const measuredWidth = object.measuredWidth;
   const measuredHeight = object.measuredHeight;
   if (Number.isFinite(measuredWidth) && (measuredWidth as number) > 0

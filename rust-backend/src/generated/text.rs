@@ -1,6 +1,6 @@
 use super::parse_hex_colour_source;
 use cosmic_text::{
-    Attrs, Buffer, Color as CosmicColor, Family, FontSystem, Metrics, Shaping, SwashCache,
+    Align, Attrs, Buffer, Color as CosmicColor, Family, FontSystem, Metrics, Shaping, SwashCache, Wrap,
 };
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -50,6 +50,23 @@ pub(crate) fn list_font_families() -> Result<Vec<String>, String> {
     Ok(families.into_iter().collect())
 }
 
+fn layout_text_buffer(
+    font_system: &mut FontSystem,
+    metrics: Metrics,
+    width: f32,
+    height: f32,
+    value: &str,
+    attrs: &Attrs,
+    align: Align,
+) -> Buffer {
+    let mut buffer = Buffer::new(font_system, metrics);
+    buffer.set_wrap(Wrap::None);
+    buffer.set_size(Some(width), Some(height));
+    buffer.set_text(value, attrs, Shaping::Advanced, Some(align));
+    buffer.shape_until_scroll(font_system, false);
+    buffer
+}
+
 pub(crate) fn build_generated_text_source_frame(
     media: &SceneMediaReference,
 ) -> Result<RgbaFrame, String> {
@@ -92,8 +109,6 @@ pub(crate) fn build_generated_text_source_frame(
 
     let mut swash_cache = SwashCache::new();
     let metrics = Metrics::new(text.font_size, text.font_size * 1.25);
-    let mut buffer = Buffer::new(&mut font_system, metrics);
-    buffer.set_size(Some(media.width as f32), Some(media.height as f32));
 
     let family = family_with_cjk_fallback(&text.font_family);
     let mut attrs = Attrs::new().family(family);
@@ -106,8 +121,15 @@ pub(crate) fn build_generated_text_source_frame(
         TextAlignment::Centre => cosmic_text::Align::Center,
         TextAlignment::Right => cosmic_text::Align::Right,
     };
-    buffer.set_text(&text.text, &attrs, Shaping::Advanced, Some(align));
-    buffer.shape_until_scroll(&mut font_system, false);
+    let mut buffer = layout_text_buffer(
+        &mut font_system,
+        metrics,
+        media.width as f32,
+        media.height as f32,
+        &text.text,
+        &attrs,
+        align,
+    );
 
     let text_colour = CosmicColor::rgba(red, green, blue, 255);
 
@@ -545,7 +567,37 @@ fn family_with_cjk_fallback(font_family: &str) -> Family<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{box_blur_radius_for, clamp_box_blur_radius, list_font_families};
+    use super::{box_blur_radius_for, clamp_box_blur_radius, layout_text_buffer, list_font_families};
+
+    #[test]
+    fn text_layout_keeps_glyphs_on_explicit_lines_when_box_is_narrow() {
+        use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping};
+
+        let mut font_system = FontSystem::new();
+        let metrics = Metrics::new(20.0, 20.0 * 1.25);
+        let attrs = Attrs::new();
+        let mut natural = Buffer::new(&mut font_system, metrics);
+        natural.set_text("Alize", &attrs, Shaping::Advanced, Some(cosmic_text::Align::Left));
+        let natural_width = natural.line_layout(&mut font_system, 0).unwrap()[0].w;
+        let narrow_width = natural_width - 1.0;
+        assert!(narrow_width > 0.0);
+
+        let mut narrow = layout_text_buffer(
+            &mut font_system, metrics, narrow_width, metrics.line_height,
+            "Alize", &attrs, cosmic_text::Align::Left,
+        );
+        assert_eq!(narrow.line_layout(&mut font_system, 0).unwrap().len(), 1);
+        assert_eq!(narrow.layout_runs().count(), 1);
+
+        let mut explicit_lines = layout_text_buffer(
+            &mut font_system, metrics, narrow_width, metrics.line_height * 2.0,
+            "Alize\nAlize", &attrs, cosmic_text::Align::Left,
+        );
+        assert_eq!(explicit_lines.lines.len(), 2);
+        assert_eq!(explicit_lines.line_layout(&mut font_system, 0).unwrap().len(), 1);
+        assert_eq!(explicit_lines.line_layout(&mut font_system, 1).unwrap().len(), 1);
+        assert_eq!(explicit_lines.layout_runs().count(), 2);
+    }
 
     /// クランプは、通常の（クランプ境界にかからない）blur 値に対しては
     /// 半径を一切変えない no-op であるべき。これはクランプ導入前後で

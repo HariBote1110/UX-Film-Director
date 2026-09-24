@@ -203,6 +203,7 @@ export const useSceneInteraction = (
 
     const currentObj = latestObjectsRef.current.find(o => o.id === targetId);
     if (!currentObj) return;
+    if (currentObj.type === 'text') return;
     if (layers[currentObj.layer]?.locked) {
       selectObject(targetId);
       return;
