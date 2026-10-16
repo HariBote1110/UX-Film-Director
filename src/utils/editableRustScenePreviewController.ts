@@ -5,7 +5,7 @@ import {
   type EditableRustSceneIssue,
 } from './editableRustScene';
 import { stripPsdLayerNodeForPersistence } from './psdParser';
-import { secondsToFrameIndex } from './rustSceneSnapshot';
+import { secondsToFrameIndex } from './rustSceneFrameRate';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import type { ConfirmedSceneRevision } from './sharedRendererScenePreviewScheduler';
 
@@ -39,7 +39,10 @@ export interface EditableRustScenePreviewController {
 export const shouldAttachEditableRustScene = (
   dualRunFlag: string | undefined,
   cutoverFlag: string | undefined,
-): boolean => dualRunFlag === '1' || Boolean(cutoverFlag?.trim());
+  rawGraphOnlyFlag?: string,
+): boolean => dualRunFlag === '1' || Boolean(cutoverFlag?.trim()) || rawGraphOnlyFlag === '1';
+
+export const shouldUseRawEditableSceneGraphOnly = (flag: string | undefined): boolean => flag === '1';
 
 const sanitiseEditableSceneObject = (object: TimelineObject): TimelineObject => {
   if (object.type !== 'psd') return object;
@@ -56,11 +59,13 @@ export const createEditableRustScenePreviewController = ({
   scheduler,
   initialRevision = Date.now(),
   includeEditableScene = false,
+  rawGraphOnly = false,
 }: {
   sceneId: string;
   scheduler: SharedRendererScenePreviewScheduler;
   initialRevision?: number;
   includeEditableScene?: boolean;
+  rawGraphOnly?: boolean;
 }): EditableRustScenePreviewController => {
   let revision = Number.isSafeInteger(initialRevision) && initialRevision >= 0
     ? initialRevision
@@ -71,7 +76,26 @@ export const createEditableRustScenePreviewController = ({
     layers: LayerState[];
     objects: TimelineObject[];
   }, targetSceneId = sceneId, purpose: 'previewProxy' | 'exportOriginal' = 'previewProxy') => {
-    const result = buildEditableRustScene({ sceneId: targetSceneId, ...input });
+    if (rawGraphOnly) {
+      revision += 1;
+      const editableScene: EditableSceneGraph = {
+        settings: input.projectSettings,
+        layers: input.layers,
+        objects: input.objects.map(sanitiseEditableSceneObject),
+        mediaContext: { purpose, sceneId: targetSceneId },
+      };
+      return {
+        ok: true as const,
+        revision,
+        payload: {
+          sceneId: targetSceneId,
+          revision,
+          editableScene,
+        },
+      };
+    }
+
+    const result = buildEditableRustScene({ sceneId: targetSceneId, ...input, mediaPurpose: purpose });
     if (!result.ok) return result;
 
     revision += 1;
@@ -82,13 +106,12 @@ export const createEditableRustScenePreviewController = ({
       media: result.media,
     };
     if (includeEditableScene) {
-      const editableScene: EditableSceneGraph = {
+      payload.editableScene = {
         settings: input.projectSettings,
         layers: input.layers,
         objects: input.objects.map(sanitiseEditableSceneObject),
         mediaContext: { purpose, sceneId: targetSceneId },
       };
-      payload.editableScene = editableScene;
     }
     return { ok: true as const, revision, payload };
   };

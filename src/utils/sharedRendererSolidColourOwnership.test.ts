@@ -3,7 +3,7 @@ import {
   buildSharedRendererSolidColourOwnership,
   buildSharedRendererSolidColourStackSafety,
 } from './sharedRendererSolidColourOwnership';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 
 const snapshot: RustSceneSnapshot = {
   frame_index: 12,

@@ -1,7 +1,7 @@
 import type { TimelineObject } from '../types';
 import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
-import { isSupportedSceneObject } from './rustSceneSnapshot';
+import { isSupportedSceneObject } from './sharedRendererSceneObjectSupport';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
 
 export type ProjectExportFrameCanvasSource =
@@ -316,7 +316,7 @@ export const resolveProjectExportFrameSourcePolicyForEncode = ({
 };
 
 // Rust/native側が実際にサポートするobject typeの単一情報源(SSOT)は
-// rustSceneSnapshot.tsのisSupportedSceneObjectであり、ここでは手書きのOR式で
+// sharedRendererSceneObjectSupport.tsのisSupportedSceneObjectであり、ここでは手書きのOR式で
 // 二重管理しない。二重管理はどちらかの更新漏れ(実際にshattered_sphereと
 // plain_effector_lineが export 判定側から漏れていた)を必ず生むため、SSOTから導出する。
 // textも除外しない。PixiJSはPhase 4/5で完全撤去済みで、Chromium側はテキストの

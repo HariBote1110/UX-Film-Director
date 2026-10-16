@@ -7,7 +7,7 @@ import {
   type SceneHitTestViewport,
 } from './sceneHitTest';
 import type { LayerState, ShapeObject, TextObject, TimelineObject } from '../types';
-import { textMediaBox } from './rustSceneSnapshot';
+import { textMediaBox } from './textMediaGeometry';
 
 const identityCamera: SceneCamera = { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 };
 

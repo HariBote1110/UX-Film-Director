@@ -47,8 +47,8 @@ import {
 } from '../utils/projectExportFrameCanvas';
 import {
   buildRustSceneSnapshotForTimeline,
-  validateRustSceneSnapshotBoundary,
 } from '../utils/rustSceneSnapshot';
+import { validateRustSceneSnapshotBoundary } from '../utils/rustSceneBoundary';
 import { buildSharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));

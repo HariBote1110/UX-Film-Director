@@ -1,4 +1,15 @@
 import type {
+  AsanohaPatternObject,
+  BarcodeObject,
+  CircularArrowObject,
+  ContourTraceObject,
+  ColourWheelObject,
+  DisplacementPolyObject,
+  FocusLinesPlusObject,
+  GearObject,
+  GourdObject,
+  HistogramObject,
+  HoundstoothObject,
   AudioSphereObject,
   AudioVisualizationObject,
   GetColorDotFieldObject,
@@ -8,17 +19,31 @@ import type {
   ImageObject,
   LayerState,
   ObjectFilter,
+  PaperAirplaneObject,
   ParticleObject,
+  PieChartObject,
+  PlainEffectorLineObject,
   ProjectSettings,
   PsdObject,
+  ProtractorObject,
+  PuzzlePieceObject,
+  RandomLineExObject,
   RegionFrameObject,
+  SphericalFieldObject,
+  SphereDotsObject,
   ShakingPolygonObject,
   ShatteredSphereObject,
   ShapeObject,
   SimpleTubeObject,
+  SunburstObject,
+  TartanCheckObject,
   TextObject,
+  ToneCurveObject,
+  TrackBarObject,
   TimelineObject,
+  TriangleBracketObject,
   VideoObject,
+  YagasuriObject,
 } from '../types';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { normaliseKeyframesForObject } from './keyframes';
@@ -33,17 +58,14 @@ import type {
   WipeAnimation,
 } from '../generated/rustCore';
 import {
-  fpsToFrameRate,
   mediaReferenceForEditableRustScene,
-  rustColourPipeline,
   rustEffectsForObject,
-  secondsToFrameIndex,
-  type RustEffect,
-  type RustSceneMediaReference,
-  type RustTransform,
 } from './rustSceneSnapshot';
+import { rustColourPipeline, type RustEffect, type RustSceneMediaReference, type RustTransform } from './rustSceneContract';
+import type { RustSceneVideoSourceMode } from './rustSceneContract';
+import { fpsToFrameRate, secondsToFrameIndex } from './rustSceneFrameRate';
 
-type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject;
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | ProtractorObject;
 
 // rust-core (schema.rs) から ts-rs で生成した型の re-export。R1 より前は
 // ここに手書きミラーがあった。値の組み立てロジック（下の buildEditableRustScene
@@ -124,6 +146,7 @@ export interface EditableRustSceneBuildInput {
   projectSettings: Pick<ProjectSettings, 'width' | 'height' | 'fps'>;
   layers: LayerState[];
   objects: TimelineObject[];
+  mediaPurpose?: RustSceneVideoSourceMode;
 }
 
 const isEditableRustSceneObject = (object: TimelineObject): object is EditableRustSceneObject => (
@@ -142,6 +165,31 @@ const isEditableRustSceneObject = (object: TimelineObject): object is EditableRu
   || object.type === 'hologram'
   || object.type === 'shaking_polygon'
   || object.type === 'shattered_sphere'
+  || object.type === 'barcode'
+  || object.type === 'puzzle_piece'
+  || object.type === 'colour_wheel'
+  || object.type === 'gourd'
+  || object.type === 'gear'
+  || object.type === 'track_bar'
+  || object.type === 'pie_chart'
+  || object.type === 'histogram'
+  || object.type === 'tone_curve'
+  || object.type === 'sphere_dots'
+  || object.type === 'spherical_field'
+  || object.type === 'sunburst'
+  || object.type === 'circular_arrow'
+  || object.type === 'triangle_bracket'
+  || object.type === 'tartan_check'
+  || object.type === 'houndstooth'
+  || object.type === 'yagasuri'
+  || object.type === 'paper_airplane'
+  || object.type === 'asanoha_pattern'
+  || object.type === 'focus_lines_plus'
+  || object.type === 'random_line_ex'
+  || object.type === 'contour_trace'
+  || object.type === 'displacement_poly'
+  || object.type === 'plain_effector_line'
+  || object.type === 'protractor'
 );
 
 const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['kind'] => {
@@ -157,6 +205,31 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
   if (object.type === 'hologram') return 'GeneratedHologramPlane';
   if (object.type === 'shaking_polygon') return 'GeneratedShakingPolygonPlane';
   if (object.type === 'shattered_sphere') return 'GeneratedShatteredSpherePlane';
+  if (object.type === 'barcode') return 'GeneratedBarcodePlane';
+  if (object.type === 'puzzle_piece') return 'GeneratedPuzzlePiecePlane';
+  if (object.type === 'colour_wheel') return 'GeneratedColourWheelPlane';
+  if (object.type === 'gourd') return 'GeneratedGourdPlane';
+  if (object.type === 'gear') return 'GeneratedGearPlane';
+  if (object.type === 'track_bar') return 'GeneratedTrackBarPlane';
+  if (object.type === 'pie_chart') return 'GeneratedPieChartPlane';
+  if (object.type === 'histogram') return 'GeneratedHistogramPlane';
+  if (object.type === 'tone_curve') return 'GeneratedToneCurvePlane';
+  if (object.type === 'sphere_dots') return 'GeneratedSphereDotsPlane';
+  if (object.type === 'spherical_field') return 'GeneratedSphericalFieldPlane';
+  if (object.type === 'sunburst') return 'GeneratedSunburstPlane';
+  if (object.type === 'circular_arrow') return 'GeneratedCircularArrowPlane';
+  if (object.type === 'triangle_bracket') return 'GeneratedTriangleBracketPlane';
+  if (object.type === 'tartan_check') return 'GeneratedTartanCheckPlane';
+  if (object.type === 'houndstooth') return 'GeneratedHoundstoothPlane';
+  if (object.type === 'yagasuri') return 'GeneratedYagasuriPlane';
+  if (object.type === 'paper_airplane') return 'GeneratedPaperAirplanePlane';
+  if (object.type === 'asanoha_pattern') return 'GeneratedAsanohaPatternPlane';
+  if (object.type === 'focus_lines_plus') return 'GeneratedFocusLinesPlusPlane';
+  if (object.type === 'random_line_ex') return 'GeneratedRandomLineExPlane';
+  if (object.type === 'contour_trace') return 'GeneratedContourTracePlane';
+  if (object.type === 'displacement_poly') return 'GeneratedDisplacementPolyPlane';
+  if (object.type === 'plain_effector_line') return 'GeneratedPlainEffectorLinePlane';
+  if (object.type === 'protractor') return 'GeneratedProtractorPlane';
   if (object.type === 'shape') {
     return object.shapeType === 'rect' && object.gradient?.enabled !== true
       ? 'SolidColourPlane'
@@ -296,10 +369,11 @@ const isNativeReadableGetColorSampleSource = (source: string): boolean => {
 const getColorSampleIssue = (
   object: GetColorDotFieldObject,
   objects: TimelineObject[],
-  fps: number
+  fps: number,
+  mediaPurpose: RustSceneVideoSourceMode
 ): EditableRustSceneIssue | null => {
   if (!hasGetColorSampleReference(object)) return null;
-  const reference = mediaReferenceForEditableRustScene(object, fps, objects);
+  const reference = mediaReferenceForEditableRustScene(object, fps, objects, mediaPurpose);
   const sourceImage = JSON.parse(reference.source).source_image;
   if (typeof sourceImage !== 'string' || !isNativeReadableGetColorSampleSource(sourceImage)) {
     return {
@@ -350,12 +424,14 @@ const isResidentStaticFilter = (
 const issueForObject = (
   object: TimelineObject,
   objects: TimelineObject[],
-  fps: number
+  fps: number,
+  mediaPurpose: RustSceneVideoSourceMode
 ): EditableRustSceneIssue | null => {
   if (object.type === 'audio') return null;
   if (object.type === 'group_control') return null;
   if (!isEditableRustSceneObject(object)) {
-    return { objectId: object.id, code: 'unsupportedObjectType', detail: `${object.type} はV1対象外です` };
+    const unsupportedObject = object as { id: string; type: string };
+    return { objectId: unsupportedObject.id, code: 'unsupportedObjectType', detail: `${unsupportedObject.type} はV1対象外です` };
   }
   if (hasEnabledGroupGradient(object, objects)) {
     return { objectId: object.id, code: 'unsupportedGroup', detail: '動的なグループグラデーションはV1対象外です' };
@@ -370,7 +446,7 @@ const issueForObject = (
     return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
   }
   if (object.type === 'getcolor_dot_field') {
-    return getColorSampleIssue(object, objects, fps);
+    return getColorSampleIssue(object, objects, fps, mediaPurpose);
   }
   return null;
 };
@@ -380,10 +456,11 @@ export const buildEditableRustScene = ({
   projectSettings,
   layers,
   objects,
+  mediaPurpose = 'previewProxy',
 }: EditableRustSceneBuildInput): EditableRustSceneBuildResult => {
   const visibleObjects = objects.filter((object) => layers[object.layer]?.visible !== false);
   const issues = visibleObjects
-    .map((object) => issueForObject(object, objects, projectSettings.fps))
+    .map((object) => issueForObject(object, objects, projectSettings.fps, mediaPurpose))
     .filter((issue): issue is EditableRustSceneIssue => issue !== null);
   if (issues.length > 0) return { ok: false, issues };
 
@@ -392,7 +469,12 @@ export const buildEditableRustScene = ({
     .map((object, insertionIndex) => ({ object, insertionIndex }))
     .sort((left, right) => left.object.layer - right.object.layer || left.insertionIndex - right.insertionIndex);
 
-  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(object, projectSettings.fps, objects));
+  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(
+    object,
+    projectSettings.fps,
+    objects,
+    mediaPurpose
+  ));
   const tracksByLayer = new Map<number, EditableRustTrack>();
   for (const { object } of orderedObjects) {
     const track = tracksByLayer.get(object.layer) ?? { id: `layer-${object.layer}`, clips: [] };

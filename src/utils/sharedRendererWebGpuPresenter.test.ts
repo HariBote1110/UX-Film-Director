@@ -11,7 +11,7 @@ import {
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 import type { SharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
 
 const snapshot: RustSceneSnapshot = {

@@ -5,7 +5,7 @@ import {
   isSharedRendererNativeMediaReferenceSupported,
   isSharedRendererNativePsdSourceSupported,
 } from './sharedRendererNativeMediaSupport';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 
 const snapshotWithMedia = (...mediaIds: string[]): RustSceneSnapshot => ({
   frame_index: 12,

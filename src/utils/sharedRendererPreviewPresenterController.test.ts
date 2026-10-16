@@ -7,7 +7,7 @@ import {
   SHARED_RENDERER_SOLID_SWATCH,
   startSharedRendererPreviewPresenter,
 } from './sharedRendererPreviewPresenterController';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';

@@ -11,7 +11,7 @@ import {
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 import type {
   SharedRendererPreviewSurfaceBlockedReason,
   SharedRendererPreviewSurfaceGate,

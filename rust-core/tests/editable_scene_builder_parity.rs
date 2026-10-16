@@ -440,11 +440,13 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
     let full_ts = required(&fixture, "ts_result", "coverage");
     assert_eq!(
         required(full_ts, "ok", "coverage.ts_result"),
-        &Value::Bool(false)
+        &Value::Bool(true)
     );
-    let full_ts_issues = required(full_ts, "issues", "coverage.ts_result")
-        .as_array()
-        .unwrap();
+    let full_ts_issues = full_ts
+        .get("issues")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
     let mut graph_value = required(&fixture, "graph", "coverage").clone();
     let project_object_ids: std::collections::BTreeSet<String> = required(
         required(&fixture, "resident_result", "coverage"),
@@ -479,7 +481,7 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
     full_graph.media_context = Some(context.clone());
     project_graph.media_context = Some(context);
     let built = build_evaluation_scene(&full_graph);
-    assert!(!built.resident_eligible);
+    assert!(built.resident_eligible);
     let mut expected_diagnostics: Vec<(String, String)> = full_ts_issues
         .iter()
         .map(|issue| {
@@ -569,6 +571,198 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
         full_graph.objects.iter().map(object_type_name).collect();
     assert_eq!(types.len(), 42, "coverage scene は42 kindを含む必要がある");
     assert_eq!(types, all_object_type_names().into_iter().collect());
+}
+
+#[test]
+fn resident_builder_preserves_enabled_auto_blur_filter() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+            .expect("coverage fixture JSON");
+    let mut graph_value = required(&fixture, "graph", "coverage").clone();
+    let object = &mut graph_value["objects"][0];
+    object["x"] = Value::from(17.0);
+    object["y"] = Value::from(23.0);
+    object["endX"] = Value::from(137.0);
+    object["endY"] = Value::from(73.0);
+    object["duration"] = Value::from(5.0);
+    object["filters"] = serde_json::json!([{
+        "id": "auto-blur",
+        "type": "auto_blur",
+        "enabled": true,
+        "params": {
+            "blur": 10.0,
+            "speed": 2.0,
+            "strength": 0.8,
+            "colourShift": 0.4
+        }
+    }]);
+    graph_value["objects"] = serde_json::json!([object.clone()]);
+    let graph: EditableSceneGraph = serde_json::from_value(graph_value).expect("editable graph");
+
+    let built = build_evaluation_scene(&graph);
+    assert!(built.resident_eligible, "{:?}", built.diagnostics);
+    let clip = built
+        .project
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .find(|clip| clip.id == "text")
+        .expect("text clip");
+    let auto_blur = clip
+        .effects
+        .iter()
+        .find_map(|effect| match effect {
+            uxfd_rust_core::Effect::AutoBlur {
+                angle_degrees,
+                radius,
+                strength,
+                colour_shift,
+            } => Some((*angle_degrees, *radius, *strength, *colour_shift)),
+            _ => None,
+        })
+        .expect("enabled auto_blur filter must be represented as a Rust effect");
+    assert!((auto_blur.0 - 22.619865).abs() < 0.001);
+    assert!((auto_blur.1 - (130.0_f32 / (5.0 * 60.0) * 2.0)).abs() < 0.001);
+    assert!((auto_blur.2 - 0.8).abs() < 0.001);
+    assert!((auto_blur.3 - 0.4).abs() < 0.001);
+}
+
+#[test]
+fn generated_visual_types_have_resident_clips_with_their_native_kinds() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value = serde_json::from_str(
+        &fs::read_to_string(&path).expect("generated resident coverage fixture"),
+    )
+    .expect("generated resident coverage fixture JSON");
+    let graph: EditableSceneGraph =
+        serde_json::from_value(required(&fixture, "graph", "generated coverage").clone())
+            .expect("generated coverage graph");
+    let built = build_evaluation_scene(&graph);
+    let generated_types = [
+        ("barcode", "GeneratedBarcode", "GeneratedBarcodePlane"),
+        (
+            "puzzle_piece",
+            "GeneratedPuzzlePiece",
+            "GeneratedPuzzlePiecePlane",
+        ),
+        (
+            "colour_wheel",
+            "GeneratedColourWheel",
+            "GeneratedColourWheelPlane",
+        ),
+        ("gourd", "GeneratedGourd", "GeneratedGourdPlane"),
+        ("gear", "GeneratedGear", "GeneratedGearPlane"),
+        ("track_bar", "GeneratedTrackBar", "GeneratedTrackBarPlane"),
+        ("pie_chart", "GeneratedPieChart", "GeneratedPieChartPlane"),
+        ("histogram", "GeneratedHistogram", "GeneratedHistogramPlane"),
+        (
+            "tone_curve",
+            "GeneratedToneCurve",
+            "GeneratedToneCurvePlane",
+        ),
+        (
+            "sphere_dots",
+            "GeneratedSphereDots",
+            "GeneratedSphereDotsPlane",
+        ),
+        (
+            "spherical_field",
+            "GeneratedSphericalField",
+            "GeneratedSphericalFieldPlane",
+        ),
+        ("sunburst", "GeneratedSunburst", "GeneratedSunburstPlane"),
+        (
+            "circular_arrow",
+            "GeneratedCircularArrow",
+            "GeneratedCircularArrowPlane",
+        ),
+        (
+            "triangle_bracket",
+            "GeneratedTriangleBracket",
+            "GeneratedTriangleBracketPlane",
+        ),
+        (
+            "tartan_check",
+            "GeneratedTartanCheck",
+            "GeneratedTartanCheckPlane",
+        ),
+        (
+            "houndstooth",
+            "GeneratedHoundstooth",
+            "GeneratedHoundstoothPlane",
+        ),
+        ("yagasuri", "GeneratedYagasuri", "GeneratedYagasuriPlane"),
+        (
+            "paper_airplane",
+            "GeneratedPaperAirplane",
+            "GeneratedPaperAirplanePlane",
+        ),
+        (
+            "asanoha_pattern",
+            "GeneratedAsanohaPattern",
+            "GeneratedAsanohaPatternPlane",
+        ),
+        (
+            "focus_lines_plus",
+            "GeneratedFocusLinesPlus",
+            "GeneratedFocusLinesPlusPlane",
+        ),
+        (
+            "random_line_ex",
+            "GeneratedRandomLineEx",
+            "GeneratedRandomLineExPlane",
+        ),
+        (
+            "contour_trace",
+            "GeneratedContourTrace",
+            "GeneratedContourTracePlane",
+        ),
+        (
+            "displacement_poly",
+            "GeneratedDisplacementPoly",
+            "GeneratedDisplacementPolyPlane",
+        ),
+        (
+            "plain_effector_line",
+            "GeneratedPlainEffectorLine",
+            "GeneratedPlainEffectorLinePlane",
+        ),
+        ("protractor", "GeneratedProtractor", "GeneratedProtractorPlane"),
+    ];
+    let clips: Vec<_> = built
+        .project
+        .tracks
+        .iter()
+        .flat_map(|track| &track.clips)
+        .collect();
+    for (id, expected_media_kind, expected_clip_kind) in generated_types {
+        let clip = clips
+            .iter()
+            .find(|clip| clip.id == id)
+            .unwrap_or_else(|| panic!("{id} must not be dropped from the resident Project"));
+        assert_eq!(
+            format!("{:?}", clip.kind),
+            expected_clip_kind,
+            "{id} clip kind"
+        );
+        let media = built
+            .media
+            .iter()
+            .find(|media| media.id == id)
+            .unwrap_or_else(|| panic!("{id} canonical media"));
+        assert_eq!(
+            format!("{:?}", media.kind),
+            expected_media_kind,
+            "{id} media kind"
+        );
+        assert_eq!(clip.media_id, id, "{id} clip media reference");
+        assert_eq!(clip.start_frame, 0, "{id} start frame");
+        assert_eq!(clip.duration_frames, 300, "{id} duration");
+        assert!(media.width > 0 && media.height > 0, "{id} dimensions");
+    }
 }
 
 #[derive(Deserialize)]

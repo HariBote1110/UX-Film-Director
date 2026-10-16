@@ -13,7 +13,7 @@ import {
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
-import { isSupportedSceneObject } from './rustSceneSnapshot';
+import { isSupportedSceneObject } from './sharedRendererSceneObjectSupport';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -1620,7 +1620,7 @@ describe('hasProjectExportNativeRenderMediaObjects: native対応objectの網羅�
   // 【なぜこの契約が必要か】
   // hasProjectExportNativeRenderMediaObjectsは「どのobject typeがRust/GPU frame source
   // 経路を要求するか」を手書きのOR式で判定している。一方でRust/native側が実際にサポートする
-  // object typeの単一情報源はrustSceneSnapshot.tsのisSupportedSceneObjectであり、両者は
+  // object typeの単一情報源はsharedRendererSceneObjectSupport.tsのisSupportedSceneObjectであり、両者は
   // 別々に手書き管理されている。二重管理は必ずどちらかの更新漏れを生む
   // (実際にshattered_sphereとplain_effector_lineがexport判定側から漏れていた)。
   // このテストはSSOT (isSupportedSceneObject) がtrueを返す全typeを総当たりし、
