@@ -1553,10 +1553,10 @@ const PropertyPanel: React.FC = () => {
   const aviUtlMotionPresets = getAviUtlPackMotionPresets();
   const aviUtlEffectPresets = getAviUtlPackEffectPresets();
 
-  const applyKeyframes = (nextKeyframes: PositionKeyframe[]) => {
+  const applyKeyframesToObject = (object: TimelineObject, nextKeyframes: PositionKeyframe[]) => {
     const sorted = nextKeyframes.slice().sort((a, b) => a.time - b.time);
     if (sorted.length === 0) {
-      updateObject(selectedObject.id, {
+      updateObject(object.id, {
         keyframes: [],
         enableAnimation: false
       } as Partial<TimelineObject>);
@@ -1565,15 +1565,19 @@ const PropertyPanel: React.FC = () => {
 
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
-    updateObject(selectedObject.id, {
+    updateObject(object.id, {
       keyframes: sorted,
       enableAnimation: sorted.length >= 2,
       x: first.x,
       y: first.y,
       endX: last.x,
       endY: last.y,
-      easing: first.easing ?? selectedObject.easing
+      easing: first.easing ?? object.easing
     } as Partial<TimelineObject>);
+  };
+
+  const applyKeyframes = (nextKeyframes: PositionKeyframe[]) => {
+    applyKeyframesToObject(selectedObject, nextKeyframes);
   };
 
   const handleCreateEndpointKeyframes = () => {
@@ -1585,12 +1589,14 @@ const PropertyPanel: React.FC = () => {
     const capturedState = useStore.getState();
     const capturedObjectId = selectedObject.id;
     if (currentSelectedObjectId() !== capturedObjectId) return;
+    const capturedObject = capturedState.objects.find((object) => object.id === capturedObjectId);
+    if (!capturedObject) return;
     const capturedSceneId = capturedState.activeSceneId;
     const capturedTime = capturedState.currentTime;
     const keyTime = clamp(
       capturedTime,
-      selectedObject.startTime,
-      selectedObject.startTime + selectedObject.duration
+      capturedObject.startTime,
+      capturedObject.startTime + capturedObject.duration
     );
     const capturedGraph = {
       projectSettings: capturedState.projectSettings,
@@ -1622,23 +1628,13 @@ const PropertyPanel: React.FC = () => {
         if (!queried.ok) throw new Error(queried.detail);
         const response = queried.value.positions.find((entry) => entry.requestId === requestId);
         if (!response) throw new Error('Rust position query omitted the requested object.');
-        const latest = useStore.getState();
-        if (!isRustScenePositionQueryActionCurrent(capturedAction, {
-          activeSceneId: latest.activeSceneId,
-          selectedObjectId: currentSelectedObjectId() ?? '',
-          timeSeconds: latest.currentTime,
-          projectSettings: latest.projectSettings,
-          layers: latest.layers,
-          objects: latest.objects,
-        })
-          || !latest.objects.some((object) => object.id === capturedObjectId)) return;
         position = response.localPosition;
       } catch (error) {
         console.warn('[PropertyPanel] Rust keyframe position query failed:', error);
         return;
       }
     } else {
-      position = evaluateObjectPositionAtTime(selectedObject, keyTime);
+      position = evaluateObjectPositionAtTime(capturedObject, keyTime);
     }
     // The query is asynchronous. Recheck the action identity immediately before
     // applying so a late reply cannot edit a newly selected object or playhead.
@@ -1657,12 +1653,13 @@ const PropertyPanel: React.FC = () => {
       time: keyTime,
       x: position.x,
       y: position.y,
-      easing: selectedObject.easing
+      easing: capturedObject.easing
     };
 
-    const merged = keyframes.filter((keyframe) => Math.abs(keyframe.time - keyTime) > 0.001);
+    const merged = (capturedObject.keyframes ?? [])
+      .filter((keyframe) => Math.abs(keyframe.time - keyTime) > 0.001);
     merged.push(nextKeyframe);
-    applyKeyframes(merged);
+    applyKeyframesToObject(capturedObject, merged);
   };
 
   const handleUpdateKeyframe = (keyframeId: string, patch: Partial<PositionKeyframe>) => {

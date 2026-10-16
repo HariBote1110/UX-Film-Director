@@ -1,6 +1,6 @@
 # 決定ログ索引
 
-- [p4-edit-position-query.md](p4-edit-position-query.md) — Vision trackingとsplitをraw秒Rust位置queryへ接続。group-only意味論を維持し、遅延応答のscene/selection/time/graph/lock staleを破棄（2026-10-16）
+- [p4-edit-position-query.md](p4-edit-position-query.md) — raw秒・revision付きRust位置queryへキー追加・Vision tracking・splitを段階移行。group-only意味論と遅延応答のscene/selection/time/graph/lock stale拒否を維持（2026-10-16）
 - [windows-dxc-packaging.md](windows-dxc-packaging.md) — Windows x64の固定版DXC取得・checksum・pack前検証とexe横配置を実装。unpacked配置を確認し、実機検証は環境待ちとして区別（2026-10-16）
 - [text-stroke-shadow-clipping.md](text-stroke-shadow-clipping.md) — 装飾余白と描画原点を分離し、途中group切替を含む文字本体の位置を維持。447-frame parityと360-frame MP4を確認（2026-10-16）
 - [resident-vibration-frame-evaluation.md](resident-vibration-frame-evaluation.md) — Vibrationを固定位置へ焼き込まず、順序付きtransportを絶対秒で毎frame評価。group合成・Text装飾原点補正・Wipe index・renderer拒否境界を定義し、456-frame parityを確認（2026-10-16）

@@ -61,8 +61,13 @@ import {
   mediaReferenceForEditableRustScene,
   rustEffectsForObject,
 } from './rustSceneSnapshot';
-import { rustColourPipeline, type RustEffect, type RustSceneMediaReference, type RustTransform } from './rustSceneContract';
-import type { RustSceneVideoSourceMode } from './rustSceneContract';
+import {
+  rustColourPipeline,
+  type RustEffect,
+  type RustSceneMediaReference,
+  type RustSceneVideoSourceMode,
+  type RustTransform,
+} from './rustSceneContract';
 import { fpsToFrameRate, secondsToFrameIndex } from './rustSceneFrameRate';
 
 type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | ProtractorObject;

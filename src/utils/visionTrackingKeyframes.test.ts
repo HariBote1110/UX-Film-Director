@@ -95,10 +95,10 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
     ];
     const plan = buildVisionTrackPositionQueryPlan({ samples, video, overlay });
     const positions = [
-      { requestId: 'vision-0-video', objectId: 'vid', timeSeconds: 5, localPosition: { x: 10, y: 20 }, worldPosition: { x: 10, y: 20 } },
-      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 100, y: 110 }, worldPosition: { x: 127, y: 134 }, groupTranslation: { x: 20, y: 20 } },
-      { requestId: 'vision-1-video', objectId: 'vid', timeSeconds: 6, localPosition: { x: 20, y: 20 }, worldPosition: { x: 20, y: 20 } },
-      { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6, localPosition: { x: 130, y: 150 }, worldPosition: { x: 171, y: 194 }, groupTranslation: { x: 30, y: 30 } },
+      { requestId: 'vision-0-video', objectId: 'vid', timeSeconds: 5, localPosition: { x: 10, y: 20 }, worldPosition: { x: 10, y: 20 }, groupTranslation: { x: 0, y: 0 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 100, y: 110 }, worldPosition: { x: 127, y: 134 }, groupTranslation: { x: 20, y: 20 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+      { requestId: 'vision-1-video', objectId: 'vid', timeSeconds: 6, localPosition: { x: 20, y: 20 }, worldPosition: { x: 20, y: 20 }, groupTranslation: { x: 0, y: 0 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+      { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6, localPosition: { x: 130, y: 150 }, worldPosition: { x: 171, y: 194 }, groupTranslation: { x: 30, y: 30 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
     ];
 
     expect(buildOverlayPositionKeyframesFromPositionQuery({ plan, video, overlay, positions }))
@@ -122,17 +122,4 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
     })).toThrow(/position query/i);
   });
 
-  it('fails closed when the Rust response omits group-only translation', () => {
-    const video = baseVideo();
-    const overlay = baseOverlay();
-    const samples = [{ tSec: 0, boundingBox: { x: 0, y: 0, width: 1, height: 1 } }];
-    const plan = buildVisionTrackPositionQueryPlan({ samples, video, overlay });
-    const positions = [
-      { requestId: 'vision-0-video', objectId: 'vid', timeSeconds: 5, localPosition: { x: 0, y: 0 }, worldPosition: { x: 0, y: 0 } },
-      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 50, y: 40 }, worldPosition: { x: 50, y: 40 } },
-    ];
-
-    expect(() => buildOverlayPositionKeyframesFromPositionQuery({ plan, video, overlay, positions }))
-      .toThrow(/position query/i);
-  });
 });

@@ -1,5 +1,8 @@
 import type { PositionKeyframe, TimelineObject, VideoObject } from '../types';
-import type { RustBackendScenePositionQuery } from './rustBackendSceneControl';
+import type {
+  RustBackendSceneObjectPosition,
+  RustBackendScenePositionQuery,
+} from './rustBackendSceneControl';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { getGroupTransforms } from './sceneTransforms';
 import {
@@ -32,14 +35,7 @@ export type VisionTrackPositionQueryPlan = {
   samples: VisionTrackPositionQuerySample[];
 };
 
-type VisionTrackPosition = {
-  requestId: string;
-  objectId: string;
-  timeSeconds: number;
-  localPosition: { x: number; y: number };
-  worldPosition: { x: number; y: number };
-  groupTranslation?: { x: number; y: number };
-};
+type VisionTrackPosition = RustBackendSceneObjectPosition;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
@@ -119,7 +115,7 @@ export const buildOverlayPositionKeyframesFromPositionQuery = ({
     });
   };
   const firstCentre = trackedCentre(first.sample, firstVideo.localPosition);
-  const firstGroupTranslation = firstOverlay.groupTranslation!;
+  const firstGroupTranslation = firstOverlay.groupTranslation;
   const deltaX = firstOverlay.localPosition.x + firstGroupTranslation.x - firstCentre.x;
   const deltaY = firstOverlay.localPosition.y + firstGroupTranslation.y - firstCentre.y;
 
@@ -127,7 +123,7 @@ export const buildOverlayPositionKeyframesFromPositionQuery = ({
     const videoPosition = resolve(videoRequestId, video.id, timeSeconds);
     const overlayPosition = resolve(overlayRequestId, overlay.id, timeSeconds, true);
     const centre = trackedCentre(sample, videoPosition.localPosition);
-    const groupTranslation = overlayPosition.groupTranslation!;
+    const groupTranslation = overlayPosition.groupTranslation;
     return {
       id: crypto.randomUUID(),
       time: timeSeconds,
