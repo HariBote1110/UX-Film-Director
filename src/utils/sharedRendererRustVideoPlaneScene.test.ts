@@ -3,7 +3,7 @@ import {
   createSharedRendererRustVideoPlaneVertexSceneBuilder,
   loadSharedRendererRustVideoPlaneVertexSceneBuilder,
 } from './sharedRendererRustVideoPlaneScene';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 
 const snapshot: RustSceneSnapshot = {
   frame_index: 210,

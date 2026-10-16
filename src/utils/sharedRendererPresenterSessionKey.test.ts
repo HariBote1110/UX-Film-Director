@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import { buildSharedRendererPresenterSessionKey } from './sharedRendererPresenterSessionKey';
-import type { RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneSnapshot } from './rustSceneContract';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 
 const emptySnapshot: RustSceneSnapshot = {

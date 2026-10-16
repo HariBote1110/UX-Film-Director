@@ -13,7 +13,7 @@ import {
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import { isNativeOverlayDirectMediaSourceSupported } from './nativeOverlayDirectMediaSupport';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 import {
   prepareSharedRendererDecodedVideoFrameUpload,
   type PrepareSharedRendererDecodedVideoFrameUploadResult,

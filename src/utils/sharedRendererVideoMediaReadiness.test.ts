@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSharedRendererVideoMediaReadiness } from './sharedRendererVideoMediaReadiness';
-import type { RustSceneMediaReference } from './rustSceneSnapshot';
+import type { RustSceneMediaReference } from './rustSceneContract';
 
 const media: RustSceneMediaReference[] = [
   {

@@ -2,7 +2,7 @@ import type {
   RustEvaluatedClip,
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 
 export interface SharedRendererNormalisedColour {
   red: number;

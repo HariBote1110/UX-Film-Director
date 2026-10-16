@@ -1,4 +1,4 @@
-import type { RustSceneMediaReference } from './rustSceneSnapshot';
+import type { RustSceneMediaReference } from './rustSceneContract';
 
 export type SharedRendererVideoMediaStatus = 'rustRendererRequired';
 

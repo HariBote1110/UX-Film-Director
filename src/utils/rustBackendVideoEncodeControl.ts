@@ -13,7 +13,7 @@ import type {
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 
 export interface RustBackendVideoEncodeStartPayload {
   sessionId: string;

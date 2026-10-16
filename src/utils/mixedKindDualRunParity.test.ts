@@ -21,8 +21,8 @@ import { describe, expect, it } from 'vitest';
 import { buildEditableRustScene } from './editableRustScene';
 import {
   buildRustSceneSnapshotForTimeline,
-  type RustSceneMediaReference,
 } from './rustSceneSnapshot';
+import type { RustSceneMediaReference } from './rustSceneContract';
 import {
   mixedKindDualRunLayers,
   mixedKindDualRunObjects,

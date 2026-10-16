@@ -1,4 +1,4 @@
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 import { isSharedRendererNativeMediaReferenceSupported } from './sharedRendererNativeMediaSupport';
 
 export const resolveMixedNativeRenderUnsupportedMedia = ({

@@ -11,7 +11,7 @@ import {
   type PrepareSharedRendererDecodedVideoFrameUploadResult,
   type SharedVideoFrameCopyBridge,
 } from './sharedVideoFrameUploadBridge';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 import type { SelectionDecorationPayload } from './nativeOverlaySelectionDecoration';
 
 export type NativeOverlaySceneSnapshotPayload = {

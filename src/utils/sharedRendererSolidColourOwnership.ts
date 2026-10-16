@@ -1,7 +1,7 @@
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 
 export type SharedRendererSolidColourOwner = 'pixi' | 'sharedRenderer';
 

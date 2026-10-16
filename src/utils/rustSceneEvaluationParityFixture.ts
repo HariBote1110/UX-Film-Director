@@ -23,9 +23,8 @@ import {
 } from './editableRustScene';
 import {
   buildRustSceneSnapshotForTimeline,
-  type RustSceneSnapshot,
-  type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
+import type { RustSceneSnapshot, RustSceneSnapshotBuildIssue } from './rustSceneContract';
 
 export interface EvaluationParityFixtureFrame {
   frame_index: number;
