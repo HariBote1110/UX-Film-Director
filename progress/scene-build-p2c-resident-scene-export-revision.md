@@ -168,3 +168,11 @@ Tests  124 passed (124)
 $ npx tsc --noEmit
 (exit 0; outputなし)
 ```
+
+
+## 原因調査用履歴の撤去（2026-10-16）
+
+- P2c完了後の後処理として、Viewportのcontroller lifecycle全イベント履歴・export source呼出カウンター・確認イベント履歴を撤去した。`src/`と`scripts/`に利用側がないことを確認済み。
+- 全履歴を配列とdataset文字列へ蓄積する処理は原因特定後には不要。常駐scene確認とrevision引渡しは変更せず、通常RPC診断と`uxfdRustExportFrameSourceStatus`の確認中・成功・失敗表示を継続する。
+- 撤去した診断専用テスト3件だけを削除。既存のexport確認・clone安全性・frame source回帰テストを含む8ファイル101テストが成功し、`npx tsc --noEmit`と`git diff --check`も成功。
+- Electron動画書き出しE2Eは今回再実行していない。P2全体のdirect経路収束やP3/P4は今回の完了範囲に含まない。

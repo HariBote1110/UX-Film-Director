@@ -1,6 +1,6 @@
 # Scene Build In Rust 計画
 
-最終更新: 2026-09-13
+最終更新: 2026-10-16
 
 ## 位置づけ
 
@@ -219,8 +219,11 @@ PSD オブジェクトが保持する runtime 値 — `objects[PSD].file`（`Fil
 全 36 generated kind の source JSON が backend の対応 Rust 型へ deserialise できることを
 cargo test で固定した。いずれも GUI export ではなくテストで落ちる。
 
-**残作業**: 原因確定のために入れた controller lifecycle 診断
-（`uxfdRustTimelineSceneControllerTrace` ほか）は scaffolding であり、撤去または縮小する。
+**後処理完了（2026-10-16）**: 原因調査用の controller lifecycle 診断
+（`uxfdRustTimelineSceneControllerTrace`、export sourceカウンター、確認イベント履歴）を撤去した。
+通常のRPC診断と`uxfdRustExportFrameSourceStatus`による確認中・成功・失敗のstatusは維持する。
+削除した診断専用テスト3件を除く関連8ファイル101テストと`npx tsc --noEmit`が成功。
+今回の変更でElectron動画書き出しE2Eは再実行していない。
 
 ### P3: TS serializer の撤去と責務台帳の解消（中、4–7日）
 

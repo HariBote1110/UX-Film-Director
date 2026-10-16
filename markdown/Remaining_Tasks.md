@@ -15,7 +15,7 @@
 
 | 順位 | タスク | 現状・完了条件 |
 | --- | --- | --- |
-| 1 | P2c一時診断の撤去 | controller lifecycleの全イベント履歴は原因調査用。参照元を確認して撤去し、export確認中・成功・失敗の通常statusと回帰テストを維持する。今回の再開対象。 |
+| 1 | P2c一時診断の撤去 | **完了（2026-10-16）**。controller lifecycleの全イベント履歴を撤去。export確認中・成功・失敗の通常statusと回帰テストを維持。関連8ファイル101テスト・型チェック成功。 |
 | 2 | P2全体の完了条件を棚卸し | P2c完了はP2全体完了と別。旧direct snapshot caller、Windows interim presenter、群別cut-over検証の残存を確認し、Rust-built mediaへの収束を完了する。古いP2b追記には後続で解消済みの447-frame検証・group_control hook未実装の記述が残るため同期する。 |
 | 3 | P3: TS serializer撤去 | P2の両経路収束後、`rustSceneSnapshot.ts` / `editableRustScene.ts`の生成・参照解決をRustへ一本化。447-frame parityとpreview/export E2Eを維持する。 |
 | 4 | P4: UI評価値をRustへ移行 | PropertyPanel、選択枠、追跡、storeのTS評価利用を`scene.evaluate`購読へ付け替え、重複評価関数を撤去。ドラッグ・スクラブの遅延も確認する。 |
