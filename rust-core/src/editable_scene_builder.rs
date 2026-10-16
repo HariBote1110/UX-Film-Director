@@ -1274,6 +1274,8 @@ mod text_decoration_tests {
                     });
                 }
                 TimelineObject::GroupControl { base, .. } => {
+                    base.start_time = 2.0;
+                    base.duration = 2.0;
                     base.x = 23.0;
                     base.y = 29.0;
                     base.rotation = 7.0;
@@ -1296,24 +1298,33 @@ mod text_decoration_tests {
         assert_eq!(source["__renderOffsetX"], insets[0]);
         assert_eq!(source["__renderOffsetY"], insets[1]);
 
-        let evaluated = crate::evaluate_frame(&built.project, 60);
-        let clip = evaluated
-            .clips
-            .iter()
-            .find(|clip| clip.clip_id == "text")
-            .unwrap();
-        let angle = clip.transform.rotation_degrees.to_radians();
-        let glyph_x = insets[0] as f32 * clip.transform.scale_x;
-        let glyph_y = insets[1] as f32 * clip.transform.scale_y;
-        assert!(
-            (clip.transform.translation_x + glyph_x * angle.cos() - glyph_y * angle.sin() - 143.0)
-                .abs()
-                < 1e-3
-        );
-        assert!(
-            (clip.transform.translation_y + glyph_x * angle.sin() + glyph_y * angle.cos() - 169.0)
-                .abs()
-                < 1e-3
-        );
+        for (frame_index, expected_x, expected_y) in [
+            (60, 120.0, 140.0),
+            (120, 163.0, 189.0),
+            (239, 202.666_67, 228.666_67),
+            (240, 180.0, 200.0),
+        ] {
+            let evaluated = crate::evaluate_frame(&built.project, frame_index);
+            let clip = evaluated
+                .clips
+                .iter()
+                .find(|clip| clip.clip_id == "text")
+                .unwrap();
+            let angle = clip.transform.rotation_degrees.to_radians();
+            let glyph_x = insets[0] as f32 * clip.transform.scale_x;
+            let glyph_y = insets[1] as f32 * clip.transform.scale_y;
+            let rendered_x = clip.transform.translation_x + glyph_x * angle.cos()
+                - glyph_y * angle.sin();
+            let rendered_y = clip.transform.translation_y + glyph_x * angle.sin()
+                + glyph_y * angle.cos();
+            assert!(
+                (rendered_x - expected_x).abs() < 1e-3,
+                "frame {frame_index}: expected glyph x={expected_x}, got {rendered_x}"
+            );
+            assert!(
+                (rendered_y - expected_y).abs() < 1e-3,
+                "frame {frame_index}: expected glyph y={expected_y}, got {rendered_y}"
+            );
+        }
     }
 }
