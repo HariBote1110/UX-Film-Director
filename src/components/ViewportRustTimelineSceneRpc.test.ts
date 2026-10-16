@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   shouldBuildSharedRendererPreviewSessionForTick,
+  shouldPublishSharedRendererPreviewSession,
   shouldReplaySharedRendererNativeReusePending,
 } from './Viewport';
 
@@ -11,6 +12,17 @@ describe('shouldBuildSharedRendererPreviewSessionForTick', () => {
 
   it('feature flagが無効なら従来の同期scene構築を維持する', () => {
     expect(shouldBuildSharedRendererPreviewSessionForTick(false)).toBe(true);
+  });
+});
+
+describe('shouldPublishSharedRendererPreviewSession', () => {
+  it('RPC有効時はRust評価済みsessionだけをpublishする', () => {
+    expect(shouldPublishSharedRendererPreviewSession(true, false)).toBe(false);
+    expect(shouldPublishSharedRendererPreviewSession(true, true)).toBe(true);
+  });
+
+  it('RPC無効時は従来のTS-built sessionをpublishする', () => {
+    expect(shouldPublishSharedRendererPreviewSession(false, false)).toBe(true);
   });
 });
 
