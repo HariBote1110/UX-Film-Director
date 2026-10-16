@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ShapeObject } from '../types';
 import type { SceneData } from '../generated/rustCore/SceneData';
-import type { RustBackendSceneBridge } from '../utils/rustBackendSceneControl';
+import type {
+  RustBackendSceneBridge,
+  RustBackendSceneObjectPositionsPayload,
+} from '../utils/rustBackendSceneControl';
 import {
   clearRustScenePositionQueryRevision,
   publishRustScenePositionQueryResident,
@@ -78,7 +81,7 @@ describe('splitObject のRust位置query移行', () => {
   });
 
   it('raw-second Rust localPositionで分割し、Undo履歴は1 Batchにまとめる', async () => {
-    const queryObjectPositions = vi.fn(async (payload) => ({
+    const queryObjectPositions: RustBackendSceneBridge['queryObjectPositions'] = vi.fn(async (payload: RustBackendSceneObjectPositionsPayload) => ({
       success: true as const,
       result: {
         sceneId: payload.sceneId,
@@ -110,16 +113,19 @@ describe('splitObject のRust位置query移行', () => {
       { startTime: 4, duration: 6, x: 41, y: 52, offset: 4 },
     ]);
     expect(useStore.getState().pastCommands).toHaveLength(1);
-    expect(useStore.getState().pastCommands[0]).toMatchObject({ kind: 'batch' });
+    const [batch] = useStore.getState().pastCommands;
+    expect(batch).toMatchObject({ kind: 'batch', commands: expect.any(Array) });
+    if (batch.kind !== 'batch') throw new Error('expected a single batch command');
+    expect(batch.commands).toHaveLength(3);
   });
 
-  it.each(['time', 'selection', 'scene', 'objects'] as const)(
+  it.each(['time', 'selection', 'scene', 'objects', 'lock'] as const)(
     'query中に%sが変わった場合は遅延応答を適用しない', async (changed) => {
       let requestPayload: Parameters<RustBackendSceneBridge['queryObjectPositions']>[0] | undefined;
       let resolveQuery: ((value: Awaited<ReturnType<RustBackendSceneBridge['queryObjectPositions']>>) => void) | undefined;
       const queryObjectPositions: RustBackendSceneBridge['queryObjectPositions'] = vi.fn((payload) => {
         requestPayload = payload;
-        return new Promise((resolve) => {
+        return new Promise<Awaited<ReturnType<RustBackendSceneBridge['queryObjectPositions']>>>((resolve) => {
           resolveQuery = resolve;
         });
       });
@@ -132,6 +138,11 @@ describe('splitObject のRust位置query移行', () => {
       if (changed === 'selection') useStore.setState({ selectedId: 'other-object', selectedIds: ['other-object'] });
       if (changed === 'scene') useStore.setState({ activeSceneId: 'other-scene' });
       if (changed === 'objects') useStore.setState({ objects: useStore.getState().objects.slice() });
+      if (changed === 'lock') {
+        useStore.setState({ layers: useStore.getState().layers.map((layer, index) => (
+          index === 0 ? { ...layer, locked: true } : layer
+        )) });
+      }
       resolveQuery?.({
         success: true,
         result: {
@@ -158,7 +169,7 @@ describe('splitObject のRust位置query移行', () => {
   it('locked layerはqueryもsplitも行わない', async () => {
     const queryObjectPositions = vi.fn();
     vi.stubGlobal('window', { rustBackend: makeSceneBridge(queryObjectPositions) });
-    useStore.setState({ layers: [{ id: 'locked', name: 'Locked', visible: true, locked: true }] });
+    useStore.setState({ layers: [{ name: 'Locked', visible: true, locked: true }] });
 
     const result = useStore.getState().splitObject();
     await result;
