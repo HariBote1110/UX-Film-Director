@@ -1,4 +1,5 @@
 use crate::rpc::{response_error, RpcResponse};
+use crate::json_helpers::typed_to_value_preserving_f32;
 use crate::state::{BackendState, SceneSession};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -6,8 +7,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::OnceLock;
 use std::time::Instant;
 use uxfd_rust_core::{
-    build_evaluation_scene, evaluate_frame, EditableSceneDiagnostic, EditableSceneGraph, MediaKind,
-    Project, SceneMediaReference,
+    build_evaluation_scene, evaluate_frame, query_editable_scene_positions,
+    EditableSceneDiagnostic, EditableSceneGraph, MediaKind, Project, SceneMediaReference,
+    ScenePositionQuery, ScenePositionQueryError,
 };
 
 const DUAL_RUN_DIFF_LIMIT: usize = 16;
@@ -28,9 +30,10 @@ struct SceneDualRunDiagnostics {
 struct SceneReplaceParams {
     scene_id: String,
     revision: u64,
-    project: Project,
     #[serde(default)]
-    media: Vec<SceneMediaReference>,
+    project: Option<Project>,
+    #[serde(default)]
+    media: Option<Vec<SceneMediaReference>>,
     #[serde(default)]
     editable_scene: Option<EditableSceneGraph>,
 }
@@ -301,6 +304,14 @@ struct SceneEvaluateParams {
     frame_index: u64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SceneQueryObjectPositionsParams {
+    scene_id: String,
+    revision: u64,
+    queries: Vec<ScenePositionQuery>,
+}
+
 pub(crate) fn handle_scene_replace(
     id: u64,
     params: Value,
@@ -335,6 +346,13 @@ pub(crate) fn handle_scene_replace_with_scene_builder(
     if parsed.scene_id.trim().is_empty() {
         return response_error(id, -32602, "sceneId must not be empty");
     }
+    if parsed.project.is_none() && parsed.editable_scene.is_none() {
+        return response_error(
+            id,
+            -32602,
+            "scene.replace requires project or editableScene",
+        );
+    }
 
     if let Some(existing) = state.scene_sessions.get(&parsed.scene_id) {
         if parsed.revision <= existing.revision {
@@ -350,52 +368,74 @@ pub(crate) fn handle_scene_replace_with_scene_builder(
     }
 
     let build_started = Instant::now();
-    let built = parsed
-        .editable_scene
-        .as_ref()
-        .filter(|_| dual_run || cutover.any_group_enabled())
-        .map(build_evaluation_scene);
+    let graph_only = parsed.project.is_none();
+    let built = parsed.editable_scene.as_ref().and_then(|editable_scene| {
+        (graph_only || dual_run || cutover.any_group_enabled())
+            .then(|| build_evaluation_scene(editable_scene))
+    });
     let build_micros = build_started.elapsed().as_micros().min(u64::MAX as u128) as u64;
-    let dual_run_result = match (parsed.editable_scene.as_ref(), built.as_ref()) {
-        (Some(editable_scene), Some(built)) if dual_run => Some(dual_run_diagnostics(
-            editable_scene,
-            built,
-            build_micros,
-            &parsed.project,
-            &parsed.media,
-        )),
+    let dual_run_result = match (
+        parsed.editable_scene.as_ref(),
+        built.as_ref(),
+        parsed.project.as_ref(),
+    ) {
+        (Some(editable_scene), Some(built), Some(project)) if dual_run => {
+            Some(dual_run_diagnostics(
+                editable_scene,
+                built,
+                build_micros,
+                project,
+                parsed.media.as_deref().unwrap_or_default(),
+            ))
+        }
         _ => None,
     };
-    let (project, media, scene_source, scene_fallback_reason) = match built.as_ref() {
-        None if !cutover.any_group_enabled() => (
-            parsed.project,
-            parsed.media,
-            "typescript",
-            Some("flagOff".to_string()),
-        ),
-        None => (
-            parsed.project,
-            parsed.media,
-            "typescript",
-            Some("noEditableScene".to_string()),
-        ),
-        Some(built) if !built.resident_eligible => (
-            parsed.project,
-            parsed.media,
-            "typescript",
-            Some("notEligible".to_string()),
-        ),
-        Some(built) => {
-            let disabled_kinds = disabled_kind_names(built, &cutover);
-            if disabled_kinds.is_empty() {
-                (built.project.clone(), built.media.clone(), "rust", None)
-            } else {
-                (
-                    parsed.project,
-                    parsed.media,
-                    "typescript",
-                    Some(format!("kindGroupDisabled:{}", disabled_kinds.join(","))),
-                )
+    let (project, media, scene_source, scene_fallback_reason) = if graph_only {
+        let built = built
+            .as_ref()
+            .expect("graph-only scene builds unconditionally");
+        if !built.resident_eligible {
+            let diagnostics =
+                serde_json::to_string(&built.diagnostics).unwrap_or_else(|_| "[]".to_string());
+            return response_error(
+                id,
+                -32065,
+                &format!("editableScene is not supported by Rust: {diagnostics}"),
+            );
+        }
+        (built.project.clone(), built.media.clone(), "rust", None)
+    } else {
+        match built.as_ref() {
+            None if !cutover.any_group_enabled() => (
+                parsed.project.clone().expect("validated project"),
+                parsed.media.clone().unwrap_or_default(),
+                "typescript",
+                Some("flagOff".to_string()),
+            ),
+            None => (
+                parsed.project.clone().expect("validated project"),
+                parsed.media.clone().unwrap_or_default(),
+                "typescript",
+                Some("noEditableScene".to_string()),
+            ),
+            Some(built) if !built.resident_eligible => (
+                parsed.project.clone().expect("validated project"),
+                parsed.media.clone().unwrap_or_default(),
+                "typescript",
+                Some("notEligible".to_string()),
+            ),
+            Some(built) => {
+                let disabled_kinds = disabled_kind_names(built, &cutover);
+                if disabled_kinds.is_empty() {
+                    (built.project.clone(), built.media.clone(), "rust", None)
+                } else {
+                    (
+                        parsed.project.clone().expect("validated project"),
+                        parsed.media.clone().unwrap_or_default(),
+                        "typescript",
+                        Some(format!("kindGroupDisabled:{}", disabled_kinds.join(","))),
+                    )
+                }
             }
         }
     };
@@ -408,6 +448,7 @@ pub(crate) fn handle_scene_replace_with_scene_builder(
             revision,
             project,
             media,
+            editable_scene: parsed.editable_scene,
         },
     );
 
@@ -424,6 +465,72 @@ pub(crate) fn handle_scene_replace_with_scene_builder(
         ok: true,
         result: Some(result),
         error: None,
+    }
+}
+
+pub(crate) fn handle_scene_query_object_positions(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<SceneQueryObjectPositionsParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid scene.query_object_positions params: {error}"),
+            );
+        }
+    };
+    let Some(session) = state.scene_sessions.get(&parsed.scene_id) else {
+        return response_error(
+            id,
+            -32060,
+            &format!(
+                "No resident scene session for sceneId '{}'",
+                parsed.scene_id
+            ),
+        );
+    };
+    if parsed.revision != session.revision {
+        return response_error(
+            id,
+            -32062,
+            &format!(
+                "scene.query_object_positions revision {} does not match resident revision {} for sceneId '{}'",
+                parsed.revision, session.revision, parsed.scene_id
+            ),
+        );
+    }
+    let Some(editable_scene) = session.editable_scene.as_ref() else {
+        return response_error(
+            id,
+            -32063,
+            &format!(
+                "scene.query_object_positions requires an editable scene graph for sceneId '{}' revision {}",
+                parsed.scene_id, parsed.revision
+            ),
+        );
+    };
+    match query_editable_scene_positions(editable_scene, &parsed.queries) {
+        Ok(positions) => RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({
+                "sceneId": session.scene_id,
+                "revision": session.revision,
+                "positions": typed_to_value_preserving_f32(&positions),
+            })),
+            error: None,
+        },
+        Err(error) => {
+            let (code, message) = match error {
+                ScenePositionQueryError::InvalidTime { .. } => (-32602, error.to_string()),
+                ScenePositionQueryError::MissingObject { .. } => (-32064, error.to_string()),
+            };
+            response_error(id, code, &message)
+        }
     }
 }
 

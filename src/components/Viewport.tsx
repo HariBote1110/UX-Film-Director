@@ -29,6 +29,7 @@ import {
   createEditableRustScenePreviewController,
   EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
+  shouldUseRawEditableSceneGraphOnly,
   type EditableRustScenePreviewController,
 } from '../utils/editableRustScenePreviewController';
 import { createSharedRendererScenePreviewScheduler } from '../utils/sharedRendererScenePreviewScheduler';
@@ -756,9 +757,15 @@ const Viewport: React.FC = () => {
   // renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
   // '0' 指定でレガシー経路へ opt-out できる。
   const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC !== '0';
+  // Opt-in staging flag: backend eligibility decides whether the raw graph can
+  // be resident. Existing builder flags retain their combined payload contract.
+  const rustRawEditableSceneGraphOnly = shouldUseRawEditableSceneGraphOnly(
+    import.meta.env.VITE_UXFD_RUST_SCENE_RAW_GRAPH_ONLY,
+  );
   const rustEditableSceneCutoverEnabled = shouldAttachEditableRustScene(
     import.meta.env.VITE_UXFD_RUST_EDITABLE_SCENE_DUAL_RUN,
     import.meta.env.VITE_UXFD_RUST_SCENE_BUILDER_CUTOVER,
+    import.meta.env.VITE_UXFD_RUST_SCENE_RAW_GRAPH_ONLY,
   );
   // Phase 7 (W7) STAGE 1: macOSはopt-out（既定ON）のまま、Windowsは
   // 24時間ベンチ完了までopt-in（既定OFF）とする。判定ロジックは純粋関数
@@ -1905,6 +1912,7 @@ const Viewport: React.FC = () => {
       sceneId: 'viewport-rust-timeline',
       scheduler,
       includeEditableScene: rustEditableSceneCutoverEnabled,
+      rawGraphOnly: rustRawEditableSceneGraphOnly,
     });
     rustTimelineScenePreviewControllerRef.current = controller;
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
@@ -1919,7 +1927,7 @@ const Viewport: React.FC = () => {
     // scheduler の callback は store/refから最新値を読むため、flagの変化時のみ
     // 再生成する。ここにobjectsやcurrentTimeを足すと常駐の意味がなくなる。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rustEditableSceneCutoverEnabled, rustTimelineSceneRpcEnabled]);
+  }, [rustEditableSceneCutoverEnabled, rustRawEditableSceneGraphOnly, rustTimelineSceneRpcEnabled]);
 
   useEffect(() => {
     if (!rustTimelineSceneRpcEnabled) return;

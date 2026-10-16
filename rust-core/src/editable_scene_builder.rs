@@ -820,6 +820,20 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
                 blur: clamp(params.blur, 0.0, f32::MAX),
                 strength: clamp(params.strength, 0.0, 1.0),
             }),
+            ObjectFilter::AutoBlur { params, .. } => {
+                let movement_x = finite(b.end_x, b.x) - finite(b.x, 0.0);
+                let movement_y = finite(b.end_y, b.y) - finite(b.y, 0.0);
+                let duration = finite(b.duration, 1.0).max(1.0 / 60.0);
+                let pixels_per_frame = movement_x.hypot(movement_y) / (duration * 60.0).max(1.0);
+                let blur = finite(params.blur, 10.0).max(0.0);
+                let speed = finite(params.speed, 1.0).max(0.0);
+                effects.push(Effect::AutoBlur {
+                    angle_degrees: movement_y.atan2(movement_x).to_degrees(),
+                    radius: (pixels_per_frame * speed * blur * 0.1).min(blur * 2.0),
+                    strength: clamp(params.strength, 0.0, 1.0),
+                    colour_shift: clamp(params.colour_shift, 0.0, 1.0),
+                });
+            }
             ObjectFilter::Stretch { params, .. } => effects.push(Effect::Stretch {
                 angle_degrees: finite(params.angle, 0.0),
                 amount: clamp(params.amount, 0.0, f32::MAX),
@@ -855,7 +869,6 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
             }),
             ObjectFilter::Gradient { .. }
             | ObjectFilter::Blur { .. } => {}
-            ObjectFilter::AutoBlur { .. } => {}
         }
     }
     (effects, wipes, fade)

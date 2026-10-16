@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   evaluateRustBackendScene,
+  queryRustBackendSceneObjectPositions,
   replaceRustBackendScene,
   type RustBackendSceneBridge,
 } from './rustBackendSceneControl';
@@ -73,10 +74,51 @@ describe('rustBackendSceneControl', () => {
     expect(calls).toEqual([{ sceneId: 'preview:scene-1', revision: 7, frameIndex: 42 }]);
   });
 
+  it('未量子化位置queryのidentityとlocal/world位置を検証して返す', async () => {
+    const bridge: RustBackendSceneBridge = {
+      replaceScene: async () => { throw new Error('replace must not run'); },
+      evaluateScene: async () => { throw new Error('evaluate must not run'); },
+      queryObjectPositions: async (payload) => ({
+        success: true,
+        result: {
+          sceneId: payload.sceneId,
+          revision: payload.revision,
+          positions: payload.queries.map((query) => ({
+            ...query,
+            localPosition: { x: 40, y: 50 },
+            worldPosition: { x: 45, y: 55 },
+            worldRotationDegrees: 0,
+            worldScaleX: 1,
+            worldScaleY: 1,
+          })),
+        },
+      }),
+    };
+
+    await expect(queryRustBackendSceneObjectPositions({
+      sceneId: 'viewport-rust-timeline',
+      revision: 12,
+      queries: [{ requestId: 'panel-1', objectId: 'object-1', timeSeconds: 0.5 }],
+    }, bridge)).resolves.toMatchObject({
+      ok: true,
+      value: {
+        revision: 12,
+        positions: [{
+          requestId: 'panel-1',
+          objectId: 'object-1',
+          timeSeconds: 0.5,
+          localPosition: { x: 40, y: 50 },
+          worldPosition: { x: 45, y: 55 },
+        }],
+      },
+    });
+  });
+
   it.each([
     [-32060, 'missingScene'],
     [-32061, 'staleRevision'],
     [-32062, 'revisionMismatch'],
+    [-32065, 'unsupportedScene'],
   ] as const)('Rust error code %s を %s に分類する', async (errorCode, reason) => {
     const bridge: RustBackendSceneBridge = {
       replaceScene: async () => ({ success: false, errorCode, error: 'scene rpc failed' }),

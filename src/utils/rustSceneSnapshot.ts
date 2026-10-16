@@ -1218,9 +1218,10 @@ const mediaReferenceForObject = (
 export const mediaReferenceForEditableRustScene = (
   object: SupportedSceneObject,
   projectFps: number,
-  objects: TimelineObject[] = [object]
+  objects: TimelineObject[] = [object],
+  videoSourceMode: RustSceneVideoSourceMode = 'previewProxy'
 ): RustSceneMediaReference => (
-  mediaReferenceForObject(object, projectFps, 'previewProxy', objects, object.startTime)
+  mediaReferenceForObject(object, projectFps, videoSourceMode, objects, object.startTime)
 );
 
 const activeLayerIdsForPsd = (object: PsdObject): string[] =>

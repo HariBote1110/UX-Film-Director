@@ -1,12 +1,22 @@
 import type { EditableSceneGraph } from '../generated/rustCore';
 
-export interface RustBackendSceneReplacePayload {
+interface RustBackendSceneReplacePayloadBase {
   sceneId: string;
   revision: number;
-  project: unknown;
-  media: readonly unknown[];
-  editableScene?: EditableSceneGraph;
 }
+
+export type RustBackendSceneReplacePayload = RustBackendSceneReplacePayloadBase & (
+  | {
+      project: unknown;
+      media: readonly unknown[];
+      editableScene?: EditableSceneGraph;
+    }
+  | {
+      project?: never;
+      media?: never;
+      editableScene: EditableSceneGraph;
+    }
+);
 
 export interface RustBackendSceneEvaluatePayload {
   sceneId: string;
@@ -49,6 +59,7 @@ export type RustBackendSceneFailureReason =
   | 'missingScene'
   | 'staleRevision'
   | 'revisionMismatch'
+  | 'unsupportedScene'
   | 'backendFailure'
   | 'invalidResponse';
 
@@ -86,6 +97,7 @@ const failureReasonForCode = (errorCode: number | undefined): RustBackendSceneFa
   if (errorCode === -32060) return 'missingScene';
   if (errorCode === -32061) return 'staleRevision';
   if (errorCode === -32062) return 'revisionMismatch';
+  if (errorCode === -32065) return 'unsupportedScene';
   return 'backendFailure';
 };
 

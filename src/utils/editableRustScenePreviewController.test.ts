@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LayerState, ProjectSettings, PsdObject, ShapeObject } from '../types';
+import type { LayerState, ProjectSettings, PsdObject, ShapeObject, VideoObject } from '../types';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import {
   createEditableRustScenePreviewController,
   EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
+  shouldUseRawEditableSceneGraphOnly,
 } from './editableRustScenePreviewController';
 
 const projectSettings: ProjectSettings = {
@@ -41,6 +42,22 @@ const shape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   height: 180,
   shapeType: 'rect',
   fill: '#ff0000',
+  ...patch,
+});
+
+const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
+  ...shape(),
+  id: 'video-1',
+  type: 'video',
+  name: 'Video',
+  src: 'blob:video',
+  filePath: '/media/original.mp4',
+  proxyFilePath: '/media/proxy.mp4',
+  offset: 0,
+  width: 1280,
+  height: 720,
+  volume: 1,
+  muted: false,
   ...patch,
 });
 
@@ -99,6 +116,17 @@ describe('editableRustScenePreviewController', () => {
   ])('dual-run=%s、cut-over=%s の editableScene 添付判定は %s', (dualRun, cutover, expected) => {
     expect(shouldAttachEditableRustScene(dualRun, cutover)).toBe(expected);
   });
+  it('raw graph専用flagが既存のeditable scene controllerを有効化する', () => {
+    expect(shouldAttachEditableRustScene(undefined, undefined, '1')).toBe(true);
+  });
+
+  it.each([
+    ['1', true],
+    ['0', false],
+    [undefined, false],
+  ] as const)('raw-graph-only flag=%s は %s', (flag, expected) => {
+    expect(shouldUseRawEditableSceneGraphOnly(flag)).toBe(expected);
+  });
 
   it('編集時だけProjectを更新してrevisionを進め、時刻更新はframe要求だけを送る', () => {
     const sceneScheduler = scheduler();
@@ -147,6 +175,66 @@ describe('editableRustScenePreviewController', () => {
     });
   });
 
+  it('raw graph専用モードはTS builderを通さずproject/mediaを送らない', () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      rawGraphOnly: true,
+      initialRevision: 40,
+    });
+    const unsupportedUntilBackendBuilds = shape({ clipping: true });
+
+    expect(controller.replaceScene({
+      projectSettings,
+      layers,
+      objects: [unsupportedUntilBackendBuilds],
+    })).toEqual({ ok: true, revision: 41 });
+
+    const payload = sceneScheduler.submitRevision.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      sceneId: 'preview:project-1',
+      revision: 41,
+      editableScene: {
+        settings: projectSettings,
+        layers,
+        objects: [unsupportedUntilBackendBuilds],
+        mediaContext: { purpose: 'previewProxy', sceneId: 'preview:project-1' },
+      },
+    });
+    expect(payload).not.toHaveProperty('project');
+    expect(payload).not.toHaveProperty('media');
+    expect(() => structuredClone(payload)).not.toThrow();
+  });
+
+  it('raw graph exportはexportOriginalを送りPSDのruntime値を除く', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      rawGraphOnly: true,
+      initialRevision: 40,
+    });
+
+    await controller.confirmSceneForExport({
+      sceneId: 'export:project-1',
+      projectSettings,
+      layers,
+      objects: [psdWithRuntimeFields()],
+    });
+
+    const payload = sceneScheduler.confirmExportRevision.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      editableScene: {
+        mediaContext: { purpose: 'exportOriginal', sceneId: 'export:project-1' },
+      },
+    });
+    expect(payload).not.toHaveProperty('project');
+    expect(payload).not.toHaveProperty('media');
+    expect((payload.editableScene?.objects[0] as PsdObject).file).toBeUndefined();
+    expect(() => structuredClone(payload)).not.toThrow();
+  });
+
   it('exportは現在graphのreplace成功を確認したrevisionを取得する', async () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
@@ -164,6 +252,32 @@ describe('editableRustScenePreviewController', () => {
       revision: 41,
       editableScene: expect.objectContaining({ mediaContext: { purpose: 'exportOriginal', sceneId: 'export:project-1' } }),
     }));
+  });
+
+  it('legacy resident exportはprojectとmediaの両方にoriginal video sourceを渡す', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      initialRevision: 40,
+    });
+
+    await controller.confirmSceneForExport({
+      sceneId: 'export:project-1',
+      projectSettings,
+      layers,
+      objects: [video()],
+    });
+
+    const payload = sceneScheduler.confirmExportRevision.mock.calls[0][0];
+    expect(payload.project.media[0]).toMatchObject({
+      id: 'video-1',
+      source: '/media/original.mp4',
+    });
+    expect(payload.media[0]).toMatchObject({
+      id: 'video-1',
+      source: '/media/original.mp4',
+    });
   });
 
   it('未対応graphは専用eligibility errorとして返し、RPC障害と区別できる', async () => {

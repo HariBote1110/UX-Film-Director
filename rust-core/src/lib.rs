@@ -2,6 +2,7 @@ pub mod agent_project;
 pub mod audio_waveform_scene;
 pub mod command;
 pub mod editable_scene_builder;
+pub mod editable_scene_position_query;
 pub mod focus_lines;
 pub mod generated_particle;
 pub mod keyframe;
@@ -24,6 +25,10 @@ pub use audio_waveform_scene::{
 };
 pub use command::{apply_command, invert, Command, CommandError};
 pub use editable_scene_builder::{build_evaluation_scene, BuiltEvaluationScene, EditableSceneDiagnostic};
+pub use editable_scene_position_query::{
+    query_editable_scene_positions, SceneObjectPosition, ScenePoint, ScenePositionQuery,
+    ScenePositionQueryError,
+};
 pub use focus_lines::{focus_lines_frame_bucket, focus_lines_frame_bucket_from_source};
 pub use generated_particle::{
     generated_particle_unit, parse_generated_particle_source, GeneratedParticleParams,
