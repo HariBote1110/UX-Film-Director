@@ -81,7 +81,7 @@ const psdWithRuntimeFields = (): PsdObject => ({
 
 const scheduler = () => ({
   submitRevision: vi.fn(),
-  confirmExportRevision: vi.fn().mockResolvedValue({ sceneId: 'export:project-1', revision: 41 }),
+  confirmExportRevision: vi.fn().mockResolvedValue({ sceneId: 'export:project-1', revision: 41, sceneSource: 'rust' }),
   requestFrame: vi.fn(),
   invalidate: vi.fn(),
   dispose: vi.fn(),
@@ -157,7 +157,7 @@ describe('editableRustScenePreviewController', () => {
 
     await expect(controller.confirmSceneForExport({
       sceneId: 'export:project-1', projectSettings, layers, objects: [shape()],
-    })).resolves.toEqual({ sceneId: 'export:project-1', revision: 41 });
+    })).resolves.toEqual({ sceneId: 'export:project-1', revision: 41, sceneSource: 'rust' });
     expect(sceneScheduler.confirmExportRevision).toHaveBeenCalledWith(expect.objectContaining({
       sceneId: 'export:project-1', revision: 41, editableScene: expect.any(Object),
     }));

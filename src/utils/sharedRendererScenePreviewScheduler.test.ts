@@ -235,7 +235,11 @@ describe('sharedRendererScenePreviewScheduler', () => {
     const confirmation = scheduler.confirmExportRevision({ ...revision(5), sceneId: 'export:main' });
     exportReplace.resolve({ ok: true, value: { sceneId: 'export:main', revision: 5, sceneSource: 'rust' } });
 
-    await expect(confirmation).resolves.toEqual({ sceneId: 'export:main', revision: 5 });
+    await expect(confirmation).resolves.toEqual({
+      sceneId: 'export:main',
+      revision: 5,
+      sceneSource: 'rust',
+    });
     expect(replaceCalls.map(({ sceneId, revision }) => ({ sceneId, revision }))).toEqual([
       { sceneId: 'preview:main', revision: 4 },
       { sceneId: 'export:main', revision: 5 },
