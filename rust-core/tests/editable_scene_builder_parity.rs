@@ -571,6 +571,71 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
     assert_eq!(types, all_object_type_names().into_iter().collect());
 }
 
+#[test]
+fn generated_visual_types_have_resident_clips_with_their_native_kinds() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value = serde_json::from_str(
+        &fs::read_to_string(&path).expect("generated resident coverage fixture"),
+    )
+    .expect("generated resident coverage fixture JSON");
+    let graph: EditableSceneGraph = serde_json::from_value(
+        required(&fixture, "graph", "generated coverage").clone(),
+    )
+    .expect("generated coverage graph");
+    let built = build_evaluation_scene(&graph);
+    let generated_types = [
+        ("barcode", "GeneratedBarcode", "GeneratedBarcodePlane"),
+        ("puzzle_piece", "GeneratedPuzzlePiece", "GeneratedPuzzlePiecePlane"),
+        ("colour_wheel", "GeneratedColourWheel", "GeneratedColourWheelPlane"),
+        ("gourd", "GeneratedGourd", "GeneratedGourdPlane"),
+        ("gear", "GeneratedGear", "GeneratedGearPlane"),
+        ("track_bar", "GeneratedTrackBar", "GeneratedTrackBarPlane"),
+        ("pie_chart", "GeneratedPieChart", "GeneratedPieChartPlane"),
+        ("histogram", "GeneratedHistogram", "GeneratedHistogramPlane"),
+        ("tone_curve", "GeneratedToneCurve", "GeneratedToneCurvePlane"),
+        ("sphere_dots", "GeneratedSphereDots", "GeneratedSphereDotsPlane"),
+        ("spherical_field", "GeneratedSphericalField", "GeneratedSphericalFieldPlane"),
+        ("sunburst", "GeneratedSunburst", "GeneratedSunburstPlane"),
+        ("circular_arrow", "GeneratedCircularArrow", "GeneratedCircularArrowPlane"),
+        ("triangle_bracket", "GeneratedTriangleBracket", "GeneratedTriangleBracketPlane"),
+        ("tartan_check", "GeneratedTartanCheck", "GeneratedTartanCheckPlane"),
+        ("houndstooth", "GeneratedHoundstooth", "GeneratedHoundstoothPlane"),
+        ("yagasuri", "GeneratedYagasuri", "GeneratedYagasuriPlane"),
+        ("paper_airplane", "GeneratedPaperAirplane", "GeneratedPaperAirplanePlane"),
+        ("asanoha_pattern", "GeneratedAsanohaPattern", "GeneratedAsanohaPatternPlane"),
+        ("focus_lines_plus", "GeneratedFocusLinesPlus", "GeneratedFocusLinesPlusPlane"),
+        ("random_line_ex", "GeneratedRandomLineEx", "GeneratedRandomLineExPlane"),
+        ("contour_trace", "GeneratedContourTrace", "GeneratedContourTracePlane"),
+        ("displacement_poly", "GeneratedDisplacementPoly", "GeneratedDisplacementPolyPlane"),
+        ("plain_effector_line", "GeneratedPlainEffectorLine", "GeneratedPlainEffectorLinePlane"),
+        ("protractor", "GeneratedProtractor", "GeneratedProtractorPlane"),
+    ];
+    let clips: Vec<_> = built
+        .project
+        .tracks
+        .iter()
+        .flat_map(|track| &track.clips)
+        .collect();
+    for (id, expected_media_kind, expected_clip_kind) in generated_types {
+        let clip = clips
+            .iter()
+            .find(|clip| clip.id == id)
+            .unwrap_or_else(|| panic!("{id} must not be dropped from the resident Project"));
+        assert_eq!(format!("{:?}", clip.kind), expected_clip_kind, "{id} clip kind");
+        let media = built
+            .media
+            .iter()
+            .find(|media| media.id == id)
+            .unwrap_or_else(|| panic!("{id} canonical media"));
+        assert_eq!(format!("{:?}", media.kind), expected_media_kind, "{id} media kind");
+        assert_eq!(clip.media_id, id, "{id} clip media reference");
+        assert_eq!(clip.start_frame, 0, "{id} start frame");
+        assert_eq!(clip.duration_frames, 300, "{id} duration");
+        assert!(media.width > 0 && media.height > 0, "{id} dimensions");
+    }
+}
+
 #[derive(Deserialize)]
 struct NativeHksyIntegerContract {
     #[serde(rename = "cellSize")]
