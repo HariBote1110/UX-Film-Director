@@ -147,6 +147,66 @@ describe('editableRustScenePreviewController', () => {
     });
   });
 
+  it('raw graph専用モードはTS builderを通さずproject/mediaを送らない', () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      rawGraphOnly: true,
+      initialRevision: 40,
+    });
+    const unsupportedUntilBackendBuilds = shape({ clipping: true });
+
+    expect(controller.replaceScene({
+      projectSettings,
+      layers,
+      objects: [unsupportedUntilBackendBuilds],
+    })).toEqual({ ok: true, revision: 41 });
+
+    const payload = sceneScheduler.submitRevision.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      sceneId: 'preview:project-1',
+      revision: 41,
+      editableScene: {
+        settings: projectSettings,
+        layers,
+        objects: [unsupportedUntilBackendBuilds],
+        mediaContext: { purpose: 'previewProxy', sceneId: 'preview:project-1' },
+      },
+    });
+    expect(payload).not.toHaveProperty('project');
+    expect(payload).not.toHaveProperty('media');
+    expect(() => structuredClone(payload)).not.toThrow();
+  });
+
+  it('raw graph exportはexportOriginalを送りPSDのruntime値を除く', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      rawGraphOnly: true,
+      initialRevision: 40,
+    });
+
+    await controller.confirmSceneForExport({
+      sceneId: 'export:project-1',
+      projectSettings,
+      layers,
+      objects: [psdWithRuntimeFields()],
+    });
+
+    const payload = sceneScheduler.confirmExportRevision.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      editableScene: {
+        mediaContext: { purpose: 'exportOriginal', sceneId: 'export:project-1' },
+      },
+    });
+    expect(payload).not.toHaveProperty('project');
+    expect(payload).not.toHaveProperty('media');
+    expect((payload.editableScene?.objects[0] as PsdObject).file).toBeUndefined();
+    expect(() => structuredClone(payload)).not.toThrow();
+  });
+
   it('exportは現在graphのreplace成功を確認したrevisionを取得する', async () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
