@@ -7,6 +7,7 @@ import {
 import { stripPsdLayerNodeForPersistence } from './psdParser';
 import { secondsToFrameIndex } from './rustSceneSnapshot';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
+import type { ConfirmedSceneRevision } from './sharedRendererScenePreviewScheduler';
 
 export type EditableRustScenePreviewReplaceResult =
   | { ok: true; revision: number }
@@ -23,7 +24,7 @@ export interface EditableRustScenePreviewController {
     projectSettings: ProjectSettings;
     layers: LayerState[];
     objects: TimelineObject[];
-  }) => Promise<{ sceneId: string; revision: number }>;
+  }) => Promise<ConfirmedSceneRevision>;
   requestTime: (timeSeconds: number, fps: number) => void;
   dispose: () => void;
 }
