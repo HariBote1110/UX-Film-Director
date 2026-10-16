@@ -600,7 +600,11 @@ mod tests {
                     "queries": [{
                         "requestId": "panel-keyframe-7",
                         "objectId": "waveform-direct",
-                        "timeSeconds": 0.5
+                        "timeSeconds": 0.37
+                    }, {
+                        "requestId": "panel-keyframe-long",
+                        "objectId": "waveform-direct",
+                        "timeSeconds": 36000.0001234567
                     }]
                 }),
             ),
@@ -610,10 +614,14 @@ mod tests {
             queried.ok,
             "query should use graph retained by scene.replace"
         );
-        let position = &queried.result.unwrap()["positions"][0];
+        let query_result = queried.result.unwrap();
+        let position = &query_result["positions"][0];
         assert_eq!(position["requestId"], "panel-keyframe-7");
         assert_eq!(position["objectId"], "waveform-direct");
-        assert_eq!(position["timeSeconds"], 0.5);
+        assert_eq!(position["timeSeconds"], 0.37);
+        let long_position = &query_result["positions"][1];
+        assert_eq!(long_position["requestId"], "panel-keyframe-long");
+        assert_eq!(long_position["timeSeconds"], 36000.0001234567);
     }
 
     #[test]

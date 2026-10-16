@@ -1,26 +1,30 @@
 use crate::keyframe::evaluate_easing;
 use crate::schema::{BaseObject, EditableSceneGraph, TimelineObject};
+use serde::{Deserialize, Serialize};
 
-const KEYFRAME_TIME_EPSILON: f32 = 0.0001;
+const KEYFRAME_TIME_EPSILON: f64 = 0.0001;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScenePositionQuery {
     pub request_id: String,
     pub object_id: String,
-    pub time_seconds: f32,
+    pub time_seconds: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScenePoint {
     pub x: f32,
     pub y: f32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SceneObjectPosition {
     pub request_id: String,
     pub object_id: String,
-    pub time_seconds: f32,
+    pub time_seconds: f64,
     pub local_position: ScenePoint,
     pub world_position: ScenePoint,
     pub world_rotation_degrees: f32,
@@ -99,7 +103,7 @@ pub fn query_editable_scene_positions(
         .collect()
 }
 
-fn evaluate_object_position(object: &BaseObject, time_seconds: f32) -> ScenePoint {
+fn evaluate_object_position(object: &BaseObject, time_seconds: f64) -> ScenePoint {
     let mut keyframes = object
         .keyframes
         .as_deref()
@@ -107,9 +111,9 @@ fn evaluate_object_position(object: &BaseObject, time_seconds: f32) -> ScenePoin
         .iter()
         .map(|keyframe| {
             (
-                keyframe
+                (keyframe
                     .time
-                    .clamp(object.start_time, object.start_time + object.duration),
+                    .clamp(object.start_time, object.start_time + object.duration)) as f64,
                 keyframe.id.as_str(),
                 keyframe.x,
                 keyframe.y,
@@ -133,34 +137,43 @@ fn evaluate_object_position(object: &BaseObject, time_seconds: f32) -> ScenePoin
                 y: first.3,
             };
         }
-        for pair in keyframes.windows(2) {
-            let left = pair[0];
-            let right = pair[1];
-            if time_seconds <= right.0 {
-                let duration = right.0 - left.0;
-                if duration <= KEYFRAME_TIME_EPSILON {
-                    return ScenePoint {
-                        x: right.2,
-                        y: right.3,
-                    };
-                }
-                let raw_progress = (time_seconds - left.0) / duration;
-                let progress = evaluate_easing(left.4, raw_progress).clamp(0.0, 1.0);
-                return ScenePoint {
-                    x: left.2 + (right.2 - left.2) * progress,
-                    y: left.3 + (right.3 - left.3) * progress,
-                };
+        let mut left_index = 0;
+        let mut right_index = keyframes.len() - 1;
+        while left_index < right_index {
+            let mid = (left_index + right_index + 1) / 2;
+            if keyframes[mid].0 <= time_seconds {
+                left_index = mid;
+            } else {
+                right_index = mid - 1;
             }
         }
-        let last = keyframes[keyframes.len() - 1];
+        if left_index >= keyframes.len() - 1 {
+            let last = keyframes[keyframes.len() - 1];
+            return ScenePoint {
+                x: last.2,
+                y: last.3,
+            };
+        }
+        let left = keyframes[left_index];
+        let right = keyframes[left_index + 1];
+        let duration = right.0 - left.0;
+        if duration <= KEYFRAME_TIME_EPSILON {
+            return ScenePoint {
+                x: right.2,
+                y: right.3,
+            };
+        }
+        let raw_progress = ((time_seconds - left.0) / duration) as f32;
+        let progress = evaluate_easing(left.4, raw_progress).clamp(0.0, 1.0);
         return ScenePoint {
-            x: last.2,
-            y: last.3,
+            x: left.2 + (right.2 - left.2) * progress,
+            y: left.3 + (right.3 - left.3) * progress,
         };
     }
 
-    if object.enable_animation && object.duration > KEYFRAME_TIME_EPSILON {
-        let progress = ((time_seconds - object.start_time) / object.duration).clamp(0.0, 1.0);
+    if object.enable_animation && object.duration as f64 > KEYFRAME_TIME_EPSILON {
+        let progress = (((time_seconds - object.start_time as f64)
+            / object.duration as f64) as f32).clamp(0.0, 1.0);
         let eased = evaluate_easing(object.easing, progress);
         return ScenePoint {
             x: object.x + (object.end_x - object.x) * eased,
@@ -177,13 +190,25 @@ fn evaluate_object_position(object: &BaseObject, time_seconds: f32) -> ScenePoin
 fn evaluate_group_transform(
     graph: &EditableSceneGraph,
     object: &BaseObject,
-    time_seconds: f32,
+    time_seconds: f64,
 ) -> (f32, f32, f32, f32, f32) {
     let mut x = 0.0;
     let mut y = 0.0;
     let mut rotation = 0.0;
     let mut scale_x = 1.0;
     let mut scale_y = 1.0;
+    let object_track_id = format!("layer-{}", object.layer as i32);
+    if !is_layer_visible(graph, object.layer)
+        || matches!(
+            graph
+                .objects
+                .iter()
+                .find(|candidate| base(candidate).id == object.id),
+            Some(TimelineObject::Audio { .. } | TimelineObject::GroupControl { .. })
+        )
+    {
+        return (x, y, rotation, scale_x, scale_y);
+    }
     for candidate in &graph.objects {
         let TimelineObject::GroupControl {
             base: group,
@@ -193,12 +218,20 @@ fn evaluate_group_transform(
             continue;
         };
         if group.layer >= object.layer
-            || time_seconds < group.start_time
-            || time_seconds >= group.start_time + group.duration
-            || (fields.target_layer_count != 0
-                && object.layer > group.layer + fields.target_layer_count as f32)
-            || !is_layer_visible(graph, group.layer)
+            || time_seconds < group.start_time as f64
+            || time_seconds >= (group.start_time + group.duration) as f64
         {
+            continue;
+        }
+        let targets_object_layer = graph.objects.iter().any(|target| {
+            let target_base = base(target);
+            is_layer_visible(graph, target_base.layer)
+                && target_base.layer > group.layer
+                && (fields.target_layer_count == 0
+                    || target_base.layer <= group.layer + fields.target_layer_count as f32)
+                && format!("layer-{}", target_base.layer as i32) == object_track_id
+        });
+        if !targets_object_layer {
             continue;
         }
         let position = evaluate_object_position(group, time_seconds);
@@ -212,7 +245,7 @@ fn evaluate_group_transform(
 }
 
 fn is_layer_visible(graph: &EditableSceneGraph, layer: f32) -> bool {
-    let index = layer as usize;
+    let index = layer.max(0.0) as usize;
     graph.layers.get(index).is_none_or(|layer| layer.visible)
 }
 
