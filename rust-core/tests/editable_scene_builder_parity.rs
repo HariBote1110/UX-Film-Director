@@ -215,7 +215,7 @@ fn p1_rust_builder_matches_p0_contract_fixture() {
 }
 
 #[test]
-fn unported_feature_never_produces_a_valid_looking_clip() {
+fn unsupported_feature_never_produces_a_valid_looking_clip() {
     let fixture = load_fixture();
     let first = &required(&fixture, "cases", "fixture")
         .as_array()
@@ -236,7 +236,7 @@ fn unported_feature_never_produces_a_valid_looking_clip() {
             .expect("visual fixture object");
         let object_id = object_id(object).to_string();
         let mut value = serde_json::to_value(&*object).unwrap();
-        value["filters"] = serde_json::json!([{"type":"vibration","id":"unsupported","enabled":true,"params":{"strength":1.0,"speed":1.0}}]);
+        value["clipping"] = serde_json::json!(true);
         *object = serde_json::from_value(value).unwrap();
         object_id
     };
@@ -250,7 +250,7 @@ fn unported_feature_never_produces_a_valid_looking_clip() {
         .diagnostics
         .iter()
         .any(|diagnostic| diagnostic.object_id == object_id
-            && diagnostic.code == "unsupportedFilter"));
+            && diagnostic.code == "unsupportedMask"));
 }
 
 fn object_id(object: &uxfd_rust_core::TimelineObject) -> &str {
@@ -408,7 +408,7 @@ fn generated_evaluation_scenes_match_ts_editable_builder_without_diagnostics() {
         }
         scene_count += 1;
     }
-    assert_eq!(scene_count, 3, "fixture scene count");
+    assert_eq!(scene_count, 4, "fixture scene count");
     let verified: std::collections::BTreeSet<String> =
         all_object_type_names().into_iter().collect();
     let diagnosed: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();

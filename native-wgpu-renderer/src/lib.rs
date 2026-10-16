@@ -117,6 +117,10 @@ pub enum NativeWgpuRenderError {
     UnsupportedTransform {
         clip_id: String,
     },
+    UnsupportedEffect {
+        clip_id: String,
+        effect: &'static str,
+    },
     SharedFrameLayout(FrameRingLayoutBuildError),
     SharedMemory(uxfd_shared_memory_spike::PosixShmError),
     AudioWaveform(AudioWaveformSceneError),
@@ -2159,6 +2163,8 @@ impl NativeWgpuRenderer {
         wait_for_upload: bool,
         content_revisions: &HashMap<String, u64>,
     ) -> Result<(Vec<Arc<PreparedClip>>, Duration), NativeWgpuRenderError> {
+        ensure_no_unresolved_vibration(snapshot)?;
+
         let mut clips = snapshot.clips.clone();
         clips.sort_by_key(|clip| clip.z_index);
 
@@ -2686,6 +2692,22 @@ impl NativeWgpuRenderer {
             self.height,
         )
     }
+}
+
+fn ensure_no_unresolved_vibration(snapshot: &SceneSnapshot) -> Result<(), NativeWgpuRenderError> {
+    for clip in &snapshot.clips {
+        if clip
+            .effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Vibration { .. }))
+        {
+            return Err(NativeWgpuRenderError::UnsupportedEffect {
+                clip_id: clip.clip_id.clone(),
+                effect: "Vibration",
+            });
+        }
+    }
+    Ok(())
 }
 
 pub async fn render_native_wgpu_frame(
@@ -3722,6 +3744,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Blur { .. } => 1.0,
         Effect::DropShadow { .. } => 1.0,
         Effect::GradientOverlay { .. } => 1.0,
+        Effect::Vibration { .. } => 1.0,
     }
 }
 
@@ -4397,6 +4420,37 @@ fn area_expand_fill(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_renderer_rejects_unresolved_vibration_effects() {
+        let snapshot = SceneSnapshot {
+            frame_index: 10,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![EvaluatedClip {
+                clip_id: "vibrating-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "media".to_string(),
+                source_frame: 10,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: vec![Effect::Vibration {
+                    strength: 4.0,
+                    speed: 2.0,
+                }],
+            }],
+        };
+
+        let error = ensure_no_unresolved_vibration(&snapshot)
+            .expect_err("native renderer must require evaluated vibration");
+        assert!(matches!(
+            error,
+            NativeWgpuRenderError::UnsupportedEffect {
+                clip_id,
+                effect: "Vibration"
+            } if clip_id == "vibrating-clip"
+        ));
+    }
 
     #[test]
     fn live_surface_exposes_nv12_scene_present_boundary() {

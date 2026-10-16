@@ -322,8 +322,11 @@ describe('buildEditableRustScene', () => {
     const vibrating = shape({
       id: 'vibrating',
       filters: [
+        { id: 'colour-correction', type: 'color_correction', enabled: true, params: { brightness: 1.1, contrast: 0.1, saturation: 0.2, hue: 5 } },
         { id: 'vibration-first', type: 'vibration', enabled: true, params: { strength: 5, speed: 2 } },
+        { id: 'wipe', type: 'wipe', enabled: true, params: { edge: 'left', reverse: false } },
         { id: 'vibration-disabled', type: 'vibration', enabled: false, params: { strength: 99, speed: 8 } },
+        { id: 'blur', type: 'blur', enabled: true, params: { strength: 3, quality: 2 } },
         { id: 'vibration-second', type: 'vibration', enabled: true, params: { strength: 0, speed: 0 } },
       ],
     });
@@ -338,10 +341,13 @@ describe('buildEditableRustScene', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const clip = result.project.tracks.flatMap((track) => track.clips).find(({ id }) => id === 'vibrating');
-    expect(clip?.effects).toEqual([
-      { Vibration: { strength: 5, speed: 2 } },
-      { Vibration: { strength: 0, speed: 0 } },
+    expect(clip?.effects.map((effect) => Object.keys(effect)[0])).toEqual([
+      'ColourCorrection',
+      'Vibration',
+      'Blur',
+      'Vibration',
     ]);
+    expect(clip?.wipe_animations).toEqual([{ effect_index: 2, edge: 'left', reverse: false }]);
   });
 
   it('fixtureのgenerated視覚型25種をmediaと評価clipごとresident Projectへ保持する', () => {

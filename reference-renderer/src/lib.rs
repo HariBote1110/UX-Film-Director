@@ -17,6 +17,10 @@ pub enum ReferenceRenderError {
     UnsupportedTransform {
         media_id: String,
     },
+    UnsupportedEffect {
+        clip_id: String,
+        effect: String,
+    },
     InvalidFrame(RgbaFrameError),
 }
 
@@ -41,9 +45,15 @@ pub fn render_reference_frame(
                 })?;
         validate_transform(&clip)?;
 
-        let gain = clip.effects.iter().fold(1.0_f32, |current_gain, effect| {
-            current_gain * effect_gain(effect)
-        });
+        let gain = clip.effects.iter().try_fold(1.0_f32, |current_gain, effect| {
+            if matches!(effect, Effect::Vibration { .. }) {
+                return Err(ReferenceRenderError::UnsupportedEffect {
+                    clip_id: clip.clip_id.clone(),
+                    effect: "Vibration".to_string(),
+                });
+            }
+            Ok(current_gain * effect_gain(effect))
+        })?;
 
         for y in 0..height {
             for x in 0..width {
@@ -85,6 +95,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Blur { .. } => 1.0,
         Effect::DropShadow { .. } => 1.0,
         Effect::GradientOverlay { .. } => 1.0,
+        Effect::Vibration { .. } => 1.0,
     }
 }
 

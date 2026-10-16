@@ -28,7 +28,7 @@ use uxfd_native_wgpu_renderer::{
 };
 use uxfd_rust_core::{
     build_video_frame_decode_requests, evaluate_frame, focus_lines_frame_bucket_from_source,
-    parse_generated_particle_source, AudioWaveformSource, MediaKind, SceneMediaReference,
+    parse_generated_particle_source, AudioWaveformSource, Effect, MediaKind, SceneMediaReference,
     SceneSnapshot, VideoFrameDecodeRequest,
 };
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
@@ -161,6 +161,9 @@ pub(crate) fn handle_encode_write_native_frame(
             );
         }
     };
+    if let Err(message) = ensure_snapshot_has_no_unresolved_vibration(&parsed.snapshot) {
+        return response_error(id, -32602, &message);
+    }
 
     {
         let Some(session) = state.encode_sessions.get(&parsed.session_id) else {
@@ -531,6 +534,9 @@ pub(crate) fn handle_native_render_shared_frame(
             );
         }
     };
+    if let Err(message) = ensure_snapshot_has_no_unresolved_vibration(&parsed.snapshot) {
+        return response_error(id, -32602, &message);
+    }
 
     if parsed.slot_count == 0 {
         return response_error(id, -32602, "slotCount must be greater than zero");
@@ -755,6 +761,20 @@ pub(crate) fn handle_native_render_shared_frame(
         })),
         error: None,
     }
+}
+
+fn ensure_snapshot_has_no_unresolved_vibration(snapshot: &SceneSnapshot) -> Result<(), String> {
+    if let Some(clip) = snapshot.clips.iter().find(|clip| {
+        clip.effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Vibration { .. }))
+    }) {
+        return Err(format!(
+            "Native renderer cannot consume unresolved Vibration effect on clip '{}'",
+            clip.clip_id
+        ));
+    }
+    Ok(())
 }
 
 fn collect_native_render_audio_waveforms(
@@ -1324,6 +1344,32 @@ pub(crate) fn get_or_create_native_wgpu_renderer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_renderer_rejects_unresolved_vibration_effects() {
+        let snapshot = uxfd_rust_core::SceneSnapshot {
+            frame_index: 10,
+            colour: uxfd_rust_core::ColourPipeline::rec709_sdr_linear(),
+            clips: vec![uxfd_rust_core::EvaluatedClip {
+                clip_id: "vibrating-clip".to_string(),
+                track_id: "track".to_string(),
+                media_id: "media".to_string(),
+                source_frame: 10,
+                z_index: 0,
+                transform: uxfd_rust_core::Transform::identity(),
+                opacity: 1.0,
+                effects: vec![Effect::Vibration {
+                    strength: 4.0,
+                    speed: 2.0,
+                }],
+            }],
+        };
+
+        let error = ensure_snapshot_has_no_unresolved_vibration(&snapshot)
+            .expect_err("native rendering must require evaluated vibration");
+        assert!(error.contains("vibrating-clip"), "{error}");
+        assert!(error.contains("unresolved Vibration"), "{error}");
+    }
 
     #[test]
     fn resident_scene_collects_pcm_requests_for_waveform_and_sphere_media() {

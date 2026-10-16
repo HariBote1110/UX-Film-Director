@@ -13,6 +13,7 @@ pub mod timeline;
 pub mod validation;
 pub mod video_decode_request;
 pub mod video_plane_scene;
+pub mod vibration;
 
 pub use agent_project::{
     build_agent_project_file, parse_agent_project_spec, AgentProjectSpec, AGENT_PROJECT_SPEC_VERSION,
@@ -77,3 +78,4 @@ pub use video_decode_request::{
 pub use video_plane_scene::{
     build_video_plane_vertex_scene, VideoPlane, VideoPlaneSceneError, VideoPlaneVertexScene,
 };
+pub use vibration::evaluate_vibration_offset;

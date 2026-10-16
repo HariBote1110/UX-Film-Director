@@ -277,7 +277,7 @@ fn verified_object_type(object: &TimelineObject) -> bool {
 
 fn resident_filter_supported(object: &TimelineObject, filter: &ObjectFilter) -> bool {
     match filter {
-        ObjectFilter::Vibration { .. } => false,
+        ObjectFilter::Vibration { .. } => true,
         ObjectFilter::Gradient { .. } => matches!(object, TimelineObject::Shape { .. }),
         _ => true,
     }
@@ -732,6 +732,9 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
         if let Some(value) = &b.shadow {
             legacy.push(serde_json::json!({"type":"shadow","id":"legacy-shadow","enabled":value.enabled,"params":{"colour":value.colour,"blur":value.blur,"offsetX":value.offset_x,"offsetY":value.offset_y,"opacity":value.opacity}}));
         }
+        if let Some(value) = &b.vibration {
+            legacy.push(serde_json::json!({"type":"vibration","id":"legacy-vibration","enabled":value.enabled,"params":{"strength":value.strength,"speed":value.speed}}));
+        }
     }
     let filters: Vec<ObjectFilter> = b
         .filters
@@ -777,6 +780,10 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
                 offset_x: finite(params.offset_x, 0.0),
                 offset_y: finite(params.offset_y, 0.0),
                 opacity: clamp(params.opacity, 0.0, 1.0),
+            }),
+            ObjectFilter::Vibration { params, .. } => effects.push(Effect::Vibration {
+                strength: finite(params.strength, 0.0),
+                speed: finite(params.speed, 1.0),
             }),
             ObjectFilter::Blur { params, .. } if params.strength > 0.05 => {
                 effects.push(Effect::Blur {
@@ -847,7 +854,6 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
                 angle_degrees: 0.0,
             }),
             ObjectFilter::Gradient { .. }
-            | ObjectFilter::Vibration { .. }
             | ObjectFilter::Blur { .. } => {}
             ObjectFilter::AutoBlur { .. } => {}
         }

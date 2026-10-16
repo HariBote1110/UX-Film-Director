@@ -1,0 +1,1039 @@
+{
+  "name": "vibration-resident",
+  "project": {
+    "id": "vibration-resident",
+    "version": 1,
+    "size": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fps": {
+      "numerator": 30,
+      "denominator": 1
+    },
+    "colour": {
+      "profile": "rec709-sdr",
+      "working_space": "linear-light",
+      "alpha": "premultiplied"
+    },
+    "media": [
+      {
+        "id": "vibration-text",
+        "kind": "Text",
+        "source": "{\"text\":\"Vibration parity\",\"fontSize\":48,\"fontFamily\":\"Arial\",\"fill\":\"#ffffff\",\"measuredWidth\":360,\"measuredHeight\":60,\"textStroke\":{\"colour\":\"#000000\",\"width\":5},\"textShadow\":{\"colour\":\"#111111\",\"offsetX\":-8,\"offsetY\":3,\"blur\":10},\"__renderOffsetX\":20,\"__renderOffsetY\":9,\"__contentWidth\":360,\"__contentHeight\":60}",
+        "width": 385,
+        "height": 84
+      },
+      {
+        "id": "vibration-legacy-shape",
+        "kind": "SolidColour",
+        "source": "#ff6633",
+        "width": 120,
+        "height": 80
+      }
+    ],
+    "tracks": [
+      {
+        "id": "layer-1",
+        "clips": [
+          {
+            "id": "vibration-text",
+            "media_id": "vibration-text",
+            "kind": "TextPlane",
+            "start_frame": 30,
+            "duration_frames": 30,
+            "source_frame_offset": 0,
+            "transform": {
+              "translation_x": 100,
+              "translation_y": 200,
+              "scale_x": 1.5,
+              "scale_y": 0.75,
+              "rotation_degrees": 17,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.9,
+            "opacity_keyframes": [],
+            "position_keyframes": [
+              {
+                "frame_offset": 0,
+                "x": 100,
+                "y": 200,
+                "easing": "linear"
+              },
+              {
+                "frame_offset": 30,
+                "x": 130,
+                "y": 220,
+                "easing": "linear"
+              }
+            ],
+            "wipe_animations": [
+              {
+                "effect_index": 2,
+                "edge": "left",
+                "reverse": false
+              }
+            ],
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Vibration": {
+                  "strength": 8,
+                  "speed": 1.5
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              },
+              {
+                "Vibration": {
+                  "strength": 0,
+                  "speed": 2
+                }
+              },
+              {
+                "Vibration": {
+                  "strength": 2,
+                  "speed": 0
+                }
+              },
+              {
+                "Vibration": {
+                  "strength": -3,
+                  "speed": 0.5
+                }
+              }
+            ]
+          },
+          {
+            "id": "vibration-legacy-shape",
+            "media_id": "vibration-legacy-shape",
+            "kind": "SolidColourPlane",
+            "start_frame": 30,
+            "duration_frames": 30,
+            "source_frame_offset": 0,
+            "transform": {
+              "translation_x": 240,
+              "translation_y": 140,
+              "scale_x": 0.9,
+              "scale_y": 1.1,
+              "rotation_degrees": -12,
+              "sampling": "nearest"
+            },
+            "opacity": 1,
+            "opacity_keyframes": [],
+            "position_keyframes": [],
+            "wipe_animations": [],
+            "effects": [
+              {
+                "Vibration": {
+                  "strength": 4,
+                  "speed": 0.75
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "group_controls": [
+      {
+        "id": "vibration-group",
+        "start_frame": 42,
+        "duration_frames": 6,
+        "transform": {
+          "translation_x": 11,
+          "translation_y": -6,
+          "scale_x": 0.8,
+          "scale_y": 1.2,
+          "rotation_degrees": 23,
+          "sampling": "bilinear"
+        },
+        "opacity": 0.7,
+        "position_keyframes": [],
+        "target_track_ids": [
+          "layer-1"
+        ]
+      }
+    ]
+  },
+  "frames": [
+    {
+      "frame_index": 29,
+      "snapshot": {
+        "frame_index": 29,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": []
+      }
+    },
+    {
+      "frame_index": 30,
+      "snapshot": {
+        "frame_index": 30,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 0,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 73.65169483566315,
+              "translation_y": 186.4201186042912,
+              "scale_x": 1.5,
+              "scale_y": 0.75,
+              "rotation_degrees": 17,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.9,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 0,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 237.6965837376392,
+              "translation_y": 137.89951399690443,
+              "scale_x": 0.9,
+              "scale_y": 1.1,
+              "rotation_degrees": -12,
+              "sampling": "nearest"
+            },
+            "opacity": 1,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 31,
+      "snapshot": {
+        "frame_index": 31,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 1,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 75.77180433676406,
+              "translation_y": 190.434378895828,
+              "scale_x": 1.5,
+              "scale_y": 0.75,
+              "rotation_degrees": 17,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.9,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0.03333333333333344
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 1,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 236.42472279858754,
+              "translation_y": 135.18167328290986,
+              "scale_x": 0.9,
+              "scale_y": 1.1,
+              "rotation_degrees": -12,
+              "sampling": "nearest"
+            },
+            "opacity": 1,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 42,
+      "snapshot": {
+        "frame_index": 42,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 12,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 115.63114505231316,
+              "translation_y": 181.19254672154887,
+              "scale_x": 1.2000000000000002,
+              "scale_y": 0.8999999999999999,
+              "rotation_degrees": 40,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.63,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0.3999999999999999
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 12,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 256.30361163813745,
+              "translation_y": 136.80394496514245,
+              "scale_x": 0.7200000000000001,
+              "scale_y": 1.32,
+              "rotation_degrees": 11,
+              "sampling": "nearest"
+            },
+            "opacity": 0.7,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 43,
+      "snapshot": {
+        "frame_index": 43,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 13,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 113.19828848463851,
+              "translation_y": 171.60681833475206,
+              "scale_x": 1.2000000000000002,
+              "scale_y": 0.8999999999999999,
+              "rotation_degrees": 40,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.63,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0.43333333333333335
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 13,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 253.43992566132502,
+              "translation_y": 136.01163745671047,
+              "scale_x": 0.7200000000000001,
+              "scale_y": 1.32,
+              "rotation_degrees": 11,
+              "sampling": "nearest"
+            },
+            "opacity": 0.7,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 47,
+      "snapshot": {
+        "frame_index": 47,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 17,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 108.16417052400098,
+              "translation_y": 193.25268053540498,
+              "scale_x": 1.2000000000000002,
+              "scale_y": 0.8999999999999999,
+              "rotation_degrees": 40,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.63,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0.5666666666666667
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 17,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 251.3536793206063,
+              "translation_y": 128.93047183266268,
+              "scale_x": 0.7200000000000001,
+              "scale_y": 1.32,
+              "rotation_degrees": 11,
+              "sampling": "nearest"
+            },
+            "opacity": 0.7,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 48,
+      "snapshot": {
+        "frame_index": 48,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 18,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 94.21259976454513,
+              "translation_y": 202.31880453072887,
+              "scale_x": 1.5,
+              "scale_y": 0.75,
+              "rotation_degrees": 17,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.9,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0.6000000000000001
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 18,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 242.3456242087716,
+              "translation_y": 135.30902760882475,
+              "scale_x": 0.9,
+              "scale_y": 1.1,
+              "rotation_degrees": -12,
+              "sampling": "nearest"
+            },
+            "opacity": 1,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 59,
+      "snapshot": {
+        "frame_index": 59,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": [
+          {
+            "clip_id": "vibration-text",
+            "track_id": "layer-1",
+            "media_id": "vibration-text",
+            "source_frame": 29,
+            "z_index": 0,
+            "transform": {
+              "translation_x": 103.72033193215555,
+              "translation_y": 205.50687693845924,
+              "scale_x": 1.5,
+              "scale_y": 0.75,
+              "rotation_degrees": 17,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.9,
+            "effects": [
+              {
+                "ColourCorrection": {
+                  "brightness": 1.1,
+                  "contrast": 0.1,
+                  "saturation": 0.2,
+                  "hue_degrees": 5
+                }
+              },
+              {
+                "Wipe": {
+                  "edge": "left",
+                  "progress": 0.9666666666666666
+                }
+              },
+              {
+                "Blur": {
+                  "radius": 3,
+                  "strength": 1
+                }
+              }
+            ]
+          },
+          {
+            "clip_id": "vibration-legacy-shape",
+            "track_id": "layer-1",
+            "media_id": "vibration-legacy-shape",
+            "source_frame": 29,
+            "z_index": 1,
+            "transform": {
+              "translation_x": 239.89467089626936,
+              "translation_y": 145.3051252740058,
+              "scale_x": 0.9,
+              "scale_y": 1.1,
+              "rotation_degrees": -12,
+              "sampling": "nearest"
+            },
+            "opacity": 1,
+            "effects": []
+          }
+        ]
+      }
+    },
+    {
+      "frame_index": 60,
+      "snapshot": {
+        "frame_index": 60,
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "clips": []
+      }
+    }
+  ],
+  "editable_scene": {
+    "graph": {
+      "settings": {
+        "width": 1920,
+        "height": 1080,
+        "fps": 30,
+        "sampleRate": 48000,
+        "editorMode": "2d"
+      },
+      "layers": [
+        {
+          "name": "Group",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Text",
+          "visible": true,
+          "locked": false
+        }
+      ],
+      "objects": [
+        {
+          "id": "vibration-group",
+          "type": "group_control",
+          "name": "Vibration group transform",
+          "layer": 0,
+          "targetLayerCount": 1,
+          "startTime": 1.4,
+          "duration": 0.2,
+          "x": 11,
+          "y": -6,
+          "rotation": 23,
+          "scaleX": 0.8,
+          "scaleY": 1.2,
+          "opacity": 0.7,
+          "enableAnimation": false,
+          "endX": 11,
+          "endY": -6,
+          "easing": "linear"
+        },
+        {
+          "id": "vibration-text",
+          "type": "text",
+          "name": "Vibration text",
+          "layer": 1,
+          "startTime": 1,
+          "duration": 1,
+          "x": 100,
+          "y": 200,
+          "rotation": 17,
+          "scaleX": 1.5,
+          "scaleY": 0.75,
+          "opacity": 0.9,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 220,
+          "easing": "linear",
+          "text": "Vibration parity",
+          "fontSize": 48,
+          "fontFamily": "Arial",
+          "fill": "#ffffff",
+          "measuredWidth": 360,
+          "measuredHeight": 60,
+          "textStroke": {
+            "colour": "#000000",
+            "width": 5
+          },
+          "textShadow": {
+            "colour": "#111111",
+            "offsetX": -8,
+            "offsetY": 3,
+            "blur": 10
+          },
+          "filters": [
+            {
+              "id": "colour-correction",
+              "type": "color_correction",
+              "enabled": true,
+              "params": {
+                "brightness": 1.1,
+                "contrast": 0.1,
+                "saturation": 0.2,
+                "hue": 5
+              }
+            },
+            {
+              "id": "vibration-a",
+              "type": "vibration",
+              "enabled": true,
+              "params": {
+                "strength": 8,
+                "speed": 1.5
+              }
+            },
+            {
+              "id": "wipe",
+              "type": "wipe",
+              "enabled": true,
+              "params": {
+                "edge": "left",
+                "reverse": false
+              }
+            },
+            {
+              "id": "vibration-disabled",
+              "type": "vibration",
+              "enabled": false,
+              "params": {
+                "strength": 100,
+                "speed": 9
+              }
+            },
+            {
+              "id": "blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 3,
+                "quality": 2
+              }
+            },
+            {
+              "id": "vibration-zero-strength",
+              "type": "vibration",
+              "enabled": true,
+              "params": {
+                "strength": 0,
+                "speed": 2
+              }
+            },
+            {
+              "id": "vibration-zero-speed",
+              "type": "vibration",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "speed": 0
+              }
+            },
+            {
+              "id": "vibration-c",
+              "type": "vibration",
+              "enabled": true,
+              "params": {
+                "strength": -3,
+                "speed": 0.5
+              }
+            }
+          ]
+        },
+        {
+          "id": "vibration-legacy-shape",
+          "type": "shape",
+          "name": "Legacy vibration shape",
+          "layer": 1,
+          "startTime": 1,
+          "duration": 1,
+          "x": 240,
+          "y": 140,
+          "rotation": -12,
+          "scaleX": 0.9,
+          "scaleY": 1.1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 240,
+          "endY": 140,
+          "easing": "linear",
+          "shapeType": "rect",
+          "width": 120,
+          "height": 80,
+          "fill": "#ff6633",
+          "vibration": {
+            "enabled": true,
+            "strength": 4,
+            "speed": 0.75
+          }
+        }
+      ]
+    },
+    "result": {
+      "ok": true,
+      "project": {
+        "id": "vibration-resident",
+        "version": 1,
+        "size": {
+          "width": 1920,
+          "height": 1080
+        },
+        "fps": {
+          "numerator": 30,
+          "denominator": 1
+        },
+        "colour": {
+          "profile": "rec709-sdr",
+          "working_space": "linear-light",
+          "alpha": "premultiplied"
+        },
+        "media": [
+          {
+            "id": "vibration-text",
+            "kind": "Text",
+            "source": "{\"text\":\"Vibration parity\",\"fontSize\":48,\"fontFamily\":\"Arial\",\"fill\":\"#ffffff\",\"measuredWidth\":360,\"measuredHeight\":60,\"textStroke\":{\"colour\":\"#000000\",\"width\":5},\"textShadow\":{\"colour\":\"#111111\",\"offsetX\":-8,\"offsetY\":3,\"blur\":10},\"__renderOffsetX\":20,\"__renderOffsetY\":9,\"__contentWidth\":360,\"__contentHeight\":60}",
+            "width": 385,
+            "height": 84
+          },
+          {
+            "id": "vibration-legacy-shape",
+            "kind": "SolidColour",
+            "source": "#ff6633",
+            "width": 120,
+            "height": 80
+          }
+        ],
+        "tracks": [
+          {
+            "id": "layer-1",
+            "clips": [
+              {
+                "id": "vibration-text",
+                "media_id": "vibration-text",
+                "kind": "TextPlane",
+                "start_frame": 30,
+                "duration_frames": 30,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 100,
+                  "translation_y": 200,
+                  "scale_x": 1.5,
+                  "scale_y": 0.75,
+                  "rotation_degrees": 17,
+                  "sampling": "bilinear"
+                },
+                "opacity": 0.9,
+                "opacity_keyframes": [],
+                "position_keyframes": [
+                  {
+                    "frame_offset": 0,
+                    "x": 100,
+                    "y": 200,
+                    "easing": "linear"
+                  },
+                  {
+                    "frame_offset": 30,
+                    "x": 130,
+                    "y": 220,
+                    "easing": "linear"
+                  }
+                ],
+                "wipe_animations": [
+                  {
+                    "effect_index": 2,
+                    "edge": "left",
+                    "reverse": false
+                  }
+                ],
+                "effects": [
+                  {
+                    "ColourCorrection": {
+                      "brightness": 1.1,
+                      "contrast": 0.1,
+                      "saturation": 0.2,
+                      "hue_degrees": 5
+                    }
+                  },
+                  {
+                    "Vibration": {
+                      "strength": 8,
+                      "speed": 1.5
+                    }
+                  },
+                  {
+                    "Blur": {
+                      "radius": 3,
+                      "strength": 1
+                    }
+                  },
+                  {
+                    "Vibration": {
+                      "strength": 0,
+                      "speed": 2
+                    }
+                  },
+                  {
+                    "Vibration": {
+                      "strength": 2,
+                      "speed": 0
+                    }
+                  },
+                  {
+                    "Vibration": {
+                      "strength": -3,
+                      "speed": 0.5
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "vibration-legacy-shape",
+                "media_id": "vibration-legacy-shape",
+                "kind": "SolidColourPlane",
+                "start_frame": 30,
+                "duration_frames": 30,
+                "source_frame_offset": 0,
+                "transform": {
+                  "translation_x": 240,
+                  "translation_y": 140,
+                  "scale_x": 0.9,
+                  "scale_y": 1.1,
+                  "rotation_degrees": -12,
+                  "sampling": "nearest"
+                },
+                "opacity": 1,
+                "opacity_keyframes": [],
+                "position_keyframes": [],
+                "wipe_animations": [],
+                "effects": [
+                  {
+                    "Vibration": {
+                      "strength": 4,
+                      "speed": 0.75
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "group_controls": [
+          {
+            "id": "vibration-group",
+            "start_frame": 42,
+            "duration_frames": 6,
+            "transform": {
+              "translation_x": 11,
+              "translation_y": -6,
+              "scale_x": 0.8,
+              "scale_y": 1.2,
+              "rotation_degrees": 23,
+              "sampling": "bilinear"
+            },
+            "opacity": 0.7,
+            "position_keyframes": [],
+            "target_track_ids": [
+              "layer-1"
+            ]
+          }
+        ]
+      },
+      "media": [
+        {
+          "id": "vibration-text",
+          "kind": "Text",
+          "source": "{\"text\":\"Vibration parity\",\"fontSize\":48,\"fontFamily\":\"Arial\",\"fill\":\"#ffffff\",\"measuredWidth\":360,\"measuredHeight\":60,\"textStroke\":{\"colour\":\"#000000\",\"width\":5},\"textShadow\":{\"colour\":\"#111111\",\"offsetX\":-8,\"offsetY\":3,\"blur\":10},\"__renderOffsetX\":20,\"__renderOffsetY\":9,\"__contentWidth\":360,\"__contentHeight\":60}",
+          "width": 385,
+          "height": 84
+        },
+        {
+          "id": "vibration-legacy-shape",
+          "kind": "SolidColour",
+          "source": "#ff6633",
+          "width": 120,
+          "height": 80
+        }
+      ]
+    }
+  }
+}
