@@ -76,6 +76,7 @@ describe('splitObject のRust位置query移行', () => {
   afterEach(() => {
     clearRustScenePositionQueryRevision('test cleanup');
     setCommandBridgeForTests(null);
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
@@ -96,7 +97,7 @@ describe('splitObject のRust位置query移行', () => {
         })),
       },
     }));
-    vi.stubGlobal('window', { rustBackend: makeSceneBridge(queryObjectPositions) });
+    vi.stubGlobal('window', { rustBackend: makeSceneBridge(queryObjectPositions), alert: vi.fn() });
     publishCurrentResident();
 
     const result = useStore.getState().splitObject();
@@ -176,6 +177,23 @@ describe('splitObject のRust位置query移行', () => {
 
     expect(queryObjectPositions).not.toHaveBeenCalled();
     expect(useStore.getState().objects).toHaveLength(1);
+    expect(useStore.getState().pastCommands).toEqual([]);
+  });
+
+  it('Rust query失敗時はTS位置へfallbackせずsplitしない', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const queryObjectPositions: RustBackendSceneBridge['queryObjectPositions'] = vi.fn(async () => ({
+      success: false as const,
+      error: 'unsupported scene',
+      errorCode: -32065,
+    }));
+    vi.stubGlobal('window', { rustBackend: makeSceneBridge(queryObjectPositions), alert: vi.fn() });
+    publishCurrentResident();
+
+    await useStore.getState().splitObject();
+
+    expect(useStore.getState().objects).toHaveLength(1);
+    expect(useStore.getState().objects[0]).toMatchObject({ id: 'split-target', duration: 10 });
     expect(useStore.getState().pastCommands).toEqual([]);
   });
 });
