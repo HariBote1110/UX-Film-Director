@@ -152,6 +152,66 @@ describe('createSharedRendererExportFrameSource', () => {
     expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(15);
   });
 
+  it('Rust評価の待機中に閉じたsourceはpresenterを開始しない', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    let resolveEvaluation: ((value: {
+      sceneId: string;
+      revision: number;
+      frameIndex: number;
+      snapshot: unknown;
+      media: never[];
+    }) => void) | undefined;
+    let evaluationStarted = false;
+    const presenterCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      evaluateResidentScene: async () => {
+        evaluationStarted = true;
+        return new Promise((resolve) => { resolveEvaluation = resolve; });
+      },
+      startViewportPresenter: async (input) => {
+        presenterCalls.push(input);
+        return {
+          control: { dispose: () => undefined },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+    });
+    const pendingFrame = source.renderFrame!({
+      frameIndex: 16,
+      timestampUs: 266_667,
+      time: 16 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    });
+
+    expect(evaluationStarted).toBe(true);
+    await source.close?.();
+    resolveEvaluation?.({
+      sceneId: 'export-scene',
+      revision: 4,
+      frameIndex: 16,
+      snapshot: {
+        frame_index: 16,
+        colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' },
+        clips: [],
+      },
+      media: [],
+    });
+
+    await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
+    expect(presenterCalls).toEqual([]);
+  });
+
   it('recognises structural blocked errors that explicitly disable legacy fallback', () => {
     expect(isSharedRendererExportFrameSourceBlockedError({
       fallbackToLegacyCanvas: false,
