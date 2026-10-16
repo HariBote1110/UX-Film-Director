@@ -16,18 +16,18 @@
 | 順位 | タスク | 現状・完了条件 |
 | --- | --- | --- |
 | 1 | P2c一時診断の撤去 | **完了（2026-10-16）**。controller lifecycleの全イベント履歴を撤去。export確認中・成功・失敗の通常statusと回帰テストを維持。関連8ファイル101テスト・型チェック成功。 |
-| 2 | P2全体の完了条件を棚卸し | P2c完了はP2全体完了と別。旧direct snapshot caller、Windows interim presenter、群別cut-over検証の残存を確認し、Rust-built mediaへの収束を完了する。古いP2b追記には後続で解消済みの447-frame検証・group_control hook未実装の記述が残るため同期する。 |
+| 2 | P2全体の完了条件を棚卸し | **作業中**。旧direct snapshot caller、Windows interim presenter、群別cut-over検証の残存を確認し、Rust-built mediaへの収束を完了する。P2c完了はP2全体完了と別。 |
 | 3 | P3: TS serializer撤去 | P2の両経路収束後、`rustSceneSnapshot.ts` / `editableRustScene.ts`の生成・参照解決をRustへ一本化。447-frame parityとpreview/export E2Eを維持する。 |
 | 4 | P4: UI評価値をRustへ移行 | PropertyPanel、選択枠、追跡、storeのTS評価利用を`scene.evaluate`購読へ付け替え、重複評価関数を撤去。ドラッグ・スクラブの遅延も確認する。 |
-| 5 | テキストの縁取り・影のクリップ | 未修正。装飾分の領域拡張と描画原点・回転・scale補正が必要。既存テキスト位置を維持する契約テストから着手する。 |
-| 6 | フィルタ値編集のUndo/Redo | Rust Command適用自体は実装済みだが、`updateObjectFilterParams`は現在も履歴を積まない。入力開始〜終了を1操作として履歴化する。 |
+| 5 | テキストの縁取り・影のクリップ | **作業中**。装飾分の領域拡張と描画原点・回転・scale補正。Rust builder・TS resident builder・direct経路すべての位置不変性を検証する。 |
+| 6 | フィルタ値編集のUndo/Redo | **作業中**。入力開始〜終了を1操作として履歴化する。連続入力・非同期応答・フォーカス維持中のUndo/Redoも対象。 |
 
 出典: [Scene Build計画](Scene_Build_In_Rust_Plan.md)、[P2c決定ログ](../progress/scene-build-p2c-resident-scene-export-revision.md)、[テキスト装飾クリップ](../progress/text-stroke-shadow-clipping.md)、`src/store/useStore.ts`の`updateObjectFilterParams`。
 
 ## 検証・判断が必要な項目
 
 - **scene.replace性能**: raw graphのpayloadサイズ・RTTを実測し、許容上限を決める。上限は未決であり、計測を先行できる。
-- **Windows仕上げ**: 高DPI、実ElectronのHTML UI重なりを検証。初回attachの同期パイプライン生成によるUI停止を調査・改善し、DXC DLLのビルド成果物同梱を詰める。各項目の記録は[Windows計画](Windows_Port_Plan.md)を参照し、実機で現状を再確認する。
+- **Windows仕上げ**: 高DPI、実ElectronのHTML UI重なり、DXC DLLのビルド成果物同梱を詰める。初回attachの同期パイプライン生成は、後続のAsyncTask・段階構築で対処済み（[実装・実測記録](../progress/windows-w7-async-attach.md)）。未修正扱いから除外する。旧mainpcは撤去済み、2026-10-16のWindows接続サービスは接続拒否であり、現時点では実機再検証不可。
 - **外部video経路の色差**: 既存のmatrix / colourSpace明示修正は完了。再現素材のffprobeと、現在のnative描画経路で影響が残るかの確認が必要。過去経路の仮説だけで新規修正を始めない。[調査ログ](../progress/external-video-colour-mismatch.md)。
 - **実機確認の追補**: resident音声反応export、NV12リング停止修正、3D exportのreadback待機の速度など、各ログで未実施の検証を後続履歴と照合する。未実施という古い記述だけで未修正と判定しない。
 
