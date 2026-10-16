@@ -7,7 +7,7 @@ import {
   type SceneHitTestViewport,
 } from './sceneHitTest';
 import type { LayerState, ShapeObject, TextObject, TimelineObject } from '../types';
-import { textMediaBox } from './rustSceneSnapshot';
+import { textMediaBox } from './textMediaGeometry';
 
 const identityCamera: SceneCamera = { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 };
 
@@ -69,6 +69,35 @@ describe('hitTestSceneObjects: テキストの描画領域', () => {
     expect(hitTestSceneObjects({ cssX: object.x + box.width / 2, cssY: object.y + box.height / 2, time: 0, objects, viewport: viewport() })).toBe(object.id);
     expect(hitTestSceneObjects({ cssX: object.x + box.width + 1, cssY: object.y + box.height / 2, time: 0, objects, viewport: viewport() })).toBeNull();
     expect(getObjectWorldCorners(object, 0, objects)?.bottomRight).toEqual({ x: object.x + box.width, y: object.y + box.height });
+  });
+
+  it('ストローク・影で拡張した選択枠とヒット領域を一致させる', () => {
+    const object = textObject({
+      measuredWidth: 80,
+      measuredHeight: 25,
+      textStroke: { colour: '#000000', width: 2 },
+      textShadow: { colour: '#000000', offsetX: -5, offsetY: 4, blur: 4 },
+      rotation: 90,
+    });
+    const objects = [object];
+    const corners = getObjectWorldCorners(object, 0, objects);
+    expect(corners?.topLeft.x).toBeCloseTo(object.x + 2);
+    expect(corners?.topLeft.y).toBeCloseTo(object.y - 11);
+
+    // ローカル左余白の内側は装飾を含むオブジェクト領域として選択できる。
+    const localPoint = { x: -2, y: 10 };
+    const radians = object.rotation * Math.PI / 180;
+    const worldPoint = {
+      x: object.x + localPoint.x * Math.cos(radians) - localPoint.y * Math.sin(radians),
+      y: object.y + localPoint.x * Math.sin(radians) + localPoint.y * Math.cos(radians),
+    };
+    expect(hitTestSceneObjects({
+      cssX: worldPoint.x,
+      cssY: worldPoint.y,
+      time: 0,
+      objects,
+      viewport: viewport(),
+    })).toBe(object.id);
   });
 });
 

@@ -17,7 +17,7 @@ import { SceneSelectionOverlay } from './SceneSelectionOverlay';
 import { computeSceneSelectionOverlayGeometry } from './sceneSelectionOverlayGeometry';
 import { applySceneSelectionOverlayGeometry, type SceneSelectionOverlayPatchTargets } from './sceneSelectionOverlayPatch';
 import type { ResizeCorner } from '../utils/transformGeometry';
-import { textMediaBox } from '../utils/rustSceneSnapshot';
+import { textMediaBox, textMediaInsets } from '../utils/textMediaGeometry';
 
 /**
  * 選択枠オーバーレイ（選択枠矩形・リサイズハンドル・native overlay への
@@ -329,7 +329,15 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
         const size = targetObject.type === 'text'
           ? textMediaBox(targetObject)
           : (targetObject as unknown as { width?: number; height?: number });
-        const bounds = { bx: 0, by: 0, bw: size.width ?? 100, bh: size.height ?? 100 };
+        const insets = targetObject.type === 'text'
+          ? textMediaInsets(targetObject)
+          : { left: 0, top: 0 };
+        const bounds = {
+          bx: -insets.left,
+          by: -insets.top,
+          bw: size.width ?? 100,
+          bh: size.height ?? 100,
+        };
         // 選択枠と同じ「コンテナのワールド変換」（base position + group
         // transforms + vibration, rotation/scale も group 積算込み）を使う。
         // sceneHitTest.ts の getObjectWorldCorners と同じ式。

@@ -81,18 +81,18 @@ export const createHistorySlice = (set: SetState, get: GetState): HistorySlice =
   })),
 
   undoCommand: async () => {
-    const state = get();
-    if (state.isCommandHistoryPending) return;
-    if (state.pastCommands.length === 0) return;
-    const bridge = getCommandBridge();
-    if (!bridge) return;
-
-    const command = state.pastCommands[state.pastCommands.length - 1];
-    const scene = buildActiveSceneData(state);
-    if (!scene) return;
-
+    if (get().isCommandHistoryPending) return;
     set({ isCommandHistoryPending: true });
     try {
+      if (get().hasPendingObjectFilterParamEdits()) await get().flushObjectFilterParamEdits();
+      const state = get();
+      if (state.pastCommands.length === 0) return;
+      const bridge = getCommandBridge();
+      if (!bridge) return;
+
+      const command = state.pastCommands[state.pastCommands.length - 1];
+      const scene = buildActiveSceneData(state);
+      if (!scene) return;
       const response = await bridge.applyCommand({ scene, command: invertCommand(command) });
       if (!response.success || !response.result) {
         console.error('undoCommand: command.apply failed', response.error, response.errorCode);
@@ -109,18 +109,18 @@ export const createHistorySlice = (set: SetState, get: GetState): HistorySlice =
   },
 
   redoCommand: async () => {
-    const state = get();
-    if (state.isCommandHistoryPending) return;
-    if (state.futureCommands.length === 0) return;
-    const bridge = getCommandBridge();
-    if (!bridge) return;
-
-    const command = state.futureCommands[0];
-    const scene = buildActiveSceneData(state);
-    if (!scene) return;
-
+    if (get().isCommandHistoryPending) return;
     set({ isCommandHistoryPending: true });
     try {
+      if (get().hasPendingObjectFilterParamEdits()) await get().flushObjectFilterParamEdits();
+      const state = get();
+      if (state.futureCommands.length === 0) return;
+      const bridge = getCommandBridge();
+      if (!bridge) return;
+
+      const command = state.futureCommands[0];
+      const scene = buildActiveSceneData(state);
+      if (!scene) return;
       const response = await bridge.applyCommand({ scene, command });
       if (!response.success || !response.result) {
         console.error('redoCommand: command.apply failed', response.error, response.errorCode);

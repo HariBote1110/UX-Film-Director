@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { commandBus } from '../commands/commandBus';
 import { registerAppCommands } from '../commands/registerAppCommands';
-import { resolveKeyCommand } from './keyCommandResolver';
+import { resolveKeyCommand, shouldIgnoreEditableTargetShortcut } from './keyCommandResolver';
 import { connectRemoteDeckToCommandBus } from '../remoteDeck/connectRemoteDeckToCommandBus';
 import { subscribeStoreToRemoteDeckState } from '../remoteDeck/remoteDeckStatePush';
 import { subscribeStoreToRemoteDeckPlayback } from '../remoteDeck/remoteDeckPlaybackPush';
@@ -91,8 +91,12 @@ export const useAppLogic = () => {
   // --- 2. Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore shortcuts if user is typing in an input field
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Keep native text undo in ordinary fields. Filter controls route
+      // application undo/redo so their pending edit session can be flushed.
+      const hasEditableTarget = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      const hasFilterParamEditor = e.target instanceof Element
+        && e.target.closest('[data-filter-param-editor]') !== null;
+      if (shouldIgnoreEditableTargetShortcut(e, hasEditableTarget, hasFilterParamEditor)) {
         return;
       }
 

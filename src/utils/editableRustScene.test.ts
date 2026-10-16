@@ -4,6 +4,7 @@ import type {
   AudioVisualizationObject,
   ImageObject,
   GetColorDotFieldObject,
+  GroupControlObject,
   HksyCheckerGridObject,
   LayerState,
   PsdObject,
@@ -346,6 +347,55 @@ describe('buildEditableRustScene', () => {
     expect(legacyClip?.position_keyframes).toEqual([
       { frame_offset: 0, x: 10, y: 20, easing: 'easeOutCubic' },
       { frame_offset: 240, x: 210, y: 320, easing: 'linear' },
+    ]);
+  });
+
+  it('装飾付きテキストの原点補正を開始時transformへ固定せずRust評価へ渡す', () => {
+    const decorated = text({
+      x: 100,
+      y: 120,
+      rotation: -20,
+      scaleX: -1.1,
+      scaleY: 0.9,
+      keyframes: [
+        { id: 'start', time: 1, x: 100, y: 120, easing: 'linear' },
+        { id: 'end', time: 5, x: 200, y: 220, easing: 'linear' },
+      ],
+      textStroke: { colour: '#000000', width: 4 },
+      textShadow: { colour: '#000000', offsetX: -8, offsetY: 3, blur: 10 },
+    });
+    const group: GroupControlObject = {
+      ...base,
+      id: 'group',
+      type: 'group_control',
+      layer: 2,
+      x: 23,
+      y: 29,
+      rotation: 7,
+      scaleX: 1.1,
+      scaleY: 0.9,
+      targetLayerCount: 0,
+    };
+
+    const result = buildEditableRustScene({
+      sceneId: 'decorated-text-group',
+      projectSettings,
+      layers,
+      objects: [decorated, group],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected editable scene conversion to succeed');
+
+    const media = result.media.find((item) => item.id === decorated.id)!;
+    const source = JSON.parse(media.source);
+    const clip = result.project.tracks.flatMap((track) => track.clips).find((item) => item.id === decorated.id)!;
+    expect(media).toMatchObject({ width: 224, height: 84 });
+    expect(source).toMatchObject({ __renderOffsetX: 20, __renderOffsetY: 9, __contentWidth: 200, __contentHeight: 60 });
+    expect(clip.position_keyframes).toHaveLength(2);
+    expect(clip.transform).toMatchObject({ translation_x: 100, translation_y: 120 });
+    expect(clip.position_keyframes.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 100, y: 120 },
+      { x: 200, y: 220 },
     ]);
   });
 

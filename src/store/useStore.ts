@@ -82,6 +82,23 @@ export type {
 const filterCommandQueues = new Map<string, Promise<void>>();
 const filterParamRequestTokens = new Map<string, number>();
 const FILTER_MIRROR_KEYS = ['colorCorrection', 'customClipping', 'vibration', 'shadow', 'gradient'] as const;
+type FilterParamEditSession = {
+  id: number;
+  sceneId: string;
+  objectId: string;
+  filterId: string;
+  previous: Record<string, unknown>;
+  expected: Record<string, unknown>;
+  ending: boolean;
+};
+const filterParamEditSessions = new Map<string, FilterParamEditSession>();
+const filterParamEditCommitPromises = new Map<number, Promise<void>>();
+let nextFilterParamEditSessionId = 1;
+
+const filterParamEditKey = (objectId: string, filterId: string) => `${objectId}:${filterId}`;
+const cloneFilterParams = (params: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(JSON.stringify(params)) as Record<string, unknown>;
+const filterParamsEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
 const mergeFilterCommandObject = (currentObject: TimelineObject, appliedObject: TimelineObject): TimelineObject => {
   const merged = { ...currentObject, filters: appliedObject.filters } as TimelineObject;
@@ -223,6 +240,7 @@ export const useStore = create<AppState>((set, get) => ({
   ...createHistorySlice(set, get),
 
   initializeProject: (settings) => {
+    filterParamEditSessions.clear();
     const sceneId = crypto.randomUUID();
     const initialLayers = createDefaultLayers();
     const cam = createDefaultCamera();
@@ -267,6 +285,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!Array.isArray(scenesInput) || scenesInput.length === 0) {
       return;
     }
+    filterParamEditSessions.clear();
     const normalisedScenes: SceneData[] = scenesInput.map((scene) => ({
       ...scene,
       layers: normaliseLayers(scene.layers),
@@ -343,6 +362,7 @@ export const useStore = create<AppState>((set, get) => ({
     );
     const target = flushed.find((scene) => scene.id === sceneId);
     if (!target) return;
+    filterParamEditSessions.clear();
 
     const nextObjects = normaliseSceneObjectList(target.objects);
     const nextLayers = target.layers.map((layer) => ({ ...layer }));
@@ -373,6 +393,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   addScene: () => {
     const state = get();
+    filterParamEditSessions.clear();
     const flushed = flushActiveIntoScenes(
       state.scenes,
       state.activeSceneId,
@@ -646,6 +667,82 @@ export const useStore = create<AppState>((set, get) => ({
     await applyFilterCommand(set, get, command, true);
   },
 
+  beginObjectFilterParamsEdit: (objectId, filterId) => {
+    const state = get();
+    const object = state.objects.find((entry) => entry.id === objectId);
+    if (!object || isLayerLocked(state.layers, clampLayerIndex(object.layer))) return null;
+    const filter = getObjectFiltersInOrder(object).find((entry) => entry.id === filterId);
+    if (!filter) return null;
+
+    const key = filterParamEditKey(objectId, filterId);
+    const existing = filterParamEditSessions.get(key);
+    if (existing && !existing.ending) return existing.id;
+    const baseline = existing?.expected ?? cloneFilterParams(filter.params as unknown as Record<string, unknown>);
+    const session: FilterParamEditSession = {
+      id: nextFilterParamEditSessionId++,
+      sceneId: state.activeSceneId,
+      objectId,
+      filterId,
+      previous: cloneFilterParams(baseline),
+      expected: cloneFilterParams(baseline),
+      ending: false,
+    };
+    filterParamEditSessions.set(key, session);
+    return session.id;
+  },
+
+  commitObjectFilterParamsEdit: (objectId, filterId, sessionId) => {
+    const key = filterParamEditKey(objectId, filterId);
+    const session = filterParamEditSessions.get(key);
+    if (!session || (sessionId !== undefined && session.id !== sessionId)) return Promise.resolve();
+    if (session.ending) return filterParamEditCommitPromises.get(session.id) ?? Promise.resolve();
+    session.ending = true;
+
+    const commit = (async () => {
+      // Capture only work queued at this input boundary. A later gesture can
+      // continue while this Rust request is resolving and receives its own step.
+      await filterCommandQueues.get(objectId)?.catch(() => undefined);
+
+      if (filterParamEditSessions.get(key) === session) filterParamEditSessions.delete(key);
+      const state = get();
+      if (state.activeSceneId !== session.sceneId) return;
+      const object = state.objects.find((entry) => entry.id === objectId);
+      if (!object || isLayerLocked(state.layers, clampLayerIndex(object.layer))) return;
+      const filter = getObjectFiltersInOrder(object).find((entry) => entry.id === filterId);
+      if (!filter) return;
+      const appliedParams = filter.params as unknown as Record<string, unknown>;
+      const changedKeys = Object.keys({ ...session.previous, ...session.expected })
+        .filter((paramKey) => !filterParamsEqual(session.previous[paramKey], session.expected[paramKey]));
+      if (changedKeys.length === 0) return;
+      // An undo/redo or competing filter action can invalidate the visible edit
+      // while its IPC response is pending. Only record values Rust actually applied.
+      if (changedKeys.some((paramKey) => !filterParamsEqual(appliedParams[paramKey], session.expected[paramKey]))) return;
+
+      const previous = Object.fromEntries(changedKeys.map((paramKey) => [paramKey, session.previous[paramKey]]));
+      const next = Object.fromEntries(changedKeys.map((paramKey) => [paramKey, appliedParams[paramKey]]));
+      get().pushHistoryCommand(buildUpdateFilterParamsCommand(objectId, filterId, next, previous));
+    })();
+    filterParamEditCommitPromises.set(session.id, commit);
+    void commit.then(
+      () => { if (filterParamEditCommitPromises.get(session.id) === commit) filterParamEditCommitPromises.delete(session.id); },
+      () => { if (filterParamEditCommitPromises.get(session.id) === commit) filterParamEditCommitPromises.delete(session.id); },
+    );
+    return commit;
+  },
+
+  flushObjectFilterParamEdits: async () => {
+    const sessions = [...filterParamEditSessions.values()];
+    await Promise.all(sessions.map((session) => get().commitObjectFilterParamsEdit(
+      session.objectId,
+      session.filterId,
+      session.id,
+    )));
+    await Promise.all([...filterParamEditCommitPromises.values()]);
+  },
+
+  hasPendingObjectFilterParamEdits: () =>
+    filterParamEditSessions.size > 0 || filterParamEditCommitPromises.size > 0,
+
   toggleObjectFilter: async (objectId, filterId) => {
     const targetObject = get().objects.find((obj) => obj.id === objectId);
     if (!targetObject) return;
@@ -703,6 +800,8 @@ export const useStore = create<AppState>((set, get) => ({
 
     const filter = getObjectFiltersInOrder(targetObject).find((entry) => entry.id === filterId);
     if (!filter) return;
+    const editSession = filterParamEditSessions.get(filterParamEditKey(objectId, filterId));
+    if (editSession) editSession.expected = { ...editSession.expected, ...params };
     const filterParams = filter.params as unknown as Record<string, unknown>;
     const previous = Object.fromEntries(
       Object.keys(params).map((key) => [key, filterParams[key] ?? null]),

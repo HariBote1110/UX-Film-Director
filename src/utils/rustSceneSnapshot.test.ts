@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
 import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshot';
 import type { RustSceneSnapshotBuildIssue } from './rustSceneContract';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TextObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, GroupControlObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TextObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -3437,11 +3437,116 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           measuredHeight: 80,
           textStroke: { colour: '#000000', width: 3 },
           textShadow: { colour: '#333333', offsetX: 2, offsetY: 4, blur: 6 },
+          __renderOffsetX: 7,
+          __renderOffsetY: 5,
+          __contentWidth: 300,
+          __contentHeight: 80,
         }),
-        width: 300,
-        height: 80,
+        width: 318,
+        height: 98,
       },
     ]);
+    expect(result.snapshot.clips[0].transform).toMatchObject({
+      translation_x: 43,
+      translation_y: 55,
+    });
+  });
+
+  it('keeps the decorated text origin fixed for rotated text with positive scale', () => {
+    const angle = -38;
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [baseText({
+        rotation: angle,
+        scaleX: 1.5,
+        scaleY: 0.75,
+        textStroke: { colour: '#000000', width: 4 },
+        textShadow: { colour: '#333333', offsetX: -8, offsetY: 3, blur: 10 },
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    const media = result.media[0];
+    const source = JSON.parse(media.source);
+    const transform = result.snapshot.clips[0].transform;
+    const localX = source.__renderOffsetX * 1.5;
+    const localY = source.__renderOffsetY * 0.75;
+    const radians = angle * Math.PI / 180;
+    expect(transform.translation_x + localX * Math.cos(radians) - localY * Math.sin(radians))
+      .toBeCloseTo(50);
+    expect(transform.translation_y + localX * Math.sin(radians) + localY * Math.cos(radians))
+      .toBeCloseTo(60);
+  });
+
+  it('keeps decorated glyph position stable while a group control turns on and off mid-clip', () => {
+    const decorated = baseText({
+      id: 'text-group-transition',
+      name: 'Text',
+      layer: 7,
+      startTime: 0,
+      duration: 5,
+      x: 100,
+      y: 120,
+      rotation: -20,
+      scaleX: 1.1,
+      scaleY: 0.9,
+      enableAnimation: true,
+      endX: 200,
+      endY: 220,
+      keyframes: [
+        { id: 'start', time: 0, x: 100, y: 120, easing: 'linear' },
+        { id: 'end', time: 5, x: 200, y: 220, easing: 'linear' },
+      ],
+      textStroke: { colour: '#000000', width: 4 },
+      textShadow: { colour: '#000000', offsetX: -8, offsetY: 3, blur: 10 },
+    });
+    const group: GroupControlObject = {
+      id: 'group-transition',
+      type: 'group_control',
+      name: 'Group control',
+      layer: 6,
+      startTime: 2,
+      duration: 2,
+      x: 23,
+      y: 29,
+      rotation: 7,
+      scaleX: 1.1,
+      scaleY: 0.9,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 23,
+      endY: 29,
+      easing: 'linear',
+      targetLayerCount: 0,
+    };
+
+    for (const [time, expectedX, expectedY] of [
+      [1, 120, 140],
+      [2, 163, 189],
+      [239 / 60, 202 + 2 / 3, 228 + 2 / 3],
+      [4, 180, 200],
+    ]) {
+      const result = buildRustSceneSnapshotForTimeline({
+        projectSettings: settings,
+        layers: createDefaultLayers(),
+        objects: [decorated, group],
+        time,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('expected snapshot build to pass');
+      const source = JSON.parse(result.media.find((item) => item.id === decorated.id)!.source);
+      const transform = result.snapshot.clips.find((clip) => clip.clip_id === decorated.id)!.transform;
+      const angle = transform.rotation_degrees * Math.PI / 180;
+      const glyphX = source.__renderOffsetX * transform.scale_x;
+      const glyphY = source.__renderOffsetY * transform.scale_y;
+      expect(transform.translation_x + glyphX * Math.cos(angle) - glyphY * Math.sin(angle))
+        .toBeCloseTo(expectedX);
+      expect(transform.translation_y + glyphX * Math.sin(angle) + glyphY * Math.cos(angle))
+        .toBeCloseTo(expectedY);
+    }
   });
 
   it('falls back to a heuristic box for text objects with no measured size yet', () => {

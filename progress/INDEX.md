@@ -1,5 +1,9 @@
 # 決定ログ索引
 
+- [text-stroke-shadow-clipping.md](text-stroke-shadow-clipping.md) — 装飾余白と描画原点を分離し、途中group切替を含む文字本体の位置を維持。447-frame parityと360-frame MP4を確認（2026-10-16）
+- [scene-build-p2d-rust-evaluation-cutover.md](scene-build-p2d-rust-evaluation-cutover.md) — 対応済みexportをRust resident評価へ接続し、原本参照・障害伝播・取消を固定。旧TS経路とP3/P4の残存責務を明記（2026-10-16）
+- [filter-param-undo-session.md](filter-param-undo-session.md) — フィルタ値編集を1操作1 Commandにまとめ、Undo待機・scene切替・通常テキスト入力を維持するショートカット境界を検証（2026-10-16）
+
 - [scene-build-p2c-resident-scene-export-revision.md（診断撤去）](scene-build-p2c-resident-scene-export-revision.md) — P2c完了後のcontroller全イベント履歴を撤去。通常RPC診断・export確認statusと回帰テストを維持（2026-10-16）
 
 - [text-box-wrap-and-hit-test.md](text-box-wrap-and-hit-test.md) — テキスト末尾文字欠落はcosmic-textの自動折り返し＋計測幅の四捨五入が真因、Wrap::None＋ceilで修正。テキスト選択不可はヒットテストがwidth/height前提だったためtextMediaBoxを共通化。fpsは整数自由入力、小数fpsは書き出し側がu32のため見送り（2026-09-24）

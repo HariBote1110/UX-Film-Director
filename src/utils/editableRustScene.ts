@@ -163,7 +163,7 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
 
 const positionKeyframesForObject = (
   object: EditableRustSceneObject | GroupControlObject,
-  fps: number
+  fps: number,
 ): EditableRustPositionKeyframe[] => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
   if (keyframes.length >= 2) {

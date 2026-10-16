@@ -184,6 +184,10 @@ export interface AppState {
   addObject: (obj: TimelineObject) => void;
   updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
   addObjectFilter: (objectId: string, filterType: FilterType) => Promise<void>;
+  beginObjectFilterParamsEdit: (objectId: string, filterId: string) => number | null;
+  commitObjectFilterParamsEdit: (objectId: string, filterId: string, sessionId?: number) => Promise<void>;
+  hasPendingObjectFilterParamEdits: () => boolean;
+  flushObjectFilterParamEdits: () => Promise<void>;
   toggleObjectFilter: (objectId: string, filterId: string) => Promise<void>;
   moveObjectFilter: (objectId: string, filterId: string, direction: 'up' | 'down') => Promise<void>;
   removeObjectFilter: (objectId: string, filterId: string) => Promise<void>;

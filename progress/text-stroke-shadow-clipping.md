@@ -1,60 +1,30 @@
-# テキストの縁取り・影がプレーン境界でクリップされる（未修正）
+# テキストの縁取り・影がプレーン境界でクリップされる
 
-## 症状
+## Decision
 
-`textStroke.width` や `textShadow.offset/blur` で本体グリフより外側へ広がる装飾が、
-テキストプレーンの境界で切り落とされる。`textShadow.blur` を実装した Beta-483a 以降は
-影がさらに外側へ広がるため、**この既存バグが以前より目立つ**。
+- テキストmedia寸法は本体グリフの領域に必要な装飾余白だけを加える。縁取りは全方向へ幅分、影は三段box blurの各段で広がる半径と符号付きoffsetから左右上下を別々に算出する。
+- 計測済みの本体幅・高さは従来値を保持し、`textMediaGeometry.ts` が装飾込みのmedia寸法とローカルInsetsを提供する。ヒットテストと選択枠も同じ外枠を使う。
+- 拡張プレーンのローカル原点移動に伴うtranslation補正は `-R(rotation) * scale * (left, top)`。TS direct snapshotは要求時刻のgroup合成後に適用し、resident Rust builderは補正前のtransform/keyframeを保持してRust timeline evaluatorがclip・keyframe・group_controlをすべて評価した後に適用する。本体のワールド位置を時間中ずっと保つ。
+- Rustへ渡すText sourceには装飾がある場合だけ `__renderOffsetX/Y` と本体レイアウト寸法を内部メタデータとして含める。公開 `TextObjectFields`/schemaは変えない。native rendererは本体寸法で文字揃え・レイアウトし、各描画passをoffsetして拡張planeへ描く。
+- 補正は `ClipKind::TextPlane` のみを対象にし、Project mediaのText sourceから内部offsetを読む。公開型やschemaにフィールドを追加しない。offset metadataがない既存Textと装飾なし表示は従来transformのまま。
 
 ## 原因
 
-テキストプレーンの寸法が本体グリフのメトリクスだけから決まっており、装飾のはみ出し分が
-加算されていない。
+`measureTextBoxSize` と `textMediaBox` はグリフの幅・行高だけでplaneを決めていた。一方、native rendererはplane外のピクセルを捨てるため、strokeとshadowが境界で切れていた。単に寸法を増やすと、左上原点を軸にした回転・scaleの見た目位置と中央/右揃えのレイアウトが変わるため、plane寸法、source内描画offset、translation補正を一つの契約として扱う必要がある。
 
-- `src/utils/textBoxMeasurement.ts` の `measureTextBoxSize` — `measureText` の幅と
-  `fontSize * LINE_HEIGHT_RATIO * 行数` の高さのみ。`textStroke` / `textShadow` を見ていない。
-- `src/utils/rustSceneSnapshot.ts` の `textMediaBox` — 上で求めた
-  `measuredWidth` / `measuredHeight` をそのままプレーン寸法にする。
-- `rust-backend/src/generated/text.rs` の描画はプレーン外のピクセルを捨てる
-  （`paint_buffer` / `paint_shadow` の境界チェック）。
+## Alternatives considered
 
-## なぜ「寸法を広げるだけ」では済まないか（着手前に必ず読むこと）
+- テキスト本体をずらさずplaneだけ拡張する案 — 左上/上端に余白がなく、装飾のクリップが残る。
+- 固定量のpaddingを付ける案 — 装飾量に応じないため過剰または不足する。
+- 左上座標からpaddingを単純に減算する案 — 回転・負scaleで移動方向が誤る。
+- TextObjectFieldsに描画メタデータを公開フィールドとして加える案 — 編集モデル・型・schemaの変更が不要なため内部source metadataを使う。
 
-単純にプレーンを広げると**テキストの表示位置と回転の軸が動く**。
+## Constraints / Gotchas
 
-`src/utils/sceneHitTest.ts` の `getObjectWorldCorners` が示すとおり、オブジェクトの
-ローカル矩形は常に左上原点 `(0,0)-(width,height)` で、**回転・スケールはこの左上を軸に
-適用される**（`toWorld` は `container + rotate(local * scale, rotationRad)`）。
-
-したがってプレーンを左・上方向へ `pad` だけ広げると:
-
-1. グリフをプレーン内で `+pad` ずらさないと、装飾用に確保した余白の外へ本体が出てしまう
-2. さらにプレーン原点（オブジェクトの x/y）を `-pad` 動かさないと、本体グリフの
-   見た目の位置が `+pad` ずれる
-3. **回転・スケールがある場合、2 の補正は `rotate(-pad * scale, rotationRad)` でなければ
-   ならない**。素朴に `x -= pad; y -= pad` とすると、回転したテキストが回転量に応じて
-   ずれる
-
-つまり TS 側（寸法・位置）と Rust 側（描画原点）の協調変更が要る。既存プロジェクトの
-テキスト位置を変えないことが最優先の制約であり、**回転・スケール付きテキストの
-契約テストを先に用意してから着手すべき**。
-
-## 検討した案
-
-- **プレーンを広げず、Rust 側だけで装飾を内側へ寄せる**（縁取りを内描画にする等）— 却下。
-  見た目が変わるうえ、影のオフセットは原理的に外へ出るので解決にならない。
-- **常に固定量のパディングを足す**（例: fontSize の 50%）— 却下。無駄なプレーンが増え、
-  かつ大きな blur では足りない。装飾量から必要分を計算すべき。
-- **装飾のはみ出し量を計算してプレーンを広げ、位置を補正する**（本命）— 上記の
-  回転・スケール補正が必須。
-
-## 必要なはみ出し量（参考）
-
-- 縁取り: `textStroke.width` を全方向
-- 影: `offsetX/offsetY` の符号方向へ `|offset|`、加えて全方向へブラーの広がり
-  （`text.rs` の `box_blur_radius_for` が返す半径のおよそ3倍。3パス直列で広がるため）
-
-## 関連
-
-- `progress/text-shadow-blur.md` — ぼかし実装。この制約をコード内コメントにも残している
-- `markdown/Chromium_Limitation_Handoff.md` の P2 節 — 未修正バグとして記載
+- 三段box blurの広がりは現在の `text.rs` にある `box_blur_radius_for` と同じ丸め順で算出する。描画実装を変える場合は `textDecorationBounds.ts` とRust builder側の計算も揃える。
+- 中央/右揃えを維持するには、native `layout_text_buffer` に拡張media寸法ではなく元の本体寸法を渡す。offsetは本体、stroke、影の各描画passすべてに加える。
+- TSの選択枠とヒットテストは本体のtransform原点から `(-left,-top)` へ広がるローカル矩形で評価する。`textMediaBox` は寸法、`textMediaInsets` は原点を含む境界計算に使う。
+- legacy direct呼び出しも同じText source serializer/native rendererを通すこと。別source parserを導入するときは `__renderOffset*` と `__content*` を引き継ぐ。
+- text sourceの測定幅はUIのCanvas実測値のためRustはそのまま読めない。Rust builderの未計測fallbackとTS `textMediaContentBox` のheuristicは既存のまま維持する。
+- Rust evaluatorは評価対象の各Text clipについてmedia source JSONを読み、offsetを取得する。簡易実装として評価時にparseするため装飾付きTextの数に比例した小さなCPUコストがある。測定前に別cache層は加えず、必要性が確認された場合に再検討する。
+- clip途中のgroup_control開始・終了はTS direct snapshotとRust `evaluate_frame` の双方で固定frame回帰テストを持つ。scale/rotation/translationの現在値をclip開始時へ固定してはならない。

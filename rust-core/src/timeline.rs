@@ -1,7 +1,7 @@
 use crate::keyframe::{
     evaluate_position_keyframes, evaluate_scalar_keyframes, evaluate_subject_crop_keyframes,
 };
-use crate::schema::{Clip, ColourPipeline, Effect, Project, Transform};
+use crate::schema::{Clip, ClipKind, ColourPipeline, Effect, MediaKind, Project, Transform};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -64,6 +64,15 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 transform.rotation_degrees += control.transform.rotation_degrees;
                 opacity *= control.opacity;
             }
+            if clip.kind == ClipKind::TextPlane {
+                if let Some((offset_x, offset_y)) = text_render_offset(project, &clip.media_id) {
+                    let angle = transform.rotation_degrees.to_radians();
+                    let local_x = offset_x * transform.scale_x;
+                    let local_y = offset_y * transform.scale_y;
+                    transform.translation_x -= local_x * angle.cos() - local_y * angle.sin();
+                    transform.translation_y -= local_x * angle.sin() + local_y * angle.cos();
+                }
+            }
             opacity = opacity.clamp(0.0, 1.0);
 
             let mut effects = clip.effects.clone();
@@ -117,6 +126,17 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
         colour: project.colour.clone(),
         clips,
     }
+}
+
+fn text_render_offset(project: &Project, media_id: &str) -> Option<(f32, f32)> {
+    let media = project
+        .media
+        .iter()
+        .find(|media| media.id == media_id && media.kind == MediaKind::Text)?;
+    let source: serde_json::Value = serde_json::from_str(&media.source).ok()?;
+    let offset_x = source.get("__renderOffsetX")?.as_f64()? as f32;
+    let offset_y = source.get("__renderOffsetY")?.as_f64()? as f32;
+    Some((offset_x, offset_y))
 }
 
 fn clip_contains_frame(clip: &Clip, frame_index: u64) -> bool {
