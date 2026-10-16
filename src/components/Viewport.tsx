@@ -34,6 +34,12 @@ import {
 } from '../utils/editableRustScenePreviewController';
 import { createSharedRendererScenePreviewScheduler } from '../utils/sharedRendererScenePreviewScheduler';
 import { evaluateRustBackendScene, replaceRustBackendScene } from '../utils/rustBackendSceneControl';
+import {
+  clearRustScenePositionQueryRevision,
+  publishRustScenePositionQueryFailure,
+  publishRustScenePositionQueryResident,
+  publishRustScenePositionQueryTarget,
+} from '../utils/rustScenePositionQueryRevision';
 import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererPresenterSessionKey';
 import { buildSharedRendererVideoMediaReadiness } from '../utils/sharedRendererVideoMediaReadiness';
 import {
@@ -1891,6 +1897,11 @@ const Viewport: React.FC = () => {
         );
       },
       onFailure: (failure) => {
+        publishRustScenePositionQueryFailure(
+          failure.sceneId ?? 'viewport-rust-timeline',
+          `${failure.operation}: ${failure.reason} (${failure.detail})`,
+          failure.revision,
+        );
         // 前revisionの画を残すと、unsupported編集をした直後にも古いsceneが
         // 見え続ける。明示的に止め、Chromiumの旧Canvas経路には戻さない。
         setSharedRendererPreviewSession(null);
@@ -1906,6 +1917,7 @@ const Viewport: React.FC = () => {
       },
       onResidentRevision: (resident) => {
         setRustTimelineSceneExportRevision(resident ? resident.revision : null);
+        publishRustScenePositionQueryResident(resident);
       },
     });
     const controller = createEditableRustScenePreviewController({
@@ -1920,6 +1932,7 @@ const Viewport: React.FC = () => {
     return () => {
       const clearedRef = rustTimelineScenePreviewControllerRef.current === controller;
       controller.dispose();
+      if (clearedRef) clearRustScenePositionQueryRevision('scene controller disposed');
       if (clearedRef) {
         rustTimelineScenePreviewControllerRef.current = null;
       }
@@ -1930,11 +1943,21 @@ const Viewport: React.FC = () => {
   }, [rustEditableSceneCutoverEnabled, rustRawEditableSceneGraphOnly, rustTimelineSceneRpcEnabled]);
 
   useEffect(() => {
-    if (!rustTimelineSceneRpcEnabled) return;
+    if (!rustTimelineSceneRpcEnabled) {
+      clearRustScenePositionQueryRevision('scene RPC is disabled');
+      return;
+    }
     const controller = rustTimelineScenePreviewControllerRef.current;
-    if (!controller) return;
+    if (!controller) {
+      clearRustScenePositionQueryRevision('scene controller unavailable');
+      return;
+    }
     const result = controller.replaceScene({ projectSettings, layers, objects });
     if (!result.ok) {
+      publishRustScenePositionQueryFailure(
+        'viewport-rust-timeline',
+        result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '),
+      );
       setRustTimelineSceneRevision(null);
       setNativePlaybackActive(false);
       void window.rustBackend.stopScenePlayback();
@@ -1945,6 +1968,17 @@ const Viewport: React.FC = () => {
         detail: result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '),
       });
       return;
+    }
+    if (rustEditableSceneCutoverEnabled) {
+      publishRustScenePositionQueryTarget({
+        sceneId: 'viewport-rust-timeline',
+        revision: result.revision,
+        projectSettings,
+        layers,
+        objects,
+      });
+    } else {
+      clearRustScenePositionQueryRevision('editable scene graph is disabled');
     }
     setRustTimelineSceneRevision(result.revision);
     writeRustTimelineSceneRpcDiagnostics({
