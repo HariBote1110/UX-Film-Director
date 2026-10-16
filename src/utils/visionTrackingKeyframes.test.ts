@@ -96,9 +96,9 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
     const plan = buildVisionTrackPositionQueryPlan({ samples, video, overlay });
     const positions = [
       { requestId: 'vision-0-video', objectId: 'vid', timeSeconds: 5, localPosition: { x: 10, y: 20 }, worldPosition: { x: 10, y: 20 } },
-      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 100, y: 110 }, worldPosition: { x: 120, y: 130 } },
+      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 100, y: 110 }, worldPosition: { x: 120, y: 130 }, groupTranslation: { x: 20, y: 20 } },
       { requestId: 'vision-1-video', objectId: 'vid', timeSeconds: 6, localPosition: { x: 20, y: 20 }, worldPosition: { x: 20, y: 20 } },
-      { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6, localPosition: { x: 130, y: 150 }, worldPosition: { x: 160, y: 180 } },
+      { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6, localPosition: { x: 130, y: 150 }, worldPosition: { x: 160, y: 180 }, groupTranslation: { x: 30, y: 30 } },
     ];
 
     expect(buildOverlayPositionKeyframesFromPositionQuery({ plan, samples, video, overlay, positions }))
