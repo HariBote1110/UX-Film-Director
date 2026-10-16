@@ -42,3 +42,58 @@ fn query_evaluates_unquantised_keyframe_time_and_preserves_request_identity() {
     assert!((result[0].local_position.x - 40.0).abs() < 1e-5);
     assert!((result[0].local_position.y - 50.0).abs() < 1e-5);
 }
+
+#[test]
+fn duplicate_internal_keyframe_time_uses_the_rightmost_keyframe_like_typescript() {
+    let mut graph = graph_with_fractional_keyframes();
+    let object = graph
+        .objects
+        .iter_mut()
+        .find(|object| matches!(object, uxfd_rust_core::TimelineObject::AudioVisualization { base, .. } if base.id == "waveform-direct"))
+        .expect("fixture waveform object");
+    if let uxfd_rust_core::TimelineObject::AudioVisualization { base, .. } = object {
+        base.keyframes = Some(vec![
+            uxfd_rust_core::TimelinePositionKeyframe {
+                id: "a".into(),
+                time: 0.0,
+                x: 0.0,
+                y: 0.0,
+                easing: Some(uxfd_rust_core::Easing::Linear),
+            },
+            uxfd_rust_core::TimelinePositionKeyframe {
+                id: "a-mid".into(),
+                time: 0.5,
+                x: 10.0,
+                y: 20.0,
+                easing: Some(uxfd_rust_core::Easing::Linear),
+            },
+            uxfd_rust_core::TimelinePositionKeyframe {
+                id: "b-mid".into(),
+                time: 0.5,
+                x: 30.0,
+                y: 40.0,
+                easing: Some(uxfd_rust_core::Easing::Linear),
+            },
+            uxfd_rust_core::TimelinePositionKeyframe {
+                id: "z".into(),
+                time: 1.0,
+                x: 50.0,
+                y: 60.0,
+                easing: Some(uxfd_rust_core::Easing::Linear),
+            },
+        ]);
+    }
+    let result = query_editable_scene_positions(
+        &graph,
+        &[ScenePositionQuery {
+            request_id: "duplicate-time".into(),
+            object_id: "waveform-direct".into(),
+            time_seconds: 0.5,
+        }],
+    )
+    .expect("position query should evaluate duplicate timestamps");
+    assert_eq!(
+        (result[0].local_position.x, result[0].local_position.y),
+        (30.0, 40.0)
+    );
+}
