@@ -8,6 +8,7 @@ import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 import { validateProxyDuration } from '../src/utils/proxyValidation';
+import { resolveBinaryPath } from './resolveBinaryPath';
 
 // Phase 7 (W7) Phase 3実機検証: presenter/overlay切替の視覚的直接証拠
 // （CDPスクリーンショット）を非対話SSHセッションからも取得できるよう、
@@ -161,31 +162,27 @@ const getRustBackendBinaryName = () => {
 
 const getRustBackendCandidates = () => {
   const binaryName = getRustBackendBinaryName();
-  const candidates: string[] = [];
-
-  if (process.env.UXFD_RUST_BACKEND_BIN) {
-    candidates.push(process.env.UXFD_RUST_BACKEND_BIN);
-  }
-
   if (app.isPackaged) {
-    candidates.push(path.join(process.resourcesPath, 'rust-backend', binaryName));
-    candidates.push(path.join(process.resourcesPath, binaryName));
-  } else {
-    const appPath = app.getAppPath();
-    candidates.push(path.join(appPath, 'rust-backend', 'target', 'debug', binaryName));
-    candidates.push(path.join(appPath, 'rust-backend', 'target', 'release', binaryName));
+    return [
+      path.join(process.resourcesPath, 'rust-backend', binaryName),
+      path.join(process.resourcesPath, binaryName),
+    ];
   }
 
-  return candidates;
+  const appPath = app.getAppPath();
+  return [
+    path.join(appPath, 'rust-backend', 'target', 'debug', binaryName),
+    path.join(appPath, 'rust-backend', 'target', 'release', binaryName),
+  ];
 };
 
 const resolveRustBackendPath = () => {
-  for (const candidate of getRustBackendCandidates()) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
+  return resolveBinaryPath({
+    requestedPath: process.env.UXFD_RUST_BACKEND_BIN,
+    requestedPathLabel: 'UXFD_RUST_BACKEND_BIN',
+    candidates: getRustBackendCandidates(),
+    exists: fs.existsSync,
+  });
 };
 
 const COREML_TRACKER_BINARY = 'uxfd-coreml-tracker';
