@@ -27,6 +27,9 @@ describe('rustBackendSceneControl', () => {
       evaluateScene: async () => {
         throw new Error('evaluate must not run');
       },
+      queryObjectPositions: async () => {
+        throw new Error('position query must not run');
+      },
     };
 
     await expect(replaceRustBackendScene(scene, bridge)).resolves.toEqual({
@@ -54,6 +57,9 @@ describe('rustBackendSceneControl', () => {
             media: [],
           },
         };
+      },
+      queryObjectPositions: async () => {
+        throw new Error('position query must not run');
       },
     };
 
@@ -114,15 +120,48 @@ describe('rustBackendSceneControl', () => {
     });
   });
 
+  it('query response のrequest identityとf64時刻が一致しなければ拒否する', async () => {
+    const bridge: RustBackendSceneBridge = {
+      replaceScene: async () => { throw new Error('replace must not run'); },
+      evaluateScene: async () => { throw new Error('evaluate must not run'); },
+      queryObjectPositions: async (payload) => ({
+        success: true,
+        result: {
+          sceneId: payload.sceneId,
+          revision: payload.revision,
+          positions: payload.queries.map((query) => ({
+            ...query,
+            timeSeconds: 0.3700000001,
+            localPosition: { x: 1, y: 2 },
+            worldPosition: { x: 1, y: 2 },
+            worldRotationDegrees: 0,
+            worldScaleX: 1,
+            worldScaleY: 1,
+          })),
+        },
+      }),
+    };
+
+    await expect(queryRustBackendSceneObjectPositions({
+      sceneId: 'viewport-rust-timeline',
+      revision: 12,
+      queries: [{ requestId: 'panel-1', objectId: 'object-1', timeSeconds: 0.37 }],
+    }, bridge)).resolves.toMatchObject({ ok: false, reason: 'invalidResponse' });
+  });
+
   it.each([
     [-32060, 'missingScene'],
     [-32061, 'staleRevision'],
     [-32062, 'revisionMismatch'],
+    [-32065, 'unsupportedGraph'],
   ] as const)('Rust error code %s を %s に分類する', async (errorCode, reason) => {
     const bridge: RustBackendSceneBridge = {
       replaceScene: async () => ({ success: false, errorCode, error: 'scene rpc failed' }),
       evaluateScene: async () => {
         throw new Error('evaluate must not run');
+      },
+      queryObjectPositions: async () => {
+        throw new Error('position query must not run');
       },
     };
 

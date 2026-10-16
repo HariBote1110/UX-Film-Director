@@ -14,6 +14,32 @@ export interface RustBackendSceneEvaluatePayload {
   frameIndex: number;
 }
 
+export interface RustBackendScenePositionQuery {
+  requestId: string;
+  objectId: string;
+  timeSeconds: number;
+}
+
+export interface RustBackendSceneObjectPositionsPayload {
+  sceneId: string;
+  revision: number;
+  queries: readonly RustBackendScenePositionQuery[];
+}
+
+export interface RustBackendSceneObjectPosition extends RustBackendScenePositionQuery {
+  localPosition: { x: number; y: number };
+  worldPosition: { x: number; y: number };
+  worldRotationDegrees: number;
+  worldScaleX: number;
+  worldScaleY: number;
+}
+
+export interface RustBackendSceneObjectPositions {
+  sceneId: string;
+  revision: number;
+  positions: RustBackendSceneObjectPosition[];
+}
+
 export interface RustBackendSceneReplaceResult {
   sceneId: string;
   revision: number;
@@ -49,6 +75,9 @@ export type RustBackendSceneFailureReason =
   | 'missingScene'
   | 'staleRevision'
   | 'revisionMismatch'
+  | 'editableSceneUnavailable'
+  | 'missingObject'
+  | 'unsupportedGraph'
   | 'backendFailure'
   | 'invalidResponse';
 
@@ -75,17 +104,24 @@ export interface RustBackendSceneBridge {
   evaluateScene: (
     payload: RustBackendSceneEvaluatePayload
   ) => Promise<RustBackendSceneRawResult<unknown>>;
+  queryObjectPositions: (
+    payload: RustBackendSceneObjectPositionsPayload
+  ) => Promise<RustBackendSceneRawResult<unknown>>;
 }
 
 const defaultRustBackendSceneBridge = (): RustBackendSceneBridge => ({
   replaceScene: (payload) => window.rustBackend.replaceScene(payload),
   evaluateScene: (payload) => window.rustBackend.evaluateScene(payload),
+  queryObjectPositions: (payload) => window.rustBackend.queryObjectPositions(payload),
 });
 
 const failureReasonForCode = (errorCode: number | undefined): RustBackendSceneFailureReason => {
   if (errorCode === -32060) return 'missingScene';
   if (errorCode === -32061) return 'staleRevision';
   if (errorCode === -32062) return 'revisionMismatch';
+  if (errorCode === -32063) return 'editableSceneUnavailable';
+  if (errorCode === -32064) return 'missingObject';
+  if (errorCode === -32065) return 'unsupportedGraph';
   return 'backendFailure';
 };
 
@@ -121,6 +157,31 @@ const isEvaluation = (value: unknown): value is RustBackendSceneEvaluation => (
   && Array.isArray(value.media)
 );
 
+const isPoint = (value: unknown): value is { x: number; y: number } => (
+  isRecord(value)
+  && typeof value.x === 'number' && Number.isFinite(value.x)
+  && typeof value.y === 'number' && Number.isFinite(value.y)
+);
+
+const isSceneObjectPositions = (value: unknown): value is RustBackendSceneObjectPositions => (
+  isRecord(value)
+  && typeof value.sceneId === 'string'
+  && typeof value.revision === 'number'
+  && Number.isSafeInteger(value.revision)
+  && Array.isArray(value.positions)
+  && value.positions.every((position) => (
+    isRecord(position)
+    && typeof position.requestId === 'string'
+    && typeof position.objectId === 'string'
+    && typeof position.timeSeconds === 'number' && Number.isFinite(position.timeSeconds)
+    && isPoint(position.localPosition)
+    && isPoint(position.worldPosition)
+    && typeof position.worldRotationDegrees === 'number' && Number.isFinite(position.worldRotationDegrees)
+    && typeof position.worldScaleX === 'number' && Number.isFinite(position.worldScaleX)
+    && typeof position.worldScaleY === 'number' && Number.isFinite(position.worldScaleY)
+  ))
+);
+
 const invalidResponse = (operation: string): RustBackendSceneRpcResult<never> => ({
   ok: false,
   reason: 'invalidResponse',
@@ -144,5 +205,27 @@ export const evaluateRustBackendScene = async (
   const response = await bridge.evaluateScene(payload);
   if (!response.success) return failureFromResponse(response);
   if (!isEvaluation(response.result)) return invalidResponse('scene.evaluate');
+  return { ok: true, value: response.result };
+};
+
+export const queryRustBackendSceneObjectPositions = async (
+  payload: RustBackendSceneObjectPositionsPayload,
+  bridge: RustBackendSceneBridge = defaultRustBackendSceneBridge(),
+): Promise<RustBackendSceneRpcResult<RustBackendSceneObjectPositions>> => {
+  const response = await bridge.queryObjectPositions(payload);
+  if (!response.success) return failureFromResponse(response);
+  if (!isSceneObjectPositions(response.result)) return invalidResponse('scene.query_object_positions');
+  if (response.result.sceneId !== payload.sceneId || response.result.revision !== payload.revision) {
+    return invalidResponse('scene.query_object_positions');
+  }
+  const positions = response.result.positions;
+  if (positions.length !== payload.queries.length
+    || payload.queries.some((query) => !positions.some((position) => (
+      position.requestId === query.requestId
+      && position.objectId === query.objectId
+      && position.timeSeconds === query.timeSeconds
+    )))) {
+    return invalidResponse('scene.query_object_positions');
+  }
   return { ok: true, value: response.result };
 };

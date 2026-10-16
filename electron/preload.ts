@@ -157,6 +157,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   evaluateScene(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-scene-evaluate', payload)
   },
+  queryObjectPositions(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-scene-query-object-positions', payload)
+  },
   startScenePlayback(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-scene-playback-start', payload)
   },
