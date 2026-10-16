@@ -209,6 +209,9 @@ export function createSharedRendererExportFrameSource({
       objects: request.objects,
       frameIndex: request.frameIndex,
     });
+    if (closed) {
+      throw new Error('Shared renderer export frame source has already been closed.');
+    }
     const session = evaluation
       ? buildSharedRendererExportSessionFromEvaluation({
         evaluation,
