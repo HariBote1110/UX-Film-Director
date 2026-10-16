@@ -30,7 +30,14 @@
 - Chromeのbrowser automation providerが利用できず、実ブラウザでボタンを押す操作確認は
   未実施。registry、query client、selection/time/scene/graph identity guardのVitestと
   TypeScript型チェックで検証している。
-- split位置・vision tracking任意時刻・scene hit-test/selectionへの移行は別単位として残る。
+- split位置・scene hit-test/selectionへの移行は別単位として残る。Vision trackingは任意時刻queryへ移行済み。
+
+## Vision tracking移行
+
+- opt-in中はサンプルごとにvideoとoverlayの位置を同じraw timeline秒でqueryし、両方の応答identityと座標を検査してからkeyframeを作る。応答欠落・revision不一致・action staleは中断し、旧TS評価値へfallbackしない。
+- 現行Vision意味論を保つため、video側はRust `localPosition`と既存のbase rotation/scaleのみでbbox中心を算出する。overlayは`localPosition + groupTranslation`を使い、queryの`worldPosition`に含まれるvibrationはdeltaへ混ぜない。各keyframe時刻でgroup平行移動を差し引き、以前のTS directと同じlocal位置を返す。
+- CoreML応答後、resident revision ack後、position query後、適用直前にscene・selection・再生時刻・project/layer/object graph参照を確認する。overlay選択IDも別途確認し、非同期中に変わった結果は適用しない。
+- position query opt-in flagがOFFの既存経路は従来のTS direct計算を維持する。ONのquery失敗時は失敗を表示して終了し、誤ったfallback位置を採用しない。
 
 ## 検証
 
@@ -38,3 +45,5 @@
 - `cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend graph_only_replace_builds_and_retains_raw_graph_for_unquantised_queries`
 - `npx tsc --noEmit`
 - `npm test -- --run src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts`
+- `npx vitest run src/utils/visionTrackingKeyframes.test.ts src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/components/PropertyPanelBoundary.test.ts src/components/PropertyPanelPlaybackIsolation.test.ts`
+- `npx tsc --noEmit`（Vision migration worktree）

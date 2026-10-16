@@ -22,7 +22,11 @@ import {
   type CoreMlTrackSample
 } from '../utils/coremlTrackIpc';
 import { resolveVideoFsPath } from '../utils/resolveVideoFsPath';
-import { buildOverlayPositionKeyframesFromVisionTrack } from '../utils/visionTrackingKeyframes';
+import {
+  buildOverlayPositionKeyframesFromPositionQuery,
+  buildOverlayPositionKeyframesFromVisionTrack,
+  buildVisionTrackPositionQueryPlan,
+} from '../utils/visionTrackingKeyframes';
 import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjectCropKeyframes';
 import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
 import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets, type AviUtlMotionPresetId } from '../utils/aviutl/aviutlMotionPresets';
@@ -499,6 +503,8 @@ const PropertyPanel: React.FC = () => {
   const [scaleAspectLocked, setScaleAspectLocked] = useState(true);
   const [coreMlTrackSupported, setCoreMlTrackSupported] = useState(false);
   const [visionTrackOverlayId, setVisionTrackOverlayId] = useState('');
+  const visionTrackOverlayIdRef = useRef(visionTrackOverlayId);
+  visionTrackOverlayIdRef.current = visionTrackOverlayId;
   const [visionBoxX, setVisionBoxX] = useState('0.35');
   const [visionBoxY, setVisionBoxY] = useState('0.35');
   const [visionBoxW, setVisionBoxW] = useState('0.3');
@@ -1231,6 +1237,32 @@ const PropertyPanel: React.FC = () => {
     const offsetSec = video.offset ?? 0;
     const startSec = offsetSec;
     const endSec = offsetSec + video.duration;
+    const capturedState = useStore.getState();
+    const capturedGraph = {
+      projectSettings: capturedState.projectSettings,
+      layers: capturedState.layers,
+      objects: capturedState.objects,
+    };
+    const capturedAction = {
+      activeSceneId: capturedState.activeSceneId,
+      selectedObjectId: video.id,
+      timeSeconds: capturedState.currentTime,
+      ...capturedGraph,
+    };
+    const isCapturedActionCurrent = () => {
+      const latest = useStore.getState();
+      return isRustScenePositionQueryActionCurrent(capturedAction, {
+        activeSceneId: latest.activeSceneId,
+        selectedObjectId: currentSelectedObjectId() ?? '',
+        timeSeconds: latest.currentTime,
+        projectSettings: latest.projectSettings,
+        layers: latest.layers,
+        objects: latest.objects,
+      })
+        && visionTrackOverlayIdRef.current === overlay.id
+        && latest.objects.some((object) => object.id === video.id)
+        && latest.objects.some((object) => object.id === overlay.id);
+    };
 
     setVisionTrackBusy(true);
     try {
@@ -1246,6 +1278,7 @@ const PropertyPanel: React.FC = () => {
         window.alert(res.error);
         return;
       }
+      if (!isCapturedActionCurrent()) return;
       if (res.message) {
         window.alert(
           language === 'en'
@@ -1254,12 +1287,53 @@ const PropertyPanel: React.FC = () => {
         );
       }
       setLastVisionTrackSamples(res.samples);
-      const built = buildOverlayPositionKeyframesFromVisionTrack({
-        samples: res.samples,
-        video,
-        overlay,
-        allObjects: objects,
-      });
+      let built: PositionKeyframe[];
+      if (import.meta.env.VITE_UXFD_RUST_EDIT_POSITION_QUERY === '1') {
+        const plan = buildVisionTrackPositionQueryPlan({ samples: res.samples, video, overlay });
+        if (plan.queries.length === 0) {
+          window.alert(language === 'en' ? 'No tracking samples returned.' : 'トラッキング結果が空です。');
+          return;
+        }
+        const target: RustScenePositionQueryTarget = {
+          sceneId: 'viewport-rust-timeline',
+          revision: 0,
+          ...capturedGraph,
+        };
+        try {
+          const revision = await waitForRustScenePositionQueryRevision(target);
+          if (!isCapturedActionCurrent()) return;
+          const queried = await queryRustBackendSceneObjectPositions({
+            sceneId: target.sceneId,
+            revision,
+            queries: plan.queries,
+          });
+          if (!queried.ok) throw new Error(queried.detail);
+          if (queried.value.sceneId !== target.sceneId || queried.value.revision !== revision) {
+            throw new Error('Rust position query returned a stale scene revision.');
+          }
+          if (!isCapturedActionCurrent()) return;
+          built = buildOverlayPositionKeyframesFromPositionQuery({
+            plan,
+            video,
+            overlay,
+            positions: queried.value.positions,
+          });
+        } catch (error) {
+          console.warn('[PropertyPanel] Rust Vision position query failed:', error);
+          window.alert(language === 'en'
+            ? 'Could not evaluate Vision tracking positions in the Rust scene.'
+            : 'Rustシーンでトラッキング位置を評価できませんでした。');
+          return;
+        }
+      } else {
+        built = buildOverlayPositionKeyframesFromVisionTrack({
+          samples: res.samples,
+          video,
+          overlay,
+          allObjects: capturedGraph.objects,
+        });
+      }
+      if (!isCapturedActionCurrent()) return;
       if (built.length === 0) {
         window.alert(language === 'en' ? 'No tracking samples returned.' : 'トラッキング結果が空です。');
         return;
