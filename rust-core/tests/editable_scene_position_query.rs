@@ -1,4 +1,7 @@
-use uxfd_rust_core::{query_editable_scene_positions, EditableSceneGraph, ScenePositionQuery};
+use uxfd_rust_core::{
+    build_evaluation_scene, evaluate_frame, query_editable_scene_positions, EditableSceneGraph,
+    ScenePositionQuery,
+};
 
 fn graph_with_fractional_keyframes() -> EditableSceneGraph {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
@@ -24,6 +27,21 @@ fn graph_with_fractional_keyframes() -> EditableSceneGraph {
         {"id":"b", "time":0.875, "x":70.0, "y":80.0, "easing":"linear"}
     ]);
     serde_json::from_value(graph).expect("fixture graph must deserialize")
+}
+
+fn graph_with_group_controls() -> EditableSceneGraph {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "fixtures/editable-scene-builder/cross-object-resolution.json"
+    ))
+    .expect("builder fixture must parse");
+    let graph = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["id"] == "group-control-visible-layers-and-counts")
+        .expect("group target fixture")["graph"]
+        .clone();
+    serde_json::from_value(graph).expect("group fixture graph must deserialize")
 }
 
 #[test]
@@ -96,4 +114,50 @@ fn duplicate_internal_keyframe_time_uses_the_rightmost_keyframe_like_typescript(
         (result[0].local_position.x, result[0].local_position.y),
         (30.0, 40.0)
     );
+}
+
+#[test]
+fn group_position_matches_rust_frame_evaluation_with_visible_layer_targeting() {
+    let mut graph = graph_with_group_controls();
+    // Rust builder keeps group-control objects in the project even if their own layer
+    // is hidden; target tracks still follow the visible-layer projection.
+    graph.layers[2].visible = false;
+    let query = ScenePositionQuery {
+        request_id: "group-world".into(),
+        object_id: "layer-three-a".into(),
+        time_seconds: 10.0,
+    };
+    let queried = query_editable_scene_positions(&graph, &[query])
+        .expect("visible target query should evaluate");
+    let built = build_evaluation_scene(&graph);
+    let snapshot = evaluate_frame(&built.project, 600);
+    let clip = snapshot
+        .clips
+        .iter()
+        .find(|clip| clip.clip_id == "layer-three-a")
+        .expect("visible target clip");
+    assert_eq!(
+        (queried[0].world_position.x, queried[0].world_position.y),
+        (clip.transform.translation_x, clip.transform.translation_y)
+    );
+}
+
+#[test]
+fn hidden_target_layer_does_not_receive_a_group_transform() {
+    let mut graph = graph_with_group_controls();
+    graph.layers[3].visible = false;
+    let queried = query_editable_scene_positions(
+        &graph,
+        &[ScenePositionQuery {
+            request_id: "hidden-target".into(),
+            object_id: "layer-three-a".into(),
+            time_seconds: 10.0,
+        }],
+    )
+    .expect("position query returns logical position for hidden objects");
+    assert_eq!(
+        (queried[0].local_position.x, queried[0].local_position.y),
+        (10.0, 20.0)
+    );
+    assert_eq!(queried[0].world_position, queried[0].local_position);
 }
