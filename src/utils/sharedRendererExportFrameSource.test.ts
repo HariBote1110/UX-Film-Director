@@ -9,6 +9,7 @@ import {
   type SharedRendererExportNativeSharedFrameReleaser,
   type SharedRendererExportNativeSharedFrameRenderer,
 } from './sharedRendererExportFrameSource';
+import { buildSharedRendererExportSession } from './sharedRendererExportSession';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { RustBackendAudioWaveformSamplesPayload } from './rustBackendAudioWaveformControl';
@@ -150,6 +151,49 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(evaluationCalls).toEqual([15]);
     expect(presenterCalls).toHaveLength(1);
     expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(15);
+  });
+
+  it('Rust builderがgraphを受理しない場合だけ既存TS export builderへ戻る', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const objects = [image()];
+    const buildExportSession = vi.fn((input) => buildSharedRendererExportSession(input));
+    const presenterCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      evaluateResidentScene: async () => null,
+      buildExportSession,
+      startViewportPresenter: async (input) => {
+        presenterCalls.push(input);
+        return {
+          control: { dispose: () => undefined },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+    });
+
+    await source.renderFrame({
+      frameIndex: 17,
+      timestampUs: 283_333,
+      time: 17 / 60,
+      width: 1920,
+      height: 1080,
+      objects,
+    });
+
+    expect(buildExportSession).toHaveBeenCalledWith(expect.objectContaining({
+      objects,
+      time: 17 / 60,
+    }));
+    expect(presenterCalls).toHaveLength(1);
+    expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(17);
   });
 
   it('Rust評価の待機中に閉じたsourceはpresenterを開始しない', async () => {
