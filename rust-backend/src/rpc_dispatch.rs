@@ -20,7 +20,9 @@ use crate::native_shared::handle_release_native_render_shared_frame;
 use crate::project_file::{handle_project_deserialize, handle_project_serialize};
 use crate::proxy::handle_proxy_generate;
 use crate::rpc::{HealthResult, RpcError, RpcRequest, RpcResponse};
-use crate::scene::{handle_scene_evaluate, handle_scene_replace};
+use crate::scene::{
+    handle_scene_evaluate, handle_scene_query_object_positions, handle_scene_replace,
+};
 use crate::state::BackendState;
 use crate::transcode::handle_encode_transcode_video;
 use serde_json::Value;
@@ -81,6 +83,9 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         }
         "scene.replace" => handle_scene_replace(request.id, request.params, state),
         "scene.evaluate" => handle_scene_evaluate(request.id, request.params, state),
+        "scene.query_object_positions" => {
+            handle_scene_query_object_positions(request.id, request.params, state)
+        }
         "proxy.generate" => handle_proxy_generate(request.id, request.params),
         "project.deserialize" => handle_project_deserialize(request.id, request.params),
         "project.serialize" => handle_project_serialize(request.id, request.params),
@@ -180,6 +185,13 @@ mod tests {
             "media": built.media,
             "editableScene": graph,
         })
+    }
+
+    fn editable_graph_only_replace_params(scene_id: &str, revision: u64) -> Value {
+        let mut params = editable_replace_params(scene_id, revision);
+        params.as_object_mut().unwrap().remove("project");
+        params.as_object_mut().unwrap().remove("media");
+        params
     }
 
     fn editable_replace_params_for_type(scene_id: &str, revision: u64, object_type: &str) -> Value {
@@ -559,6 +571,91 @@ mod tests {
         assert_eq!(result["canvas"]["height"], 1080);
         assert_eq!(result["snapshot"]["clips"][0]["clip_id"], "clip-1");
         assert_eq!(result["media"][0]["source"], "#112233");
+    }
+
+    #[test]
+    fn graph_only_replace_builds_and_retains_raw_graph_for_unquantised_queries() {
+        let mut state = BackendState::default();
+        let replaced = handle_request(
+            request(
+                1,
+                "scene.replace",
+                editable_graph_only_replace_params("editable-only", 9),
+            ),
+            &mut state,
+        );
+        assert!(
+            replaced.ok,
+            "graph-only replacement should build a resident scene"
+        );
+        assert_eq!(replaced.result.as_ref().unwrap()["sceneSource"], "rust");
+
+        let queried = handle_request(
+            request(
+                2,
+                "scene.query_object_positions",
+                json!({
+                    "sceneId": "editable-only",
+                    "revision": 9,
+                    "queries": [{
+                        "requestId": "panel-keyframe-7",
+                        "objectId": "waveform-direct",
+                        "timeSeconds": 0.5
+                    }]
+                }),
+            ),
+            &mut state,
+        );
+        assert!(
+            queried.ok,
+            "query should use graph retained by scene.replace"
+        );
+        let position = &queried.result.unwrap()["positions"][0];
+        assert_eq!(position["requestId"], "panel-keyframe-7");
+        assert_eq!(position["objectId"], "waveform-direct");
+        assert_eq!(position["timeSeconds"], 0.5);
+    }
+
+    #[test]
+    fn position_query_rejects_stale_revision_and_legacy_sessions_without_raw_graph() {
+        let mut state = BackendState::default();
+        let replaced = handle_request(
+            request(
+                1,
+                "scene.replace",
+                replace_params("legacy-query", 4, "#112233"),
+            ),
+            &mut state,
+        );
+        assert!(replaced.ok);
+
+        let unavailable = handle_request(
+            request(
+                2,
+                "scene.query_object_positions",
+                json!({
+                    "sceneId": "legacy-query",
+                    "revision": 4,
+                    "queries": []
+                }),
+            ),
+            &mut state,
+        );
+        assert_eq!(unavailable.error.unwrap().code, -32063);
+
+        let stale = handle_request(
+            request(
+                3,
+                "scene.query_object_positions",
+                json!({
+                    "sceneId": "legacy-query",
+                    "revision": 3,
+                    "queries": []
+                }),
+            ),
+            &mut state,
+        );
+        assert_eq!(stale.error.unwrap().code, -32062);
     }
 
     #[test]
