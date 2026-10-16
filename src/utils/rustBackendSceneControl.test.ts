@@ -169,7 +169,7 @@ describe('rustBackendSceneControl', () => {
     [-32060, 'missingScene'],
     [-32061, 'staleRevision'],
     [-32062, 'revisionMismatch'],
-    [-32065, 'unsupportedGraph'],
+    [-32065, 'unsupportedScene'],
   ] as const)('Rust error code %s を %s に分類する', async (errorCode, reason) => {
     const bridge: RustBackendSceneBridge = {
       replaceScene: async () => ({ success: false, errorCode, error: 'scene rpc failed' }),

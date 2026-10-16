@@ -87,7 +87,7 @@ export type RustBackendSceneFailureReason =
   | 'revisionMismatch'
   | 'editableSceneUnavailable'
   | 'missingObject'
-  | 'unsupportedGraph'
+  | 'unsupportedScene'
   | 'backendFailure'
   | 'invalidResponse';
 
@@ -131,7 +131,7 @@ const failureReasonForCode = (errorCode: number | undefined): RustBackendSceneFa
   if (errorCode === -32062) return 'revisionMismatch';
   if (errorCode === -32063) return 'editableSceneUnavailable';
   if (errorCode === -32064) return 'missingObject';
-  if (errorCode === -32065) return 'unsupportedGraph';
+  if (errorCode === -32065) return 'unsupportedScene';
   return 'backendFailure';
 };
 
