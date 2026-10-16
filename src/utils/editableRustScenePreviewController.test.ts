@@ -325,6 +325,7 @@ describe('editableRustScenePreviewController', () => {
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
+      initialRevision: 40,
     });
 
     controller.replaceScene({ projectSettings, layers, objects: [shape()] });
