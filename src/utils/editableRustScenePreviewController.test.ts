@@ -123,6 +123,7 @@ describe('editableRustScenePreviewController', () => {
   it.each([
     ['1', true],
     ['0', false],
+    ['', true],
     [undefined, true],
   ] as const)('raw-graph-only flag=%s は %s', (flag, expected) => {
     expect(shouldUseRawEditableSceneGraphOnly(flag)).toBe(expected);
