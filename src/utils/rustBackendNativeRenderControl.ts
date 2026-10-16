@@ -5,7 +5,7 @@ import type {
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 
 export interface RustBackendNativeRenderSharedFrameSource {
   mediaId: string;

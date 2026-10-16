@@ -76,3 +76,9 @@
 | --- | --- | --- |
 | cut-over 全群ON + dual-run | 0 | `residentSceneDisabledUnderSceneBuilderCutover` |
 | 対照（scene-builder 環境変数なし） | 0 | `residentScene` |
+
+## 現在地同期（2026-10-16、後続実装で解消）
+
+- 上記「447-frame評価パリティ未実施」は当時の記録である。後続の Rust parity gate `cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity -- --nocapture` は `比較フレーム = 447 / 丸め差 = 0 件` で成功した。
+- `UXFD_VIDEO_EXPORT_E2E_ADD_GROUP_CONTROL` hook は実装済みである。親統合の native overlay OFF / nativeDirect=0 E2E では mixed / PSD / generated / group-control scene を resident evaluation 経路で60/60 frame書き出し、H.264 probe一致・`runtimeErrors=[]` を確認した。別途 nativeDirect=true の resident encode 経路も成功した。
+- 「scene-builder cut-over 時のresident exportをfallbackへ落とす」記述は、当時の暫定策として残す。P2c の後続修正でexport用sceneをRust builderへ `exportOriginal` purposeでreplaceし、scene revision確認後にresident評価/encodeを使う経路へ進んだ。現時点の未完P2条件とunsupported fallbackは `scene-build-p2d-rust-evaluation-cutover.md` に記録する。

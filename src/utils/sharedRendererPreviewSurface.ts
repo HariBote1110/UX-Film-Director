@@ -1,10 +1,10 @@
 import type { EditorMode, ProjectSettings } from '../types';
-import {
-  validateRustSceneSnapshotBoundary,
-  type RustSceneMediaReference,
-  type RustSceneSnapshot,
-  type RustSceneSnapshotBoundaryIssue,
-} from './rustSceneSnapshot';
+import { validateRustSceneSnapshotBoundary } from './rustSceneBoundary';
+import type {
+  RustSceneMediaReference,
+  RustSceneSnapshot,
+  RustSceneSnapshotBoundaryIssue,
+} from './rustSceneContract';
 import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
 
 export type SharedRendererPreviewSurfaceBlockedReason =

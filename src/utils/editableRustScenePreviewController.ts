@@ -5,7 +5,7 @@ import {
   type EditableRustSceneIssue,
 } from './editableRustScene';
 import { stripPsdLayerNodeForPersistence } from './psdParser';
-import { secondsToFrameIndex } from './rustSceneSnapshot';
+import { secondsToFrameIndex } from './rustSceneFrameRate';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import type { ConfirmedSceneRevision } from './sharedRendererScenePreviewScheduler';
 

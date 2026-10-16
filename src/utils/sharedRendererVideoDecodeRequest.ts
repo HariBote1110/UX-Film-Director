@@ -2,7 +2,7 @@ import type {
   RustFrameRate,
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 
 export type SharedRendererDecodedVideoFrameFormat = 'rgba8Srgb';
 export type SharedRendererVideoDecodeColour = 'rec709SrgbFullRange';

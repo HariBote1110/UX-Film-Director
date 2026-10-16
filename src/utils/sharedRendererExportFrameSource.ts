@@ -53,7 +53,7 @@ import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
   RustTransform,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 
 type PresenterDataset = Record<string, string | undefined>;
 

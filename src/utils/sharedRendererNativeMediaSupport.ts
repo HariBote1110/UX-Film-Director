@@ -1,4 +1,4 @@
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 
 export const isSharedRendererNativeMediaSourceSupported = (
   kind: string,

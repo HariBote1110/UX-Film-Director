@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSharedRendererVideoCutoverStackSafety } from './sharedRendererVideoCutoverStack';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneContract';
 
 const snapshot: RustSceneSnapshot = {
   frame_index: 12,

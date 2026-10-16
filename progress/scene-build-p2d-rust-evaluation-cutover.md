@@ -33,6 +33,14 @@ Windows interim presenter に個別の snapshot 生成路はない。presenter �
 - `secondsToFrameIndex` は `editableRustScenePreviewController.ts` が利用する。
 - native render/video、presenter、empty-scene、solid-colour の複数 module は `RustSceneSnapshot` / media reference の型のみを利用するため、serializer と型契約を同時に削除しない。
 
+P3 前処理の実装では上記の wire 型と colour pipeline を `rustSceneContract.ts`、payload 境界検証を `rustSceneBoundary.ts`、frame/time 変換を `rustSceneFrameRate.ts`、scene object eligibility を `sharedRendererSceneObjectSupport.ts` へ分離した。preview surface、native/export/presenter、editable builder、frame-source などの production importer は型・検証・frame helper を新 module から読む。`projectExportFrameCanvas.ts` のkind eligibility値参照も serializer から切り離した。
+
+この分離後に `rustSceneSnapshot.ts` を値として使う production 箇所は次に絞られる。
+
+- `sharedRendererPreviewBridge.ts`: flag OFF / explicit fallback 用の旧 direct snapshot builder。
+- `editableRustScene.ts`: Rust builderと旧直列化の共通media/effect組み立て (`mediaReferenceForEditableRustScene`、`rustEffectsForObject`)。これらは resident builderでも必要なためP3撤去時に独立 helper 化する。
+- `SceneSelectionDecorationLayer.tsx` と `sceneHitTest.ts`: `textMediaBox`。text担当の `textMediaGeometry.ts` 抽出を統合した後に新moduleへ移す。
+
 残る TS-only 機能は、現時点では Rust resident builder eligibility を満たさない graph と、Rust builder がまだ完全に native resident 化していない kind/effect 組み合わせである。42種類の media serialization coverage と15種類の resident eligibility は別の集合であり、27 generated kind の残作業を15型 whitelist に含めた扱いにはしない。未対応 kind は fallback 中も既存 gate / error と診断を維持し、無言で落とさない。
 
 ## P2 / P3 / P4 の残り
@@ -61,6 +69,8 @@ Tests  49 passed (49)
 
 preview publish guard の追加後は `ViewportRustTimelineSceneRpc`, evaluated preview session, preview bridge の15 testsと `npx tsc --noEmit` が成功した。
 
+P3 前処理の module 分離後、親統合前 worktree の全 Vitest は266 files / 1914 tests passed、1 file / 1 test failed だった。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が参照する `.gitignore` 対象 `perf/heavy-media` の動画素材が隔離 worktree に存在しないためで、file existence assertion で止まった。今回変更した境界検証・snapshot parity・frame helper・scene object support の関連 suitesは成功した。親統合版の全Vitestは別の統合checkoutで270 files / 1933 tests成功済みとの報告を受けている。
+
 親担当による統合 E2E（`/tmp/uxfd-subagent-rust-evaluation-result.json`）では、nativeDirect=0、native overlay OFF、all cut-over ON の mixed/PSD/generated/group-control scene が `residentScene` source で60/60 frame完了し、H.264 ffprobe一致、`runtimeErrors=[]`、encoder は `ffmpegRawRgba` だった。これは nativeDirect=true の既存 resident encode 経路とは別に、今回の async provider を通った結果である。
 
-`npm run codegen:types:check` は既存 schema drift 5件で失敗した。FocusLinesPlus/Hksy の整数契約、および ProjectFile/SceneData/TimelineObject の参照差分であり、本作業中に生成された schema 差分は戻してある。親レビュー後に独立の再生成 commit で扱う。
+`FocusLinesPlus` の `keyframeInterval`、`HksyCheckerGrid` の4整数フィールドは、現 Rust source (`u64` / `u32`) の契約に schema が追従していなかった。`ProjectFile` / `SceneData` / `TimelineObject` は同じ定義の埋め込み参照である。`npm run codegen:types` の出力がこの5 schemaだけであることを確認し、生成物を独立 commit `5b91629c` に同期した。その後 `npm run codegen:types:check` と `git diff --check` が成功し、生成差分はゼロである。

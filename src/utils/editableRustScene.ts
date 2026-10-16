@@ -33,15 +33,11 @@ import type {
   WipeAnimation,
 } from '../generated/rustCore';
 import {
-  fpsToFrameRate,
   mediaReferenceForEditableRustScene,
-  rustColourPipeline,
   rustEffectsForObject,
-  secondsToFrameIndex,
-  type RustEffect,
-  type RustSceneMediaReference,
-  type RustTransform,
 } from './rustSceneSnapshot';
+import { rustColourPipeline, type RustEffect, type RustSceneMediaReference, type RustTransform } from './rustSceneContract';
+import { fpsToFrameRate, secondsToFrameIndex } from './rustSceneFrameRate';
 
 type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject;
 

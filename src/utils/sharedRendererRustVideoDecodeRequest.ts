@@ -6,7 +6,7 @@ import type {
   SharedRendererVideoFrameDecodeRequestInput,
   SharedRendererVideoFrameDecodeRequestResult,
 } from './sharedRendererVideoDecodeRequest';
-import type { RustFrameRate } from './rustSceneSnapshot';
+import type { RustFrameRate } from './rustSceneContract';
 
 export interface SharedRendererRustVideoFrameDecodeRequestWasmModule {
   build_video_frame_decode_requests: (

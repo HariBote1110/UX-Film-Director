@@ -1,7 +1,7 @@
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
-} from './rustSceneSnapshot';
+} from './rustSceneContract';
 import { isSharedRendererNativeMediaReferenceSupported } from './sharedRendererNativeMediaSupport';
 
 export interface SharedRendererVideoCutoverStackBlock {
