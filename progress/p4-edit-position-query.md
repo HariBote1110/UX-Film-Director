@@ -30,7 +30,7 @@
 - Chromeのbrowser automation providerが利用できず、実ブラウザでボタンを押す操作確認は
   未実施。registry、query client、selection/time/scene/graph identity guardのVitestと
   TypeScript型チェックで検証している。
-- split位置・scene hit-test/selectionへの移行は別単位として残る。Vision trackingは任意時刻queryへ移行済み。
+- scene hit-test/selectionへの移行は別単位として残る。Vision trackingとsplit位置は任意時刻queryへ移行済み。
 
 ## Vision tracking移行
 
@@ -38,6 +38,12 @@
 - 現行Vision意味論を保つため、video側はRust `localPosition`と既存のbase rotation/scaleのみでbbox中心を算出する。overlayは`localPosition + groupTranslation`を使い、queryの`worldPosition`に含まれるvibrationはdeltaへ混ぜない。各keyframe時刻でgroup平行移動を差し引き、以前のTS directと同じlocal位置を返す。
 - CoreML応答後、resident revision ack後、position query後、適用直前にscene・selection・再生時刻・project/layer/object graph参照を確認する。overlay選択IDも別途確認し、非同期中に変わった結果は適用しない。
 - position query opt-in flagがOFFの既存経路は従来のTS direct計算を維持する。ONのquery失敗時は失敗を表示して終了し、誤ったfallback位置を採用しない。
+
+## Split位置移行
+
+- `splitObject`は`Promise<void>`を返し、query opt-in中は現在のtimeline raw秒と対象object idでRust `localPosition`を取得してから既存の分割・keyframe同期・Batch commandを実行する。opt-in OFF時のTS直接評価は維持する。
+- queryのresident ack後・response後にscene、selected id/selectedIds、時刻、settings/layers/objects参照、target objectの同一性、layer lockを再検証する。途中でいずれかが変わればstate/historyを変更しない。
+- toolbarとcontext menuは非同期actionを`void splitObject()`として起動する。query失敗はaction内で記録・表示し、TS評価にfallbackしない。成功分割ではRemove + Add×2を従来どおり1 Batchに集約する。
 
 ## 検証
 
@@ -47,3 +53,5 @@
 - `npm test -- --run src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts`
 - `npx vitest run src/utils/visionTrackingKeyframes.test.ts src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/components/PropertyPanelBoundary.test.ts src/components/PropertyPanelPlaybackIsolation.test.ts`
 - `npx tsc --noEmit`（Vision migration worktree）
+- `npx vitest run src/store/useStoreSplitPositionQuery.test.ts src/store/useStoreCommandConversion.test.ts`
+- `npx tsc --noEmit`（split migration worktree）
