@@ -71,6 +71,12 @@ import {
 } from './commandBuilders';
 import type { FilterCommand } from './commandBuilders';
 import { getCommandBridge } from '../utils/rustBackendCommandBridge';
+import { queryRustBackendSceneObjectPositions } from '../utils/rustBackendSceneControl';
+import {
+  isRustScenePositionQueryActionCurrent,
+  waitForRustScenePositionQueryRevision,
+  type RustScenePositionQueryTarget,
+} from '../utils/rustScenePositionQueryRevision';
 
 export type {
   ExportDiagnostics,
@@ -942,8 +948,9 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
-  splitObject: () => {
-    const { objects, selectedId, currentTime, layers } = get();
+  splitObject: async () => {
+    const captured = get();
+    const { objects, selectedId, currentTime, layers } = captured;
     const target = objects.find(o => o.id === selectedId);
 
     if (!target || currentTime <= target.startTime || currentTime >= target.startTime + target.duration) {
@@ -954,11 +961,77 @@ export const useStore = create<AppState>((set, get) => ({
         return;
     }
 
+    const capturedGraph = {
+      projectSettings: captured.projectSettings,
+      layers: captured.layers,
+      objects: captured.objects,
+    };
+    const capturedAction = {
+      activeSceneId: captured.activeSceneId,
+      selectedObjectId: target.id,
+      timeSeconds: currentTime,
+      ...capturedGraph,
+    };
+    const capturedSelection = captured.selectedIds.slice();
+    const isActionCurrent = () => {
+      const latest = get();
+      return isRustScenePositionQueryActionCurrent(capturedAction, {
+        activeSceneId: latest.activeSceneId,
+        selectedObjectId: latest.selectedId ?? '',
+        timeSeconds: latest.currentTime,
+        projectSettings: latest.projectSettings,
+        layers: latest.layers,
+        objects: latest.objects,
+      })
+        && latest.selectedIds.length === capturedSelection.length
+        && latest.selectedIds.every((id, index) => id === capturedSelection[index])
+        && latest.objects.find((object) => object.id === target.id) === target
+        && !isLayerLocked(latest.layers, clampLayerIndex(target.layer));
+    };
+
+    let splitPosition: { x: number; y: number };
+    if (import.meta.env.VITE_UXFD_RUST_EDIT_POSITION_QUERY === '1') {
+      const queryTarget: RustScenePositionQueryTarget = {
+        sceneId: 'viewport-rust-timeline',
+        revision: 0,
+        ...capturedGraph,
+      };
+      try {
+        const revision = await waitForRustScenePositionQueryRevision(queryTarget);
+        if (!isActionCurrent()) return;
+        const requestId = crypto.randomUUID();
+        const queried = await queryRustBackendSceneObjectPositions({
+          sceneId: queryTarget.sceneId,
+          revision,
+          queries: [{ requestId, objectId: target.id, timeSeconds: currentTime }],
+        });
+        if (!queried.ok) throw new Error(queried.detail);
+        if (queried.value.sceneId !== queryTarget.sceneId || queried.value.revision !== revision) {
+          throw new Error('Rust position query returned a stale scene revision.');
+        }
+        const response = queried.value.positions.find((position) => position.requestId === requestId);
+        if (!response) throw new Error('Rust position query omitted the split object.');
+        if (!isActionCurrent()) return;
+        splitPosition = response.localPosition;
+      } catch (error) {
+        console.warn('[useStore] Rust split position query failed:', error);
+        if (typeof window !== 'undefined') {
+          window.alert(get().language === 'en'
+            ? 'Could not evaluate the split position in the Rust scene.'
+            : 'Rustシーンから分割位置を取得できませんでした。');
+        }
+        return;
+      }
+    } else {
+      splitPosition = evaluateObjectPositionAtTime(target, currentTime);
+    }
+
+    if (!isActionCurrent()) return;
+
     const targetIndex = objects.findIndex((o) => o.id === target.id);
 
     const splitPoint = currentTime - target.startTime;
     const splitTime = currentTime;
-    const splitPosition = evaluateObjectPositionAtTime(target, splitTime);
 
     const firstPart: TimelineObject = {
         ...target,

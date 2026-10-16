@@ -90,7 +90,7 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
       
       <div className="divider"></div>
 
-      <button onClick={splitObject} disabled={isExporting} title={t('split')}><SplitSquareHorizontal size={14} /></button>
+      <button onClick={() => { void splitObject(); }} disabled={isExporting} title={t('split')}><SplitSquareHorizontal size={14} /></button>
       <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} title={t('copy')}><Copy size={14} /></button>
       <button onClick={cutSelectedObjects} disabled={isExporting || !hasSelection} title={t('cut')}><Scissors size={14} /></button>
       <button onClick={pasteClipboardObjects} disabled={isExporting} title={t('paste')}><ClipboardPaste size={14} /></button>
