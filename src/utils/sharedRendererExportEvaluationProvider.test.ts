@@ -30,7 +30,7 @@ describe('createSharedRendererExportEvaluationProvider', () => {
   });
 
   it('graphが変わると新しいscene revisionを準備する', async () => {
-    const prepareScene = vi.fn(async (_objects: TimelineObject[]) => ({
+    const prepareScene = vi.fn(async (_objects: readonly TimelineObject[]) => ({
       sceneId: 'export-scene',
       revision: prepareScene.mock.calls.length,
     }));
