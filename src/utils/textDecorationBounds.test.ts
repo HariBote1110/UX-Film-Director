@@ -44,7 +44,7 @@ describe('text decoration bounds', () => {
   it('leaves undecorated text bounds and origin unchanged', () => {
     expect(getTextDecorationInsets({})).toEqual({ left: 0, top: 0, right: 0, bottom: 0 });
     expect(compensateTextOriginForExpandedPlane(
-      { left: 0, top: 0, right: 0, bottom: 0 }, 1, 1, 0,
+      { left: 0, top: 0 }, 1, 1, 0,
     )).toEqual({ x: 0, y: 0 });
   });
 });
