@@ -26,6 +26,7 @@
 - `splitObject`は`Promise<void>`を返す。query opt-in中は現在のtimeline raw秒と対象object idでRust `localPosition`を取得し、既存の分割・keyframe同期・Batch commandを実行する。flag OFF時は従来のTS直接評価を維持する。
 - resident ack後・query response後にscene、selected id/selectedIds、時刻、settings/layers/objects参照、target object同一性、layer lockを再検証する。どれかが変わればstate/historyを変更しない。
 - toolbarとcontext menuは`void splitObject()`で非同期actionを起動する。query失敗はaction内部で記録・表示し、TS評価にfallbackしない。成功時はRemove + Add×2を1つのUndo Batchとして記録する。
+- graph supersede/controller disposeは専用cancelled errorとして扱い、store参照が未更新の瞬間でも正常取消として静かに終了する。Vision trackingも同じcancelled errorとaction identityを確認してから障害通知する。
 
 ## 未対応範囲
 

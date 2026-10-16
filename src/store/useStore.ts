@@ -73,6 +73,7 @@ import type { FilterCommand } from './commandBuilders';
 import { getCommandBridge } from '../utils/rustBackendCommandBridge';
 import { queryRustBackendSceneObjectPositions } from '../utils/rustBackendSceneControl';
 import {
+  isRustScenePositionQueryCancelled,
   isRustScenePositionQueryActionCurrent,
   waitForRustScenePositionQueryRevision,
   type RustScenePositionQueryTarget,
@@ -1014,6 +1015,7 @@ export const useStore = create<AppState>((set, get) => ({
         if (!isActionCurrent()) return;
         splitPosition = response.localPosition;
       } catch (error) {
+        if (isRustScenePositionQueryCancelled(error) || !isActionCurrent()) return;
         console.warn('[useStore] Rust split position query failed:', error);
         if (typeof window !== 'undefined') {
           window.alert(get().language === 'en'
