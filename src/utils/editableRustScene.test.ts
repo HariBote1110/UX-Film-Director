@@ -350,7 +350,7 @@ describe('buildEditableRustScene', () => {
     ]);
   });
 
-  it('装飾付きテキストのanimated originをnegative scale・回転・group transform後も保つ', () => {
+  it('装飾付きテキストの原点補正を開始時transformへ固定せずRust評価へ渡す', () => {
     const decorated = text({
       x: 100,
       y: 120,
@@ -392,25 +392,11 @@ describe('buildEditableRustScene', () => {
     expect(media).toMatchObject({ width: 224, height: 84 });
     expect(source).toMatchObject({ __renderOffsetX: 20, __renderOffsetY: 9, __contentWidth: 200, __contentHeight: 60 });
     expect(clip.position_keyframes).toHaveLength(2);
-
-    const groupScaleX = group.scaleX;
-    const groupScaleY = group.scaleY;
-    const finalScaleX = clip.transform.scale_x * groupScaleX;
-    const finalScaleY = clip.transform.scale_y * groupScaleY;
-    const finalRotation = (clip.transform.rotation_degrees + group.rotation) * Math.PI / 180;
-    for (const [index, keyframe] of clip.position_keyframes.entries()) {
-      const glyphOrigin = {
-        x: keyframe.x + group.x
-          + source.__renderOffsetX * finalScaleX * Math.cos(finalRotation)
-          - source.__renderOffsetY * finalScaleY * Math.sin(finalRotation),
-        y: keyframe.y + group.y
-          + source.__renderOffsetX * finalScaleX * Math.sin(finalRotation)
-          + source.__renderOffsetY * finalScaleY * Math.cos(finalRotation),
-      };
-      const expected = index === 0 ? { x: 123, y: 149 } : { x: 223, y: 249 };
-      expect(glyphOrigin.x).toBeCloseTo(expected.x);
-      expect(glyphOrigin.y).toBeCloseTo(expected.y);
-    }
+    expect(clip.transform).toMatchObject({ translation_x: 100, translation_y: 120 });
+    expect(clip.position_keyframes.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 100, y: 120 },
+      { x: 200, y: 220 },
+    ]);
   });
 
   it('subject crop keyframeをclipローカルframeへ変換してRust Projectへ渡す', () => {

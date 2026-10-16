@@ -23,9 +23,6 @@ import type {
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { normaliseKeyframesForObject } from './keyframes';
 import { normaliseSubjectCropKeyframesForVideo } from './subjectCropKeyframes';
-import { getGroupTransforms } from './sceneTransforms';
-import { compensateTextOriginForExpandedPlane } from './textDecorationBounds';
-import { textMediaInsets } from './textMediaGeometry';
 import type {
   Clip,
   GroupControl,
@@ -171,25 +168,24 @@ const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['k
 const positionKeyframesForObject = (
   object: EditableRustSceneObject | GroupControlObject,
   fps: number,
-  originCorrection = { x: 0, y: 0 },
 ): EditableRustPositionKeyframe[] => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
   if (keyframes.length >= 2) {
     return keyframes.map((keyframe) => ({
       frame_offset: secondsToFrameIndex(keyframe.time - object.startTime, fps),
-      x: keyframe.x + originCorrection.x,
-      y: keyframe.y + originCorrection.y,
+      x: keyframe.x,
+      y: keyframe.y,
       easing: keyframe.easing ?? object.easing,
     }));
   }
 
   if (!object.enableAnimation) return [];
   return [
-    { frame_offset: 0, x: object.x + originCorrection.x, y: object.y + originCorrection.y, easing: object.easing },
+    { frame_offset: 0, x: object.x, y: object.y, easing: object.easing },
     {
       frame_offset: secondsToFrameIndex(object.duration, fps),
-      x: object.endX + originCorrection.x,
-      y: object.endY + originCorrection.y,
+      x: object.endX,
+      y: object.endY,
       easing: 'linear',
     },
   ];
@@ -255,29 +251,14 @@ const residentEffectsForObject = (
   return { effects, wipeAnimations };
 };
 
-const textOriginCorrectionForObject = (
-  object: EditableRustSceneObject,
-  objects: TimelineObject[],
-): { x: number; y: number } => {
-  if (object.type !== 'text') return { x: 0, y: 0 };
-  const group = getGroupTransforms(object, object.startTime, objects);
-  return compensateTextOriginForExpandedPlane(
-    textMediaInsets(object),
-    object.scaleX * group.scaleX,
-    object.scaleY * group.scaleY,
-    object.rotation + group.rotation,
-  );
-};
-
-const transformForObject = (object: EditableRustSceneObject, objects: TimelineObject[]): RustTransform => {
+const transformForObject = (object: EditableRustSceneObject): RustTransform => {
   const position = initialPositionForObject(object);
-  const originCorrection = textOriginCorrectionForObject(object, objects);
   const psdScale = object.type === 'psd' && Number.isFinite(object.scale) && object.scale > 0
     ? object.scale
     : 1;
   return {
-    translation_x: position.x + originCorrection.x,
-    translation_y: position.y + originCorrection.y,
+    translation_x: position.x,
+    translation_y: position.y,
     scale_x: object.scaleX * psdScale,
     scale_y: object.scaleY * psdScale,
     rotation_degrees: object.rotation,
@@ -418,7 +399,6 @@ export const buildEditableRustScene = ({
     const startFrame = secondsToFrameIndex(object.startTime, projectSettings.fps);
     const subjectCrop = subjectCropForObject(object, projectSettings.fps);
     const residentEffects = residentEffectsForObject(object);
-    const textOriginCorrection = textOriginCorrectionForObject(object, objects);
     track.clips.push({
       id: object.id,
       media_id: object.id,
@@ -428,10 +408,10 @@ export const buildEditableRustScene = ({
       source_frame_offset: object.type === 'video'
         ? secondsToFrameIndex(object.offset ?? 0, projectSettings.fps)
         : 0,
-      transform: transformForObject(object, objects),
+      transform: transformForObject(object),
       opacity: object.opacity * getFadeOpacityMultiplier(object),
       opacity_keyframes: [],
-      position_keyframes: positionKeyframesForObject(object, projectSettings.fps, textOriginCorrection),
+      position_keyframes: positionKeyframesForObject(object, projectSettings.fps),
       ...(subjectCrop ? { subject_crop: subjectCrop } : {}),
       wipe_animations: residentEffects.wipeAnimations,
       effects: residentEffects.effects,

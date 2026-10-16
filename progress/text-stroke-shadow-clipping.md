@@ -4,9 +4,9 @@
 
 - テキストmedia寸法は本体グリフの領域に必要な装飾余白だけを加える。縁取りは全方向へ幅分、影は三段box blurの各段で広がる半径と符号付きoffsetから左右上下を別々に算出する。
 - 計測済みの本体幅・高さは従来値を保持し、`textMediaGeometry.ts` が装飾込みのmedia寸法とローカルInsetsを提供する。ヒットテストと選択枠も同じ外枠を使う。
-- 拡張プレーンのローカル原点移動に伴うtranslation補正は `-R(rotation) * scale * (left, top)`。Rustのstatic transformとposition keyframe、TS snapshotの評価translationに適用し、本体のワールド位置を保つ。
+- 拡張プレーンのローカル原点移動に伴うtranslation補正は `-R(rotation) * scale * (left, top)`。TS direct snapshotは要求時刻のgroup合成後に適用し、resident Rust builderは補正前のtransform/keyframeを保持してRust timeline evaluatorがclip・keyframe・group_controlをすべて評価した後に適用する。本体のワールド位置を時間中ずっと保つ。
 - Rustへ渡すText sourceには装飾がある場合だけ `__renderOffsetX/Y` と本体レイアウト寸法を内部メタデータとして含める。公開 `TextObjectFields`/schemaは変えない。native rendererは本体寸法で文字揃え・レイアウトし、各描画passをoffsetして拡張planeへ描く。
-- resident Rust builderではobject開始時に有効なgroup_controlのscale/rotationを含めて補正を作り、テキストの位置keyframeにも同じ差分を加える。group_controlのtranslationは評価時に加算されるので、文字本体の座標契約は保たれる。
+- 補正は `ClipKind::TextPlane` のみを対象にし、Project mediaのText sourceから内部offsetを読む。公開型やschemaにフィールドを追加しない。offset metadataがない既存Textと装飾なし表示は従来transformのまま。
 
 ## 原因
 
@@ -26,4 +26,5 @@
 - TSの選択枠とヒットテストは本体のtransform原点から `(-left,-top)` へ広がるローカル矩形で評価する。`textMediaBox` は寸法、`textMediaInsets` は原点を含む境界計算に使う。
 - legacy direct呼び出しも同じText source serializer/native rendererを通すこと。別source parserを導入するときは `__renderOffset*` と `__content*` を引き継ぐ。
 - text sourceの測定幅はUIのCanvas実測値のためRustはそのまま読めない。Rust builderの未計測fallbackとTS `textMediaContentBox` のheuristicは既存のまま維持する。
-- resident builderはClip内に固定translation補正を格納するため、clip開始後に別group_controlが新たに有効/無効になるような構成では補正の再計算が必要になる。通常の、clip開始時点から有効なgroup_controlと位置アニメーションは評価テストで確認している。
+- Rust evaluatorは評価対象の各Text clipについてmedia source JSONを読み、offsetを取得する。簡易実装として評価時にparseするため装飾付きTextの数に比例した小さなCPUコストがある。測定前に別cache層は加えず、必要性が確認された場合に再検討する。
+- clip途中のgroup_control開始・終了はTS direct snapshotとRust `evaluate_frame` の双方で固定frame回帰テストを持つ。scale/rotation/translationの現在値をclip開始時へ固定してはならない。

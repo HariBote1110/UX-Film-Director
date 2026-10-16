@@ -102,54 +102,6 @@ fn text_content_dimensions(fields: &crate::schema::TextObjectFields) -> (f32, f3
     });
     (width, height)
 }
-fn rotate_scaled_text_inset(
-    fields: &crate::schema::TextObjectFields,
-    scale_x: f32,
-    scale_y: f32,
-    rotation_degrees: f32,
-) -> (f32, f32) {
-    let insets = text_decoration_insets(fields);
-    let local_x = insets[0] as f32 * scale_x;
-    let local_y = insets[1] as f32 * scale_y;
-    if local_x == 0.0 && local_y == 0.0 {
-        return (0.0, 0.0);
-    }
-    let angle = rotation_degrees.to_radians();
-    (
-        -(local_x * angle.cos() - local_y * angle.sin()),
-        -(local_x * angle.sin() + local_y * angle.cos()),
-    )
-}
-fn text_scale_rotation_with_groups(
-    object: &TimelineObject,
-    objects: &[TimelineObject],
-) -> (f32, f32, f32) {
-    let b = base(object);
-    let mut scale_x = b.scale_x;
-    let mut scale_y = b.scale_y;
-    let mut rotation = b.rotation;
-    for candidate in objects {
-        let TimelineObject::GroupControl {
-            base: group,
-            fields,
-        } = candidate
-        else {
-            continue;
-        };
-        if group.layer >= b.layer
-            || b.start_time < group.start_time
-            || b.start_time >= group.start_time + group.duration
-            || (fields.target_layer_count != 0
-                && b.layer > group.layer + fields.target_layer_count as f32)
-        {
-            continue;
-        }
-        scale_x *= group.scale_x;
-        scale_y *= group.scale_y;
-        rotation += group.rotation;
-    }
-    (scale_x, scale_y, rotation)
-}
 fn finite(value: f32, fallback: f32) -> f32 {
     if value.is_finite() {
         value
@@ -1021,14 +973,6 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
             }
         };
         let (effects, wipes, fade) = static_effects(object);
-        let text_origin_correction = match object {
-            TimelineObject::Text { fields, .. } => {
-                let (scale_x, scale_y, rotation) =
-                    text_scale_rotation_with_groups(object, &graph.objects);
-                rotate_scaled_text_inset(fields, scale_x, scale_y, rotation)
-            }
-            _ => (0.0, 0.0),
-        };
         let clip = Clip {
             id: b.id.clone(),
             media_id: b.id.clone(),
@@ -1046,15 +990,13 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
                     .as_ref()
                     .filter(|k| k.len() >= 2)
                     .and_then(|k| k.first())
-                    .map_or(b.x, |k| k.x)
-                    + text_origin_correction.0,
+                    .map_or(b.x, |k| k.x),
                 translation_y: b
                     .keyframes
                     .as_ref()
                     .filter(|k| k.len() >= 2)
                     .and_then(|k| k.first())
-                    .map_or(b.y, |k| k.y)
-                    + text_origin_correction.1,
+                    .map_or(b.y, |k| k.y),
                 scale_x: b.scale_x
                     * if let TimelineObject::Psd { fields, .. } = object {
                         fields.scale
@@ -1077,14 +1019,7 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
             },
             opacity: b.opacity * fade,
             opacity_keyframes: vec![],
-            position_keyframes: position_keyframes(b, graph.settings.fps)
-                .into_iter()
-                .map(|mut keyframe| {
-                    keyframe.x += text_origin_correction.0;
-                    keyframe.y += text_origin_correction.1;
-                    keyframe
-                })
-                .collect(),
+            position_keyframes: position_keyframes(b, graph.settings.fps),
             subject_crop: subject_crop(object, graph.settings.fps),
             wipe_animations: wipes,
             effects,
@@ -1179,7 +1114,7 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
 
 #[cfg(test)]
 mod text_decoration_tests {
-    use super::{rotate_scaled_text_inset, text_decoration_insets};
+    use super::text_decoration_insets;
     use crate::schema::{
         EditableSceneGraph, TextObjectFields, TextShadow, TextStroke, TimelineObject,
         TimelinePositionKeyframe,
@@ -1199,28 +1134,6 @@ mod text_decoration_tests {
             blur: 8.0,
         });
         assert_eq!(text_decoration_insets(&fields), [16, 6, 8, 18]);
-    }
-
-    #[test]
-    fn text_origin_correction_preserves_the_glyph_origin_for_negative_scale_and_rotation() {
-        let mut fields = TextObjectFields::default();
-        fields.text_stroke = Some(TextStroke {
-            colour: "#000000".into(),
-            width: 4.0,
-        });
-        fields.text_shadow = Some(TextShadow {
-            colour: "#000000".into(),
-            offset_x: -8.0,
-            offset_y: 3.0,
-            blur: 10.0,
-        });
-        let (correction_x, correction_y) = rotate_scaled_text_inset(&fields, -1.5, 0.75, -38.0);
-        let insets = text_decoration_insets(&fields);
-        let angle = -38.0_f32.to_radians();
-        let glyph_x = insets[0] as f32 * -1.5;
-        let glyph_y = insets[1] as f32 * 0.75;
-        assert!((correction_x + glyph_x * angle.cos() - glyph_y * angle.sin()).abs() < 1e-4);
-        assert!((correction_y + glyph_x * angle.sin() + glyph_y * angle.cos()).abs() < 1e-4);
     }
 
     #[test]
@@ -1313,10 +1226,10 @@ mod text_decoration_tests {
             let angle = clip.transform.rotation_degrees.to_radians();
             let glyph_x = insets[0] as f32 * clip.transform.scale_x;
             let glyph_y = insets[1] as f32 * clip.transform.scale_y;
-            let rendered_x = clip.transform.translation_x + glyph_x * angle.cos()
-                - glyph_y * angle.sin();
-            let rendered_y = clip.transform.translation_y + glyph_x * angle.sin()
-                + glyph_y * angle.cos();
+            let rendered_x =
+                clip.transform.translation_x + glyph_x * angle.cos() - glyph_y * angle.sin();
+            let rendered_y =
+                clip.transform.translation_y + glyph_x * angle.sin() + glyph_y * angle.cos();
             assert!(
                 (rendered_x - expected_x).abs() < 1e-3,
                 "frame {frame_index}: expected glyph x={expected_x}, got {rendered_x}"
