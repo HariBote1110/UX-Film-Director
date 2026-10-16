@@ -363,15 +363,15 @@ parity ゲートも全通過）。詳細は
 中核である「実際にoverlayウィンドウがDirectComposition経由で合成される
 か」も実機で確認できた**ため、Phase 5 全体を ★完了 とする。
 
-**残課題（Phase 6以降）**: (1) 79.09秒は初回attach呼び出し1回分の
-パイプライン生成コスト（以降のpresentでは再利用される）。この同期
-ブロックがUIスレッドに与える影響の検討は未着手。(2)
-`dxcompiler.dll`/`dxil.dll` をElectronビルド成果物へ実際に組み込む
-作業（`electron-builder` の `extraResources` 設定等）はW1側の
-フォローアップとして未着手（配置場所・サイズ・ライセンスの申し送りは
-`nv12-pipeline-compile-time.md`「W1/electron-builderへの申し送り」
-参照。DLL欠如時もFxcへ安全にフォールバックするため機能上の必須項目
-ではない）。
+**この時点の持ち越し事項への後続結果**:
+1. 初回attachの同期ブロックはW7で解消した。HWND/COM操作は呼び出し側で
+   維持し、pipeline構築を`AsyncTask`とstaged pipelineへ分割した。
+   `progress/windows-w7-async-attach.md`末尾にWindows実機での計測と検証を記録している。
+2. electron-builderへのDXC同梱は本変更で設定・取得手順を実装した。
+   `npm run build:win`は固定versionのDXCをchecksum検証して準備してから
+   Windows x64 buildを実行する。DLLは実行ファイルと同じインストール先
+   ルートへ`extraFiles`で配置する。pack前hookも資産欠落とx64以外を拒否する。
+   高DPI環境での実機確認は引き続き未実施。
 
 - `attach_native_overlay_inner` の `#[cfg(target_os = "windows")]` 分岐を実装する。
   現状は `attach_live_overlay_surface_renderer` が `Err("...only available on macOS")` を返す stub。
@@ -425,14 +425,15 @@ parity ゲートも全通過）。詳細は
   `relativeTo:` へ渡す必要が Win32 には無く（`WS_POPUP` の owner 関係だけで
   z-order が決まる）、より単純。**実 Electron 上での HTML UI 重なり確認は
   未実施**（コンパイル・単体の SetWindowPos 呼び出し経路のみ確認）。
-- **79秒（Fxc）/更に短い（DXC）初回パイプライン生成のUIスレッドブロック**:
+- **79秒（Fxc）/更に短い（DXC）初回パイプライン生成のUIスレッドブロック
+  （当時の記録。後続W7対応で解消済み）**:
   `#[napi(js_name = "attachNativeOverlay")]` は `async` 指定が無い同期関数
   であり、JS 側は `await addon.attachNativeOverlay(...)` で呼ぶが napi は
   この呼び出しを Node/Electron のメインスレッド上で同期実行する。
   つまり初回 attach のパイプライン生成コストは**そのまま Electron の
-  UI スレッドをブロックする**ことを確認した。修正（非同期化・別スレッド化）
-  は本 Phase のスコープ外（計画書の指示どおり「trivially safe でない限り
-  fix しない」）。W7 以降の課題として申し送る。
+  UI スレッドをブロックする**ことを確認した。後続W7でこの制約を再検討し、
+  pipeline構築をAsyncTaskとstaged pipelinesへ移す実装・実機検証を完了した
+  （`progress/windows-w7-async-attach.md`末尾）。ここにある残課題判断は失効している。
 
 ### Phase 7: 段階導入と既定切替（推定 1日、★完了 2026-08-23・stage6）
 
@@ -483,10 +484,10 @@ parity ゲートも全通過）。詳細は
   ごとに発生する構造的コスト**であると特定した——ユーザーが観測した
   「応答なし」の根本原因はこれと一致する。詳細は
   `progress/windows-w7-staged-rollout.md` のSTAGE2節を参照。
-  **stage-2はpartial（★完了ではない）。残課題: attach呼び出しの非同期化、
-  またはwgpu pipeline cache／DXCコンパイル結果の永続キャッシュ導入の
-  いずれかが完了するまで、Windows既定ON化は見送る。**
-- **stage3-5（実施済み、2026-08-22〜23、★完了ではない）**: attach非同期化
+  **stage-2時点ではpartial（★完了ではない）とし、attach呼び出しの非同期化
+  またはpipeline cache導入までWindows既定ON化を見送った。この保留は後続stage6
+  と需要駆動staged attachで再評価し、別スレッド構築・UI応答性・既定値を更新済み。**
+- **stage3-5（実施済み、2026-08-22〜23。以下は当時の未解決記録で、後続stage6/W7の結果が優先）**: attach非同期化
   （AsyncTask化）・Viewport.tsxのinterim-presenter状態機械・
   native-wgpu-rendererのformat-aware遅延パイプライン構築（Option C）を
   実装したが、mainpc実機のA/Bバイセクトで**「AsyncTask化そのものが
@@ -494,8 +495,9 @@ parity ゲートも全通過）。詳細は
   新しいregressionが判明した（同期実装に戻すと155.24秒でattach成功、
   非同期実装だと並行呼び出しを直列化しても9分待って未解決）。詳細・
   棄却済み仮説（container/bridgeゲート説・detach競合説）・次の一手は
-  `progress/windows-w7-async-attach.md` を参照。`WINDOWS_DEFAULT_ENABLED`
-  は`false`のまま、Phase 7 ★完了は引き続き見送り。
+  `progress/windows-w7-async-attach.md` を参照。当時は`WINDOWS_DEFAULT_ENABLED`
+  を`false`のままとし、Phase 7完了を保留した。この状態は後続stage6で
+  再設計・実機検証され、既定値は`true`へ更新済み。
 - **stage6（実施済み、2026-08-23、★完了）**: stage5続報の知見を受け、
   非同期分割の切り方自体を再設計した——「DComp window/device/visual
   作成＋wgpu adapter/device requestを丸ごとworkerスレッドへ逃がす」
@@ -551,6 +553,20 @@ parity ゲートも全通過）。詳細は
   スクリーンショットは取得済み。詳細は
   `progress/windows-w7-async-attach.md`の同節を参照。
 
+#### 現在のWindows検証・配布状況（2026-10-16）
+
+- W7のattach同期ブロックは、`AsyncTask`とstaged pipelinesで解決済み。
+  実機測定は`progress/windows-w7-async-attach.md`末尾を参照する。
+- DXC v1.9.2607をchecksum固定で取得し、Windows x64用`dxcompiler.dll`/
+  `dxil.dll`と配布元ライセンス文書を`electron-builder`の`win.extraFiles`
+  から実行ファイル横へ配置する。大きなDLLはGitへ追加しない。
+  `npm run dxc:prepare`は取得・検証・配置、`npm run build:win`はそれに続けて
+  Windows x64 buildを実行する。pack前hookは資産欠落やx64以外のWindows targetを
+  fail-fastする。詳細は`progress/windows-dxc-packaging.md`を参照。
+- この作業環境では旧`mainpc`は撤去済みで、`rpsh`も接続できないため、
+  Windows実機build・Electron packageの起動・高DPI動作を確認していない。
+  それらを実測済みとは扱わない。
+
 ## 4. 既存設計との整合
 
 | 既存原則 | 本計画との整合 |
@@ -587,7 +603,7 @@ parity ゲートも全通過）。詳細は
 | **Phase 4 の wgpu 移行で macOS の NV12 ゼロコピーが壊れる** | 高 | golden-frame parity を合格条件にし、崩れたら移行を止める。最悪 `nv12/import.rs` を一時的に memcpy 経路へ戻す（Phase 3a 相当へ退避） |
 | 連続描画でちらつく / 60fps 出ない | 高 | Phase 0 で先に検出する。代替として `VisualFromWndHandle` 経路を試す |
 | Chromium 自身の DirectComposition と z-order 競合 | 中 | 静止状態では観測されず。Phase 0 で動的な操作を含めて再確認する |
-| 高DPI で overlay がずれる | 中 | Phase 6 で `dpi_scale_factor_from_dpi`/`resolve_overlay_screen_rect` を実装・ユニットテスト済み。**実機の高DPI環境での検証はmainpcが100%スケール機のため未実施のまま**（W7以降で高DPI機での確認が必要） |
+| 高DPI で overlay がずれる | 中 | Phase 6 で `dpi_scale_factor_from_dpi`/`resolve_overlay_screen_rect` を実装・ユニットテスト済み。**実機の高DPI環境での検証は未実施のまま**。旧mainpcは撤去済みで、後継の高DPI Windows機もこの作業環境から利用できないため実機確認が必要 |
 | wgpu 移行が長引き Windows 以外の作業を止める | 中 | Phase 1-3 は Phase 4 と独立なので先に出す。Phase 3 完了時点で「overlay 以外は動く」を確定させる |
 | Windows 版の保守コストで macOS の速度が落ちる | 中 | ADR-001 の優先順位は維持。Windows の parity failure は当面 blocker にしない |
 | 開発機（rustc 1.93.0）と Windows 機（1.98.0）のバージョン差 | 低 | 揃える。`rust-toolchain.toml` の導入を検討する |

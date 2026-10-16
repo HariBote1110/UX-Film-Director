@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type {
   AudioObject,
@@ -20,6 +22,45 @@ import type {
 } from '../types';
 import { buildEditableRustScene } from './editableRustScene';
 import { buildAviUtlHologramObject } from './objectFactories/hologramObjectFactory';
+
+const generatedResidentTypes = [
+  ['barcode', 'GeneratedBarcode', 'GeneratedBarcodePlane'],
+  ['puzzle_piece', 'GeneratedPuzzlePiece', 'GeneratedPuzzlePiecePlane'],
+  ['colour_wheel', 'GeneratedColourWheel', 'GeneratedColourWheelPlane'],
+  ['gourd', 'GeneratedGourd', 'GeneratedGourdPlane'],
+  ['gear', 'GeneratedGear', 'GeneratedGearPlane'],
+  ['track_bar', 'GeneratedTrackBar', 'GeneratedTrackBarPlane'],
+  ['pie_chart', 'GeneratedPieChart', 'GeneratedPieChartPlane'],
+  ['histogram', 'GeneratedHistogram', 'GeneratedHistogramPlane'],
+  ['tone_curve', 'GeneratedToneCurve', 'GeneratedToneCurvePlane'],
+  ['sphere_dots', 'GeneratedSphereDots', 'GeneratedSphereDotsPlane'],
+  ['spherical_field', 'GeneratedSphericalField', 'GeneratedSphericalFieldPlane'],
+  ['sunburst', 'GeneratedSunburst', 'GeneratedSunburstPlane'],
+  ['circular_arrow', 'GeneratedCircularArrow', 'GeneratedCircularArrowPlane'],
+  ['triangle_bracket', 'GeneratedTriangleBracket', 'GeneratedTriangleBracketPlane'],
+  ['tartan_check', 'GeneratedTartanCheck', 'GeneratedTartanCheckPlane'],
+  ['houndstooth', 'GeneratedHoundstooth', 'GeneratedHoundstoothPlane'],
+  ['yagasuri', 'GeneratedYagasuri', 'GeneratedYagasuriPlane'],
+  ['paper_airplane', 'GeneratedPaperAirplane', 'GeneratedPaperAirplanePlane'],
+  ['asanoha_pattern', 'GeneratedAsanohaPattern', 'GeneratedAsanohaPatternPlane'],
+  ['focus_lines_plus', 'GeneratedFocusLinesPlus', 'GeneratedFocusLinesPlusPlane'],
+  ['random_line_ex', 'GeneratedRandomLineEx', 'GeneratedRandomLineExPlane'],
+  ['contour_trace', 'GeneratedContourTrace', 'GeneratedContourTracePlane'],
+  ['displacement_poly', 'GeneratedDisplacementPoly', 'GeneratedDisplacementPolyPlane'],
+  ['plain_effector_line', 'GeneratedPlainEffectorLine', 'GeneratedPlainEffectorLinePlane'],
+  ['protractor', 'GeneratedProtractor', 'GeneratedProtractorPlane'],
+] as const;
+
+const coverageFixturePath = join(
+  __dirname,
+  '..',
+  '..',
+  'rust-core',
+  'tests',
+  'fixtures',
+  'editable-scene-builder',
+  'all-object-types.json'
+);
 
 const projectSettings: ProjectSettings = {
   width: 1920,
@@ -277,6 +318,50 @@ const regionFrame = (patch: Partial<RegionFrameObject> = {}): RegionFrameObject 
 });
 
 describe('buildEditableRustScene', () => {
+  it('fixtureのgenerated視覚型25種をmediaと評価clipごとresident Projectへ保持する', () => {
+    const fixture = JSON.parse(readFileSync(coverageFixturePath, 'utf8')) as {
+      graph: {
+        settings: ProjectSettings;
+        layers: LayerState[];
+        objects: TimelineObject[];
+      };
+      resident_result: {
+        project: { tracks: { clips: Record<string, unknown>[] }[] };
+        media: Record<string, unknown>[];
+      };
+    };
+    const targetTypes = new Set<string>(generatedResidentTypes.map(([type]) => type));
+    const objects = fixture.graph.objects.filter((object) => targetTypes.has(object.type));
+    expect(objects).toHaveLength(25);
+
+    const result = buildEditableRustScene({
+      sceneId: 'all-object-types',
+      projectSettings: fixture.graph.settings,
+      layers: fixture.graph.layers,
+      objects,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(`expected all generated types to be resident eligible: ${JSON.stringify(result.issues)}`);
+
+    const actualClips = result.project.tracks.flatMap((track) => track.clips);
+    const expectedClips = fixture.resident_result.project.tracks.flatMap((track) => track.clips);
+    const expectedMedia = fixture.resident_result.media;
+    expect(actualClips).toHaveLength(generatedResidentTypes.length);
+    for (const [type, mediaKind, clipKind] of generatedResidentTypes) {
+      const expectedClip = expectedClips.find((clip) => clip.id === type);
+      const actualClip = actualClips.find((clip) => clip.id === type);
+      expect(expectedClip, `${type} fixture clip`).toBeDefined();
+      expect(actualClip, `${type} resident clip`).toEqual(expectedClip);
+      expect(actualClip?.kind).toBe(clipKind);
+
+      const expectedReference = expectedMedia.find((media) => media.id === type);
+      const actualReference = result.media.find((media) => media.id === type);
+      expect(expectedReference, `${type} fixture media`).toBeDefined();
+      expect(actualReference, `${type} resident media`).toEqual(expectedReference);
+      expect(actualReference?.kind).toBe(mediaKind);
+    }
+  });
+
   it('編集時にV1 Projectとnative mediaを一度だけ組み立て、layer/insertion順と動画offsetを保持する', () => {
     const result = buildEditableRustScene({
       sceneId: 'scene-1',

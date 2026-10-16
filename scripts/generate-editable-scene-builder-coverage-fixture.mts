@@ -108,13 +108,17 @@ const tsMedia = objects
   .filter((object) => object.type !== 'audio' && object.type !== 'group_control')
   .sort((left, right) => left.layer - right.layer)
   .map((object) => mediaReferenceForEditableRustScene(object as never, settings.fps, objects));
-// 常駐用のProjectは現行TS builderが受理するV1対象だけで生成する。
-// 42種全体のTS builder結果も別に保存し、media coverageとは混同しない。
+// 常駐用Projectは全40 visual typeを生成する。audioはtimeline mediaではなく、
+// group_controlはclipではなく制御として別に扱う。全42 TimelineObject kindも別途保持する。
 const editableProjectObjects = objects.filter((object) => [
   'group_control',
   'shape', 'image', 'video', 'psd', 'text', 'particle', 'audio_visualization', 'audio_sphere',
   'getcolor_dot_field', 'hksy_checker_grid', 'region_frame', 'simple_tube', 'hologram',
-  'shaking_polygon', 'shattered_sphere',
+  'shaking_polygon', 'shattered_sphere', 'barcode', 'puzzle_piece', 'colour_wheel', 'gourd',
+  'gear', 'track_bar', 'pie_chart', 'histogram', 'tone_curve', 'sphere_dots', 'spherical_field',
+  'sunburst', 'circular_arrow', 'triangle_bracket', 'tartan_check', 'houndstooth', 'yagasuri',
+  'paper_airplane', 'asanoha_pattern', 'focus_lines_plus', 'random_line_ex', 'contour_trace',
+  'displacement_poly', 'plain_effector_line', 'protractor',
 ].includes(object.type));
 const tsResidentResult = buildEditableRustScene({ sceneId: 'all-object-types', projectSettings: settings, layers, objects: editableProjectObjects });
 if (!tsResidentResult.ok) throw new Error(`coverage fixture の TS builder (resident subset) が失敗: ${JSON.stringify(tsResidentResult.issues)}`);

@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-522c",
+  "version": "0.1.1-Beta-523a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/dev-native-overlay.mjs",
@@ -28,6 +28,8 @@
     "agent:video": "node scripts/run-agent-video.mjs",
     "test:realistic-heavy-edit:e2e": "node scripts/run-realistic-heavy-edit-e2e.mjs",
     "test:realistic-heavy-edit:e2e:cpu-throttle": "UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE=4 node scripts/run-realistic-heavy-edit-e2e.mjs",
+    "dxc:prepare": "node scripts/prepareDxc.mjs --prepare",
+    "build:win": "npm run dxc:prepare && npm run build -- --win --x64",
     "test:psd-import:e2e": "node scripts/run-psd-import-e2e-parity.mjs",
     "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
@@ -48,6 +50,7 @@
   "build": {
     "appId": "com.uxfd.film-director",
     "productName": "UX Film Director",
+    "beforePack": "./scripts/prepareDxc.mjs",
     "directories": {
       "output": "release"
     },
@@ -94,6 +97,19 @@
       "category": "public.app-category.video"
     },
     "win": {
+      "extraFiles": [
+        {
+          "from": "windows/dxc/x64",
+          "to": ".",
+          "filter": [
+            "dxcompiler.dll",
+            "dxil.dll",
+            "LICENSE-LLVM.txt",
+            "LICENSE-MS.txt",
+            "LICENCE-MIT.txt"
+          ]
+        }
+      ],
       "target": [
         {
           "target": "nsis",
@@ -127,6 +143,7 @@
     "cross-env": "^7.0.3",
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3",
+    "extract-zip": "^2.0.1",
     "mp4box": "^2.4.0",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",

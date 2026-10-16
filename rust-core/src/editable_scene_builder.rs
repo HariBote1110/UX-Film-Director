@@ -247,6 +247,31 @@ fn verified_object_type(object: &TimelineObject) -> bool {
             | TimelineObject::Hologram { .. }
             | TimelineObject::ShakingPolygon { .. }
             | TimelineObject::ShatteredSphere { .. }
+            | TimelineObject::Barcode { .. }
+            | TimelineObject::PuzzlePiece { .. }
+            | TimelineObject::ColourWheel { .. }
+            | TimelineObject::Gourd { .. }
+            | TimelineObject::Gear { .. }
+            | TimelineObject::TrackBar { .. }
+            | TimelineObject::PieChart { .. }
+            | TimelineObject::Histogram { .. }
+            | TimelineObject::ToneCurve { .. }
+            | TimelineObject::SphereDots { .. }
+            | TimelineObject::SphericalField { .. }
+            | TimelineObject::Sunburst { .. }
+            | TimelineObject::CircularArrow { .. }
+            | TimelineObject::TriangleBracket { .. }
+            | TimelineObject::TartanCheck { .. }
+            | TimelineObject::Houndstooth { .. }
+            | TimelineObject::Yagasuri { .. }
+            | TimelineObject::PaperAirplane { .. }
+            | TimelineObject::AsanohaPattern { .. }
+            | TimelineObject::FocusLinesPlus { .. }
+            | TimelineObject::RandomLineEx { .. }
+            | TimelineObject::ContourTrace { .. }
+            | TimelineObject::DisplacementPoly { .. }
+            | TimelineObject::PlainEffectorLine { .. }
+            | TimelineObject::Protractor { .. }
     )
 }
 
