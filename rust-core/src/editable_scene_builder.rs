@@ -40,6 +40,68 @@ fn frame(seconds: f32, fps: f32) -> u64 {
 fn dimension(value: f32) -> u32 {
     value.max(0.0).round() as u32
 }
+fn text_blur_radius(blur: f32) -> f32 {
+    if !blur.is_finite() || blur <= 0.0 {
+        return 0.0;
+    }
+    let ideal_width =
+        ((blur / 2.0 * 3.0 * (2.0 * std::f32::consts::PI).sqrt() / 4.0) + 0.5).floor();
+    (ideal_width / 2.0).floor().max(0.0)
+}
+fn text_decoration_insets(fields: &crate::schema::TextObjectFields) -> [u32; 4] {
+    let stroke = fields
+        .text_stroke
+        .as_ref()
+        .map(|stroke| {
+            if stroke.width.is_finite() {
+                stroke.width.max(0.0)
+            } else {
+                0.0
+            }
+        })
+        .unwrap_or(0.0);
+    let (offset_x, offset_y, blur_spread) =
+        fields
+            .text_shadow
+            .as_ref()
+            .map_or((0.0, 0.0, 0.0), |shadow| {
+                let offset_x = if shadow.offset_x.is_finite() {
+                    shadow.offset_x
+                } else {
+                    0.0
+                };
+                let offset_y = if shadow.offset_y.is_finite() {
+                    shadow.offset_y
+                } else {
+                    0.0
+                };
+                (offset_x, offset_y, text_blur_radius(shadow.blur) * 3.0)
+            });
+    [
+        stroke.max(blur_spread - offset_x).ceil() as u32,
+        stroke.max(blur_spread - offset_y).ceil() as u32,
+        stroke.max(blur_spread + offset_x).ceil() as u32,
+        stroke.max(blur_spread + offset_y).ceil() as u32,
+    ]
+}
+fn text_content_dimensions(fields: &crate::schema::TextObjectFields) -> (f32, f32) {
+    let width = fields.measured_width.unwrap_or_else(|| {
+        (fields
+            .text
+            .lines()
+            .map(|line| line.encode_utf16().count())
+            .max()
+            .unwrap_or(1)
+            .max(1) as f32
+            * fields.font_size
+            * 0.6)
+            .ceil()
+    });
+    let height = fields.measured_height.unwrap_or_else(|| {
+        (fields.text.lines().count().max(1) as f32 * fields.font_size * 1.25).ceil()
+    });
+    (width, height)
+}
 fn finite(value: f32, fallback: f32) -> f32 {
     if value.is_finite() {
         value
@@ -319,9 +381,18 @@ fn kind_and_dimensions(object: &TimelineObject) -> Option<(MediaKind, f32, f32, 
         TimelineObject::Video { fields, .. } => Some((MediaKind::Video, fields.width, fields.height, String::new())),
         TimelineObject::Psd { fields, .. } => Some((MediaKind::Psd, fields.width, fields.height, source_path(&fields.src, &fields.file_path))),
         TimelineObject::Text { fields, .. } => {
-            let width = fields.measured_width.unwrap_or_else(|| ((fields.text.lines().map(|line| line.encode_utf16().count()).max().unwrap_or(1).max(1) as f32) * fields.font_size * 0.6).ceil());
-            let height = fields.measured_height.unwrap_or_else(|| ((fields.text.lines().count().max(1) as f32) * fields.font_size * 1.25).ceil());
-            Some((MediaKind::Text, width, height, serde_json::to_string(fields).ok()?))
+            let (content_width, content_height) = text_content_dimensions(fields);
+            let insets = text_decoration_insets(fields);
+            let width = content_width + insets[0] as f32 + insets[2] as f32;
+            let height = content_height + insets[1] as f32 + insets[3] as f32;
+            let mut source = serde_json::to_value(fields).ok()?;
+            if insets.iter().any(|inset| *inset > 0) {
+                source["__renderOffsetX"] = json!(insets[0]);
+                source["__renderOffsetY"] = json!(insets[1]);
+                source["__contentWidth"] = json!(content_width);
+                source["__contentHeight"] = json!(content_height);
+            }
+            Some((MediaKind::Text, width, height, serde_json::to_string(&source).ok()?))
         }
         TimelineObject::Particle { fields, .. } => Some((MediaKind::GeneratedParticle, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
         TimelineObject::Barcode { fields, .. } => Some((MediaKind::GeneratedBarcode, fields.width, fields.height, serde_json::to_string(fields).ok()?)),
@@ -849,7 +920,10 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
         }
         // media は direct 経路のため常に保持するが、resident に不適格な
         // object は TS builder と同じく clip には投影しない。
-        if diagnostics.iter().any(|diagnostic| diagnostic.object_id == b.id) {
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.object_id == b.id)
+        {
             media.push(reference);
             continue;
         }
@@ -1035,5 +1109,135 @@ pub fn build_evaluation_scene(graph: &EditableSceneGraph) -> BuiltEvaluationScen
         project,
         media,
         diagnostics,
+    }
+}
+
+#[cfg(test)]
+mod text_decoration_tests {
+    use super::text_decoration_insets;
+    use crate::schema::{
+        EditableSceneGraph, TextObjectFields, TextShadow, TextStroke, TimelineObject,
+        TimelinePositionKeyframe,
+    };
+
+    #[test]
+    fn text_decoration_insets_cover_stroke_and_signed_three_pass_blur() {
+        let mut fields = TextObjectFields::default();
+        fields.text_stroke = Some(TextStroke {
+            colour: "#000000".into(),
+            width: 3.2,
+        });
+        fields.text_shadow = Some(TextShadow {
+            colour: "#000000".into(),
+            offset_x: -4.0,
+            offset_y: 6.0,
+            blur: 8.0,
+        });
+        assert_eq!(text_decoration_insets(&fields), [16, 6, 8, 18]);
+    }
+
+    #[test]
+    fn decorated_text_keeps_animated_origin_after_builder_and_group_evaluation() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/editable-scene-builder/all-object-types.json"
+        ))
+        .unwrap();
+        let mut graph: EditableSceneGraph =
+            serde_json::from_value(fixture["graph"].clone()).unwrap();
+        graph.objects.retain(|object| {
+            matches!(
+                object,
+                TimelineObject::Text { .. } | TimelineObject::GroupControl { .. }
+            )
+        });
+        for object in &mut graph.objects {
+            match object {
+                TimelineObject::Text { base, fields } => {
+                    base.layer = 7.0;
+                    base.x = 100.0;
+                    base.y = 120.0;
+                    base.rotation = -20.0;
+                    base.scale_x = -1.1;
+                    base.scale_y = 0.9;
+                    base.keyframes = Some(vec![
+                        TimelinePositionKeyframe {
+                            id: "start".into(),
+                            time: 0.0,
+                            x: 100.0,
+                            y: 120.0,
+                            easing: None,
+                        },
+                        TimelinePositionKeyframe {
+                            id: "end".into(),
+                            time: 5.0,
+                            x: 200.0,
+                            y: 220.0,
+                            easing: None,
+                        },
+                    ]);
+                    fields.text_stroke = Some(TextStroke {
+                        colour: "#000000".into(),
+                        width: 4.0,
+                    });
+                    fields.text_shadow = Some(TextShadow {
+                        colour: "#000000".into(),
+                        offset_x: -8.0,
+                        offset_y: 3.0,
+                        blur: 10.0,
+                    });
+                }
+                TimelineObject::GroupControl { base, .. } => {
+                    base.start_time = 2.0;
+                    base.duration = 2.0;
+                    base.x = 23.0;
+                    base.y = 29.0;
+                    base.rotation = 7.0;
+                    base.scale_x = 1.1;
+                    base.scale_y = 0.9;
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        let built = super::build_evaluation_scene(&graph);
+        let media = built.media.iter().find(|media| media.id == "text").unwrap();
+        let source: serde_json::Value = serde_json::from_str(&media.source).unwrap();
+        let insets = text_decoration_insets(&match &graph.objects[0] {
+            TimelineObject::Text { fields, .. } => fields.clone(),
+            _ => unreachable!(),
+        });
+        assert_eq!(media.width, 320 + insets[0] + insets[2]);
+        assert_eq!(media.height, 60 + insets[1] + insets[3]);
+        assert_eq!(source["__renderOffsetX"], insets[0]);
+        assert_eq!(source["__renderOffsetY"], insets[1]);
+
+        for (frame_index, expected_x, expected_y) in [
+            (60, 120.0, 140.0),
+            (120, 163.0, 189.0),
+            (239, 202.666_67, 228.666_67),
+            (240, 180.0, 200.0),
+        ] {
+            let evaluated = crate::evaluate_frame(&built.project, frame_index);
+            let clip = evaluated
+                .clips
+                .iter()
+                .find(|clip| clip.clip_id == "text")
+                .unwrap();
+            let angle = clip.transform.rotation_degrees.to_radians();
+            let glyph_x = insets[0] as f32 * clip.transform.scale_x;
+            let glyph_y = insets[1] as f32 * clip.transform.scale_y;
+            let rendered_x =
+                clip.transform.translation_x + glyph_x * angle.cos() - glyph_y * angle.sin();
+            let rendered_y =
+                clip.transform.translation_y + glyph_x * angle.sin() + glyph_y * angle.cos();
+            assert!(
+                (rendered_x - expected_x).abs() < 1e-3,
+                "frame {frame_index}: expected glyph x={expected_x}, got {rendered_x}"
+            );
+            assert!(
+                (rendered_y - expected_y).abs() < 1e-3,
+                "frame {frame_index}: expected glyph y={expected_y}, got {rendered_y}"
+            );
+        }
     }
 }
