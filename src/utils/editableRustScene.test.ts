@@ -318,6 +318,32 @@ const regionFrame = (patch: Partial<RegionFrameObject> = {}): RegionFrameObject 
 });
 
 describe('buildEditableRustScene', () => {
+  it('有効なvibration filterを常駐clipへ動的effectとして順序付きで保持する', () => {
+    const vibrating = shape({
+      id: 'vibrating',
+      filters: [
+        { id: 'vibration-first', type: 'vibration', enabled: true, params: { strength: 5, speed: 2 } },
+        { id: 'vibration-disabled', type: 'vibration', enabled: false, params: { strength: 99, speed: 8 } },
+        { id: 'vibration-second', type: 'vibration', enabled: true, params: { strength: 0, speed: 0 } },
+      ],
+    });
+
+    const result = buildEditableRustScene({
+      sceneId: 'scene-vibration',
+      projectSettings,
+      layers,
+      objects: [vibrating],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const clip = result.project.tracks.flatMap((track) => track.clips).find(({ id }) => id === 'vibrating');
+    expect(clip?.effects).toEqual([
+      { Vibration: { strength: 5, speed: 2 } },
+      { Vibration: { strength: 0, speed: 0 } },
+    ]);
+  });
+
   it('fixtureのgenerated視覚型25種をmediaと評価clipごとresident Projectへ保持する', () => {
     const fixture = JSON.parse(readFileSync(coverageFixturePath, 'utf8')) as {
       graph: {
@@ -779,7 +805,7 @@ describe('buildEditableRustScene', () => {
     }]);
   });
 
-  it('V1外のgroup gradient、逆再生、時間依存filter、mask、未対応typeを明示拒否する', () => {
+  it('V1外のgroup gradient、逆再生、mask、未対応typeを明示拒否する', () => {
     const unsupported: TimelineObject[] = [
       {
         ...shape({ id: 'group-member' }),
@@ -794,15 +820,6 @@ describe('buildEditableRustScene', () => {
         },
       },
       { ...video({ id: 'reversed' }), reversed: true },
-      {
-        ...shape({ id: 'filter' }),
-        filters: [{
-          id: 'vibration',
-          type: 'vibration',
-          enabled: true,
-          params: { strength: 5, speed: 2 },
-        }],
-      },
       { ...image({ id: 'mask' }), clipping: true },
     ];
 
@@ -813,7 +830,6 @@ describe('buildEditableRustScene', () => {
     expect(result.issues.map((issue) => [issue.objectId, issue.code])).toEqual([
       ['group-member', 'unsupportedGroup'],
       ['reversed', 'unsupportedVideoMode'],
-      ['filter', 'unsupportedFilter'],
       ['mask', 'unsupportedMask'],
     ]);
   });
