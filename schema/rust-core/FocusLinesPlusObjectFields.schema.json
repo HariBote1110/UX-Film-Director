@@ -29,8 +29,9 @@
       "format": "float"
     },
     "keyframeInterval": {
-      "type": "number",
-      "format": "float"
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
     },
     "lineColour": {
       "type": "string"
