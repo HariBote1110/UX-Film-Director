@@ -61,7 +61,13 @@ import {
   mediaReferenceForEditableRustScene,
   rustEffectsForObject,
 } from './rustSceneSnapshot';
-import { rustColourPipeline, type RustEffect, type RustSceneMediaReference, type RustTransform } from './rustSceneContract';
+import {
+  rustColourPipeline,
+  type RustEffect,
+  type RustSceneMediaReference,
+  type RustSceneVideoSourceMode,
+  type RustTransform,
+} from './rustSceneContract';
 import { fpsToFrameRate, secondsToFrameIndex } from './rustSceneFrameRate';
 
 type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | ProtractorObject;
@@ -145,6 +151,7 @@ export interface EditableRustSceneBuildInput {
   projectSettings: Pick<ProjectSettings, 'width' | 'height' | 'fps'>;
   layers: LayerState[];
   objects: TimelineObject[];
+  mediaPurpose?: RustSceneVideoSourceMode;
 }
 
 const isEditableRustSceneObject = (object: TimelineObject): object is EditableRustSceneObject => (
@@ -367,10 +374,11 @@ const isNativeReadableGetColorSampleSource = (source: string): boolean => {
 const getColorSampleIssue = (
   object: GetColorDotFieldObject,
   objects: TimelineObject[],
-  fps: number
+  fps: number,
+  mediaPurpose: RustSceneVideoSourceMode
 ): EditableRustSceneIssue | null => {
   if (!hasGetColorSampleReference(object)) return null;
-  const reference = mediaReferenceForEditableRustScene(object, fps, objects);
+  const reference = mediaReferenceForEditableRustScene(object, fps, objects, mediaPurpose);
   const sourceImage = JSON.parse(reference.source).source_image;
   if (typeof sourceImage !== 'string' || !isNativeReadableGetColorSampleSource(sourceImage)) {
     return {
@@ -421,7 +429,8 @@ const isResidentStaticFilter = (
 const issueForObject = (
   object: TimelineObject,
   objects: TimelineObject[],
-  fps: number
+  fps: number,
+  mediaPurpose: RustSceneVideoSourceMode
 ): EditableRustSceneIssue | null => {
   if (object.type === 'audio') return null;
   if (object.type === 'group_control') return null;
@@ -442,7 +451,7 @@ const issueForObject = (
     return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
   }
   if (object.type === 'getcolor_dot_field') {
-    return getColorSampleIssue(object, objects, fps);
+    return getColorSampleIssue(object, objects, fps, mediaPurpose);
   }
   return null;
 };
@@ -452,10 +461,11 @@ export const buildEditableRustScene = ({
   projectSettings,
   layers,
   objects,
+  mediaPurpose = 'previewProxy',
 }: EditableRustSceneBuildInput): EditableRustSceneBuildResult => {
   const visibleObjects = objects.filter((object) => layers[object.layer]?.visible !== false);
   const issues = visibleObjects
-    .map((object) => issueForObject(object, objects, projectSettings.fps))
+    .map((object) => issueForObject(object, objects, projectSettings.fps, mediaPurpose))
     .filter((issue): issue is EditableRustSceneIssue => issue !== null);
   if (issues.length > 0) return { ok: false, issues };
 
@@ -464,7 +474,12 @@ export const buildEditableRustScene = ({
     .map((object, insertionIndex) => ({ object, insertionIndex }))
     .sort((left, right) => left.object.layer - right.object.layer || left.insertionIndex - right.insertionIndex);
 
-  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(object, projectSettings.fps, objects));
+  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(
+    object,
+    projectSettings.fps,
+    objects,
+    mediaPurpose
+  ));
   const tracksByLayer = new Map<number, EditableRustTrack>();
   for (const { object } of orderedObjects) {
     const track = tracksByLayer.get(object.layer) ?? { id: `layer-${object.layer}`, clips: [] };
