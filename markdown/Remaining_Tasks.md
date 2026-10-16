@@ -1,4 +1,50 @@
-# 残タスク一覧（2026-08-07 時点）
+# 残タスク一覧（2026-10-16 更新）
+
+`feature-proxy` / `0.1.1-Beta-522b`（調査開始時点）のコード、計画書、決定ログ、コミット履歴を照合した再開用一覧。
+優先順位は今回の再開に向けた推奨順。未検証事項は不具合確定と区別する。
+
+## 直近の完了事項
+
+- Scene Build P0・P1・P2a/bの実装、P2cの常駐scene export修正。P2cは全群ON混在E2Eで60/60フレーム出力を確認済み。
+- H.264 / HEVC / ProResのコーデック選択と書き出し経路への接続。
+- テキスト末尾文字の折り返し欠落、選択・ドラッグ不可、不要なリサイズハンドル、文字サイズ変更後の古い選択枠を修正済み。
+- 新規プロジェクトのfps整数自由入力（1〜240）。
+- Windows移植W0〜W7、Remote Control Deckの各計画フェーズは完了扱い。下記の追加検証・仕上げは別に残る。
+
+## 再開順
+
+| 順位 | タスク | 現状・完了条件 |
+| --- | --- | --- |
+| 1 | P2c一時診断の撤去 | controller lifecycleの全イベント履歴は原因調査用。参照元を確認して撤去し、export確認中・成功・失敗の通常statusと回帰テストを維持する。今回の再開対象。 |
+| 2 | P2全体の完了条件を棚卸し | P2c完了はP2全体完了と別。旧direct snapshot caller、Windows interim presenter、群別cut-over検証の残存を確認し、Rust-built mediaへの収束を完了する。古いP2b追記には後続で解消済みの447-frame検証・group_control hook未実装の記述が残るため同期する。 |
+| 3 | P3: TS serializer撤去 | P2の両経路収束後、`rustSceneSnapshot.ts` / `editableRustScene.ts`の生成・参照解決をRustへ一本化。447-frame parityとpreview/export E2Eを維持する。 |
+| 4 | P4: UI評価値をRustへ移行 | PropertyPanel、選択枠、追跡、storeのTS評価利用を`scene.evaluate`購読へ付け替え、重複評価関数を撤去。ドラッグ・スクラブの遅延も確認する。 |
+| 5 | テキストの縁取り・影のクリップ | 未修正。装飾分の領域拡張と描画原点・回転・scale補正が必要。既存テキスト位置を維持する契約テストから着手する。 |
+| 6 | フィルタ値編集のUndo/Redo | Rust Command適用自体は実装済みだが、`updateObjectFilterParams`は現在も履歴を積まない。入力開始〜終了を1操作として履歴化する。 |
+
+出典: [Scene Build計画](Scene_Build_In_Rust_Plan.md)、[P2c決定ログ](../progress/scene-build-p2c-resident-scene-export-revision.md)、[テキスト装飾クリップ](../progress/text-stroke-shadow-clipping.md)、`src/store/useStore.ts`の`updateObjectFilterParams`。
+
+## 検証・判断が必要な項目
+
+- **scene.replace性能**: raw graphのpayloadサイズ・RTTを実測し、許容上限を決める。上限は未決であり、計測を先行できる。
+- **Windows仕上げ**: 高DPI、実ElectronのHTML UI重なりを検証。初回attachの同期パイプライン生成によるUI停止を調査・改善し、DXC DLLのビルド成果物同梱を詰める。各項目の記録は[Windows計画](Windows_Port_Plan.md)を参照し、実機で現状を再確認する。
+- **外部video経路の色差**: 既存のmatrix / colourSpace明示修正は完了。再現素材のffprobeと、現在のnative描画経路で影響が残るかの確認が必要。過去経路の仮説だけで新規修正を始めない。[調査ログ](../progress/external-video-colour-mismatch.md)。
+- **実機確認の追補**: resident音声反応export、NV12リング停止修正、3D exportのreadback待機の速度など、各ログで未実施の検証を後続履歴と照合する。未実施という古い記述だけで未修正と判定しない。
+
+## 後続の機能・改善候補
+
+- エージェントレシピのテキスト実測による自動整列、blur fallbackの負荷改善。
+- GetColor / hksy / 93混在の保存・読込・描画品質を継続検証する代表シーンの充足確認。既存の重量編集・parity fixtureと重複する基盤は増設しない。
+- アニメ撮影機能と3D空間オーディオ。[構想書](Anime_Compositing_And_Spatial_Audio_Plan.md)は実装計画化前に、現行合成モード・多段フィルタとの差分を再調査する。
+- React commit / DOM layoutの性能研究。研究記録は`perf_research/`を正とする。
+- 小数fpsは未対応。対応時は分子・分母をencodeまで通す（整数入力機能の未完了扱いにはしない）。
+- `main` / `feature-proxy`の統合・運用方針。統合操作は別途方針を確定して実施する。
+
+## 旧一覧（2026-08-07〜08-08、履歴資料）
+
+以下は当時の記録。現在の着手判断には上の一覧と各計画書の最新追記を用いる。
+
+### 旧一覧の調査時点
 
 `feature-proxy` ブランチの作業ツリーがクリーンな状態で、ドキュメントとコミット履歴から
 洗い出した未着手タスクをまとめる。着手時はこのファイルの該当項目へ進捗を追記する。
