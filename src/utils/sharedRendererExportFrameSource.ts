@@ -9,8 +9,7 @@ import {
   buildSharedRendererExportSessionFromEvaluation,
   type SharedRendererExportSession,
 } from './sharedRendererExportSession';
-import type { SharedRendererExportEvaluationRequest } from './sharedRendererExportEvaluationProvider';
-import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
+import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import {
   releaseRustBackendNativeSharedFrame,
   renderRustBackendNativeSharedFrame,
@@ -119,9 +118,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   datasets?: PresenterDataset[];
   buildExportSession?: SharedRendererExportSessionBuilder;
-  evaluateResidentScene?: (
-    request: SharedRendererExportEvaluationRequest
-  ) => Promise<RustBackendSceneEvaluation | null>;
+  evaluateResidentScene?: SharedRendererExportEvaluationProvider;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;

@@ -22,6 +22,10 @@ export interface SharedRendererExportEvaluationProviderInput {
   }) => Promise<RustBackendSceneEvaluation>;
 }
 
+export type SharedRendererExportEvaluationProvider = (
+  request: SharedRendererExportEvaluationRequest
+) => Promise<RustBackendSceneEvaluation | null>;
+
 /**
  * Export 内で同じ immutable object graph を使い続ける間は scene.replace を再利用し、
  * 各 frame では scene.evaluate だけを行う。未対応 graph は null で呼出側へ返し、
@@ -33,7 +37,7 @@ export const createSharedRendererExportEvaluationProvider = ({
 }: SharedRendererExportEvaluationProviderInput) => {
   const preparedScenes = new WeakMap<readonly TimelineObject[], Promise<SharedRendererExportResidentScene | null>>();
 
-  return async ({ objects, frameIndex }: SharedRendererExportEvaluationRequest): Promise<RustBackendSceneEvaluation | null> => {
+  const evaluate: SharedRendererExportEvaluationProvider = async ({ objects, frameIndex }) => {
     let prepared = preparedScenes.get(objects);
     if (!prepared) {
       prepared = prepareScene(objects);
@@ -55,4 +59,6 @@ export const createSharedRendererExportEvaluationProvider = ({
     }
     return evaluation;
   };
+
+  return evaluate;
 };
