@@ -237,82 +237,6 @@ const writeRustTimelineSceneRpcDiagnostics = (diagnostics: RustTimelineSceneRpcD
     .__UXFD_RUST_TIMELINE_SCENE_RPC__ = diagnostics;
 };
 
-type RustTimelineSceneControllerTraceEvent =
-  | { kind: 'created' }
-  | { kind: 'cleanup'; clearedRef: boolean }
-  | { kind: 'exportSource'; refPresent: boolean }
-  | { kind: 'exportConfirmIssued' }
-  | { kind: 'exportConfirmResolved'; sceneId: string; revision: number }
-  | { kind: 'exportConfirmRejected' };
-
-export interface RustTimelineSceneControllerTrace {
-  sequence: number;
-  lastLifecycleSequence: number | null;
-  exportSourceCalls: number;
-  events: string[];
-}
-
-const controllerTraceEvent = (event: string): { sequence: number; lifecycle: boolean } | null => {
-  const matched = /^(\d+):([^@]+)@/.exec(event);
-  if (!matched) return null;
-  return {
-    sequence: Number(matched[1]),
-    lifecycle: matched[2] === 'created' || matched[2] === 'cleanup',
-  };
-};
-
-export const createRustTimelineSceneControllerTrace = (
-  dataset: Record<string, string | undefined>,
-): RustTimelineSceneControllerTrace => {
-  const events = dataset.uxfdRustTimelineSceneControllerTrace?.split('|').filter(Boolean) ?? [];
-  let sequence = 0;
-  let lastLifecycleSequence: number | null = null;
-  events.forEach((event) => {
-    const eventTrace = controllerTraceEvent(event);
-    if (!eventTrace) return;
-    sequence = Math.max(sequence, eventTrace.sequence);
-    if (eventTrace.lifecycle) lastLifecycleSequence = eventTrace.sequence;
-  });
-  const exportSourceCalls = Number(dataset.uxfdRustTimelineSceneControllerExportSourceCalls);
-  return {
-    sequence,
-    lastLifecycleSequence,
-    exportSourceCalls: Number.isSafeInteger(exportSourceCalls) && exportSourceCalls >= 0
-      ? exportSourceCalls
-      : 0,
-    events,
-  };
-};
-
-export const recordRustTimelineSceneControllerTrace = (
-  trace: RustTimelineSceneControllerTrace,
-  dataset: Record<string, string | undefined>,
-  event: RustTimelineSceneControllerTraceEvent,
-  timestamp = Date.now(),
-): void => {
-  trace.sequence += 1;
-  let entry = `${trace.sequence}:${event.kind}@${timestamp}`;
-  if (event.kind === 'created' || event.kind === 'cleanup') {
-    trace.lastLifecycleSequence = trace.sequence;
-    if (event.kind === 'cleanup') entry += event.clearedRef ? ':cleared' : ':retained';
-  } else if (event.kind === 'exportSource') {
-    trace.exportSourceCalls += 1;
-    const lifecycle = trace.lastLifecycleSequence ?? 'none';
-    entry += `:${event.refPresent ? 'present' : 'null'}:lastLifecycle=${lifecycle}`;
-    dataset.uxfdRustTimelineSceneControllerExportSourceCalls = String(trace.exportSourceCalls);
-    dataset.uxfdRustTimelineSceneControllerExportSourceState = `${event.refPresent ? 'present' : 'null'}:lastLifecycle=${lifecycle}`;
-  } else if (event.kind === 'exportConfirmResolved') {
-    entry += `:sceneId=${event.sceneId}:revision=${event.revision}`;
-    dataset.uxfdRustTimelineSceneControllerExportConfirmation = `resolved:sceneId=${event.sceneId}:revision=${event.revision}`;
-  } else if (event.kind === 'exportConfirmRejected') {
-    dataset.uxfdRustTimelineSceneControllerExportConfirmation = 'rejected';
-  } else {
-    dataset.uxfdRustTimelineSceneControllerExportConfirmation = 'issued';
-  }
-  trace.events.push(entry);
-  dataset.uxfdRustTimelineSceneControllerTrace = trace.events.join('|');
-};
-
 type SharedRendererExternalVideoSourceEntry = {
   url: string;
   source: SharedRendererExternalVideoSource;
@@ -800,7 +724,6 @@ const Viewport: React.FC = () => {
   const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
   const rustTimelineScenePreviewControllerRef = useRef<EditableRustScenePreviewController | null>(null);
-  const rustTimelineSceneControllerTraceRef = useRef<RustTimelineSceneControllerTrace | null>(null);
   const rustTimelineSceneExportGenerationRef = useRef(0);
   const rustNativePlaybackStartGenerationRef = useRef(0);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
@@ -900,14 +823,6 @@ const Viewport: React.FC = () => {
   });
   const [sharedRendererPreviewSession, setSharedRendererPreviewSession] = useState<SharedRendererPreviewSession | null>(null);
   const [sharedRendererPreviewDiagnostic, setSharedRendererPreviewDiagnostic] = useState<string | null>(null);
-  const recordRustTimelineSceneControllerTraceEvent = (event: RustTimelineSceneControllerTraceEvent) => {
-    if (typeof document === 'undefined') return;
-    const dataset = document.documentElement.dataset as Record<string, string | undefined>;
-    const trace = rustTimelineSceneControllerTraceRef.current
-      ?? createRustTimelineSceneControllerTrace(dataset);
-    rustTimelineSceneControllerTraceRef.current = trace;
-    recordRustTimelineSceneControllerTrace(trace, dataset, event);
-  };
   // Bumped when a paused external video frame becomes presentable, to re-run the
   // preview session publish and restart the presenter with the now-ready frame.
   const [sharedRendererExternalVideoFrameReadyTick, setSharedRendererExternalVideoFrameReadyTick] = useState(0);
@@ -1982,13 +1897,11 @@ const Viewport: React.FC = () => {
       includeEditableScene: rustEditableSceneCutoverEnabled,
     });
     rustTimelineScenePreviewControllerRef.current = controller;
-    recordRustTimelineSceneControllerTraceEvent({ kind: 'created' });
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
 
     return () => {
       const clearedRef = rustTimelineScenePreviewControllerRef.current === controller;
       controller.dispose();
-      recordRustTimelineSceneControllerTraceEvent({ kind: 'cleanup', clearedRef });
       if (clearedRef) {
         rustTimelineScenePreviewControllerRef.current = null;
       }
@@ -2745,10 +2658,6 @@ const Viewport: React.FC = () => {
   }, []);
 
   const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => {
-    recordRustTimelineSceneControllerTraceEvent({
-      kind: 'exportSource',
-      refPresent: rustTimelineScenePreviewControllerRef.current !== null,
-    });
     const residentSceneAvailable = (
       sharedRendererExportEnabled
       && rustTimelineSceneRpcEnabled
@@ -2767,18 +2676,13 @@ const Viewport: React.FC = () => {
           layers,
           objects: context.objects,
         });
-        recordRustTimelineSceneControllerTraceEvent({ kind: 'exportConfirmIssued' });
         document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirming';
         const confirmedScene = confirmation.then(
           (confirmed) => {
-            recordRustTimelineSceneControllerTraceEvent({
-              kind: 'exportConfirmResolved', sceneId: confirmed.sceneId, revision: confirmed.revision,
-            });
             document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
             return confirmed;
           },
           (error) => {
-            recordRustTimelineSceneControllerTraceEvent({ kind: 'exportConfirmRejected' });
             document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirmationFailed';
             throw error;
           },

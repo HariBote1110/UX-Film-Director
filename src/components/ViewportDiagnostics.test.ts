@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSharedRendererPreviewDiagnostic,
-  createRustTimelineSceneControllerTrace,
   isTransientExternalVideoPresentationFailure,
-  recordRustTimelineSceneControllerTrace,
   shouldBuildSharedRendererPreviewSessionForTick,
   shouldDeferSharedRendererPreviewSessionPublish,
   shouldReuseExternalVideoPresenterSession,
@@ -87,54 +85,6 @@ describe('buildSharedRendererPreviewDiagnostic', () => {
       uxfdSharedRendererPresenterTransientSkips: '42',
       uxfdSharedRendererPresenterLastTransientSkipReason: 'videoTextureViewUnavailable',
     }, readyControl)).toBeNull();
-  });
-});
-
-describe('Rust timeline scene controller lifecycle trace', () => {
-  it('作成・cleanup・export source取得を単調な順序でdatasetへ記録する', () => {
-    const dataset: Record<string, string | undefined> = {};
-    const trace = createRustTimelineSceneControllerTrace(dataset);
-
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'created' }, 100);
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'cleanup', clearedRef: true }, 120);
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'created' }, 140);
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'exportSource', refPresent: true }, 160);
-
-    expect(dataset).toMatchObject({
-      uxfdRustTimelineSceneControllerTrace: '1:created@100|2:cleanup@120:cleared|3:created@140|4:exportSource@160:present:lastLifecycle=3',
-      uxfdRustTimelineSceneControllerExportSourceCalls: '1',
-      uxfdRustTimelineSceneControllerExportSourceState: 'present:lastLifecycle=3',
-    });
-  });
-
-  it('remount後もdatasetのexport source eventを越えて連番を継続する', () => {
-    const dataset: Record<string, string | undefined> = {
-      uxfdRustTimelineSceneControllerTrace: '1:created@100|2:exportSource@110:present:lastLifecycle=1',
-      uxfdRustTimelineSceneControllerExportSourceCalls: '1',
-    };
-    const trace = createRustTimelineSceneControllerTrace(dataset);
-
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'cleanup', clearedRef: true }, 120);
-
-    expect(dataset.uxfdRustTimelineSceneControllerTrace).toBe(
-      '1:created@100|2:exportSource@110:present:lastLifecycle=1|3:cleanup@120:cleared'
-    );
-  });
-
-  it('export用sceneの確認発行・成功・失敗を同じtraceへ記録する', () => {
-    const dataset: Record<string, string | undefined> = {};
-    const trace = createRustTimelineSceneControllerTrace(dataset);
-
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'exportConfirmIssued' }, 100);
-    recordRustTimelineSceneControllerTrace(trace, dataset, {
-      kind: 'exportConfirmResolved', sceneId: 'export-scene', revision: 12,
-    }, 120);
-    recordRustTimelineSceneControllerTrace(trace, dataset, { kind: 'exportConfirmRejected' }, 140);
-
-    expect(dataset).toMatchObject({
-      uxfdRustTimelineSceneControllerTrace: '1:exportConfirmIssued@100|2:exportConfirmResolved@120:sceneId=export-scene:revision=12|3:exportConfirmRejected@140',
-      uxfdRustTimelineSceneControllerExportConfirmation: 'rejected',
-    });
   });
 });
 
