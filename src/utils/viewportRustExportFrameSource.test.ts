@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { ImageObject, ProjectSettings, ShapeObject, TimelineObject, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
@@ -724,6 +724,31 @@ describe('resolveViewportRustExportFrameSource', () => {
     hasVideoObjects: false,
     createFrameSource: () => frameSource,
   };
+
+  it('resident評価providerがないexportはTS serializerを呼ばずblockedにする', () => {
+    const buildExportSession = vi.fn(() => exportSessionWithSurfaceGate({
+      ok: true,
+      canvas: { width: 1920, height: 1080 },
+      snapshot: {} as never,
+      media: [],
+    }));
+    const createFrameSource = vi.fn(() => frameSource);
+
+    expect(resolveViewportRustExportFrameSource({
+      ...baseInput,
+      objects: exportObjects,
+      time: 0,
+      buildExportSession,
+      createFrameSource,
+    })).toEqual({
+      ok: false,
+      reason: 'residentEvaluationUnavailable',
+      detail: 'Rust resident scene evaluation provider is unavailable.',
+      diagnosticStatus: 'blocked',
+    });
+    expect(buildExportSession).not.toHaveBeenCalled();
+    expect(createFrameSource).not.toHaveBeenCalled();
+  });
 
   it('returns a ready decision with a source when every Rust export gate is open', () => {
     expect(resolveViewportRustExportFrameSource(baseInput)).toEqual({
