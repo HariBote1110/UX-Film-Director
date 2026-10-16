@@ -109,7 +109,7 @@ fn clamp_subject_crop_values(x: f32, y: f32, width: f32, height: f32) -> (f32, f
     (x, y, (x + width).min(1.0) - x, (y + height).min(1.0) - y)
 }
 
-fn evaluate_easing(easing: Easing, t: f32) -> f32 {
+pub(crate) fn evaluate_easing(easing: Easing, t: f32) -> f32 {
     let pi = std::f32::consts::PI;
     match easing {
         Easing::Linear => t,
