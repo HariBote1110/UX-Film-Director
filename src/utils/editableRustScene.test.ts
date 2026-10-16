@@ -428,6 +428,21 @@ describe('buildEditableRustScene', () => {
     ]));
   });
 
+  it('reference serializerはexportOriginalでProjectとmediaの動画sourceを原本へ切り替える', () => {
+    const result = buildEditableRustScene({
+      sceneId: 'export-original',
+      projectSettings,
+      layers,
+      objects: [video({ filePath: '/media/original.mp4', proxyFilePath: '/media/proxy.mp4' })],
+      mediaPurpose: 'exportOriginal',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected reference serializer to build the export scene');
+    expect(result.project.media[0]).toMatchObject({ id: 'video', source: '/media/original.mp4' });
+    expect(result.media[0]).toMatchObject({ id: 'video', source: '/media/original.mp4' });
+  });
+
   it('位置keyframe・legacy animationをRust Projectへ変換する', () => {
     const keyed = image({
       id: 'keyed',
