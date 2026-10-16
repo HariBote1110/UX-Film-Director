@@ -92,6 +92,7 @@ describe('rustBackendSceneControl', () => {
           positions: payload.queries.map((query) => ({
             ...query,
             localPosition: { x: 40, y: 50 },
+            groupTranslation: { x: 5, y: 5 },
             worldPosition: { x: 45, y: 55 },
             worldRotationDegrees: 0,
             worldScaleX: 1,
@@ -114,6 +115,7 @@ describe('rustBackendSceneControl', () => {
           objectId: 'object-1',
           timeSeconds: 0.5,
           localPosition: { x: 40, y: 50 },
+          groupTranslation: { x: 5, y: 5 },
           worldPosition: { x: 45, y: 55 },
         }],
       },
@@ -133,6 +135,7 @@ describe('rustBackendSceneControl', () => {
             ...query,
             timeSeconds: 0.3700000001,
             localPosition: { x: 1, y: 2 },
+            groupTranslation: { x: 0, y: 0 },
             worldPosition: { x: 1, y: 2 },
             worldRotationDegrees: 0,
             worldScaleX: 1,

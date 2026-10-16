@@ -20,16 +20,21 @@
   座標を維持する。Rust world値は可視対象layerとRust group builderの数値layer差・
   hidden layer規則に合わせる。TS側の別transform graphは追加しない。
 
-## 現在の範囲と制約
+## 完了した初回範囲と残作業
 
 - Rust coreの任意秒query、backendのgraph-only置換/raw graph保持/query RPC、Electron
-  bridge配線、およびPropertyPanelのキー追加opt-in移行を実装中。
-- groupのworld transformはRust builderと一致するが、振動offsetはtext-decoration側の
-  共通Rust helperをこのworktreeへ取り込めていないため、worldPositionの振動一致は
-  追加確認が必要。最初のUI移行はlocalPositionを使う。
-- Chromeのbrowser automation providerが利用できず、実ブラウザでボタンを押す操作確認は
-  未実施。registry、query client、selection/time/scene/graph identity guardのVitestと
-  TypeScript型チェックで検証している。
+  bridge配線、およびPropertyPanelのキー追加opt-in移行が完了。
+- `worldPosition`はRust builderのgroup translationと共通vibration helperを合成し、
+  `groupTranslation`はvibrationを含めない親groupの平行移動だけを返す。text-decoration
+  のVision移行はこの値をoverlayのworld座標へ足す契約で進める。
+- PropertyPanelのキー追加は、同revisionのresident ackを待ってから`localPosition`を使う。
+  React closureから遅れている可能性のあるobject値を避け、action開始時にstoreからcaptureした
+  objectだけでclamp/keyframe/easingを組み立てる。非同期中にscene/object/time/graphが変われば
+  適用しない。Rust位置queryのopt-in flagはraw graph送信と一緒に有効化する。
+- このworktreeからnative overlayを無効にしたElectronを起動し、CDPで実PropertyPanelの
+  「＋キー」を操作した。raw graph resident (`sceneSource: rust`) の状態でt=2.5に(150,105)、
+  t=5に(200,130)が追加されることを確認。新規objectでt=2.5をクリック直後にt=4へ変更した
+  場合はt=2.5/t=4のどちらも挿入されず、通常のt=5追加は成功した。
 - split位置・vision tracking任意時刻・scene hit-test/selectionへの移行は別単位として残る。
 
 ## 検証
@@ -38,3 +43,5 @@
 - `cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend graph_only_replace_builds_and_retains_raw_graph_for_unquantised_queries`
 - `npx tsc --noEmit`
 - `npm test -- --run src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts`
+- `npx vitest run src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/utils/sharedRendererScenePreviewScheduler.test.ts`
+- Electron/CDP manual check: raw graph resident, ordinary key insertion and immediate playhead-change stale guard

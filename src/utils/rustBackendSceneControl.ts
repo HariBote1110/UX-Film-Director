@@ -38,6 +38,7 @@ export interface RustBackendSceneObjectPositionsPayload {
 
 export interface RustBackendSceneObjectPosition extends RustBackendScenePositionQuery {
   localPosition: { x: number; y: number };
+  groupTranslation: { x: number; y: number };
   worldPosition: { x: number; y: number };
   worldRotationDegrees: number;
   worldScaleX: number;
@@ -185,6 +186,7 @@ const isSceneObjectPositions = (value: unknown): value is RustBackendSceneObject
     && typeof position.objectId === 'string'
     && typeof position.timeSeconds === 'number' && Number.isFinite(position.timeSeconds)
     && isPoint(position.localPosition)
+    && isPoint(position.groupTranslation)
     && isPoint(position.worldPosition)
     && typeof position.worldRotationDegrees === 'number' && Number.isFinite(position.worldRotationDegrees)
     && typeof position.worldScaleX === 'number' && Number.isFinite(position.worldScaleX)
