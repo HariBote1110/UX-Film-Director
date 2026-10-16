@@ -1360,7 +1360,7 @@ const mediaReferenceForObject = (
  * だけを含め、それ以外は型境界で拒否する。
  */
 export const mediaReferenceForEditableRustScene = (
-  object: ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject,
+  object: SupportedSceneObject,
   projectFps: number,
   objects: TimelineObject[] = [object]
 ): RustSceneMediaReference => (

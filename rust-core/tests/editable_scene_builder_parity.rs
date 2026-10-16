@@ -440,11 +440,13 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
     let full_ts = required(&fixture, "ts_result", "coverage");
     assert_eq!(
         required(full_ts, "ok", "coverage.ts_result"),
-        &Value::Bool(false)
+        &Value::Bool(true)
     );
-    let full_ts_issues = required(full_ts, "issues", "coverage.ts_result")
-        .as_array()
-        .unwrap();
+    let full_ts_issues = full_ts
+        .get("issues")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
     let mut graph_value = required(&fixture, "graph", "coverage").clone();
     let project_object_ids: std::collections::BTreeSet<String> = required(
         required(&fixture, "resident_result", "coverage"),
@@ -479,7 +481,7 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
     full_graph.media_context = Some(context.clone());
     project_graph.media_context = Some(context);
     let built = build_evaluation_scene(&full_graph);
-    assert!(!built.resident_eligible);
+    assert!(built.resident_eligible);
     let mut expected_diagnostics: Vec<(String, String)> = full_ts_issues
         .iter()
         .map(|issue| {
@@ -579,36 +581,99 @@ fn generated_visual_types_have_resident_clips_with_their_native_kinds() {
         &fs::read_to_string(&path).expect("generated resident coverage fixture"),
     )
     .expect("generated resident coverage fixture JSON");
-    let graph: EditableSceneGraph = serde_json::from_value(
-        required(&fixture, "graph", "generated coverage").clone(),
-    )
-    .expect("generated coverage graph");
+    let graph: EditableSceneGraph =
+        serde_json::from_value(required(&fixture, "graph", "generated coverage").clone())
+            .expect("generated coverage graph");
     let built = build_evaluation_scene(&graph);
     let generated_types = [
         ("barcode", "GeneratedBarcode", "GeneratedBarcodePlane"),
-        ("puzzle_piece", "GeneratedPuzzlePiece", "GeneratedPuzzlePiecePlane"),
-        ("colour_wheel", "GeneratedColourWheel", "GeneratedColourWheelPlane"),
+        (
+            "puzzle_piece",
+            "GeneratedPuzzlePiece",
+            "GeneratedPuzzlePiecePlane",
+        ),
+        (
+            "colour_wheel",
+            "GeneratedColourWheel",
+            "GeneratedColourWheelPlane",
+        ),
         ("gourd", "GeneratedGourd", "GeneratedGourdPlane"),
         ("gear", "GeneratedGear", "GeneratedGearPlane"),
         ("track_bar", "GeneratedTrackBar", "GeneratedTrackBarPlane"),
         ("pie_chart", "GeneratedPieChart", "GeneratedPieChartPlane"),
         ("histogram", "GeneratedHistogram", "GeneratedHistogramPlane"),
-        ("tone_curve", "GeneratedToneCurve", "GeneratedToneCurvePlane"),
-        ("sphere_dots", "GeneratedSphereDots", "GeneratedSphereDotsPlane"),
-        ("spherical_field", "GeneratedSphericalField", "GeneratedSphericalFieldPlane"),
+        (
+            "tone_curve",
+            "GeneratedToneCurve",
+            "GeneratedToneCurvePlane",
+        ),
+        (
+            "sphere_dots",
+            "GeneratedSphereDots",
+            "GeneratedSphereDotsPlane",
+        ),
+        (
+            "spherical_field",
+            "GeneratedSphericalField",
+            "GeneratedSphericalFieldPlane",
+        ),
         ("sunburst", "GeneratedSunburst", "GeneratedSunburstPlane"),
-        ("circular_arrow", "GeneratedCircularArrow", "GeneratedCircularArrowPlane"),
-        ("triangle_bracket", "GeneratedTriangleBracket", "GeneratedTriangleBracketPlane"),
-        ("tartan_check", "GeneratedTartanCheck", "GeneratedTartanCheckPlane"),
-        ("houndstooth", "GeneratedHoundstooth", "GeneratedHoundstoothPlane"),
+        (
+            "circular_arrow",
+            "GeneratedCircularArrow",
+            "GeneratedCircularArrowPlane",
+        ),
+        (
+            "triangle_bracket",
+            "GeneratedTriangleBracket",
+            "GeneratedTriangleBracketPlane",
+        ),
+        (
+            "tartan_check",
+            "GeneratedTartanCheck",
+            "GeneratedTartanCheckPlane",
+        ),
+        (
+            "houndstooth",
+            "GeneratedHoundstooth",
+            "GeneratedHoundstoothPlane",
+        ),
         ("yagasuri", "GeneratedYagasuri", "GeneratedYagasuriPlane"),
-        ("paper_airplane", "GeneratedPaperAirplane", "GeneratedPaperAirplanePlane"),
-        ("asanoha_pattern", "GeneratedAsanohaPattern", "GeneratedAsanohaPatternPlane"),
-        ("focus_lines_plus", "GeneratedFocusLinesPlus", "GeneratedFocusLinesPlusPlane"),
-        ("random_line_ex", "GeneratedRandomLineEx", "GeneratedRandomLineExPlane"),
-        ("contour_trace", "GeneratedContourTrace", "GeneratedContourTracePlane"),
-        ("displacement_poly", "GeneratedDisplacementPoly", "GeneratedDisplacementPolyPlane"),
-        ("plain_effector_line", "GeneratedPlainEffectorLine", "GeneratedPlainEffectorLinePlane"),
+        (
+            "paper_airplane",
+            "GeneratedPaperAirplane",
+            "GeneratedPaperAirplanePlane",
+        ),
+        (
+            "asanoha_pattern",
+            "GeneratedAsanohaPattern",
+            "GeneratedAsanohaPatternPlane",
+        ),
+        (
+            "focus_lines_plus",
+            "GeneratedFocusLinesPlus",
+            "GeneratedFocusLinesPlusPlane",
+        ),
+        (
+            "random_line_ex",
+            "GeneratedRandomLineEx",
+            "GeneratedRandomLineExPlane",
+        ),
+        (
+            "contour_trace",
+            "GeneratedContourTrace",
+            "GeneratedContourTracePlane",
+        ),
+        (
+            "displacement_poly",
+            "GeneratedDisplacementPoly",
+            "GeneratedDisplacementPolyPlane",
+        ),
+        (
+            "plain_effector_line",
+            "GeneratedPlainEffectorLine",
+            "GeneratedPlainEffectorLinePlane",
+        ),
         ("protractor", "GeneratedProtractor", "GeneratedProtractorPlane"),
     ];
     let clips: Vec<_> = built
@@ -622,13 +687,21 @@ fn generated_visual_types_have_resident_clips_with_their_native_kinds() {
             .iter()
             .find(|clip| clip.id == id)
             .unwrap_or_else(|| panic!("{id} must not be dropped from the resident Project"));
-        assert_eq!(format!("{:?}", clip.kind), expected_clip_kind, "{id} clip kind");
+        assert_eq!(
+            format!("{:?}", clip.kind),
+            expected_clip_kind,
+            "{id} clip kind"
+        );
         let media = built
             .media
             .iter()
             .find(|media| media.id == id)
             .unwrap_or_else(|| panic!("{id} canonical media"));
-        assert_eq!(format!("{:?}", media.kind), expected_media_kind, "{id} media kind");
+        assert_eq!(
+            format!("{:?}", media.kind),
+            expected_media_kind,
+            "{id} media kind"
+        );
         assert_eq!(clip.media_id, id, "{id} clip media reference");
         assert_eq!(clip.start_frame, 0, "{id} start frame");
         assert_eq!(clip.duration_frames, 300, "{id} duration");
