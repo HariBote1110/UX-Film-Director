@@ -1,6 +1,6 @@
 use uxfd_rust_core::{
     build_evaluation_scene, evaluate_frame, query_editable_scene_positions, EditableSceneGraph,
-    ScenePositionQuery,
+    ScenePoint, ScenePositionQuery,
 };
 
 fn graph_with_fractional_keyframes() -> EditableSceneGraph {
@@ -59,6 +59,46 @@ fn query_evaluates_unquantised_keyframe_time_and_preserves_request_identity() {
     assert_eq!(result[0].time_seconds, query.time_seconds);
     assert!((result[0].local_position.x - 40.0).abs() < 1e-5);
     assert!((result[0].local_position.y - 50.0).abs() < 1e-5);
+}
+
+#[test]
+fn world_position_uses_enabled_vibration_filter_order_without_changing_local_position() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "fixtures/editable-scene-builder/cross-object-resolution.json"
+    ))
+    .expect("builder fixture must parse");
+    let mut graph_value = fixture["cases"][0]["graph"].clone();
+    let object = graph_value["objects"]
+        .as_array_mut()
+        .expect("fixture objects")
+        .iter_mut()
+        .find(|object| object["id"] == "waveform-direct")
+        .expect("fixture waveform object");
+    object["filters"] = serde_json::json!([
+        {"type":"vibration", "id":"enabled-a", "enabled":true, "params":{"strength":2.0,"speed":1.3}},
+        {"type":"vibration", "id":"disabled", "enabled":false, "params":{"strength":50.0,"speed":2.0}},
+        {"type":"vibration", "id":"enabled-zero", "enabled":true, "params":{"strength":0.0,"speed":3.0}},
+        {"type":"vibration", "id":"enabled-b", "enabled":true, "params":{"strength":-1.5,"speed":0.7}}
+    ]);
+    let graph: EditableSceneGraph = serde_json::from_value(graph_value).expect("graph must parse");
+    let query = ScenePositionQuery {
+        request_id: "vibration-query".into(),
+        object_id: "waveform-direct".into(),
+        time_seconds: 0.37,
+    };
+
+    let result = query_editable_scene_positions(&graph, &[query]).expect("query must succeed");
+    let position = &result[0];
+    let (offset_x, offset_y) = uxfd_rust_core::evaluate_vibration_offset(
+        &[(2.0, 1.3), (0.0, 3.0), (-1.5, 0.7)],
+        0.37,
+    );
+
+    assert_eq!(position.local_position.x, 10.0);
+    assert_eq!(position.local_position.y, 20.0);
+    assert_eq!(position.group_translation, ScenePoint { x: 0.0, y: 0.0 });
+    assert!((position.world_position.x as f64 - (10.0 + offset_x)).abs() < 1e-5);
+    assert!((position.world_position.y as f64 - (20.0 + offset_y)).abs() < 1e-5);
 }
 
 #[test]
@@ -139,6 +179,16 @@ fn group_position_matches_rust_frame_evaluation_with_visible_layer_targeting() {
     assert_eq!(
         (queried[0].world_position.x, queried[0].world_position.y),
         (clip.transform.translation_x, clip.transform.translation_y)
+    );
+    assert_eq!(
+        (
+            queried[0].group_translation.x,
+            queried[0].group_translation.y,
+        ),
+        (
+            clip.transform.translation_x - queried[0].local_position.x,
+            clip.transform.translation_y - queried[0].local_position.y,
+        )
     );
 }
 

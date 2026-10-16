@@ -1,5 +1,6 @@
 use crate::keyframe::evaluate_easing;
-use crate::schema::{BaseObject, EditableSceneGraph, TimelineObject};
+use crate::schema::{BaseObject, EditableSceneGraph, ObjectFilter, TimelineObject};
+use crate::vibration::evaluate_vibration_offset;
 use serde::{Deserialize, Serialize};
 
 const KEYFRAME_TIME_EPSILON: f64 = 0.0001;
@@ -26,6 +27,7 @@ pub struct SceneObjectPosition {
     pub object_id: String,
     pub time_seconds: f64,
     pub local_position: ScenePoint,
+    pub group_translation: ScenePoint,
     pub world_position: ScenePoint,
     pub world_rotation_degrees: f32,
     pub world_scale_x: f32,
@@ -86,14 +88,20 @@ pub fn query_editable_scene_positions(
             let local_position = evaluate_object_position(object_base, query.time_seconds);
             let (group_x, group_y, rotation, scale_x, scale_y) =
                 evaluate_group_transform(graph, object_base, query.time_seconds);
+            let (vibration_x, vibration_y) =
+                evaluate_object_vibration_offset(object_base, query.time_seconds);
             Ok(SceneObjectPosition {
                 request_id: query.request_id.clone(),
                 object_id: query.object_id.clone(),
                 time_seconds: query.time_seconds,
                 local_position,
+                group_translation: ScenePoint {
+                    x: group_x,
+                    y: group_y,
+                },
                 world_position: ScenePoint {
-                    x: local_position.x + group_x,
-                    y: local_position.y + group_y,
+                    x: local_position.x + group_x + vibration_x,
+                    y: local_position.y + group_y + vibration_y,
                 },
                 world_rotation_degrees: object_base.rotation + rotation,
                 world_scale_x: object_base.scale_x * scale_x,
@@ -101,6 +109,31 @@ pub fn query_editable_scene_positions(
             })
         })
         .collect()
+}
+
+fn evaluate_object_vibration_offset(object: &BaseObject, time_seconds: f64) -> (f32, f32) {
+    let filters = if let Some(filters) = object.filters.as_deref() {
+        filters
+            .iter()
+            .filter_map(|filter| match filter {
+                ObjectFilter::Vibration {
+                    enabled: true,
+                    params,
+                    ..
+                } => Some((f64::from(params.strength), f64::from(params.speed))),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    } else {
+        object
+            .vibration
+            .as_ref()
+            .filter(|vibration| vibration.enabled)
+            .map(|vibration| vec![(f64::from(vibration.strength), f64::from(vibration.speed))])
+            .unwrap_or_default()
+    };
+    let (x, y) = evaluate_vibration_offset(&filters, time_seconds);
+    (x as f32, y as f32)
 }
 
 fn evaluate_object_position(object: &BaseObject, time_seconds: f64) -> ScenePoint {
