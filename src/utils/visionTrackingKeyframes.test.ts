@@ -86,7 +86,7 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
     ]);
   });
 
-  it('uses Rust local positions and world translation to preserve overlay offset across groups', () => {
+  it('uses video local positions and group-only overlay translation to preserve the legacy offset', () => {
     const video = baseVideo();
     const overlay = baseOverlay();
     const samples = [
@@ -101,7 +101,7 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
       { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6, localPosition: { x: 130, y: 150 }, worldPosition: { x: 171, y: 194 }, groupTranslation: { x: 30, y: 30 } },
     ];
 
-    expect(buildOverlayPositionKeyframesFromPositionQuery({ plan, samples, video, overlay, positions }))
+    expect(buildOverlayPositionKeyframesFromPositionQuery({ plan, video, overlay, positions }))
       .toMatchObject([
         { time: 5, x: 100, y: 110 },
         { time: 6, x: 80, y: 100 },
@@ -116,7 +116,6 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
 
     expect(() => buildOverlayPositionKeyframesFromPositionQuery({
       plan,
-      samples,
       video,
       overlay,
       positions: [],
@@ -133,7 +132,7 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
       { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 50, y: 40 }, worldPosition: { x: 50, y: 40 } },
     ];
 
-    expect(() => buildOverlayPositionKeyframesFromPositionQuery({ plan, samples, video, overlay, positions }))
+    expect(() => buildOverlayPositionKeyframesFromPositionQuery({ plan, video, overlay, positions }))
       .toThrow(/position query/i);
   });
 });
