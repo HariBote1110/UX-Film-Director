@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
+import { createFilterParamEditEventHandlers } from './filterParamEditEvents';
 import {
   buildBatchCommand,
   buildObjectFieldDiffCommands,
@@ -458,6 +459,8 @@ const PropertyPanel: React.FC = () => {
   const moveObjectFilter = useStore((state) => state.moveObjectFilter);
   const removeObjectFilter = useStore((state) => state.removeObjectFilter);
   const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
+  const beginObjectFilterParamsEdit = useStore((state) => state.beginObjectFilterParamsEdit);
+  const commitObjectFilterParamsEdit = useStore((state) => state.commitObjectFilterParamsEdit);
   const setGroupGradient = useStore((state) => state.setGroupGradient);
   const aviUtlCoordinateStoreSnapshot = useStore((state) => state.aviUtlCoordinateStoreSnapshot);
   const captureSelectedCoordinatesWithAviUtlStore = useStore((state) => state.captureSelectedCoordinatesWithAviUtlStore);
@@ -500,6 +503,32 @@ const PropertyPanel: React.FC = () => {
 
   const filters = selectedObject?.filters ?? [];
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
+  const filterParamEditSessionId = useRef<number | null>(null);
+
+  const beginFilterParamEdit = () => {
+    if (!selectedObject || !activeFilter || filterParamEditSessionId.current !== null) return;
+    filterParamEditSessionId.current = beginObjectFilterParamsEdit(selectedObject.id, activeFilter.id);
+  };
+
+  const commitFilterParamEdit = () => {
+    const sessionId = filterParamEditSessionId.current;
+    if (!selectedObject || !activeFilter || sessionId === null) return;
+    filterParamEditSessionId.current = null;
+    void commitObjectFilterParamsEdit(selectedObject.id, activeFilter.id, sessionId);
+  };
+
+  const filterParamEditEvents = createFilterParamEditEventHandlers({
+    begin: beginFilterParamEdit,
+    commit: commitFilterParamEdit,
+  });
+
+  useEffect(() => () => {
+    const sessionId = filterParamEditSessionId.current;
+    if (selectedObject && activeFilter && sessionId !== null) {
+      filterParamEditSessionId.current = null;
+      void commitObjectFilterParamsEdit(selectedObject.id, activeFilter.id, sessionId);
+    }
+  }, [selectedObject?.id, activeFilter?.id, commitObjectFilterParamsEdit]);
 
   useEffect(() => {
     if (!selectedObject || filters.length === 0) {
@@ -1324,6 +1353,7 @@ const PropertyPanel: React.FC = () => {
   };
 
   const handleFilterParamChange = (filter: ObjectFilter, params: Record<string, unknown>) => {
+    beginFilterParamEdit();
     updateObjectFilterParams(selectedObject.id, filter.id, params);
   };
 
@@ -2011,7 +2041,11 @@ const PropertyPanel: React.FC = () => {
         )}
 
         {activeFilter && (
-            <div style={{ marginBottom: '8px', padding: '8px', border: '1px solid #333', borderRadius: '4px', background: '#1f1f1f' }}>
+            <div
+                {...filterParamEditEvents}
+                data-filter-param-editor
+                style={{ marginBottom: '8px', padding: '8px', border: '1px solid #333', borderRadius: '4px', background: '#1f1f1f' }}
+            >
                 <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '8px' }}>編集中: {filterLabel[activeFilter.type]}</div>
                 {activeFilter.type === 'color_correction' && (
                     <>

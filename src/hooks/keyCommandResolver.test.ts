@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { resolveKeyCommand } from './keyCommandResolver';
+import { resolveKeyCommand, shouldIgnoreEditableTargetShortcut } from './keyCommandResolver';
 
 const baseEvent = { code: '', metaKey: false, ctrlKey: false, shiftKey: false };
 
 describe('resolveKeyCommand', () => {
+  it('allows application undo/redo shortcuts from focused controls but keeps other typing shortcuts local', () => {
+    expect(shouldIgnoreEditableTargetShortcut({ ...baseEvent, code: 'KeyZ', ctrlKey: true }, true, true)).toBe(false);
+    expect(shouldIgnoreEditableTargetShortcut({ ...baseEvent, code: 'KeyY', metaKey: true }, true, true)).toBe(false);
+    expect(shouldIgnoreEditableTargetShortcut({ ...baseEvent, code: 'KeyZ', ctrlKey: true }, true, false)).toBe(true);
+    expect(shouldIgnoreEditableTargetShortcut({ ...baseEvent, code: 'KeyC', ctrlKey: true }, true, true)).toBe(true);
+    expect(shouldIgnoreEditableTargetShortcut({ ...baseEvent, code: 'KeyZ', ctrlKey: true }, false, false)).toBe(false);
+  });
+
   it('maps Space to playback.toggle with preventDefault', () => {
     const result = resolveKeyCommand({ ...baseEvent, code: 'Space' }, { hasSelection: false });
     expect(result).toEqual({ id: 'playback.toggle', preventDefault: true });
