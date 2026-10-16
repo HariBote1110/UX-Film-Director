@@ -3,6 +3,7 @@ import type { LayerState, ProjectSettings, PsdObject, ShapeObject } from '../typ
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import {
   createEditableRustScenePreviewController,
+  EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
 } from './editableRustScenePreviewController';
 
@@ -159,8 +160,27 @@ describe('editableRustScenePreviewController', () => {
       sceneId: 'export:project-1', projectSettings, layers, objects: [shape()],
     })).resolves.toEqual({ sceneId: 'export:project-1', revision: 41, sceneSource: 'rust' });
     expect(sceneScheduler.confirmExportRevision).toHaveBeenCalledWith(expect.objectContaining({
-      sceneId: 'export:project-1', revision: 41, editableScene: expect.any(Object),
+      sceneId: 'export:project-1',
+      revision: 41,
+      editableScene: expect.objectContaining({ mediaContext: { purpose: 'exportOriginal', sceneId: 'export:project-1' } }),
     }));
+  });
+
+  it('未対応graphは専用eligibility errorとして返し、RPC障害と区別できる', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      includeEditableScene: true,
+    });
+
+    await expect(controller.confirmSceneForExport({
+      sceneId: 'export:project-1',
+      projectSettings,
+      layers,
+      objects: [shape({ clipping: true })],
+    })).rejects.toBeInstanceOf(EditableRustSceneUnsupportedError);
+    expect(sceneScheduler.confirmExportRevision).not.toHaveBeenCalled();
   });
 
   it('export確認のeditableSceneからPSDのIPC非clone runtime値を除去する', async () => {
