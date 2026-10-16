@@ -571,6 +571,62 @@ fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
     assert_eq!(types, all_object_type_names().into_iter().collect());
 }
 
+#[test]
+fn resident_builder_preserves_enabled_auto_blur_filter() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+            .expect("coverage fixture JSON");
+    let mut graph_value = required(&fixture, "graph", "coverage").clone();
+    let object = &mut graph_value["objects"][0];
+    object["x"] = Value::from(17.0);
+    object["y"] = Value::from(23.0);
+    object["endX"] = Value::from(137.0);
+    object["endY"] = Value::from(73.0);
+    object["duration"] = Value::from(5.0);
+    object["filters"] = serde_json::json!([{
+        "id": "auto-blur",
+        "type": "auto_blur",
+        "enabled": true,
+        "params": {
+            "blur": 10.0,
+            "speed": 2.0,
+            "strength": 0.8,
+            "colourShift": 0.4
+        }
+    }]);
+    graph_value["objects"] = serde_json::json!([object.clone()]);
+    let graph: EditableSceneGraph = serde_json::from_value(graph_value).expect("editable graph");
+
+    let built = build_evaluation_scene(&graph);
+    assert!(built.resident_eligible, "{:?}", built.diagnostics);
+    let clip = built
+        .project
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .find(|clip| clip.id == "text")
+        .expect("text clip");
+    let auto_blur = clip
+        .effects
+        .iter()
+        .find_map(|effect| match effect {
+            uxfd_rust_core::Effect::AutoBlur {
+                angle_degrees,
+                radius,
+                strength,
+                colour_shift,
+            } => Some((*angle_degrees, *radius, *strength, *colour_shift)),
+            _ => None,
+        })
+        .expect("enabled auto_blur filter must be represented as a Rust effect");
+    assert!((auto_blur.0 - 22.619865).abs() < 0.001);
+    assert!((auto_blur.1 - (130.0_f32 / (5.0 * 60.0) * 2.0)).abs() < 0.001);
+    assert!((auto_blur.2 - 0.8).abs() < 0.001);
+    assert!((auto_blur.3 - 0.4).abs() < 0.001);
+}
+
 #[derive(Deserialize)]
 struct NativeHksyIntegerContract {
     #[serde(rename = "cellSize")]
