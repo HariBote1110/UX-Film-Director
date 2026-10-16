@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LayerState, ProjectSettings, PsdObject, ShapeObject } from '../types';
+import type { LayerState, ProjectSettings, PsdObject, ShapeObject, VideoObject } from '../types';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import {
   createEditableRustScenePreviewController,
   EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
+  shouldUseRawEditableSceneGraphOnly,
 } from './editableRustScenePreviewController';
 
 const projectSettings: ProjectSettings = {
@@ -41,6 +42,22 @@ const shape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   height: 180,
   shapeType: 'rect',
   fill: '#ff0000',
+  ...patch,
+});
+
+const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
+  ...shape(),
+  id: 'video-1',
+  type: 'video',
+  name: 'Video',
+  src: 'blob:video',
+  filePath: '/media/original.mp4',
+  proxyFilePath: '/media/proxy.mp4',
+  offset: 0,
+  width: 1280,
+  height: 720,
+  volume: 1,
+  muted: false,
   ...patch,
 });
 
@@ -98,6 +115,17 @@ describe('editableRustScenePreviewController', () => {
     ['0', undefined, false],
   ])('dual-run=%s、cut-over=%s の editableScene 添付判定は %s', (dualRun, cutover, expected) => {
     expect(shouldAttachEditableRustScene(dualRun, cutover)).toBe(expected);
+  });
+  it('raw graph専用flagが既存のeditable scene controllerを有効化する', () => {
+    expect(shouldAttachEditableRustScene(undefined, undefined, '1')).toBe(true);
+  });
+
+  it.each([
+    ['1', true],
+    ['0', false],
+    [undefined, false],
+  ] as const)('raw-graph-only flag=%s は %s', (flag, expected) => {
+    expect(shouldUseRawEditableSceneGraphOnly(flag)).toBe(expected);
   });
 
   it('編集時だけProjectを更新してrevisionを進め、時刻更新はframe要求だけを送る', () => {
@@ -224,6 +252,32 @@ describe('editableRustScenePreviewController', () => {
       revision: 41,
       editableScene: expect.objectContaining({ mediaContext: { purpose: 'exportOriginal', sceneId: 'export:project-1' } }),
     }));
+  });
+
+  it('legacy resident exportはprojectとmediaの両方にoriginal video sourceを渡す', async () => {
+    const sceneScheduler = scheduler();
+    const controller = createEditableRustScenePreviewController({
+      sceneId: 'preview:project-1',
+      scheduler: sceneScheduler,
+      initialRevision: 40,
+    });
+
+    await controller.confirmSceneForExport({
+      sceneId: 'export:project-1',
+      projectSettings,
+      layers,
+      objects: [video()],
+    });
+
+    const payload = sceneScheduler.confirmExportRevision.mock.calls[0][0];
+    expect(payload.project.media[0]).toMatchObject({
+      id: 'video-1',
+      source: '/media/original.mp4',
+    });
+    expect(payload.media[0]).toMatchObject({
+      id: 'video-1',
+      source: '/media/original.mp4',
+    });
   });
 
   it('未対応graphは専用eligibility errorとして返し、RPC障害と区別できる', async () => {
