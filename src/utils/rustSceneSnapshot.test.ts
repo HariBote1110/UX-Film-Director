@@ -3439,11 +3439,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           measuredHeight: 80,
           textStroke: { colour: '#000000', width: 3 },
           textShadow: { colour: '#333333', offsetX: 2, offsetY: 4, blur: 6 },
+          __renderOffsetX: 7,
+          __renderOffsetY: 5,
+          __contentWidth: 300,
+          __contentHeight: 80,
         }),
-        width: 300,
-        height: 80,
+        width: 318,
+        height: 98,
       },
     ]);
+    expect(result.snapshot.clips[0].transform).toMatchObject({
+      translation_x: 43,
+      translation_y: 55,
+    });
+  });
+
+  it('keeps the decorated text origin fixed for rotated text with positive scale', () => {
+    const angle = -38;
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [baseText({
+        rotation: angle,
+        scaleX: 1.5,
+        scaleY: 0.75,
+        textStroke: { colour: '#000000', width: 4 },
+        textShadow: { colour: '#333333', offsetX: -8, offsetY: 3, blur: 10 },
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    const media = result.media[0];
+    const source = JSON.parse(media.source);
+    const transform = result.snapshot.clips[0].transform;
+    const localX = source.__renderOffsetX * 1.5;
+    const localY = source.__renderOffsetY * 0.75;
+    const radians = angle * Math.PI / 180;
+    expect(transform.translation_x + localX * Math.cos(radians) - localY * Math.sin(radians))
+      .toBeCloseTo(50);
+    expect(transform.translation_y + localX * Math.sin(radians) + localY * Math.cos(radians))
+      .toBeCloseTo(60);
   });
 
   it('falls back to a heuristic box for text objects with no measured size yet', () => {
