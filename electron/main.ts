@@ -1306,6 +1306,15 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('rust-backend-scene-query-object-positions', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('scene.query_object_positions', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return sceneRpcFailure(error);
+    }
+  });
+
   ipcMain.handle('rust-backend-decode-start', async (_event, payload: unknown) => {
     try {
       const result = await callRustBackend('decode.start', payload, 8000);

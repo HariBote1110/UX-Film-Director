@@ -36,6 +36,7 @@ interface Window {
     echo: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     replaceScene: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
     evaluateScene: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
+    queryObjectPositions: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string; errorCode?: number }>;
     startScenePlayback: (payload: {
       sceneId: string;
       revision: number;
