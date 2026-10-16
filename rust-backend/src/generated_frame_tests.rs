@@ -1785,6 +1785,35 @@ fn generated_text_source_frame_renders_non_empty_output_for_cjk_text() {
 }
 
 #[test]
+fn generated_text_source_frame_draws_offset_shadow_inside_expanded_media_plane() {
+    let media = SceneMediaReference {
+        id: "text-decoration-insets".to_string(),
+        kind: MediaKind::Text,
+        source: r##"{"text":"l","fontFamily":"Arial","fontSize":64,"fill":"#ffffff","textShadow":{"colour":"#ff0000","offsetX":65,"offsetY":0,"blur":4},"__renderOffsetX":20,"__renderOffsetY":10,"__contentWidth":30,"__contentHeight":80}"##.to_string(),
+        width: 125,
+        height: 100,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame = build_generated_text_source_frame(&media)
+        .expect("decorated text should render inside its expanded plane");
+    let has_shadow_beyond_original_content =
+        frame
+            .pixels
+            .chunks_exact(4)
+            .enumerate()
+            .any(|(index, rgba)| {
+                let x = index as u32 % frame.width;
+                x >= 50 && is_shadow_tinted(rgba)
+            });
+    assert!(
+        has_shadow_beyond_original_content,
+        "expected the offset shadow to survive beyond the original content width"
+    );
+}
+
+#[test]
 fn generated_text_source_frame_rejects_non_positive_dimensions() {
     let media = SceneMediaReference {
         id: "text-invalid-1".to_string(),

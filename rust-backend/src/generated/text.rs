@@ -77,7 +77,20 @@ pub(crate) fn build_generated_text_source_frame(
         ));
     }
 
-    let text: TextObjectFields = serde_json::from_str(&media.source)
+    let source: serde_json::Value = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid Text media '{}': {error}", media.id))?;
+    // These private source fields preserve the original glyph layout area while the
+    // media plane grows to contain stroke and shadow pixels. They are intentionally
+    // absent from TextObjectFields and its public schema.
+    let render_offset_x = source.get("__renderOffsetX").and_then(serde_json::Value::as_f64)
+        .filter(|value| value.is_finite()).unwrap_or(0.0) as f32;
+    let render_offset_y = source.get("__renderOffsetY").and_then(serde_json::Value::as_f64)
+        .filter(|value| value.is_finite()).unwrap_or(0.0) as f32;
+    let content_width = source.get("__contentWidth").and_then(serde_json::Value::as_f64)
+        .filter(|value| value.is_finite() && *value > 0.0).unwrap_or(media.width as f64) as f32;
+    let content_height = source.get("__contentHeight").and_then(serde_json::Value::as_f64)
+        .filter(|value| value.is_finite() && *value > 0.0).unwrap_or(media.height as f64) as f32;
+    let text: TextObjectFields = serde_json::from_value(source)
         .map_err(|error| format!("Invalid Text media '{}': {error}", media.id))?;
 
     let [red, green, blue] = parse_hex_colour_source(&text.fill)
@@ -124,8 +137,8 @@ pub(crate) fn build_generated_text_source_frame(
     let mut buffer = layout_text_buffer(
         &mut font_system,
         metrics,
-        media.width as f32,
-        media.height as f32,
+        content_width,
+        content_height,
         &text.text,
         &attrs,
         align,
@@ -150,8 +163,8 @@ pub(crate) fn build_generated_text_source_frame(
             media.width,
             media.height,
             CosmicColor::rgba(sr, sg, sb, 255),
-            shadow.offset_x,
-            shadow.offset_y,
+            shadow.offset_x + render_offset_x,
+            shadow.offset_y + render_offset_y,
             shadow.blur,
         );
     }
@@ -168,8 +181,8 @@ pub(crate) fn build_generated_text_source_frame(
                 media.width,
                 media.height,
                 stroke_colour_value,
-                dx,
-                dy,
+                dx + render_offset_x,
+                dy + render_offset_y,
             );
         }
     }
@@ -182,8 +195,8 @@ pub(crate) fn build_generated_text_source_frame(
         media.width,
         media.height,
         text_colour,
-        0.0,
-        0.0,
+        render_offset_x,
+        render_offset_y,
     );
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {

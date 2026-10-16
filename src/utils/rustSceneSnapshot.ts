@@ -50,6 +50,9 @@ import { evaluateObjectPositionAtTime } from './keyframes';
 import { isObjectVisibleAtTime } from './objectVisibility';
 import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
+import { compensateTextOriginForExpandedPlane } from './textDecorationBounds';
+import { textMediaBox, textMediaContentBox, textMediaInsets } from './textMediaGeometry';
+export { textMediaBox, textMediaInsets } from './textMediaGeometry';
 import type {
   ColourPipeline as RustColourPipeline,
   Effect as RustEffect,
@@ -226,6 +229,15 @@ export const buildRustSceneSnapshotForTimeline = ({
       * group.alpha,
     );
     const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
+    const textInsets = object.type === 'text' ? textMediaInsets(object) : null;
+    const textOriginCorrection = textInsets
+      ? compensateTextOriginForExpandedPlane(
+        textInsets,
+        object.scaleX * group.scaleX,
+        object.scaleY * group.scaleY,
+        object.rotation + group.rotation,
+      )
+      : { x: 0, y: 0 };
     const effects = rustEffectsForObject(object, time);
     const groupGradientEffect = groupGradientEffectByObjectId.get(object.id);
     if (groupGradientEffect) effects.push(groupGradientEffect);
@@ -236,8 +248,8 @@ export const buildRustSceneSnapshotForTimeline = ({
       source_frame: sourceFrameForObject(object, time, projectSettings.fps),
       z_index: zIndex,
       transform: {
-        translation_x: position.x + vibration.x + group.x,
-        translation_y: position.y + vibration.y + group.y,
+        translation_x: position.x + vibration.x + group.x + textOriginCorrection.x,
+        translation_y: position.y + vibration.y + group.y + textOriginCorrection.y,
         scale_x: object.scaleX * group.scaleX * transformScale.x * psdUniformScaleForObject(object),
         scale_y: object.scaleY * group.scaleY * transformScale.y * psdUniformScaleForObject(object),
         rotation_degrees: normaliseRotationDegrees(object.rotation + group.rotation),
@@ -405,10 +417,14 @@ const computeObjectWorldBounds = (
   translationX: number,
   translationY: number
 ): ObjectWorldBounds => {
+  const textInsets = object.type === 'text' ? textMediaInsets(object) : null;
+  const textSize = object.type === 'text' ? textMediaBox(object) : null;
   const width = (object as { width?: unknown }).width;
   const height = (object as { height?: unknown }).height;
-  const w = typeof width === 'number' && Number.isFinite(width) ? width : 0;
-  const h = typeof height === 'number' && Number.isFinite(height) ? height : 0;
+  const w = textSize?.width ?? (typeof width === 'number' && Number.isFinite(width) ? width : 0);
+  const h = textSize?.height ?? (typeof height === 'number' && Number.isFinite(height) ? height : 0);
+  const left = textInsets?.left ?? 0;
+  const top = textInsets?.top ?? 0;
   const scaleX = Number.isFinite(object.scaleX) ? object.scaleX : 1;
   const scaleY = Number.isFinite(object.scaleY) ? object.scaleY : 1;
   const rotationRad = (Number.isFinite(object.rotation) ? object.rotation : 0) * (Math.PI / 180);
@@ -416,10 +432,10 @@ const computeObjectWorldBounds = (
   const sin = Math.sin(rotationRad);
 
   const localCorners: Array<[number, number]> = [
-    [0, 0],
-    [w, 0],
-    [0, h],
-    [w, h],
+    [-left, -top],
+    [w - left, -top],
+    [-left, h - top],
+    [w - left, h - top],
   ];
 
   let minX = Number.POSITIVE_INFINITY;
@@ -1363,8 +1379,11 @@ const activeLayerIdsForPsd = (object: PsdObject): string[] =>
  * フィールド名の読み替え・既定値フォールバックの知識は rust-backend
  * （`generated/text.rs`）側だけに残る。
  */
-const serialiseTextSource = (object: TextObject): string =>
-  JSON.stringify({
+const serialiseTextSource = (object: TextObject): string => {
+  const insets = textMediaInsets(object);
+  const hasDecorationInsets = insets.left > 0 || insets.top > 0 || insets.right > 0 || insets.bottom > 0;
+  const content = hasDecorationInsets ? textMediaContentBox(object) : null;
+  return JSON.stringify({
     text: object.text,
     fontSize: object.fontSize,
     fontFamily: object.fontFamily,
@@ -1375,32 +1394,15 @@ const serialiseTextSource = (object: TextObject): string =>
     letterSpacing: object.letterSpacing,
     textStroke: object.textStroke,
     textShadow: object.textShadow,
+    ...(content
+      ? {
+        __renderOffsetX: insets.left,
+        __renderOffsetY: insets.top,
+        __contentWidth: content.width,
+        __contentHeight: content.height,
+      }
+      : {}),
   });
-
-/**
- * テキストの描画領域を決める。PixiJS 側で実測済み（measuredWidth /
- * measuredHeight）ならそれを使い、未測定時はフォントサイズと文字数から
- * ヒューリスティックに見積もる。cutover が既定 OFF のあいだは実測値が
- * 無いケースを想定しておく必要があるため、常に正の値を返す。
- */
-export const textMediaBox = (object: TextObject): { width: number; height: number } => {
-  const measuredWidth = object.measuredWidth;
-  const measuredHeight = object.measuredHeight;
-  if (Number.isFinite(measuredWidth) && (measuredWidth as number) > 0
-    && Number.isFinite(measuredHeight) && (measuredHeight as number) > 0) {
-    return { width: measuredWidth as number, height: measuredHeight as number };
-  }
-
-  const fontSize = Number.isFinite(object.fontSize) && object.fontSize > 0 ? object.fontSize : 16;
-  const longestLineLength = Math.max(
-    1,
-    ...object.text.split('\n').map((line) => line.length)
-  );
-  const lineCount = Math.max(1, object.text.split('\n').length);
-  return {
-    width: Math.ceil(longestLineLength * fontSize * 0.6),
-    height: Math.ceil(lineCount * fontSize * 1.25),
-  };
 };
 
 /**

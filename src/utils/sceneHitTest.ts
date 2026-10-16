@@ -27,7 +27,7 @@ import type { LayerState, TimelineObject } from '../types';
 import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { isObjectVisibleAtTime } from './objectVisibility';
-import { textMediaBox } from './rustSceneSnapshot';
+import { textMediaBox, textMediaInsets } from './textMediaGeometry';
 
 export interface SceneCamera {
   centreOffsetX: number;
@@ -161,11 +161,12 @@ export const getObjectWorldCorners = (
   const scaleX = (obj.scaleX ?? 1) * groupEffects.scaleX;
   const scaleY = (obj.scaleY ?? 1) * groupEffects.scaleY;
 
+  const insets = obj.type === 'text' ? textMediaInsets(obj) : { left: 0, top: 0, right: 0, bottom: 0 };
   const localCorners: Record<keyof ObjectWorldCorners, Vec2> = {
-    topLeft: { x: 0, y: 0 },
-    topRight: { x: size.width, y: 0 },
-    bottomLeft: { x: 0, y: size.height },
-    bottomRight: { x: size.width, y: size.height },
+    topLeft: { x: -insets.left, y: -insets.top },
+    topRight: { x: size.width - insets.left, y: -insets.top },
+    bottomLeft: { x: -insets.left, y: size.height - insets.top },
+    bottomRight: { x: size.width - insets.left, y: size.height - insets.top },
   };
 
   const toWorld = (local: Vec2): Vec2 => {
@@ -255,8 +256,9 @@ export const hitTestSceneObjects = (params: SceneHitTestParams): string | null =
     if (!isVisible(obj, time, layers)) continue;
 
     const local = worldPointToObjectLocalPoint(worldPoint, obj, time, objects);
-    const withinX = local.x >= 0 && local.x <= size.width;
-    const withinY = local.y >= 0 && local.y <= size.height;
+    const insets = obj.type === 'text' ? textMediaInsets(obj) : { left: 0, top: 0, right: 0, bottom: 0 };
+    const withinX = local.x >= -insets.left && local.x <= size.width - insets.left;
+    const withinY = local.y >= -insets.top && local.y <= size.height - insets.top;
     if (!withinX || !withinY) continue;
 
     if (obj.layer > bestLayer) {

@@ -4,6 +4,7 @@ import type {
   AudioVisualizationObject,
   ImageObject,
   GetColorDotFieldObject,
+  GroupControlObject,
   HksyCheckerGridObject,
   LayerState,
   PsdObject,
@@ -347,6 +348,69 @@ describe('buildEditableRustScene', () => {
       { frame_offset: 0, x: 10, y: 20, easing: 'easeOutCubic' },
       { frame_offset: 240, x: 210, y: 320, easing: 'linear' },
     ]);
+  });
+
+  it('装飾付きテキストのanimated originをnegative scale・回転・group transform後も保つ', () => {
+    const decorated = text({
+      x: 100,
+      y: 120,
+      rotation: -20,
+      scaleX: -1.1,
+      scaleY: 0.9,
+      keyframes: [
+        { id: 'start', time: 1, x: 100, y: 120, easing: 'linear' },
+        { id: 'end', time: 5, x: 200, y: 220, easing: 'linear' },
+      ],
+      textStroke: { colour: '#000000', width: 4 },
+      textShadow: { colour: '#000000', offsetX: -8, offsetY: 3, blur: 10 },
+    });
+    const group: GroupControlObject = {
+      ...base,
+      id: 'group',
+      type: 'group_control',
+      layer: 2,
+      x: 23,
+      y: 29,
+      rotation: 7,
+      scaleX: 1.1,
+      scaleY: 0.9,
+      targetLayerCount: 0,
+    };
+
+    const result = buildEditableRustScene({
+      sceneId: 'decorated-text-group',
+      projectSettings,
+      layers,
+      objects: [decorated, group],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected editable scene conversion to succeed');
+
+    const media = result.media.find((item) => item.id === decorated.id)!;
+    const source = JSON.parse(media.source);
+    const clip = result.project.tracks.flatMap((track) => track.clips).find((item) => item.id === decorated.id)!;
+    expect(media).toMatchObject({ width: 224, height: 84 });
+    expect(source).toMatchObject({ __renderOffsetX: 20, __renderOffsetY: 9, __contentWidth: 200, __contentHeight: 60 });
+    expect(clip.position_keyframes).toHaveLength(2);
+
+    const groupScaleX = group.scaleX;
+    const groupScaleY = group.scaleY;
+    const finalScaleX = clip.transform.scale_x * groupScaleX;
+    const finalScaleY = clip.transform.scale_y * groupScaleY;
+    const finalRotation = (clip.transform.rotation_degrees + group.rotation) * Math.PI / 180;
+    for (const [index, keyframe] of clip.position_keyframes.entries()) {
+      const glyphOrigin = {
+        x: keyframe.x + group.x
+          + source.__renderOffsetX * finalScaleX * Math.cos(finalRotation)
+          - source.__renderOffsetY * finalScaleY * Math.sin(finalRotation),
+        y: keyframe.y + group.y
+          + source.__renderOffsetX * finalScaleX * Math.sin(finalRotation)
+          + source.__renderOffsetY * finalScaleY * Math.cos(finalRotation),
+      };
+      const expected = index === 0 ? { x: 123, y: 149 } : { x: 223, y: 249 };
+      expect(glyphOrigin.x).toBeCloseTo(expected.x);
+      expect(glyphOrigin.y).toBeCloseTo(expected.y);
+    }
   });
 
   it('subject crop keyframeをclipローカルframeへ変換してRust Projectへ渡す', () => {
