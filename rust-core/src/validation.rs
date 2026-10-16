@@ -346,6 +346,9 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && bounds_height.is_finite()
                 && *bounds_height > 0.0
         }
+        crate::schema::Effect::Vibration { strength, speed } => {
+            strength.is_finite() && speed.is_finite()
+        }
         crate::schema::Effect::AreaExpand {
             top,
             bottom,

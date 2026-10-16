@@ -689,6 +689,33 @@
           "required": [
             "GradientOverlay"
           ]
+        },
+        {
+          "description": "常駐 Project 内だけで使う動的変形。`evaluate_frame` が時間に応じて\ntranslation へ適用し、評価済み snapshot からは必ず除去する。",
+          "type": "object",
+          "properties": {
+            "Vibration": {
+              "type": "object",
+              "properties": {
+                "speed": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "strength": {
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "strength",
+                "speed"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Vibration"
+          ]
         }
       ]
     },

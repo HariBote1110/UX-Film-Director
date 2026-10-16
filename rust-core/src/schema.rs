@@ -358,6 +358,12 @@ pub enum Effect {
         bounds_width: f32,
         bounds_height: f32,
     },
+    /// 常駐 Project 内だけで使う動的変形。`evaluate_frame` が時間に応じて
+    /// translation へ適用し、評価済み snapshot からは必ず除去する。
+    Vibration {
+        strength: f32,
+        speed: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]

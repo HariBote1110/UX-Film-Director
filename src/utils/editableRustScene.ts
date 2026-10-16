@@ -303,7 +303,10 @@ const residentEffectsForObject = (
   // rust-core (timeline.rs) が毎フレーム動的に Effect::Clipping へ評価する。ここで
   // includeSubjectCrop を渡さない (=true のまま) と `object.startTime` 時点の静的な
   // Clipping が焼き込まれ、rust-core が append する動的な Clipping と重複する。
-  const allEffects = rustEffectsForObject(object, object.startTime, { includeSubjectCrop: false });
+  const allEffects = rustEffectsForObject(object, object.startTime, {
+    includeSubjectCrop: false,
+    includeVibrationTransport: true,
+  });
   const wipeFilters = getEnabledObjectFiltersInOrder(object)
     .filter((filter): filter is Extract<ObjectFilter, { type: 'wipe' }> => filter.type === 'wipe');
   const effects: RustEffect[] = [];
@@ -423,6 +426,7 @@ const isResidentStaticFilter = (
   || filterType === 'area_expand'
   || filterType === 'smart_clipping'
   || filterType === 'wipe'
+  || filterType === 'vibration'
   || (object.type === 'shape' && filterType === 'gradient')
 );
 
