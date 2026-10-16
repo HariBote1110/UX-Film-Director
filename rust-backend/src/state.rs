@@ -3,17 +3,18 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::NativeWgpuRenderer;
-use uxfd_rust_core::{Project, SceneMediaReference};
+use uxfd_rust_core::{EditableSceneGraph, Project, SceneMediaReference};
 use uxfd_shared_memory_spike::PosixSharedRing;
 
-use crate::sessions::{DecodeSession, EncodeSession};
 use crate::inprocess_decode::InProcessDecodeSession;
+use crate::sessions::{DecodeSession, EncodeSession};
 
 pub(crate) struct SceneSession {
     pub(crate) scene_id: String,
     pub(crate) revision: u64,
     pub(crate) project: Project,
     pub(crate) media: Vec<SceneMediaReference>,
+    pub(crate) editable_scene: Option<EditableSceneGraph>,
 }
 
 /// Shared state for the in-progress PSD pixel blob write.
