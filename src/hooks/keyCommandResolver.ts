@@ -20,6 +20,15 @@ export interface KeyCommandResolution {
   preventDefault: boolean;
 }
 
+export const shouldIgnoreEditableTargetShortcut = (
+  event: KeyCommandEventLike,
+  targetIsEditable: boolean,
+  targetIsFilterParamEditor: boolean,
+): boolean => targetIsEditable
+  && !(targetIsFilterParamEditor
+    && (event.metaKey || event.ctrlKey)
+    && (event.code === 'KeyZ' || event.code === 'KeyY'));
+
 /**
  * Resolves a keyboard event to a CommandBus commandId (plus payload and
  * whether the caller should call preventDefault()), or null when the key

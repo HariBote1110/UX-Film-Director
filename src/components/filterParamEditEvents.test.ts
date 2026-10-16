@@ -32,4 +32,18 @@ describe('filter parameter editor input events', () => {
     handlers.onBlurCapture();
     expect(commit).toHaveBeenCalledTimes(2);
   });
+
+  it('starts a checkbox edit on change capture when pointerup has already ended the pointer session', () => {
+    const begin = vi.fn();
+    const commit = vi.fn();
+    const handlers = createFilterParamEditEventHandlers({ begin, commit });
+
+    handlers.onFocusCapture();
+    handlers.onPointerUpCapture();
+    handlers.onChangeCapture();
+    handlers.onBlurCapture();
+
+    expect(begin).toHaveBeenCalledTimes(2);
+    expect(commit).toHaveBeenCalledTimes(2);
+  });
 });
