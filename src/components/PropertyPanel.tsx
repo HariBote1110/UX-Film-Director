@@ -31,6 +31,12 @@ import { buildAviUtlCameraTargetPatch, getAviUtlPackCameraPresets } from '../uti
 import { buildAviUtlBackgroundColourPalettePatch, extractAviUtlBackgroundColourPalette, buildAviUtlHksyPalettePatch } from '../utils/aviutl/aviutlBackgroundColourEyedropper';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 import { DEFAULT_FONT_FAMILIES, loadFontFamilyOptions } from '../utils/fontFamilyOptions';
+import { queryRustBackendSceneObjectPositions } from '../utils/rustBackendSceneControl';
+import {
+  isRustScenePositionQueryActionCurrent,
+  waitForRustScenePositionQueryRevision,
+  type RustScenePositionQueryTarget,
+} from '../utils/rustScenePositionQueryRevision';
 
 const Slider = ({
   className,
@@ -212,8 +218,8 @@ const defaultPsdWorldPlacement = (): PsdWorldPlacement => ({
 });
 
 const SceneAndCameraPanel: React.FC = () => {
-  const scenes = useStore((state) => state.scenes);
   const activeSceneId = useStore((state) => state.activeSceneId);
+  const scenes = useStore((state) => state.scenes);
   const camera = useStore((state) => state.camera);
   const projectSettings = useStore((state) => state.projectSettings);
   const objects = useStore((state) => state.objects);
@@ -418,6 +424,7 @@ const SceneAndCameraPanel: React.FC = () => {
 };
 
 const PropertyPanel: React.FC = () => {
+  const activeSceneId = useStore((state) => state.activeSceneId);
   const selectedId = useStore((state) => state.selectedId);
   const selectedIds = useStore((state) => state.selectedIds);
   const objects = useStore((state) => state.objects);
@@ -435,6 +442,16 @@ const PropertyPanel: React.FC = () => {
       ?? objects.find((obj) => normalisedSelectedIds.includes(obj.id))
       ?? null;
   }, [objects, selectedId, selectedIds]);
+
+  const currentSelectedObjectId = () => {
+    const state = useStore.getState();
+    const normalisedSelectedIds = state.selectedIds.length > 0
+      ? state.selectedIds
+      : (state.selectedId ? [state.selectedId] : []);
+    return state.objects.find((object) => object.id === state.selectedId)?.id
+      ?? state.objects.find((object) => normalisedSelectedIds.includes(object.id))?.id
+      ?? null;
+  };
 
   const selectedCount = useMemo(
     () => (selectedIds.length > 0 ? selectedIds.length : (selectedId ? 1 : 0)),
@@ -1490,14 +1507,77 @@ const PropertyPanel: React.FC = () => {
     applyKeyframes(created);
   };
 
-  const handleAddCurrentKeyframe = () => {
-    const currentTime = useStore.getState().currentTime;
+  const handleAddCurrentKeyframe = async () => {
+    const capturedState = useStore.getState();
+    const capturedObjectId = selectedObject.id;
+    if (currentSelectedObjectId() !== capturedObjectId) return;
+    const capturedSceneId = capturedState.activeSceneId;
+    const capturedTime = capturedState.currentTime;
     const keyTime = clamp(
-      currentTime,
+      capturedTime,
       selectedObject.startTime,
       selectedObject.startTime + selectedObject.duration
     );
-    const position = evaluateObjectPositionAtTime(selectedObject, keyTime);
+    const capturedGraph = {
+      projectSettings: capturedState.projectSettings,
+      layers: capturedState.layers,
+      objects: capturedState.objects,
+    };
+    const capturedAction = {
+      activeSceneId: capturedSceneId,
+      selectedObjectId: capturedObjectId,
+      timeSeconds: capturedTime,
+      ...capturedGraph,
+    };
+    const useRustPositionQuery = import.meta.env.VITE_UXFD_RUST_EDIT_POSITION_QUERY === '1';
+    let position: { x: number; y: number };
+    if (useRustPositionQuery) {
+      const target: RustScenePositionQueryTarget = {
+        sceneId: 'viewport-rust-timeline',
+        revision: 0,
+        ...capturedGraph,
+      };
+      try {
+        const revision = await waitForRustScenePositionQueryRevision(target);
+        const requestId = crypto.randomUUID();
+        const queried = await queryRustBackendSceneObjectPositions({
+          sceneId: target.sceneId,
+          revision,
+          queries: [{ requestId, objectId: capturedObjectId, timeSeconds: keyTime }],
+        });
+        if (!queried.ok) throw new Error(queried.detail);
+        const response = queried.value.positions.find((entry) => entry.requestId === requestId);
+        if (!response) throw new Error('Rust position query omitted the requested object.');
+        const latest = useStore.getState();
+        if (!isRustScenePositionQueryActionCurrent(capturedAction, {
+          activeSceneId: latest.activeSceneId,
+          selectedObjectId: currentSelectedObjectId() ?? '',
+          timeSeconds: latest.currentTime,
+          projectSettings: latest.projectSettings,
+          layers: latest.layers,
+          objects: latest.objects,
+        })
+          || !latest.objects.some((object) => object.id === capturedObjectId)) return;
+        position = response.localPosition;
+      } catch (error) {
+        console.warn('[PropertyPanel] Rust keyframe position query failed:', error);
+        return;
+      }
+    } else {
+      position = evaluateObjectPositionAtTime(selectedObject, keyTime);
+    }
+    // The query is asynchronous. Recheck the action identity immediately before
+    // applying so a late reply cannot edit a newly selected object or playhead.
+    const latest = useStore.getState();
+    if (!isRustScenePositionQueryActionCurrent(capturedAction, {
+      activeSceneId: latest.activeSceneId,
+      selectedObjectId: currentSelectedObjectId() ?? '',
+      timeSeconds: latest.currentTime,
+      projectSettings: latest.projectSettings,
+      layers: latest.layers,
+      objects: latest.objects,
+    })
+      || !latest.objects.some((object) => object.id === capturedObjectId)) return;
     const nextKeyframe: PositionKeyframe = {
       id: crypto.randomUUID(),
       time: keyTime,

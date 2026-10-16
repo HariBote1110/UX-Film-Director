@@ -41,6 +41,8 @@ export interface SharedRendererScenePreviewScheduler {
 
 export interface SharedRendererScenePreviewSchedulerFailure {
   operation: 'replace' | 'evaluate';
+  sceneId?: string;
+  revision?: number;
   reason: RustBackendSceneFailureReason;
   detail: string;
   errorCode?: number;
@@ -114,6 +116,7 @@ export const createSharedRendererScenePreviewScheduler = ({
   };
 
   const blockAfterFailure = (failure: SharedRendererScenePreviewSchedulerFailure) => {
+    const failedRevision = desiredRevision;
     desiredRevision = null;
     remoteReadyRevision = null;
     pendingLatestFrame = null;
@@ -121,12 +124,19 @@ export const createSharedRendererScenePreviewScheduler = ({
     failedRevisionKey = null;
     notifyRemoteReady(null);
     notifyResidentRevision(null);
-    onFailure?.(failure);
+    onFailure?.({
+      ...failure,
+      ...(failure.sceneId ? {} : failedRevision ? { sceneId: failedRevision.sceneId } : {}),
+      ...(failure.revision !== undefined || !failedRevision ? {} : { revision: failedRevision.revision }),
+    });
   };
 
   const currentRevisionKey = () => desiredRevision
     ? `${desiredRevision.sceneId}:${desiredRevision.revision}`
     : null;
+
+  const isDesiredRevision = (sceneId: string, revision: number) => desiredRevision?.sceneId === sceneId
+    && desiredRevision.revision === revision;
 
   const queueLatestFrame = (frameIndex: number) => {
     if (pendingLatestFrame !== null && pendingLatestFrame !== frameIndex) {
@@ -165,6 +175,10 @@ export const createSharedRendererScenePreviewScheduler = ({
         if (disposed) return;
         if (!result.ok) {
           diagnostics.failed += 1;
+          if (!isDesiredRevision(desired.sceneId, desired.revision)) {
+            pump();
+            return;
+          }
           blockAfterFailure({ operation: 'replace', ...result });
           return;
         }
@@ -194,6 +208,10 @@ export const createSharedRendererScenePreviewScheduler = ({
         }
         if (disposed) return;
         diagnostics.failed += 1;
+        if (!isDesiredRevision(desired.sceneId, desired.revision)) {
+          pump();
+          return;
+        }
         blockAfterFailure({
           operation: 'replace',
           reason: 'backendFailure',
@@ -234,6 +252,10 @@ export const createSharedRendererScenePreviewScheduler = ({
       if (disposed) return;
       if (!result.ok) {
         diagnostics.failed += 1;
+        if (!isDesiredRevision(requested.sceneId, requested.revision)) {
+          pump();
+          return;
+        }
         blockAfterFailure({ operation: 'evaluate', ...result });
         return;
       }
@@ -267,6 +289,10 @@ export const createSharedRendererScenePreviewScheduler = ({
       }
       if (disposed) return;
       diagnostics.failed += 1;
+      if (!isDesiredRevision(requested.sceneId, requested.revision)) {
+        pump();
+        return;
+      }
       blockAfterFailure({
         operation: 'evaluate',
         reason: 'backendFailure',

@@ -212,6 +212,9 @@ export const queryRustBackendSceneObjectPositions = async (
   payload: RustBackendSceneObjectPositionsPayload,
   bridge: RustBackendSceneBridge = defaultRustBackendSceneBridge(),
 ): Promise<RustBackendSceneRpcResult<RustBackendSceneObjectPositions>> => {
+  if (new Set(payload.queries.map((query) => query.requestId)).size !== payload.queries.length) {
+    return invalidResponse('scene.query_object_positions');
+  }
   const response = await bridge.queryObjectPositions(payload);
   if (!response.success) return failureFromResponse(response);
   if (!isSceneObjectPositions(response.result)) return invalidResponse('scene.query_object_positions');

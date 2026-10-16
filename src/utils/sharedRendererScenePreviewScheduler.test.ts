@@ -285,6 +285,35 @@ describe('sharedRendererScenePreviewScheduler', () => {
     ]);
   });
 
+  it('古いreplaceの遅着failureは新revisionをblockせず、failure identityも現行revisionへ誤帰属しない', async () => {
+    const replaces: Array<{ input: { revision: number }; deferred: Deferred<any> }> = [];
+    const failures: Array<{ sceneId?: string; revision?: number }> = [];
+    const rpc: SharedRendererScenePreviewSchedulerRpc = {
+      replaceScene: (input) => {
+        const next = deferred<any>();
+        replaces.push({ input, deferred: next });
+        return next.promise;
+      },
+      evaluateScene: async (input) => ({ ok: true, value: evaluation(input.sceneId, input.revision, input.frameIndex) }),
+    };
+    const scheduler = createSharedRendererScenePreviewScheduler({
+      rpc,
+      onEvaluation: () => {},
+      onFailure: (failure) => failures.push(failure),
+    });
+
+    scheduler.submitRevision(revision(1));
+    scheduler.submitRevision(revision(2));
+    replaces[0].deferred.resolve({ ok: false, reason: 'backendFailure', detail: 'late r1 failure' });
+    await flush();
+
+    expect(failures).toEqual([]);
+    expect(replaces.map((entry) => entry.input.revision)).toEqual([1, 2]);
+    replaces[1].deferred.resolve({ ok: true, value: { sceneId: 'preview:main', revision: 2, sceneSource: 'rust' } });
+    await flush();
+    expect(failures).toEqual([]);
+  });
+
   it('scene RPC失敗時はonRemoteReadyへnullを通知する', async () => {
     const remoteReadyEvents: Array<{ sceneId: string; revision: number } | null> = [];
     const rpc: SharedRendererScenePreviewSchedulerRpc = {

@@ -149,6 +149,22 @@ describe('rustBackendSceneControl', () => {
     }, bridge)).resolves.toMatchObject({ ok: false, reason: 'invalidResponse' });
   });
 
+  it('重複requestIdをRustへ送らず拒否する', async () => {
+    const bridge: RustBackendSceneBridge = {
+      replaceScene: async () => { throw new Error('replace must not run'); },
+      evaluateScene: async () => { throw new Error('evaluate must not run'); },
+      queryObjectPositions: async () => { throw new Error('duplicate request must not run'); },
+    };
+    await expect(queryRustBackendSceneObjectPositions({
+      sceneId: 'viewport-rust-timeline',
+      revision: 12,
+      queries: [
+        { requestId: 'duplicate', objectId: 'object-1', timeSeconds: 0.37 },
+        { requestId: 'duplicate', objectId: 'object-2', timeSeconds: 0.41 },
+      ],
+    }, bridge)).resolves.toMatchObject({ ok: false, reason: 'invalidResponse' });
+  });
+
   it.each([
     [-32060, 'missingScene'],
     [-32061, 'staleRevision'],

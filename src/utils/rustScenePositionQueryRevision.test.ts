@@ -54,4 +54,21 @@ describe('rustScenePositionQueryRevision', () => {
     await expect(waitForRustScenePositionQueryRevision({ ...graph, revision: 5, objects: [] }))
       .rejects.toThrow('replace failed');
   });
+
+  it('同graphの新revisionは旧waiterをrejectし、遅着ack/failureは無視する', async () => {
+    publishRustScenePositionQueryTarget(graph);
+    const oldWaiter = waitForRustScenePositionQueryRevision(graph);
+    publishRustScenePositionQueryTarget({ ...graph, revision: 5 });
+    await expect(oldWaiter).rejects.toThrow('superseded');
+
+    const nextWaiter = waitForRustScenePositionQueryRevision(graph);
+    publishRustScenePositionQueryFailure(graph.sceneId, 'late old replace failure', 4);
+    publishRustScenePositionQueryResident({ sceneId: graph.sceneId, revision: 4 });
+    let settled = false;
+    void nextWaiter.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    publishRustScenePositionQueryResident({ sceneId: graph.sceneId, revision: 5 });
+    await expect(nextWaiter).resolves.toBe(5);
+  });
 });
