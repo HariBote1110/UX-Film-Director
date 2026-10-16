@@ -164,6 +164,12 @@ export const shouldBuildSharedRendererPreviewSessionForTick = (
   rustTimelineSceneRpcEnabled: boolean,
 ): boolean => !rustTimelineSceneRpcEnabled;
 
+/** RPC中のpreview sessionはRust scene.evaluateの応答だけからpublishする。 */
+export const shouldPublishSharedRendererPreviewSession = (
+  rustTimelineSceneRpcEnabled: boolean,
+  hasEvaluatedSession: boolean,
+): boolean => !rustTimelineSceneRpcEnabled || hasEvaluatedSession;
+
 /**
  * currentTime tickをsubscribeリスナー内で即時実行してよいかの判定。
  * zustandのsetStateはリスナーを同期実行するため、currentTimeと構造系state
@@ -1441,6 +1447,7 @@ const Viewport: React.FC = () => {
     evaluatedSession?: SharedRendererPreviewSession,
   ) => {
     if (!sharedRendererPreviewEnabled) return;
+    if (!shouldPublishSharedRendererPreviewSession(rustTimelineSceneRpcEnabled, evaluatedSession !== undefined)) return;
     const rawPreviewTime = isPlaying
       ? quantiseSharedRendererPlaybackPreviewTime(time)
       : time;
@@ -1816,6 +1823,7 @@ const Viewport: React.FC = () => {
     sharedRendererVideoCutoverEnabled,
     nativeOverlayReady,
     rustVideoOnlyEnabled,
+    rustTimelineSceneRpcEnabled,
     requestSharedRendererExternalVideoFrameRepaint,
   ]);
 
