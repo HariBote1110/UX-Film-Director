@@ -27,6 +27,7 @@ import {
 import { buildSharedRendererPreviewSessionFromEvaluatedScene } from '../utils/sharedRendererEvaluatedScenePreviewSession';
 import {
   createEditableRustScenePreviewController,
+  EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
   type EditableRustScenePreviewController,
 } from '../utils/editableRustScenePreviewController';
@@ -2717,11 +2718,16 @@ const Viewport: React.FC = () => {
             delete document.documentElement.dataset.uxfdRustExportFrameSourceReason;
             return { sceneId: confirmed.sceneId, revision: confirmed.revision };
           } catch (error) {
-            document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'directSnapshotFallback';
+            if (error instanceof EditableRustSceneUnsupportedError) {
+              document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'directSnapshotFallback';
+              document.documentElement.dataset.uxfdRustExportFrameSourceReason = error.message;
+              return null;
+            }
+            document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirmationFailed';
             document.documentElement.dataset.uxfdRustExportFrameSourceReason = error instanceof Error
               ? error.message
               : String(error);
-            return null;
+            throw error;
           }
         },
         evaluateScene: async (request) => {
