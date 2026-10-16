@@ -30,18 +30,15 @@ export const shouldAttachEditableRustScene = (
 ): boolean => shouldUseRawEditableSceneGraphOnly(rawGraphOnlyFlag, dualRunFlag, cutoverFlag);
 
 /**
- * The resident Rust scene graph is the production default. Legacy rollout flags
- * remain accepted as aliases, while an explicit raw-graph opt-out blocks it.
+ * The resident Rust scene graph is the production default. Only an explicit
+ * raw-graph opt-out blocks it; legacy rollout flags no longer control routing.
  */
 export const shouldUseRawEditableSceneGraphOnly = (
   flag: string | undefined,
-  dualRunFlag?: string,
-  cutoverFlag?: string,
+  _dualRunFlag?: string,
+  _cutoverFlag?: string,
 ): boolean => {
-  if (flag === '0') return false;
-  if (flag === '1') return true;
-  if (flag === undefined) return true;
-  return dualRunFlag === '1' || Boolean(cutoverFlag?.trim());
+  return flag !== '0';
 };
 
 const sanitiseEditableSceneObject = (object: TimelineObject): TimelineObject => {
