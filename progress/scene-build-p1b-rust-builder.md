@@ -65,5 +65,21 @@
   effector line / hologram / protractor は範囲外値と不正 colour を投入した。これに
   より明示 clamp、既定値、colour fallback、空配列 wire shape を検証する。
 - coverage fixture の drift testも追加した。resident type coverageと区別して残る制約は、
-  dynamic group gradient、逆再生video、mask、未対応filter（例: vibration、shape以外の
-  gradient）、外部参照が必要なGetColor sourceである。これらのguardは今回解除していない。
+  dynamic group gradient、逆再生video、mask、shape以外のgradient、外部参照が必要な
+  GetColor sourceである。これらのguardは今回解除していない。
+
+## P2 resident Vibration
+
+- `Effect::Vibration { strength, speed }` を resident Project 内の動的offset運搬子として追加。
+  enabled filtersの順序を保って保持し、Rust `evaluate_frame` がabsolute scene seconds
+  (`frame_index / fps`) と `index * 1.618` phaseで積算する。評価後effectsから必ず除去し、
+  clip translationにはgroup transform合成後・Text render-origin補正前に加える。
+- 純計算は `rust-core/src/vibration.rs::evaluate_vibration_offset` に集約し、Rust timelineと
+  P4 position queryの双方から呼べる公開helperにした。TS direct snapshotは既存の
+  `getVibrationOffset` を引き続き参照実装として使う。旧legacy `BaseObject.vibration` も同じ
+  enabled-filter解決経由でresident effectに変換する。
+- `vibration-resident.json` はstart/end外・境界・group開始/終了を含む9 frameをTS directと
+  resident Rust評価で比較する。Text stroke/shadowによる拡張plane、複数段/disabled/zero
+  strength/zero speed vibration、group rotation/scale、Wipe effect indexを同時に固定。従来3 fixture
+  の447 frameは変更なし。未評価Effectがnative wgpu、backend IPC、reference rendererに届いた場合は
+  unsupported errorで拒否する。

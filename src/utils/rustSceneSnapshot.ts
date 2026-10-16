@@ -513,6 +513,8 @@ export interface RustEffectsForObjectOptions {
    * rust-core が append する動的な Clipping と重複してしまう。
    */
   includeSubjectCrop?: boolean;
+  /** Carry an unevaluated vibration only inside a resident Project. */
+  includeVibrationTransport?: boolean;
 }
 
 export const rustEffectsForObject = (
@@ -523,6 +525,14 @@ export const rustEffectsForObject = (
   const includeSubjectCrop = options?.includeSubjectCrop ?? true;
   const effects: RustEffect[] = [];
   getEnabledObjectFiltersInOrder(object).forEach((filter) => {
+    if (filter.type === 'vibration' && options?.includeVibrationTransport === true) {
+      effects.push({
+        Vibration: {
+          strength: finiteNumberOr(filter.params.strength, 0),
+          speed: finiteNumberOr(filter.params.speed, 1),
+        },
+      });
+    }
     if (filter.type === 'color_correction') {
       // 旧 PIXI.ColorMatrixFilter の hue→saturate→contrast→brightness
       // multiply 合成に対応する Rust 側 Effect。恒等値のフォールバックは

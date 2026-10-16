@@ -272,6 +272,32 @@ fn missing_media_source_is_reported() {
 }
 
 #[test]
+fn reference_renderer_rejects_unresolved_vibration_effects() {
+    let snapshot = scene_snapshot(vec![evaluated_clip(
+        "vibration",
+        0,
+        1.0,
+        vec![Effect::Vibration {
+            strength: 2.0,
+            speed: 1.0,
+        }],
+    )]);
+    let sources = HashMap::from([(
+        "vibration".to_string(),
+        RgbaFrame::from_rgba8(1, 1, vec![255, 255, 255, 255]).expect("valid source"),
+    )]);
+
+    let error = render_reference_frame(&snapshot, &sources, 1, 1)
+        .expect_err("reference renderer must require evaluated vibration");
+
+    assert!(matches!(
+        error,
+        ReferenceRenderError::UnsupportedEffect { clip_id, effect }
+            if clip_id == "clip-vibration" && effect == "Vibration"
+    ));
+}
+
+#[test]
 fn identity_transform_samples_visible_canvas_region_when_source_is_larger() {
     let snapshot = scene_snapshot(vec![evaluated_clip("foreground", 0, 1.0, Vec::new())]);
     let sources = HashMap::from([(

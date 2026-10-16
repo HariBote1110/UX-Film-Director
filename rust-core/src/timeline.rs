@@ -2,6 +2,7 @@ use crate::keyframe::{
     evaluate_position_keyframes, evaluate_scalar_keyframes, evaluate_subject_crop_keyframes,
 };
 use crate::schema::{Clip, ClipKind, ColourPipeline, Effect, MediaKind, Project, Transform};
+use crate::vibration::evaluate_vibration_offset;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -64,15 +65,6 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 transform.rotation_degrees += control.transform.rotation_degrees;
                 opacity *= control.opacity;
             }
-            if clip.kind == ClipKind::TextPlane {
-                if let Some((offset_x, offset_y)) = text_render_offset(project, &clip.media_id) {
-                    let angle = transform.rotation_degrees.to_radians();
-                    let local_x = offset_x * transform.scale_x;
-                    let local_y = offset_y * transform.scale_y;
-                    transform.translation_x -= local_x * angle.cos() - local_y * angle.sin();
-                    transform.translation_y -= local_x * angle.sin() + local_y * angle.cos();
-                }
-            }
             opacity = opacity.clamp(0.0, 1.0);
 
             let mut effects = clip.effects.clone();
@@ -105,6 +97,32 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                         right: (1.0 - x - width) * subject_crop.source_width,
                         angle_degrees: 0.0,
                     });
+                }
+            }
+
+            let mut vibration_filters = Vec::new();
+            effects.retain(|effect| {
+                if let Effect::Vibration { strength, speed } = effect {
+                    vibration_filters.push((f64::from(*strength), f64::from(*speed)));
+                    false
+                } else {
+                    true
+                }
+            });
+            let time_seconds = frame_index as f64 * f64::from(project.fps.denominator)
+                / f64::from(project.fps.numerator.max(1));
+            let (vibration_x, vibration_y) =
+                evaluate_vibration_offset(&vibration_filters, time_seconds);
+            transform.translation_x += vibration_x as f32;
+            transform.translation_y += vibration_y as f32;
+
+            if clip.kind == ClipKind::TextPlane {
+                if let Some((offset_x, offset_y)) = text_render_offset(project, &clip.media_id) {
+                    let angle = transform.rotation_degrees.to_radians();
+                    let local_x = offset_x * transform.scale_x;
+                    let local_y = offset_y * transform.scale_y;
+                    transform.translation_x -= local_x * angle.cos() - local_y * angle.sin();
+                    transform.translation_y -= local_x * angle.sin() + local_y * angle.cos();
                 }
             }
 
