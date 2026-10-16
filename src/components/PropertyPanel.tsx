@@ -37,6 +37,7 @@ import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 import { DEFAULT_FONT_FAMILIES, loadFontFamilyOptions } from '../utils/fontFamilyOptions';
 import { queryRustBackendSceneObjectPositions } from '../utils/rustBackendSceneControl';
 import {
+  isRustScenePositionQueryCancelled,
   isRustScenePositionQueryActionCurrent,
   waitForRustScenePositionQueryRevision,
   type RustScenePositionQueryTarget,
@@ -1319,6 +1320,7 @@ const PropertyPanel: React.FC = () => {
             positions: queried.value.positions,
           });
         } catch (error) {
+          if (isRustScenePositionQueryCancelled(error) || !isCapturedActionCurrent()) return;
           console.warn('[PropertyPanel] Rust Vision position query failed:', error);
           window.alert(language === 'en'
             ? 'Could not evaluate Vision tracking positions in the Rust scene.'

@@ -198,4 +198,28 @@ describe('splitObject のRust位置query移行', () => {
     expect(useStore.getState().objects[0]).toMatchObject({ id: 'split-target', duration: 10 });
     expect(useStore.getState().pastCommands).toEqual([]);
   });
+
+  it('resident待機中にgraphがsupersedeした取消は通知しない', async () => {
+    const alert = vi.fn();
+    const queryObjectPositions = vi.fn();
+    vi.stubGlobal('window', { rustBackend: makeSceneBridge(queryObjectPositions), alert });
+    const state = useStore.getState();
+    const target = {
+      sceneId: 'viewport-rust-timeline',
+      revision: 9,
+      projectSettings: state.projectSettings,
+      layers: state.layers,
+      objects: state.objects,
+    };
+    publishRustScenePositionQueryTarget(target);
+
+    const pending = useStore.getState().splitObject();
+    publishRustScenePositionQueryTarget({ ...target, revision: 10, objects: [] });
+    await pending;
+
+    expect(queryObjectPositions).not.toHaveBeenCalled();
+    expect(alert).not.toHaveBeenCalled();
+    expect(useStore.getState().objects).toHaveLength(1);
+    expect(useStore.getState().pastCommands).toEqual([]);
+  });
 });
