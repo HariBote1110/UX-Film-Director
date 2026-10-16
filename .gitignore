@@ -1,4 +1,5 @@
 /node_modules
+windows/dxc/x64/*.dll
 **/target/
 .DS_Store
 .codex/

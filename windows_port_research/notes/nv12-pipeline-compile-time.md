@@ -347,3 +347,31 @@ success=true`→`detach_call_begin`→`ok` まで一直線に進行し、
   が自動的に Fxc へ落ちるため、機能的に壊れることはない（起動が遅く
   なるだけ）。同梱を W1 の必須項目にするか任意の最適化にするかは
   プロダクトの起動時間要件次第で判断してよい。
+
+## 追記3: DXCの再配布・electron-builder同梱（2026-10-16）
+
+上記W1申し送りの「electron-builderへの組み込み未着手」「ライセンス未確認」
+「同梱は任意」という記述は本追記で更新する。`progress/windows-dxc-packaging.md`
+に決定根拠と検証制約を記録した。
+
+- Microsoft公式の[DirectXShaderCompiler v1.9.2607 release](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2607)
+  にある`dxc_2026_07_29.zip`を固定し、GitHub APIが返すSHA-256
+  `a1dfb116ba3eeae6a1582291b53a8e7bf65ad760676bd3194685c8f7367cd241`と
+  実取得データのhash一致を確認した。`scripts/prepareDxc.mjs`がこのhashを
+  検証し、x64 DLLとrelease zip内の`LICENSE-LLVM.txt`、`LICENSE-MS.txt`、
+  `LICENCE-MIT.txt`を`windows/dxc/x64/`へ抽出する。DLLはGit管理しない。
+- `electron-builder`のWindows `extraFiles`からこれらをElectron exe横へ配置する。
+  `current_exe()`の親ディレクトリに両DLLが必要なため、`extraResources`は使わない。
+  Windows x64 buildは`npm run build:win`でassets準備後に実行し、pack前hookも
+  欠落資産・非x64 targetを失敗させる。macOS/Linux buildにはDXC資産を要求しない。
+- DirectXShaderCompilerの[公式README](https://github.com/microsoft/DirectXShaderCompiler)
+  はUniversity of Illinois Open Source Licenseでの配布を明記し、公式
+  [LICENSE.TXT](https://github.com/microsoft/DirectXShaderCompiler/blob/main/LICENSE.TXT)
+  はsource/binary再配布の許可と著作権表示・条件・免責文保持を定めている。
+  releaseに同梱された3つのlicense文書をすべてアプリrootへコピーする。
+- この作業環境で取得・checksum・展開まで検証した。旧mainpcは撤去済みで
+  `rpsh`接続も失敗するため、Windows実機package build・起動・高DPI確認は
+  未実施のままとする。実機検証済みとは扱わない。
+- W7 attach同期ブロックについても、本ノート前半の当時の記述は後続の
+  `progress/windows-w7-async-attach.md`（AsyncTask + staged pipeline実測）で
+  supersedeされている。詳細は`markdown/Windows_Port_Plan.md`に最新状態を記録する。

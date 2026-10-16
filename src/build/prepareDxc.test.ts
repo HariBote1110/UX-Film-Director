@@ -54,8 +54,13 @@ describe('DXC Windows package assets', () => {
 
   it('Windows x64のpack前だけを検査し、arm64 Windowsは失敗する', async () => {
     const assetDirectory = await createAssetDirectory();
+    const root = await mkdtemp(path.join(tmpdir(), 'uxfd-dxc-missing-'));
+    temporaryDirectories.push(root);
+    const missingDirectory = path.join(root, 'x64');
+    await mkdir(missingDirectory);
     await expect(beforePackDxc({ electronPlatformName: 'darwin', arch: 'arm64', assetDirectory })).resolves.toBeUndefined();
     await expect(beforePackDxc({ electronPlatformName: 'win32', arch: 'arm64', assetDirectory })).rejects.toThrow(/x64/);
+    await expect(beforePackDxc({ electronPlatformName: 'win32', arch: 'x64', assetDirectory: missingDirectory })).rejects.toThrow(/dxcompiler\.dll/);
     await expect(beforePackDxc({ electronPlatformName: 'win32', arch: 'x64', assetDirectory })).resolves.toBeUndefined();
   });
 
@@ -69,9 +74,23 @@ describe('DXC Windows package assets', () => {
   });
 
   it('electron-builderはDXC DLLとライセンスをWindowsのexe横へextraFiles配置する', () => {
-    expect(packageJson.build.extraFiles).toBeUndefined();
-    expect(packageJson.build.win.extraFiles).toEqual(expect.arrayContaining([
-      expect.objectContaining({ from: 'windows/dxc/x64', to: '.' }),
+    const buildConfig = packageJson.build as unknown as {
+      extraFiles?: unknown;
+      win: { extraFiles?: Array<{ from: string; to: string; filter: string[] }> };
+    };
+    expect(buildConfig.extraFiles).toBeUndefined();
+    expect(buildConfig.win.extraFiles).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        from: 'windows/dxc/x64',
+        to: '.',
+        filter: expect.arrayContaining([
+          'dxcompiler.dll',
+          'dxil.dll',
+          'LICENSE-LLVM.txt',
+          'LICENSE-MS.txt',
+          'LICENCE-MIT.txt',
+        ]),
+      }),
     ]));
   });
 });
