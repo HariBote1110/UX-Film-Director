@@ -19,7 +19,7 @@
 | 2 | P2全体の完了条件を棚卸し | **部分完了（2026-10-16）**。対応済みgraphのdirect exportをRust resident評価へ接続。同一graphのreplace再利用、原本参照、RPC失敗伝播、待機中cancelを検証。全群ON混在動画をnativeDirect有効/無効の両構成で60/60フレーム出力。未対応graph等の旧TS経路は残る。 |
 | 3 | P3: TS serializer撤去 | P2の両経路収束後、`rustSceneSnapshot.ts` / `editableRustScene.ts`の生成・参照解決をRustへ一本化。447-frame parityとpreview/export E2Eを維持する。 |
 | 4 | P4: UI評価値をRustへ移行 | PropertyPanel、選択枠、追跡、storeのTS評価利用を`scene.evaluate`購読へ付け替え、重複評価関数を撤去。ドラッグ・スクラブの遅延も確認する。 |
-| 5 | テキストの縁取り・影のクリップ | **作業中**。装飾分の領域拡張と描画原点・回転・scale補正。Rust builder・TS resident builder・direct経路すべての位置不変性を検証する。 |
+| 5 | テキストの縁取り・影のクリップ | **完了（2026-10-16）**。装飾分の領域拡張と描画原点補正を全経路に接続。回転・負scale・keyframe・途中group_control開始/終了の位置不変性を検証。447-frame parityと影付き日本語テキストのMP4書き出し360/360フレームが成功。 |
 | 6 | フィルタ値編集のUndo/Redo | **完了（2026-10-16）**。入力開始〜終了を1操作として履歴化。連続入力・非同期応答・scene切替・フォーカス中Undo/Redo・通常テキスト入力のnative Undo維持を検証。実Electron/CDPのPropertyPanel操作でも確認。 |
 
 出典: [Scene Build計画](Scene_Build_In_Rust_Plan.md)、[P2c決定ログ](../progress/scene-build-p2c-resident-scene-export-revision.md)、[テキスト装飾クリップ](../progress/text-stroke-shadow-clipping.md)、`src/store/useStore.ts`の`updateObjectFilterParams`。
