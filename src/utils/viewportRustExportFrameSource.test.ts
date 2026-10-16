@@ -171,6 +171,31 @@ describe('buildViewportRustExportFrameSource', () => {
     }]);
   });
 
+  it('async resident scene evaluator is passed through to each export frame source', () => {
+    const canvas = { width: 1920, height: 1080, dataset: {} } as unknown as HTMLCanvasElement;
+    const evaluateResidentScene = async () => null;
+    const calls: unknown[] = [];
+
+    buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      hasVideoObjects: false,
+      evaluateResidentScene,
+      createFrameSource: (input) => {
+        calls.push(input);
+        return frameSource;
+      },
+    });
+
+    expect(calls).toEqual([expect.objectContaining({ evaluateResidentScene })]);
+  });
+
   it('requests an encode-only frame source when Rust backend encoding owns export frames', () => {
     const canvas = {
       width: 1920,

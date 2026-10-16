@@ -1,12 +1,8 @@
 import type { EditorMode, ProjectSettings } from '../types';
 import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
-import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewPlanFromEvaluation } from './sharedRendererPreviewBridge';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import { buildSharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
-import {
-  type RustSceneMediaReference,
-  type RustSceneSnapshot,
-} from './rustSceneSnapshot';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 
 export interface SharedRendererEvaluatedScenePreviewSessionInput {
@@ -31,11 +27,7 @@ export const buildSharedRendererPreviewSessionFromEvaluatedScene = ({
   webGpuAvailable,
   fallbackAdapter,
 }: SharedRendererEvaluatedScenePreviewSessionInput): SharedRendererPreviewSession => {
-  const plan: SharedRendererPreviewPlan = {
-    mode: 'sharedRenderer',
-    snapshot: evaluation.snapshot as RustSceneSnapshot,
-    media: evaluation.media as RustSceneMediaReference[],
-  };
+  const plan = buildSharedRendererPreviewPlanFromEvaluation(evaluation);
 
   return {
     plan,

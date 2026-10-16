@@ -100,6 +100,118 @@ const decodeJob = (jobId: string): SharedRendererViewportVideoDecodeJob => ({
 });
 
 describe('createSharedRendererExportFrameSource', () => {
+  it('async Rust評価があるframeではTS export builderを呼ばず評価済みsessionをpresentする', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const evaluationCalls: number[] = [];
+    const presenterCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      evaluateResidentScene: async ({ frameIndex }) => {
+        evaluationCalls.push(frameIndex);
+        return {
+          sceneId: 'export-scene',
+          revision: 4,
+          frameIndex,
+          snapshot: {
+            frame_index: frameIndex,
+            colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' },
+            clips: [],
+          },
+          media: [],
+        };
+      },
+      buildExportSession: () => { throw new Error('TS export builder must not run for Rust evaluation'); },
+      startViewportPresenter: async (input) => {
+        presenterCalls.push(input);
+        return {
+          control: { dispose: () => undefined },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+    });
+
+    await source.renderFrame({
+      frameIndex: 15,
+      timestampUs: 250_000,
+      time: 0.25,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    });
+
+    expect(evaluationCalls).toEqual([15]);
+    expect(presenterCalls).toHaveLength(1);
+    expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(15);
+  });
+
+  it('Rust評価の待機中に閉じたsourceはpresenterを開始しない', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    let resolveEvaluation: ((value: {
+      sceneId: string;
+      revision: number;
+      frameIndex: number;
+      snapshot: unknown;
+      media: never[];
+    }) => void) | undefined;
+    let evaluationStarted = false;
+    const presenterCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      evaluateResidentScene: async () => {
+        evaluationStarted = true;
+        return new Promise((resolve) => { resolveEvaluation = resolve; });
+      },
+      startViewportPresenter: async (input) => {
+        presenterCalls.push(input);
+        return {
+          control: { dispose: () => undefined },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+    });
+    const pendingFrame = source.renderFrame!({
+      frameIndex: 16,
+      timestampUs: 266_667,
+      time: 16 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    });
+
+    expect(evaluationStarted).toBe(true);
+    await source.close?.();
+    resolveEvaluation?.({
+      sceneId: 'export-scene',
+      revision: 4,
+      frameIndex: 16,
+      snapshot: {
+        frame_index: 16,
+        colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' },
+        clips: [],
+      },
+      media: [],
+    });
+
+    await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
+    expect(presenterCalls).toEqual([]);
+  });
+
   it('recognises structural blocked errors that explicitly disable legacy fallback', () => {
     expect(isSharedRendererExportFrameSourceBlockedError({
       fallbackToLegacyCanvas: false,

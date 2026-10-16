@@ -7,10 +7,18 @@ import {
 import { stripPsdLayerNodeForPersistence } from './psdParser';
 import { secondsToFrameIndex } from './rustSceneSnapshot';
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
+import type { ConfirmedSceneRevision } from './sharedRendererScenePreviewScheduler';
 
 export type EditableRustScenePreviewReplaceResult =
   | { ok: true; revision: number }
   | { ok: false; issues: EditableRustSceneIssue[] };
+
+export class EditableRustSceneUnsupportedError extends Error {
+  constructor(readonly issues: EditableRustSceneIssue[]) {
+    super(issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '));
+    this.name = 'EditableRustSceneUnsupportedError';
+  }
+}
 
 export interface EditableRustScenePreviewController {
   replaceScene: (input: {
@@ -23,7 +31,7 @@ export interface EditableRustScenePreviewController {
     projectSettings: ProjectSettings;
     layers: LayerState[];
     objects: TimelineObject[];
-  }) => Promise<{ sceneId: string; revision: number }>;
+  }) => Promise<ConfirmedSceneRevision>;
   requestTime: (timeSeconds: number, fps: number) => void;
   dispose: () => void;
 }
@@ -62,7 +70,7 @@ export const createEditableRustScenePreviewController = ({
     projectSettings: ProjectSettings;
     layers: LayerState[];
     objects: TimelineObject[];
-  }, targetSceneId = sceneId) => {
+  }, targetSceneId = sceneId, purpose: 'previewProxy' | 'exportOriginal' = 'previewProxy') => {
     const result = buildEditableRustScene({ sceneId: targetSceneId, ...input });
     if (!result.ok) return result;
 
@@ -78,7 +86,7 @@ export const createEditableRustScenePreviewController = ({
         settings: input.projectSettings,
         layers: input.layers,
         objects: input.objects.map(sanitiseEditableSceneObject),
-        mediaContext: { purpose: 'previewProxy', sceneId: targetSceneId },
+        mediaContext: { purpose, sceneId: targetSceneId },
       };
       payload.editableScene = editableScene;
     }
@@ -97,10 +105,10 @@ export const createEditableRustScenePreviewController = ({
     },
     confirmSceneForExport: async (input) => {
       const { sceneId: exportSceneId, ...exportInput } = input;
-      const result = buildReplacement(exportInput, exportSceneId);
+      const result = buildReplacement(exportInput, exportSceneId, 'exportOriginal');
       if (!result.ok) {
         scheduler.invalidate();
-        throw new Error(result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '));
+        throw new EditableRustSceneUnsupportedError(result.issues);
       }
       return scheduler.confirmExportRevision(result.payload);
     },

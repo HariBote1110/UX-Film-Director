@@ -12,6 +12,8 @@ import {
   type SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
 import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
+import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
+import { buildSharedRendererPreviewPlanFromEvaluation } from './sharedRendererPreviewBridge';
 
 export type SharedRendererNativeRenderEnvelope =
   | {
@@ -45,6 +47,14 @@ export interface SharedRendererExportSession {
   nativeRenderEnvelope: SharedRendererNativeRenderEnvelope;
 }
 
+export interface SharedRendererExportEvaluatedSceneInput {
+  evaluation: Pick<RustBackendSceneEvaluation, 'snapshot' | 'media'>;
+  projectSettings: Pick<ProjectSettings, 'width' | 'height'>;
+  editorMode: EditorMode;
+  webGpuAvailable: boolean;
+  fallbackAdapter: boolean;
+}
+
 export const buildSharedRendererExportSession = ({
   enabled,
   projectSettings,
@@ -64,6 +74,31 @@ export const buildSharedRendererExportSession = ({
     videoSourceMode: 'exportOriginal',
   });
 
+  const surfaceGate = buildSharedRendererPreviewSurfaceGate({
+    plan,
+    projectSettings,
+    editorMode,
+    isExporting: false,
+    webGpuAvailable,
+    fallbackAdapter,
+  });
+
+  return {
+    plan,
+    surfaceGate,
+    presentationContract: buildSharedRendererPresentationContract(),
+    nativeRenderEnvelope: buildNativeRenderEnvelope(surfaceGate),
+  };
+};
+
+export const buildSharedRendererExportSessionFromEvaluation = ({
+  evaluation,
+  projectSettings,
+  editorMode,
+  webGpuAvailable,
+  fallbackAdapter,
+}: SharedRendererExportEvaluatedSceneInput): SharedRendererExportSession => {
+  const plan = buildSharedRendererPreviewPlanFromEvaluation(evaluation);
   const surfaceGate = buildSharedRendererPreviewSurfaceGate({
     plan,
     projectSettings,

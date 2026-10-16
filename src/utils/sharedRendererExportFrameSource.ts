@@ -6,7 +6,10 @@ import type {
 } from './projectExportFrameCanvas';
 import {
   buildSharedRendererExportSession,
+  buildSharedRendererExportSessionFromEvaluation,
+  type SharedRendererExportSession,
 } from './sharedRendererExportSession';
+import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import {
   releaseRustBackendNativeSharedFrame,
   renderRustBackendNativeSharedFrame,
@@ -115,6 +118,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   datasets?: PresenterDataset[];
   buildExportSession?: SharedRendererExportSessionBuilder;
+  evaluateResidentScene?: SharedRendererExportEvaluationProvider;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
@@ -180,6 +184,7 @@ export function createSharedRendererExportFrameSource({
   presentedFrameSharedFrameTaker,
   datasets = [canvas.dataset as unknown as PresenterDataset],
   buildExportSession = buildSharedRendererExportSession,
+  evaluateResidentScene,
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
@@ -195,21 +200,36 @@ export function createSharedRendererExportFrameSource({
   const nativeSharedFrameRendererAvailable =
     inputRenderNativeSharedFrame != null || isDefaultNativeSharedFrameRendererAvailable();
 
-  const buildFrameSession = (request: ProjectExportRustFrameRequest) => {
+  const buildFrameSession = async (request: ProjectExportRustFrameRequest): Promise<SharedRendererExportSession> => {
     if (closed) {
       throw new Error('Shared renderer export frame source has already been closed.');
     }
 
-    const session = buildExportSession({
-      enabled: true,
-      projectSettings,
-      layers,
-      objects: [...request.objects],
-      time: request.time,
-      editorMode,
-      webGpuAvailable,
-      fallbackAdapter,
+    const evaluation = await evaluateResidentScene?.({
+      objects: request.objects,
+      frameIndex: request.frameIndex,
     });
+    if (closed) {
+      throw new Error('Shared renderer export frame source has already been closed.');
+    }
+    const session = evaluation
+      ? buildSharedRendererExportSessionFromEvaluation({
+        evaluation,
+        projectSettings,
+        editorMode,
+        webGpuAvailable,
+        fallbackAdapter,
+      })
+      : buildExportSession({
+        enabled: true,
+        projectSettings,
+        layers,
+        objects: [...request.objects],
+        time: request.time,
+        editorMode,
+        webGpuAvailable,
+        fallbackAdapter,
+      });
     const surfaceGate = session.surfaceGate;
     if (!surfaceGate.ok) {
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
@@ -242,7 +262,7 @@ export function createSharedRendererExportFrameSource({
   const presentFrame = async (
     request: ProjectExportRustFrameRequest
   ): Promise<StartSharedRendererViewportPresenterResult> => {
-    const session = buildFrameSession(request);
+    const session = await buildFrameSession(request);
 
     const presenterResult = await startViewportPresenter({
       canvas,
@@ -343,7 +363,7 @@ export function createSharedRendererExportFrameSource({
       return null;
     }
 
-    const session = buildFrameSession(request);
+    const session = await buildFrameSession(request);
     const nextRequestId = requestId + 1;
     const nativeSources = await prepareNativeRenderSources({
       session,

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
-import { buildSharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
+import {
+  buildSharedRendererPreviewPlan,
+  buildSharedRendererPreviewPlanFromEvaluation,
+} from './sharedRendererPreviewBridge';
 import type { ImageObject, ProjectSettings } from '../types';
 
 const settings: ProjectSettings = {
@@ -35,6 +38,29 @@ const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
 });
 
 describe('buildSharedRendererPreviewPlan', () => {
+  it('Rust評価結果をそのまま共通preview planにし、TS graphを再評価しない', () => {
+    const evaluation = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [],
+      },
+      media: [],
+    };
+
+    const plan = buildSharedRendererPreviewPlanFromEvaluation(evaluation);
+
+    expect(plan).toEqual({
+      mode: 'sharedRenderer',
+      snapshot: evaluation.snapshot,
+      media: evaluation.media,
+    });
+  });
+
   it('flag が無効なときは disabled プランを返す', () => {
     const plan = buildSharedRendererPreviewPlan({
       enabled: false,

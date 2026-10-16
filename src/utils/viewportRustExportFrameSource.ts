@@ -11,6 +11,7 @@ import {
   type SharedRendererNativeRenderEnvelope,
 } from './sharedRendererExportSession';
 import type { ProjectExportRustFrameSource } from './projectExportFrameCanvas';
+import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 
 type BuildSharedRendererExportSession = (
   input: SharedRendererExportSessionInput
@@ -31,6 +32,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   objects?: TimelineObject[];
   time?: number;
+  evaluateResidentScene?: SharedRendererExportEvaluationProvider;
   buildExportSession?: BuildSharedRendererExportSession;
   createFrameSource?: (
     input: CreateSharedRendererExportFrameSourceInput
@@ -93,6 +95,7 @@ export const resolveViewportRustExportFrameSource = ({
   presentedFrameSharedFrameTaker,
   objects,
   time,
+  evaluateResidentScene,
   buildExportSession = buildSharedRendererExportSession,
   createFrameSource = createSharedRendererExportFrameSource,
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
@@ -137,7 +140,7 @@ export const resolveViewportRustExportFrameSource = ({
     );
   }
 
-  if (objects && time !== undefined) {
+  if (objects && time !== undefined && !evaluateResidentScene) {
     let nativeRenderEnvelope: SharedRendererNativeRenderEnvelope | undefined;
     for (const preflightTime of buildViewportRustExportPreflightTimes(objects, time, projectSettings.fps)) {
       const session = buildExportSession({
@@ -184,6 +187,7 @@ export const resolveViewportRustExportFrameSource = ({
           nativeRenderRequired: true,
         } : {}),
         ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
+        ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
       }),
       ...(nativeRenderEnvelope ? { nativeRenderEnvelope } : {}),
     };
@@ -204,6 +208,7 @@ export const resolveViewportRustExportFrameSource = ({
         nativeRenderRequired: true,
       } : {}),
       ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
+      ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
     }),
   };
 };

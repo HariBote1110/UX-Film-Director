@@ -27,6 +27,7 @@ import {
 import { buildSharedRendererPreviewSessionFromEvaluatedScene } from '../utils/sharedRendererEvaluatedScenePreviewSession';
 import {
   createEditableRustScenePreviewController,
+  EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
   type EditableRustScenePreviewController,
 } from '../utils/editableRustScenePreviewController';
@@ -57,6 +58,7 @@ import {
 import type { ProjectExportRustFrameSourceContext } from '../utils/projectExportFrameCanvas';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
 import { createResidentSceneExportFrameSource } from '../utils/residentSceneExportFrameSource';
+import { createSharedRendererExportEvaluationProvider } from '../utils/sharedRendererExportEvaluationProvider';
 import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
 import {
   SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
@@ -2658,6 +2660,7 @@ const Viewport: React.FC = () => {
   }, []);
 
   const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => {
+    const controller = rustTimelineScenePreviewControllerRef.current;
     const residentSceneAvailable = (
       sharedRendererExportEnabled
       && rustTimelineSceneRpcEnabled
@@ -2667,7 +2670,6 @@ const Viewport: React.FC = () => {
       && typeof window.rustVideoEncoder.writeResidentSceneEncodeFrame === 'function'
     );
     if (residentSceneAvailable) {
-      const controller = rustTimelineScenePreviewControllerRef.current;
       if (controller) {
         const exportSceneId = `viewport-rust-timeline-export-${Date.now()}-${++rustTimelineSceneExportGenerationRef.current}`;
         const confirmation = controller.confirmSceneForExport({
@@ -2694,6 +2696,47 @@ const Viewport: React.FC = () => {
         });
       }
     }
+    const evaluateResidentScene = controller
+      && rustTimelineSceneRpcEnabled
+      && rustEditableSceneCutoverEnabled
+      ? createSharedRendererExportEvaluationProvider({
+        prepareScene: async (graphObjects) => {
+          const exportSceneId = `viewport-rust-timeline-export-${Date.now()}-${++rustTimelineSceneExportGenerationRef.current}`;
+          try {
+            const confirmed = await controller.confirmSceneForExport({
+              sceneId: exportSceneId,
+              projectSettings,
+              layers,
+              objects: [...graphObjects],
+            });
+            if (confirmed.sceneSource !== 'rust') {
+              document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'directSnapshotFallback';
+              document.documentElement.dataset.uxfdRustExportFrameSourceReason = confirmed.sceneFallbackReason ?? 'sceneBuilderDidNotCutOver';
+              return null;
+            }
+            document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
+            delete document.documentElement.dataset.uxfdRustExportFrameSourceReason;
+            return { sceneId: confirmed.sceneId, revision: confirmed.revision };
+          } catch (error) {
+            if (error instanceof EditableRustSceneUnsupportedError) {
+              document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'directSnapshotFallback';
+              document.documentElement.dataset.uxfdRustExportFrameSourceReason = error.message;
+              return null;
+            }
+            document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirmationFailed';
+            document.documentElement.dataset.uxfdRustExportFrameSourceReason = error instanceof Error
+              ? error.message
+              : String(error);
+            throw error;
+          }
+        },
+        evaluateScene: async (request) => {
+          const result = await evaluateRustBackendScene(request);
+          if (!result.ok) throw new Error(`Rust scene.evaluate failed: ${result.reason} (${result.detail})`);
+          return result.value;
+        },
+      })
+      : undefined;
     const fallbackSource = buildViewportRustExportFrameSource({
       exportEnabled: sharedRendererExportEnabled,
       canvas: sharedRendererSurfaceCanvasRef.current,
@@ -2707,6 +2750,7 @@ const Viewport: React.FC = () => {
       hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
       objects: context.objects,
       time: context.time,
+      ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
       preferEncodeOnly: context.preferEncodeOnly,
       presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
       onFrameSourceUnavailable: context.onFrameSourceUnavailable,
@@ -2721,6 +2765,7 @@ const Viewport: React.FC = () => {
     layers,
     projectSettings,
     rustTimelineSceneRpcEnabled,
+    rustEditableSceneCutoverEnabled,
     sharedRendererExportEnabled,
     sharedRendererGpuStatus.fallbackAdapter,
     sharedRendererGpuStatus.webGpuAvailable,

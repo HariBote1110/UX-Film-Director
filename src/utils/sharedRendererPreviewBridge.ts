@@ -1,4 +1,5 @@
 import type { LayerState, ProjectSettings, TimelineObject } from '../types';
+import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
 import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneMediaReference,
@@ -37,6 +38,18 @@ export interface SharedRendererPreviewPlanInput {
   time: number;
   videoSourceMode?: RustSceneVideoSourceMode;
 }
+
+/**
+ * Rust の常駐 scene.evaluate 結果を共通 preview plan に包む。
+ * 評価済み値は再シリアライズせず、後続の surface gate で境界検証する。
+ */
+export const buildSharedRendererPreviewPlanFromEvaluation = (
+  evaluation: Pick<RustBackendSceneEvaluation, 'snapshot' | 'media'>
+): SharedRendererPreviewPlan => ({
+  mode: 'sharedRenderer',
+  snapshot: evaluation.snapshot as RustSceneSnapshot,
+  media: evaluation.media as RustSceneMediaReference[],
+});
 
 export const buildSharedRendererPreviewPlan = ({
   enabled,

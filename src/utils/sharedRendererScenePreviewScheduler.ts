@@ -32,7 +32,7 @@ export interface SharedRendererScenePreviewSchedulerDiagnostics {
 
 export interface SharedRendererScenePreviewScheduler {
   submitRevision: (payload: RustBackendSceneReplacePayload) => void;
-  confirmExportRevision: (payload: RustBackendSceneReplacePayload) => Promise<ResidentSceneRevision>;
+  confirmExportRevision: (payload: RustBackendSceneReplacePayload) => Promise<ConfirmedSceneRevision>;
   requestFrame: (frameIndex: number) => void;
   invalidate: () => void;
   dispose: () => void;
@@ -47,6 +47,10 @@ export interface SharedRendererScenePreviewSchedulerFailure {
 }
 
 type ResidentSceneRevision = { sceneId: string; revision: number };
+export type ConfirmedSceneRevision = ResidentSceneRevision & Pick<
+  RustBackendSceneReplaceResult,
+  'sceneSource' | 'sceneFallbackReason'
+>;
 
 export const createSharedRendererScenePreviewScheduler = ({
   rpc,
@@ -289,7 +293,14 @@ export const createSharedRendererScenePreviewScheduler = ({
       if (disposed) throw new Error('Rust resident scene scheduler was disposed.');
       const result = await rpc.replaceScene(payload);
       if (!result.ok) throw new Error(result.detail);
-      return { sceneId: result.value.sceneId, revision: result.value.revision };
+      return {
+        sceneId: result.value.sceneId,
+        revision: result.value.revision,
+        sceneSource: result.value.sceneSource,
+        ...(result.value.sceneFallbackReason
+          ? { sceneFallbackReason: result.value.sceneFallbackReason }
+          : {}),
+      };
     },
     requestFrame: (frameIndex) => {
       if (disposed || !Number.isSafeInteger(frameIndex) || frameIndex < 0) return;
