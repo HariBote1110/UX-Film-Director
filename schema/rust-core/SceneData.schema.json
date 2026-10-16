@@ -5991,8 +5991,9 @@
               "type": "string"
             },
             "cellSize": {
-              "type": "number",
-              "format": "float"
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
             },
             "checkerEnabled": {
               "type": "boolean"
@@ -6093,8 +6094,9 @@
               "format": "float"
             },
             "lineWidth": {
-              "type": "number",
-              "format": "float"
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
             },
             "maxJoinDistance": {
               "type": [
@@ -6164,17 +6166,19 @@
             },
             "separateInterval": {
               "type": [
-                "number",
+                "integer",
                 "null"
               ],
-              "format": "float"
+              "format": "uint32",
+              "minimum": 0
             },
             "separateLineWidth": {
               "type": [
-                "number",
+                "integer",
                 "null"
               ],
-              "format": "float"
+              "format": "uint32",
+              "minimum": 0
             },
             "shadow": {
               "anyOf": [
@@ -9380,8 +9384,9 @@
               "type": "string"
             },
             "keyframeInterval": {
-              "type": "number",
-              "format": "float"
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
             },
             "keyframes": {
               "type": [
