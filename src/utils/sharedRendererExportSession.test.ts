@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ImageObject, ProjectSettings, PsdObject, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
-import { buildSharedRendererExportSession } from './sharedRendererExportSession';
+import {
+  buildSharedRendererExportSession,
+  buildSharedRendererExportSessionFromEvaluation,
+} from './sharedRendererExportSession';
 import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSession';
 
 const settings: ProjectSettings = {
@@ -93,6 +96,43 @@ const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
 });
 
 describe('buildSharedRendererExportSession', () => {
+  it('Rust評価済みsnapshotからexport sessionを作りnative envelopeを維持する', () => {
+    const evaluation = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [],
+      },
+      media: [],
+    };
+
+    const session = buildSharedRendererExportSessionFromEvaluation({
+      evaluation,
+      projectSettings: settings,
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+    });
+
+    expect(session.plan).toEqual({
+      mode: 'sharedRenderer',
+      snapshot: evaluation.snapshot,
+      media: evaluation.media,
+    });
+    expect(session.surfaceGate.ok).toBe(true);
+    expect(session.nativeRenderEnvelope).toEqual({
+      ok: true,
+      mediaCount: 0,
+      mediaKinds: [],
+      sourceCount: 0,
+      sourceMediaIds: [],
+    });
+  });
+
   it('keeps the export surface available even though the preview surface is blocked while exporting', () => {
     const input = {
       enabled: true,
