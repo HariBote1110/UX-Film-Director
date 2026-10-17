@@ -49,3 +49,11 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - `cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity`: 447フレームのTS/Rust比較に成功し、差分0件。
 - 全Vitest: 277ファイル中276成功、1986件中1985件成功。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が要求するgitignore対象 `perf/heavy-media` fixtureの欠落によるファイル存在確認。隔離worktreeには `.gitignore` のみで素材が存在しない。fixture生成や期待値のskipは行っていない。
 - production Vite build: `/tmp/uxfd-reference-isolation-build-20261018` へのbuild成功。bundle内に`rustSceneSnapshotReference` / `editableRustSceneReference` / evaluator Reference名はなく、旧serializer/evaluatorがproduction bundleへ到達しない。test buildは`dist`へ出力せず、tracked build artifactsの変更もない。
+
+## 統合後の再検証（2026-10-18）
+
+- Reference隔離を統合した`feature-proxy`で全Vitest 277ファイル / 1,986件成功。親checkoutの実素材を使用し、隔離worktreeで欠落していた素材テストも成功した。型チェック・生成型整合性チェックも成功。
+- production buildを`/tmp/uxfd-reference-production-build-20261018`へ出力して成功。
+- f64 round-trip修正を含む検証済みbackendで、raw graph/RPC flagを未設定のまま混在MP4を60/60フレーム出力した。動画・画像・音声・PSD・生成エフェクト・groupを含み、生成エフェクト画素検査とH.264 probeが成功、runtime errorsは空（`/tmp/uxfd-reference-default-export-result.json`）。native overlayは無効、native direct encodeは無効の構成。
+- Rust backend releaseテストは203件成功、2件ignored（`/tmp/uxfd-final-backend-tests.log`）。
+- レビューで見つかったexport close中の非同期準備と旧native再生通知の競合は、別途回帰修正・最終統合検証を行う。
