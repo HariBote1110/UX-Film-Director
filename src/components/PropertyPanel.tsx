@@ -10,7 +10,7 @@ import {
 import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, HksyCheckerGridObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject, BarcodeObject, PuzzlePieceObject, ColourWheelObject, GourdObject, GearObject, TrackBarObject, PieChartObject, HistogramObject, ToneCurveObject, SunburstObject, CircularArrowObject, TriangleBracketObject, TartanCheckObject, HoundstoothObject, YagasuriObject, PaperAirplaneObject, AsanohaPatternObject, FocusLinesPlusObject, RandomLineExObject, AudioSphereObject, RegionFrameObject, SimpleTubeObject, ContourTraceObject, DisplacementPolyObject, HologramObject, ProtractorObject, ShakingPolygonObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
-import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
+import { buildEndpointKeyframes } from '../utils/keyframes';
 import { useTranslation } from '../i18n';
 import {
   invokeCoreMlTrackObject,
@@ -24,7 +24,6 @@ import {
 import { resolveVideoFsPath } from '../utils/resolveVideoFsPath';
 import {
   buildOverlayPositionKeyframesFromPositionQuery,
-  buildOverlayPositionKeyframesFromVisionTrack,
   buildVisionTrackPositionQueryPlan,
 } from '../utils/visionTrackingKeyframes';
 import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjectCropKeyframes';
@@ -1288,52 +1287,43 @@ const PropertyPanel: React.FC = () => {
         );
       }
       setLastVisionTrackSamples(res.samples);
+      const plan = buildVisionTrackPositionQueryPlan({ samples: res.samples, video, overlay });
+      if (plan.queries.length === 0) {
+        window.alert(language === 'en' ? 'No tracking samples returned.' : 'トラッキング結果が空です。');
+        return;
+      }
+      const target: RustScenePositionQueryTarget = {
+        sceneId: 'viewport-rust-timeline',
+        revision: 0,
+        ...capturedGraph,
+      };
       let built: PositionKeyframe[];
-      if (import.meta.env.VITE_UXFD_RUST_EDIT_POSITION_QUERY === '1') {
-        const plan = buildVisionTrackPositionQueryPlan({ samples: res.samples, video, overlay });
-        if (plan.queries.length === 0) {
-          window.alert(language === 'en' ? 'No tracking samples returned.' : 'トラッキング結果が空です。');
-          return;
+      try {
+        const revision = await waitForRustScenePositionQueryRevision(target);
+        if (!isCapturedActionCurrent()) return;
+        const queried = await queryRustBackendSceneObjectPositions({
+          sceneId: target.sceneId,
+          revision,
+          queries: plan.queries,
+        });
+        if (!queried.ok) throw new Error(queried.detail);
+        if (queried.value.sceneId !== target.sceneId || queried.value.revision !== revision) {
+          throw new Error('Rust position query returned a stale scene revision.');
         }
-        const target: RustScenePositionQueryTarget = {
-          sceneId: 'viewport-rust-timeline',
-          revision: 0,
-          ...capturedGraph,
-        };
-        try {
-          const revision = await waitForRustScenePositionQueryRevision(target);
-          if (!isCapturedActionCurrent()) return;
-          const queried = await queryRustBackendSceneObjectPositions({
-            sceneId: target.sceneId,
-            revision,
-            queries: plan.queries,
-          });
-          if (!queried.ok) throw new Error(queried.detail);
-          if (queried.value.sceneId !== target.sceneId || queried.value.revision !== revision) {
-            throw new Error('Rust position query returned a stale scene revision.');
-          }
-          if (!isCapturedActionCurrent()) return;
-          built = buildOverlayPositionKeyframesFromPositionQuery({
-            plan,
-            video,
-            overlay,
-            positions: queried.value.positions,
-          });
-        } catch (error) {
-          if (isRustScenePositionQueryCancelled(error) || !isCapturedActionCurrent()) return;
-          console.warn('[PropertyPanel] Rust Vision position query failed:', error);
-          window.alert(language === 'en'
-            ? 'Could not evaluate Vision tracking positions in the Rust scene.'
-            : 'Rustシーンでトラッキング位置を評価できませんでした。');
-          return;
-        }
-      } else {
-        built = buildOverlayPositionKeyframesFromVisionTrack({
-          samples: res.samples,
+        if (!isCapturedActionCurrent()) return;
+        built = buildOverlayPositionKeyframesFromPositionQuery({
+          plan,
           video,
           overlay,
-          allObjects: capturedGraph.objects,
+          positions: queried.value.positions,
         });
+      } catch (error) {
+        if (isRustScenePositionQueryCancelled(error) || !isCapturedActionCurrent()) return;
+        console.warn('[PropertyPanel] Rust Vision position query failed:', error);
+        window.alert(language === 'en'
+          ? 'Could not evaluate Vision tracking positions in the Rust scene.'
+          : 'Rustシーンでトラッキング位置を評価できませんでした。');
+        return;
       }
       if (!isCapturedActionCurrent()) return;
       if (built.length === 0) {
@@ -1611,45 +1601,47 @@ const PropertyPanel: React.FC = () => {
       timeSeconds: capturedTime,
       ...capturedGraph,
     };
-    const useRustPositionQuery = import.meta.env.VITE_UXFD_RUST_EDIT_POSITION_QUERY === '1';
     let position: { x: number; y: number };
-    if (useRustPositionQuery) {
-      const target: RustScenePositionQueryTarget = {
-        sceneId: 'viewport-rust-timeline',
-        revision: 0,
-        ...capturedGraph,
-      };
-      try {
-        const revision = await waitForRustScenePositionQueryRevision(target);
-        const requestId = crypto.randomUUID();
-        const queried = await queryRustBackendSceneObjectPositions({
-          sceneId: target.sceneId,
-          revision,
-          queries: [{ requestId, objectId: capturedObjectId, timeSeconds: keyTime }],
-        });
-        if (!queried.ok) throw new Error(queried.detail);
-        const response = queried.value.positions.find((entry) => entry.requestId === requestId);
-        if (!response) throw new Error('Rust position query omitted the requested object.');
-        position = response.localPosition;
-      } catch (error) {
-        console.warn('[PropertyPanel] Rust keyframe position query failed:', error);
-        return;
+    const target: RustScenePositionQueryTarget = {
+      sceneId: 'viewport-rust-timeline',
+      revision: 0,
+      ...capturedGraph,
+    };
+    const isActionCurrent = () => {
+      const latest = useStore.getState();
+      return isRustScenePositionQueryActionCurrent(capturedAction, {
+        activeSceneId: latest.activeSceneId,
+        selectedObjectId: currentSelectedObjectId() ?? '',
+        timeSeconds: latest.currentTime,
+        projectSettings: latest.projectSettings,
+        layers: latest.layers,
+        objects: latest.objects,
+      }) && latest.objects.some((object) => object.id === capturedObjectId);
+    };
+    try {
+      const revision = await waitForRustScenePositionQueryRevision(target);
+      if (!isActionCurrent()) return;
+      const requestId = crypto.randomUUID();
+      const queried = await queryRustBackendSceneObjectPositions({
+        sceneId: target.sceneId,
+        revision,
+        queries: [{ requestId, objectId: capturedObjectId, timeSeconds: keyTime }],
+      });
+      if (!queried.ok) throw new Error(queried.detail);
+      if (queried.value.sceneId !== target.sceneId || queried.value.revision !== revision) {
+        throw new Error('Rust position query returned a stale scene revision.');
       }
-    } else {
-      position = evaluateObjectPositionAtTime(capturedObject, keyTime);
+      const response = queried.value.positions.find((entry) => entry.requestId === requestId);
+      if (!response) throw new Error('Rust position query omitted the requested object.');
+      position = response.localPosition;
+    } catch (error) {
+      if (isRustScenePositionQueryCancelled(error) || !isActionCurrent()) return;
+      console.warn('[PropertyPanel] Rust keyframe position query failed:', error);
+      return;
     }
     // The query is asynchronous. Recheck the action identity immediately before
     // applying so a late reply cannot edit a newly selected object or playhead.
-    const latest = useStore.getState();
-    if (!isRustScenePositionQueryActionCurrent(capturedAction, {
-      activeSceneId: latest.activeSceneId,
-      selectedObjectId: currentSelectedObjectId() ?? '',
-      timeSeconds: latest.currentTime,
-      projectSettings: latest.projectSettings,
-      layers: latest.layers,
-      objects: latest.objects,
-    })
-      || !latest.objects.some((object) => object.id === capturedObjectId)) return;
+    if (!isActionCurrent()) return;
     const nextKeyframe: PositionKeyframe = {
       id: crypto.randomUUID(),
       time: keyTime,
