@@ -1,10 +1,12 @@
 # Scene Build In Rust 計画
 
-最終更新: 2026-10-16
+最終更新: 2026-10-18
 
 ## 位置づけ
 
 `Rust_Source_Of_Truth_Plan.md` の責務台帳に残る「クロスオブジェクト配線」を解消するための、次段階の設計・移行計画である。詳細な判断が確定したら `architecture/01-decision-record.md` に ADR-017 として転記する。本書は計画であり、実装済みであることを示さない。
+
+**現在地（2026-10-18）**: P2cとP2dのRust resident cut-overは、preview/exportの既定graph-only経路まで到達した。旧TypeScript serializerはparity/reference test用に保持するが、production import graphから除去済みである。unsupported featureはRust diagnosticsでblockedにし、旧TS評価へfallbackしない。P2全体の全機能対応とWindows interim実機検証は残る。P4では任意時刻位置queryを使うkey追加・Vision tracking・split移行、評価済みgeometryによるselection/hit-testが実装された。現在はquery時刻のbit-exact f64 echo問題を調査中。詳細はP2dとP4進捗記録を参照する。
 
 ## 0. ゴールと非ゴール
 
@@ -183,13 +185,14 @@ resident sessionは従来どおりTS送信値だけを保持する。renderer側
 
 **進捗（2026-09-18、P2b kind群拡張）**: `UXFD_SCENE_BUILDER_CUTOVER` の `generated` / `audio` / `getcolor` / `group_control` を実ゲート化した。`kind_group` の網羅matchで全`MediaKind`を4群へ分類し、`group_control`は built projectの`group_controls`非空でゲートする（disabled名は`groupControl`）。cut-over試行条件は「いずれかの群が有効」へ変更し、既定OFF・wire形状・fallback理由の優先順位は不変である。TS側は`src/utils/mixedKindDualRunParity.test.ts`で混在kindのmedia listパリティを確認済み（乖離ゼロ）。未実施は、project全体と447-frameの評価パリティ、および実機での群ごとcut-over検証（E2Eのgroup_control knobに対応するrenderer hookが未実装）である。詳細は`progress/scene-build-p2b-kind-group-cutover.md`を参照する。
 
-**現在地追記（2026-10-16）**: 上記P2bの「447-frame未実施」「group_control hook未実装」は記録当時の状態であり、後続で解消済み。`ts_evaluation_parity` は447 frame / 丸め差0件で成功し、group_control hookを含む mixed / PSD / generated / group-control の resident export E2E は60/60 frame、H.264 probe一致、runtime errorなしで成功した。P2cも後続でexport専用sceneをRust builderへ`exportOriginal` purposeでreplaceしてからresident evaluation/encodeする経路へ進んでいる。P2全体は未完了であり、builder未対応eligibilityの直接snapshot fallbackとflag OFF互換経路が残る。細目は`progress/scene-build-p2b-kind-group-cutover.md`および`progress/scene-build-p2d-rust-evaluation-cutover.md`を参照する。
+- **現在地（2026-10-18、P2b–P2d）**: P2bの「447-frame未実施」「group_control hook未実装」は当時の記録であり、後続で解消済み。`ts_evaluation_parity` は447 frame / 丸め差0件で成功した。graph-only `scene.replace` とresident evaluationが既定で有効で、raw/RPC flag未設定の親担当mixed export E2Eも60/60 frame、H.264 probe一致、runtime errorなしで完了した（`/tmp/uxfd-verified-default-export-result.json`）。exportは`exportOriginal`、previewは`previewProxy`を渡す。各frameではraw graphを再送しない。
+- 42種類のcanonical media coverageと40種類のsupported visual object kindは別契約であり、どちらもgraph-level resident eligibilityを意味しない。Rust builderのmask、reverse video、unsupported dynamic gradient/filter、GetColor sample source等の診断guardは維持する。unsupported graphはRust diagnosticsでblockedとし、TS fallbackへ戻さない。P2dのdefault cut-overは完了したが、全featureのresident対応とWindows interim presenterの実機検証は未完了。詳細は`progress/scene-build-p2d-rust-evaluation-cutover.md`を参照する。
 
-- **Scope**: 低依存 kind（shape/text/image/video/PSD）から、生成系、最後に audio / GetColor / group-control の順に Rust build 結果を常用する。direct snapshot caller を短命 / resident Rust scene 評価へ変え、`buildRustSceneSnapshotForTimeline` の評価済み出力を使わない。各 kind 群ごとに dual-run を残して切替える。
+- **Scope**: object graphのRust buildとresident Rust evaluationをpreview/exportの既定経路にする。serializer referenceはparity/testに残し、productionから切り離す。unsupported eligibilityは診断付きでblockedにする。
 - **主なファイル**: `src/utils/sharedRendererPreviewBridge.ts`、`src/utils/sharedRendererPreviewSession.ts`、`src/utils/sharedRendererExportSession.ts`、`src/utils/sharedRendererEvaluatedScenePreviewSession.ts`、export orchestration、`electron/main.ts:615-622,1290-1306`、`native-overlay/src/lib.rs`、`rust-backend/src/source_frames.rs`、`native-wgpu-renderer/src/lib.rs`。
 - **テスト**: kind 群ごとの media source fixture、`sharedRendererExportSession` / surface gate tests、native overlay の cache revision tests、native renderer audio/GetColor tests、447-frame parity、既存 video export E2E。
 - **受入条件**: preview、native overlay、export、Windows interim presenter が同じ Rust-built media を消費する。各 cut-over で 447-frame parity と export parity が緑。audio direct-ID / layer fallback、GetColor 4規則、group-control 4規則が Rust unit test と E2E fixture に存在する。
-- **rollback**: kind feature flag を旧 direct serializer に戻す。P2 完了まで旧 serializer と bridge は残す。
+- **rollback**: 旧migration flagsは旧serializerを再有効化しない。問題時はP2 graph-only契約を持つreleaseへrevertする。RPC無効・provider不在はblockedとし、TS評価へfallbackしない。
 
 ### P2c: cut-over 下の常駐 scene export revision 収束（中、2026-09-18 追加、2026-09-22 完了）
 
@@ -227,13 +230,14 @@ cargo test で固定した。いずれも GUI export ではなくテストで落
 削除した診断専用テスト3件を除く関連8ファイル101テストと`npx tsc --noEmit`が成功。
 今回の変更でElectron動画書き出しE2Eは再実行していない。
 
-### P3: TS serializer の撤去と責務台帳の解消（中、4–7日）
+### P3: production TS serializer の撤去と責務台帳の解消（中、4–7日）
 
-- **Scope**: `mediaReferenceForObject`、3 resolver、generator source の TS serialization、`buildEditableRustScene`、`buildRustSceneSnapshotForTimeline` を削除または Rust RPC の型-only adaptor に縮小する。TS boundary validator は Rust response の防御として残すかをレビューする。ADR-014 の逸脱記録と責務台帳を更新する。
-- **主なファイル**: `src/utils/rustSceneSnapshot.ts`、`src/utils/editableRustScene.ts`、`src/utils/sharedRendererPreviewBridge.ts` と各テスト、`progress/cross-object-wiring-to-rust.md`、`markdown/Rust_Source_Of_Truth_Plan.md`、`markdown/architecture/01-decision-record.md`。
-- **テスト**: `rg` による削除対象 import / serializer 残存チェック、type generation drift、Rust builder tests、447-frame fixture、native/export E2E。
-- **受入条件**: TS が `SceneSnapshot` / `SceneMediaReference` の値を組み立てず、4つのクロスオブジェクト規則の実装は Rust に一箇所だけ存在する。責務台帳の第1項目を解消済みにできる。
-- **rollback**: P2 で旧経路を完全削除する前に release を一度挟む。削除後の rollback は P2 時点の互換 wire を復元するリリース revert とする。
+**production import撤去完了（2026-10-18）**: preview/exportのproduction経路はRust評価済みsessionだけを消費する。`sharedRendererPreviewBridge.ts`はRust snapshotを組み立てず、export provider/frame sourceにlegacy TS builder injectionを持たない。同期preview/export buildersは`sharedRendererPreviewSessionReference.ts`と`sharedRendererExportSessionReference.ts`へ移し、test/E2E reference側からだけ値importする。`rustSceneSnapshot.ts` / `editableRustScene.ts`の実装は447-frame parityやfixture生成の比較基準としてソースに残すが、production import graphには含めない。production bundleからserializer/E2E harness chunkが出ないことを確認した。
+
+- **残作業**: ADR-014の逸脱記録と責務台帳の最終レビュー。P4 UI query/selection切替の進捗とは別に扱う。
+- **テスト**: production import監査、focused/full Vitest、type generation drift、Rust builder tests、447-frame fixture、default export E2E、production Vite bundle。
+- **受入条件**: TS serializer値構築関数がproduction import graphから到達しない。Rust評価なし・unsupported・provider不在はblockedでありTS snapshot fallbackを行わない。
+- **rollback**: 旧TS builderを復活させるmigration flagは設けない。rollbackはP2 graph-only契約を持つreleaseへのrevertとする。
 
 ### P4: UI 評価値の Rust 評価結果への付け替えと TS 評価関数の削除（中、5–8日、2026-09-13 決定で追加）
 
@@ -241,7 +245,9 @@ cargo test で固定した。いずれも GUI export ではなくテストで落
 - **担当**: 購読・評価 RPC・ストア配線は Codex、表示コンポーネント側の付け替えで見た目の確認が要る部分は UI 担当として分離する。
 - **テスト**: 各 UI 利用箇所の表示値が 447-frame fixture の Rust 評価値と一致する vitest、ドラッグ・再生中の購読頻度と `scene.evaluate` 呼び出し回数の計測、既存 E2E。
 - **受入条件**: 上記モジュールが non-test から import されない（型・定数のみ残す場合は理由を記録）。選択枠と PropertyPanel の値が Rust 評価と一致し、ドラッグ・スクラブ時の表示遅延が P1 で記録した基準値から悪化しない。`Rust_Source_Of_Truth_Plan.md` の R2 を★完了に更新できる。
-- **rollback**: 付け替えは UI 箇所ごとに flag で旧 TS 評価へ戻せるようにし、全箇所の切替後に TS 関数を削除する。
+- **rollback**: query失敗やrevision不一致は操作をblockedにする。旧TS評価へ戻すmigration flagは設けず、問題時は対応するRust query/evaluation変更をrevertするrelease rollbackとする。
+
+**現在地（2026-10-18）**: revision付きraw graph position queryを追加し、PropertyPanel key追加、Vision tracking、split位置のTS評価置換を実装した。任意時刻queryはframe-quantisedな`scene.evaluate`から逆算せず、Rust sessionが保持するeditable graphから求める。query失敗/stale応答時はTSへfallbackしない。実Electron/CDPでsplit/Undo/Redo、stale応答の破棄、CoreML trackerの14 samplesを確認した。選択枠/hit-test geometryは評価済みsnapshotと同じframe/revisionを使うよう移行した。実機確認中に`timeSeconds`のf64 echoが一部値でbit-exactにならない問題が見つかり、Vision trackingのinvalid response原因候補としてRust JSON serialization修正を調査中。詳細は`progress/p4-edit-position-query.md`を参照する。
 
 ## 4. リスクと緩和策
 
