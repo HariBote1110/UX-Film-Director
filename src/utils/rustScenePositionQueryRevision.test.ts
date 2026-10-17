@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   clearRustScenePositionQueryRevision,
+  getRustScenePositionQueryTarget,
   isRustScenePositionQueryActionCurrent,
   publishRustScenePositionQueryFailure,
   publishRustScenePositionQueryResident,
   publishRustScenePositionQueryTarget,
+  rustScenePositionQueryTargetMatchesGraph,
   waitForRustScenePositionQueryRevision,
 } from './rustScenePositionQueryRevision';
 
@@ -40,6 +42,15 @@ describe('rustScenePositionQueryRevision', () => {
     const waiting = waitForRustScenePositionQueryRevision(graph);
     publishRustScenePositionQueryResident({ sceneId: graph.sceneId, revision: graph.revision });
     await expect(waiting).resolves.toBe(4);
+  });
+
+  it('現在の置換targetは対象scene/revisionとobject graph参照を保持する', () => {
+    publishRustScenePositionQueryTarget(graph);
+    expect(getRustScenePositionQueryTarget()).toBe(graph);
+    expect(getRustScenePositionQueryTarget()?.objects).toBe(graph.objects);
+    expect(rustScenePositionQueryTargetMatchesGraph(getRustScenePositionQueryTarget(), graph)).toBe(true);
+    expect(rustScenePositionQueryTargetMatchesGraph(getRustScenePositionQueryTarget(), { ...graph, objects: [] })).toBe(false);
+    expect(rustScenePositionQueryTargetMatchesGraph(getRustScenePositionQueryTarget(), { ...graph, revision: 5 })).toBe(false);
   });
 
   it('graph切替・scene失敗・disposeで待機をrejectする', async () => {

@@ -67,6 +67,8 @@ export interface RustScenePlaybackUiState {
   isPlaying: boolean;
   reason?: string;
   diagnostics: RustScenePlaybackDiagnostics;
+  /** Last successfully presented evaluation, when it matches this UI state's frame. */
+  evaluation?: RustScenePlaybackEvaluation;
 }
 
 export interface RustScenePlaybackDiagnostics {
@@ -262,6 +264,7 @@ export const createRustScenePlaybackController = ({
   let active: RustScenePlaybackStartPayload | null = null;
   let clockStartedAtMs = 0;
   let lastPresentedFrame = -1;
+  let lastPresentedEvaluation: RustScenePlaybackEvaluation | null = null;
   let lastUiNotificationAtMs = 0;
   // 計測専用: このコントローラ生成（≒アプリ起動）後、最初のstart()呼び出し
   // かどうか。surface作成・decoder初期化・shader/pipelineコンパイルのような
@@ -290,16 +293,24 @@ export const createRustScenePlaybackController = ({
     isPlaying: boolean,
     reason?: string,
   ): RustScenePlaybackUiState => {
+    const frameIndex = active
+      ? Math.min(
+        Math.max(0, Math.ceil(active.durationSeconds * active.fps) - 1),
+        Math.max(0, Math.floor(timeSeconds * active.fps)),
+      )
+      : Math.max(0, lastPresentedFrame);
+    const evaluation = status !== 'failed' && status !== 'ended' && lastPresentedEvaluation
+      && lastPresentedEvaluation.sceneId === active?.sceneId
+      && lastPresentedEvaluation.revision === active?.revision
+      && lastPresentedEvaluation.frameIndex === frameIndex
+      ? lastPresentedEvaluation
+      : undefined;
     const state: RustScenePlaybackUiState = {
       status,
       currentTimeSeconds: timeSeconds,
-      frameIndex: active
-        ? Math.min(
-          Math.max(0, Math.ceil(active.durationSeconds * active.fps) - 1),
-          Math.max(0, Math.floor(timeSeconds * active.fps)),
-        )
-        : Math.max(0, lastPresentedFrame),
+      frameIndex,
       isPlaying,
+      ...(evaluation ? { evaluation } : {}),
       ...(reason ? { reason } : {}),
       diagnostics: copyDiagnostics(diagnostics),
     };
@@ -431,6 +442,9 @@ export const createRustScenePlaybackController = ({
       diagnostics.skippedFrames += frameIndex - lastPresentedFrame - 1;
     }
     lastPresentedFrame = frameIndex;
+    if (evaluation.sceneId === request.sceneId && evaluation.revision === request.revision && evaluation.frameIndex === frameIndex) {
+      lastPresentedEvaluation = evaluation;
+    }
     diagnostics.presentedFrames += 1;
     return { active: true, frameIndex };
   };
@@ -460,6 +474,7 @@ export const createRustScenePlaybackController = ({
     if (frameIndex !== lastPresentedFrame) {
       const result = await renderFrame(runGeneration, frameIndex, false);
       if (!result.active) {
+        if (!active || generation !== runGeneration) return;
         finish('failed', result.detail ?? result.reason);
         return;
       }
@@ -501,6 +516,7 @@ export const createRustScenePlaybackController = ({
         return { active: false, reason: 'invalidRequest' };
       }
       active = payload;
+      lastPresentedEvaluation = null;
       clockStartedAtMs = nowMs();
       lastUiNotificationAtMs = clockStartedAtMs;
       lastPresentedFrame = -1;

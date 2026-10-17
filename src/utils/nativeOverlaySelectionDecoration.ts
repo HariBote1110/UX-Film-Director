@@ -17,7 +17,7 @@
  *   ため、resendKey（attach 完了 tick）が変わったら同値でも再送する
  */
 import type { TimelineObject } from '../types';
-import { getObjectWorldCorners } from './sceneHitTest';
+import { getRustEvaluatedObjectGeometry, type RustEvaluatedGeometryFrame } from './rustSceneEvaluatedGeometry';
 
 export interface SelectionDecorationQuadPayload {
   topLeftX: number;
@@ -39,8 +39,7 @@ export interface SelectionDecorationPayload {
 
 export interface BuildSelectionDecorationQuadsParams {
   selectedIds: string[];
-  objects: TimelineObject[];
-  time: number;
+  frame: RustEvaluatedGeometryFrame | null;
 }
 
 /**
@@ -50,15 +49,14 @@ export interface BuildSelectionDecorationQuadsParams {
  */
 export const buildSelectionDecorationQuads = ({
   selectedIds,
-  objects,
-  time,
+  frame,
 }: BuildSelectionDecorationQuadsParams): SelectionDecorationQuadPayload[] => {
+  if (!frame) return [];
   const quads: SelectionDecorationQuadPayload[] = [];
   for (const selectedId of selectedIds) {
-    const object = objects.find((candidate) => candidate.id === selectedId);
-    if (!object) continue;
-    const corners = getObjectWorldCorners(object, time, objects);
-    if (!corners) continue;
+    const geometry = getRustEvaluatedObjectGeometry(frame, selectedId);
+    if (!geometry) continue;
+    const { worldCorners: corners } = geometry;
     quads.push({
       topLeftX: corners.topLeft.x,
       topLeftY: corners.topLeft.y,
@@ -68,7 +66,7 @@ export const buildSelectionDecorationQuads = ({
       bottomRightY: corners.bottomRight.y,
       bottomLeftX: corners.bottomLeft.x,
       bottomLeftY: corners.bottomLeft.y,
-      showHandles: object.type !== 'text',
+      showHandles: frame.media.find((media) => media.id === geometry.mediaId)?.kind !== 'Text',
     });
   }
   return quads;

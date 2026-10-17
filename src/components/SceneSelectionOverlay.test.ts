@@ -5,6 +5,7 @@ import { SceneSelectionOverlay } from './SceneSelectionOverlay';
 import { computeSceneSelectionOverlayGeometry } from './sceneSelectionOverlayGeometry';
 import type { SceneCamera, SceneHitTestViewport } from '../utils/sceneHitTest';
 import type { TimelineObject } from '../types';
+import type { RustEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometry';
 
 /**
  * 実機バグA（ゴースト選択枠）: 再生ヘッドがオブジェクトの
@@ -58,6 +59,18 @@ const imageObject = (overrides: Partial<Record<string, unknown>> = {}): Timeline
   ...overrides,
 } as unknown as TimelineObject);
 
+const frameFor = (objects: TimelineObject[], time: number): RustEvaluatedGeometryFrame => {
+  const active = objects.filter((object) => time >= object.startTime && time < object.startTime + object.duration);
+  return {
+    sceneId: 'test', revision: 1, frameIndex: Math.round(time * 30),
+    snapshot: { frame_index: Math.round(time * 30), colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' }, clips: active.map((object, zIndex) => ({
+      clip_id: object.id, track_id: String(object.layer), media_id: `media-${object.id}`, source_frame: 0, z_index: zIndex,
+      transform: { translation_x: object.x, translation_y: object.y, scale_x: object.scaleX ?? 1, scale_y: object.scaleY ?? 1, rotation_degrees: object.rotation ?? 0, sampling: 'bilinear' as const }, opacity: object.opacity, effects: [],
+    })) },
+    media: objects.map((object) => { const sized = object as TimelineObject & { width?: number; height?: number }; return ({ id: `media-${object.id}`, kind: object.type === 'text' ? 'Text' as const : 'GeneratedShape' as const, source: '{}', width: Number(sized.width ?? 100), height: Number(sized.height ?? 50) }); }),
+  };
+};
+
 it('テキストは選択枠を描くがリサイズハンドルを描かない', () => {
   const { width: _width, height: _height, ...base } = imageObject({ id: 'text-1', type: 'text' }) as TimelineObject & { width: number; height: number };
   const object = {
@@ -66,7 +79,7 @@ it('テキストは選択枠を描くがリサイズハンドルを描かない'
     measuredWidth: 80, measuredHeight: 25,
   } as TimelineObject;
   const markup = renderToStaticMarkup(React.createElement(SceneSelectionOverlay, {
-    selectedIds: [object.id], objects: [object], time: 5,
+    selectedIds: [object.id], frame: frameFor([object], 5),
     viewport, width: 400, height: 300,
     onHandlePointerDown: () => {},
   }));
@@ -90,8 +103,7 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
     const markup = renderToStaticMarkup(
       React.createElement(SceneSelectionOverlay, {
         selectedIds: ['obj-1'],
-        objects,
-        time: 0,
+        frame: frameFor(objects, 0),
         viewport,
         width: 400,
         height: 300,
@@ -111,8 +123,7 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
     const markup = renderToStaticMarkup(
       React.createElement(SceneSelectionOverlay, {
         selectedIds: ['obj-1'],
-        objects,
-        time: 5,
+        frame: frameFor(objects, 5),
         viewport,
         width: 400,
         height: 300,
@@ -134,16 +145,14 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
 
     const [entry] = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1'],
-      objects,
-      time,
+      frame: frameFor(objects, time),
       viewport,
     });
 
     const markup = renderToStaticMarkup(
       React.createElement(SceneSelectionOverlay, {
         selectedIds: ['obj-1'],
-        objects,
-        time,
+        frame: frameFor(objects, time),
         viewport,
         width: 400,
         height: 300,
@@ -164,8 +173,7 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
     const markup = renderToStaticMarkup(
       React.createElement(SceneSelectionOverlay, {
         selectedIds: ['obj-1'],
-        objects,
-        time: 5,
+        frame: frameFor(objects, 5),
         viewport,
         width: 400,
         height: 300,
@@ -183,8 +191,7 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
     const objects = [imageObject()];
     const baseProps = {
       selectedIds: ['obj-1'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport,
       width: 400,
       height: 300,
@@ -209,8 +216,7 @@ describe('SceneSelectionOverlay: 症状A対策（時間帯外の選択オブジ�
     const markup = renderToStaticMarkup(
       React.createElement(SceneSelectionOverlay, {
         selectedIds: ['obj-a', 'obj-b'], // selectedIds はあえて逆順で渡す
-        objects,
-        time: 5,
+        frame: frameFor(objects, 5),
         viewport,
         width: 400,
         height: 300,

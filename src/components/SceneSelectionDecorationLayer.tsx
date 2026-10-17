@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { TimelineObject } from '../types';
 import type { SceneHitTestViewport } from '../utils/sceneHitTest';
-import { evaluateObjectPositionAtTime } from '../utils/keyframes';
-// PixiJS 排除計画 Phase 4: グループ変形・振動は Pixi 非依存の sceneTransforms を直接参照する。
-import { getGroupTransforms, getVibrationOffset } from '../utils/sceneTransforms';
+import { getRustEvaluatedObjectGeometry } from '../utils/rustSceneEvaluatedGeometry';
+import { getRustSceneEvaluatedGeometryFrame, subscribeRustSceneEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometryStore';
+import { secondsToFrameIndex } from '../utils/rustSceneFrameRate';
+import { getRustScenePositionQueryTarget, rustScenePositionQueryTargetMatchesGraph } from '../utils/rustScenePositionQueryRevision';
 import type { SharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
 import {
@@ -17,7 +18,6 @@ import { SceneSelectionOverlay } from './SceneSelectionOverlay';
 import { computeSceneSelectionOverlayGeometry } from './sceneSelectionOverlayGeometry';
 import { applySceneSelectionOverlayGeometry, type SceneSelectionOverlayPatchTargets } from './sceneSelectionOverlayPatch';
 import type { ResizeCorner } from '../utils/transformGeometry';
-import { textMediaBox, textMediaInsets } from '../utils/textMediaGeometry';
 
 /**
  * 選択枠オーバーレイ（選択枠矩形・リサイズハンドル・native overlay への
@@ -49,6 +49,9 @@ export interface SceneSelectionDecorationLayerProps {
   rustVideoOnlyEnabled: boolean;
   sharedRendererPreviewSession: SharedRendererPreviewSession | null;
   nativeOverlayAttachTick: number;
+  expectedRevision: number | null;
+  expectedProjectSettings: object;
+  expectedLayers: readonly unknown[];
   /** Viewport 側 useSceneInteraction の onResizeStart をそのまま渡す。 */
   onResizeStart: (
     e: React.PointerEvent,
@@ -95,6 +98,9 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
   rustVideoOnlyEnabled,
   sharedRendererPreviewSession,
   nativeOverlayAttachTick,
+  expectedRevision,
+  expectedProjectSettings,
+  expectedLayers,
   onResizeStart,
 }) => {
   // 選択デコレーション — SVG（SceneSelectionOverlay）は child NSWindow 化された
@@ -136,6 +142,9 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
     rustVideoOnlyEnabled,
     sharedRendererPreviewSession,
     nativeOverlayAttachTick,
+    expectedRevision,
+    expectedProjectSettings,
+    expectedLayers,
   });
   latestRef.current = {
     selectedIds,
@@ -146,6 +155,9 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
     rustVideoOnlyEnabled,
     sharedRendererPreviewSession,
     nativeOverlayAttachTick,
+    expectedRevision,
+    expectedProjectSettings,
+    expectedLayers,
   };
 
   // 応答の latest-wins 判定用の単調増加 send id。元の effect の cancelled
@@ -208,8 +220,7 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
 
     const quads = buildSelectionDecorationQuads({
       selectedIds: latest.selectedIds,
-      objects: latest.objects,
-      time,
+      frame: getRustSceneEvaluatedGeometryFrame(),
     });
     const pending = selectionDecorationSenderRef.current.update(
       {
@@ -248,8 +259,7 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
 
     const entries = computeSceneSelectionOverlayGeometry({
       selectedIds: latest.selectedIds,
-      objects: latest.objects,
-      time,
+      frame: getRustSceneEvaluatedGeometryFrame(),
       viewport: viewportRef.current,
     });
     applySceneSelectionOverlayGeometry(targets, entries);
@@ -288,6 +298,12 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => subscribeRustSceneEvaluatedGeometryFrame(() => {
+    const time = useStore.getState().currentTime;
+    applyGeometryNow(time);
+    sendStandaloneDecoration(time);
+  }), []);
+
   // レンダー後同期 effect（依存配列なし＝毎コミット後に実行）。
   // コミットが React 由来の props 変化（選択・objects・viewport）で属性を
   // 書き戻した直後に、最新時刻のジオメトリへ再同期する（subscribe 発火と
@@ -315,42 +331,56 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
   return (
     <SceneSelectionOverlay
       selectedIds={selectedIds}
-      objects={objects}
-      time={useStore.getState().currentTime}
+      frame={getRustSceneEvaluatedGeometryFrame()}
       viewport={viewportRef.current}
       width={width}
       height={height}
       visualsHidden={nativeSelectionDecorationActive}
       geometryPatchTargetsRef={geometryPatchTargetsRef}
       onHandlePointerDown={(objectId, corner, e) => {
-        const currentTime = useStore.getState().currentTime;
         const targetObject = objects.find((o) => o.id === objectId);
         if (!targetObject) return;
-        const size = targetObject.type === 'text'
-          ? textMediaBox(targetObject)
-          : (targetObject as unknown as { width?: number; height?: number });
-        const insets = targetObject.type === 'text'
-          ? textMediaInsets(targetObject)
-          : { left: 0, top: 0 };
+        const frame = getRustSceneEvaluatedGeometryFrame();
+        if (!frame) return;
+        const state = useStore.getState();
+        const target = getRustScenePositionQueryTarget();
+        if (frame.sceneId !== 'viewport-rust-timeline'
+          || frame.revision !== latestRef.current.expectedRevision
+          || !target
+          || !rustScenePositionQueryTargetMatchesGraph(target, {
+            sceneId: frame.sceneId,
+            revision: frame.revision,
+            projectSettings: state.projectSettings,
+            layers: state.layers,
+            objects: state.objects,
+          })
+          || state.projectSettings !== latestRef.current.expectedProjectSettings
+          || state.layers !== latestRef.current.expectedLayers
+          || frame.frameIndex !== secondsToFrameIndex(state.currentTime, state.projectSettings.fps)) return;
+        const geometry = frame ? getRustEvaluatedObjectGeometry(frame, objectId) : null;
+        if (!geometry) return;
+        let offsetX = 0;
+        let offsetY = 0;
+        if (frame.media.find((media) => media.id === geometry.mediaId)?.kind === 'Text') {
+          try {
+            const source = JSON.parse(frame.media.find((media) => media.id === geometry.mediaId)!.source) as Record<string, unknown>;
+            offsetX = typeof source.__renderOffsetX === 'number' ? source.__renderOffsetX : 0;
+            offsetY = typeof source.__renderOffsetY === 'number' ? source.__renderOffsetY : 0;
+          } catch { /* invalid metadata leaves the logical origin at the plane origin */ }
+        }
         const bounds = {
-          bx: -insets.left,
-          by: -insets.top,
-          bw: size.width ?? 100,
-          bh: size.height ?? 100,
+          bx: -offsetX,
+          by: -offsetY,
+          bw: geometry.width,
+          bh: geometry.height,
         };
-        // 選択枠と同じ「コンテナのワールド変換」（base position + group
-        // transforms + vibration, rotation/scale も group 積算込み）を使う。
-        // sceneHitTest.ts の getObjectWorldCorners と同じ式。
-        const base = evaluateObjectPositionAtTime(targetObject, currentTime);
-        const groupEffects = getGroupTransforms(targetObject, currentTime, objects);
-        const vib = getVibrationOffset(targetObject, currentTime);
-        const rotationRad = ((targetObject.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
+        const transform = geometry.transform;
         onResizeStart(e, objectId, corner, bounds, {
-          x: base.x + groupEffects.x + vib.x,
-          y: base.y + groupEffects.y + vib.y,
-          rotationRad,
-          scaleX: (targetObject.scaleX ?? 1) * groupEffects.scaleX,
-          scaleY: (targetObject.scaleY ?? 1) * groupEffects.scaleY,
+          x: geometry.logicalOrigin.x,
+          y: geometry.logicalOrigin.y,
+          rotationRad: transform.rotation_degrees * (Math.PI / 180),
+          scaleX: transform.scale_x,
+          scaleY: transform.scale_y,
         });
       }}
     />

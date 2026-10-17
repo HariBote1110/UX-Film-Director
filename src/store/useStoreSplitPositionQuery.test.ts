@@ -69,7 +69,6 @@ describe('splitObject のRust位置query移行', () => {
     useStore.getState().selectObjects(['split-target']);
     useStore.getState().setTime(4);
     useStore.setState({ pastCommands: [], futureCommands: [] });
-    vi.stubEnv('VITE_UXFD_RUST_EDIT_POSITION_QUERY', '1');
     installCommandBridge();
   });
 
