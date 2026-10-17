@@ -153,7 +153,7 @@ describe('createSharedRendererExportFrameSource', () => {
     expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(15);
   });
 
-  it('Rust builderがgraphを受理しない場合だけ既存TS export builderへ戻る', async () => {
+  it('Rust builderがgraphを受理しない場合はTS export builderへ戻さずblockedにする', async () => {
     const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
     const objects = [image()];
     const buildExportSession = vi.fn((input) => buildSharedRendererExportSession(input));
@@ -179,21 +179,21 @@ describe('createSharedRendererExportFrameSource', () => {
       createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
     });
 
-    await source.renderFrame({
+    await expect(source.renderFrame({
       frameIndex: 17,
       timestampUs: 283_333,
       time: 17 / 60,
       width: 1920,
       height: 1080,
       objects,
+    })).rejects.toMatchObject({
+      reason: 'unsupportedScene',
+      frameIndex: 17,
+      legacyCanvasFallbackAllowed: false,
     });
 
-    expect(buildExportSession).toHaveBeenCalledWith(expect.objectContaining({
-      objects,
-      time: 17 / 60,
-    }));
-    expect(presenterCalls).toHaveLength(1);
-    expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(17);
+    expect(buildExportSession).not.toHaveBeenCalled();
+    expect(presenterCalls).toHaveLength(0);
   });
 
   it('Rust評価の待機中に閉じたsourceはpresenterを開始しない', async () => {
