@@ -32,7 +32,8 @@
 - `feature-proxy`（`dd86b995`）を作業branchへfast-forward mergeした。
 - overlayを無効、Rust raw graphを有効にし、指定済みverified backendを使った別Electron/CDP sessionで、アニメ図形を2.5秒位置から「分割」toolbar操作した。位置(100,200)→(500,600)が(200,300)で分かれ、Undo 1回で元の1オブジェクトへ、Redo 1回で2片へ戻り、historyは単一Batchだった。
 - 同操作開始直後にplayheadを3秒へ変えたケースは1件の未分割図形を維持し、sceneを切り替えたケースは新sceneの空状態を維持した。
-- 同梱CoreML/Vision trackerをローカル2.25秒動画で実行し、成功応答と14 tracking samplesを確認した。Electron UI側の追跡キーフレーム適用は、必須化後にCDP statusをpageへ保持して再確認する。
+- CoreML trackerをローカル2.25秒動画で実行し、実UIから「トラッキング実行」を押して68件のVision keyframesがoverlayに適用されることを確認した。`0.23333333333333334`秒などのraw時刻を含み、query identity検証が成功した。query失敗のalertはなく、適用後のoverlay keyframesをCDP経由でstoreから読み出した。
+- 旧verified backendは93件中8件でJSON wire後のf64が1 ULPずれていた。`serde_json`の`float_roundtrip` featureを有効にし、raw RPC JSON parse→scene query→response serialization→wire JSON parseで要求時刻と応答時刻のbit列が等しいことをテストした。修正backendでは93件のecho不一致が0件となり、実UI Vision適用も成功した。identity比較には許容誤差を導入していない。
 - Vitestのsplit/Rust query、PropertyPanel境界、Vision keyframe utilityの関連33 testsと`tsc --noEmit`が成功。
 
 ## 未対応範囲
@@ -45,4 +46,5 @@
 - `cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend graph_only_replace_builds_and_retains_raw_graph_for_unquantised_queries`
 - `npx vitest run src/utils/visionTrackingKeyframes.test.ts src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/components/PropertyPanelBoundary.test.ts src/components/PropertyPanelPlaybackIsolation.test.ts`
 - `npx vitest run src/store/useStoreSplitPositionQuery.test.ts src/store/useStoreCommandConversion.test.ts`
+- `cargo test --manifest-path rust-backend/Cargo.toml position_query`
 - `npx tsc --noEmit`
