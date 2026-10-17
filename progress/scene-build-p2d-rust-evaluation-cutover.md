@@ -50,10 +50,19 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - 全Vitest: 277ファイル中276成功、1986件中1985件成功。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が要求するgitignore対象 `perf/heavy-media` fixtureの欠落によるファイル存在確認。隔離worktreeには `.gitignore` のみで素材が存在しない。fixture生成や期待値のskipは行っていない。
 - production Vite build: `/tmp/uxfd-reference-isolation-build-20261018` へのbuild成功。bundle内に`rustSceneSnapshotReference` / `editableRustSceneReference` / evaluator Reference名はなく、旧serializer/evaluatorがproduction bundleへ到達しない。test buildは`dist`へ出力せず、tracked build artifactsの変更もない。
 
+## Export close競合の追加修正（2026-10-18）
+
+- native render source準備中、およびviewport presenter開始中にframe sourceがcloseされる競合を回帰テストで再現した。close後に非同期処理が完了するとnative renderが呼ばれたりbitmapが返ったりする状態を確認してから修正した。
+- close後に戻ったnative sourceはabort releaseし、新規decode jobを停止する。遅れて返ったpresenter controlもdisposeし、decode jobを停止する。停止済みjobの重複停止を避け、close後のframe/payload返却を拒否する。
+- resident evaluation、native source準備、audio waveform準備、native render、presenter開始、bitmap作成、presented shared-frame受け渡しの各await後にclose状態を確認する。native renderがclose後に完了した場合は出力frameをreleaseしてからキャンセルエラーにする。
+- 回帰テストはRED→GREENで確認。`sharedRendererExportFrameSource` / native source / native uploadの3 suiteで93 tests成功、`npx tsc --noEmit`成功。
+- `buildFrameSession`内部の評価await後guardだけでは、session promiseの完了からpresenter/native準備側の再開までの間にcloseが割り込めることをmicrotaskテストで確認した。`presentFrame` と native encode側のawait直後にもguardを置き、close後に次工程を開始しない。
+- native sourceのabort releaseが失敗する場合も、遅着decode job停止を先に必ず試みてからrelease failureを報告する。回帰テストはRED→GREENで固定した。
+
 ## 統合後の再検証（2026-10-18）
 
 - Reference隔離を統合した`feature-proxy`で全Vitest 277ファイル / 1,986件成功。親checkoutの実素材を使用し、隔離worktreeで欠落していた素材テストも成功した。型チェック・生成型整合性チェックも成功。
 - production buildを`/tmp/uxfd-reference-production-build-20261018`へ出力して成功。
 - f64 round-trip修正を含む検証済みbackendで、raw graph/RPC flagを未設定のまま混在MP4を60/60フレーム出力した。動画・画像・音声・PSD・生成エフェクト・groupを含み、生成エフェクト画素検査とH.264 probeが成功、runtime errorsは空（`/tmp/uxfd-reference-default-export-result.json`）。native overlayは無効、native direct encodeは無効の構成。
 - Rust backend releaseテストは203件成功、2件ignored（`/tmp/uxfd-final-backend-tests.log`）。
-- レビューで見つかったexport close中の非同期準備と旧native再生通知の競合は、別途回帰修正・最終統合検証を行う。
+- レビューで見つかったexport close中のnative/presenter非同期準備、session返却直後のclose割り込み、abort release失敗時のdecode job停止漏れは回帰修正済み。個別テストと型チェックはgreen、最新統合後の全体検証を親側で継続する。
