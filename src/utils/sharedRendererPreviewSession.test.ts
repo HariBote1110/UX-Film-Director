@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
-import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSessionReference';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import type { ImageObject, ProjectSettings, ShapeObject } from '../types';
 

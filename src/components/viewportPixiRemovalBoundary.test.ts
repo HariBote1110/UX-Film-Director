@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
  * PixiJS 排除計画 Phase 4 の境界テスト。
  * Viewport.tsx から PIXI.Application・Pixi 描画・Pixi 依存 import が
  * 排除されていること、および置き換え先（SVG vision 枠・Canvas2D テキスト
- * 計測・sceneTransforms 直参照）が配線されていることを固定する。
+ * 計測・Rust評価geometry購読）が配線されていることを固定する。
  */
 const viewportSource = () =>
   readFileSync(new URL('./Viewport.tsx', import.meta.url), 'utf8');
@@ -33,12 +33,11 @@ describe('Viewport Pixi removal boundary', () => {
     expect(code).not.toContain('updatePixiContent');
   });
 
-  it('グループ変形・振動は sceneTransforms から直接 import する', () => {
-    // この import は選択枠のリサイズハンドル押下ハンドラでのみ使われており、
-    // 選択枠オーバーレイの独立コンポーネント抽出で
-    // SceneSelectionDecorationLayer.tsx 側へ移設された。
+  it('選択枠のグループ変形・振動は同frame/revisionのRust評価geometryから読む', () => {
     const code = selectionDecorationLayerSource();
-    expect(code).toContain("from '../utils/sceneTransforms'");
+    expect(code).toContain("from '../utils/rustSceneEvaluatedGeometry'");
+    expect(code).toContain('getRustSceneEvaluatedGeometryFrame');
+    expect(code).not.toContain("from '../utils/sceneTransforms'");
   });
 
   it('vision 検出枠は Pixi ではなく SVG ジオメトリ（visionDetectionOverlayGeometry）で描く', () => {

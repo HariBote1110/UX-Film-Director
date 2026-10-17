@@ -10,7 +10,7 @@ import {
   type EvaluationParityFixtureBuild,
 } from '../utils/rustSceneEvaluationParityFixture';
 import { buildRealisticHeavyEditScenario } from './realisticHeavyEditScenario';
-import { buildEditableRustScene } from '../utils/editableRustScene';
+import { buildEditableRustScene } from '../utils/editableRustSceneReference';
 import type { GroupControlObject, LayerState, ShapeObject, TextObject, TimelineObject } from '../types';
 
 /** frame を間引く歩幅。キーフレーム境界と揃わないよう素数にする。 */

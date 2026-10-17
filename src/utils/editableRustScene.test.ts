@@ -20,7 +20,7 @@ import type {
   TimelineObject,
   VideoObject,
 } from '../types';
-import { buildEditableRustScene } from './editableRustScene';
+import { buildEditableRustScene } from './editableRustSceneReference';
 import { buildAviUtlHologramObject } from './objectFactories/hologramObjectFactory';
 
 const generatedResidentTypes = [

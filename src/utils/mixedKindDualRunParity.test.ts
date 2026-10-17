@@ -18,10 +18,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { buildEditableRustScene } from './editableRustScene';
+import { buildEditableRustScene } from './editableRustSceneReference';
 import {
   buildRustSceneSnapshotForTimeline,
-} from './rustSceneSnapshot';
+} from './rustSceneSnapshotReference';
 import type { RustSceneMediaReference } from './rustSceneContract';
 import {
   mixedKindDualRunLayers,

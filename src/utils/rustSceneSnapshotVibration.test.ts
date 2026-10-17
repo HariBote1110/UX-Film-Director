@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
-import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshot';
-import { getVibrationOffset } from './sceneTransforms';
-import { evaluateObjectPositionAtTime } from './keyframes';
+import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshotReference';
+import { evaluateObjectPositionAtTime, getVibrationOffset } from './sceneEvaluationReference';
 import type { ProjectSettings, ShapeObject } from '../types';
 
 const settings: ProjectSettings = {

@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ShapeObject } from '../types';
 import type { Command } from '../generated/rustCore/Command';
 import type { SceneData } from '../generated/rustCore/SceneData';
 import { setCommandBridgeForTests } from '../utils/rustBackendCommandBridge';
+import { clearRustScenePositionQueryRevision, publishRustScenePositionQueryResident, publishRustScenePositionQueryTarget } from '../utils/rustScenePositionQueryRevision';
 import { useStore } from './useStore';
 
 /**
@@ -69,7 +70,11 @@ describe('useStore の pushHistoryCommand 変換(R4-8 group c)', () => {
     });
   });
 
-  afterEach(() => setCommandBridgeForTests(null));
+  afterEach(() => {
+    setCommandBridgeForTests(null);
+    clearRustScenePositionQueryRevision('test cleanup');
+    vi.unstubAllGlobals();
+  });
 
   it('addObject: addObject Commandを1件積む(indexは追加前のobjects.length)', () => {
     useStore.getState().addObject(shape('A', 0, 0, 5));
@@ -183,6 +188,38 @@ describe('useStore の pushHistoryCommand 変換(R4-8 group c)', () => {
     useStore.getState().selectObjects(['A']);
     useStore.getState().setTime(4);
     useStore.setState({ pastCommands: [] });
+    const state = useStore.getState();
+    const sceneTarget = {
+      sceneId: 'viewport-rust-timeline',
+      revision: 1,
+      projectSettings: state.projectSettings,
+      layers: state.layers,
+      objects: state.objects,
+    };
+    publishRustScenePositionQueryTarget(sceneTarget);
+    publishRustScenePositionQueryResident({ sceneId: sceneTarget.sceneId, revision: sceneTarget.revision });
+    vi.stubGlobal('window', {
+      rustBackend: {
+        replaceScene: async () => { throw new Error('replaceScene must not run'); },
+        evaluateScene: async () => { throw new Error('evaluateScene must not run'); },
+        queryObjectPositions: async (payload: { sceneId: string; revision: number; queries: Array<{ requestId: string; objectId: string; timeSeconds: number }> }) => ({
+          success: true,
+          result: {
+            sceneId: payload.sceneId,
+            revision: payload.revision,
+            positions: payload.queries.map((query) => ({
+              ...query,
+              localPosition: { x: 42, y: 24 },
+              worldPosition: { x: 42, y: 24 },
+              groupTranslation: { x: 0, y: 0 },
+              worldRotationDegrees: 0,
+              worldScaleX: 1,
+              worldScaleY: 1,
+            })),
+          },
+        }),
+      },
+    });
 
     await useStore.getState().splitObject();
 

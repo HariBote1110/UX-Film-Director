@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { TimelineObject } from '../src/types';
-import { buildEditableRustScene } from '../src/utils/editableRustScene';
-import { mediaReferenceForEditableRustScene } from '../src/utils/rustSceneSnapshot';
+import { buildEditableRustScene } from '../src/utils/editableRustSceneReference';
+import { mediaReferenceForEditableRustScene } from '../src/utils/rustSceneSnapshotReference';
 import { buildDefaultStandardParticleObject } from '../src/utils/objectFactories/particleObjectFactory';
 import { buildAviUtlBarcodeObject } from '../src/utils/objectFactories/barcodeObjectFactory';
 import { buildAviUtlPuzzlePieceObject } from '../src/utils/objectFactories/puzzlePieceObjectFactory';
