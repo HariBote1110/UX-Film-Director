@@ -30,8 +30,17 @@
 
 ## 未対応範囲
 
-- scene hit-test/selectionへの位置query移行は別タスクとして残る。
+- 実Electron/CDPでのnative playback中の選択枠とhit-testの目視確認は未実施。frame identity、再生中の低頻度評価再利用、pause/revision/遅延presentの取消はVitestで固定した。
 - 実Electron/CDPによるVision trackingとsplit操作の統合確認は未実施。純粋位置計算、query/RPC、store stale guard、既存PropertyPanel境界をVitestとTypeScript型チェックで確認している。
+
+## Rust評価snapshotの選択geometry
+
+- 選択枠・hit-test・native overlay quad・Vision detection polygonは、現在提示するRust評価snapshotのclip transformとmedia寸法から導出する。frameごとにposition queryを追加せず、既存evaluationのsurfaceGate通過後にだけ軽量storeへpublishする。
+- Textの表示planeは装飾padding補正前のsnapshot原点とexpanded media寸法を使い、insetを重ねて足さない。ドラッグ/resizeの基準点は別にlogical glyph originへ戻す。
+- pointerdown時はscene/revision/frameに加えてposition-query targetが最新storeのproject/layer/object graph参照と同一か確認する。stale時はselectionを変更しない。opacity 0でもclipがあるobjectを従来どおりhit可能にする。
+- native playback中はplayback controllerが最後に成功presentした評価を既存の5Hz UI state通知へ同梱する。frame indexとscene/revisionが一致しない場合は添付せず、rendererは最新graph identityとsurfaceGateを再検査する。毎tickの追加RPCや評価snapshotの毎frame転送は行わない。
+- seek/revision変更、失敗、dispose、無効化でstoreをclearし、expected revisionがnullの間の遅着publishを拒否する。pause後の旧世代tickが遅れて失敗しても、新しい再生世代を終了させない。
+- 旧TS hit-test評価関数は`sceneHitTestReference.ts`へ隔離し、productionからの参照をなくした。カメラ・affine変換はproduction helperとして残す。
 
 ## 検証
 
@@ -39,4 +48,5 @@
 - `cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend graph_only_replace_builds_and_retains_raw_graph_for_unquantised_queries`
 - `npx vitest run src/utils/visionTrackingKeyframes.test.ts src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/components/PropertyPanelBoundary.test.ts src/components/PropertyPanelPlaybackIsolation.test.ts`
 - `npx vitest run src/store/useStoreSplitPositionQuery.test.ts src/store/useStoreCommandConversion.test.ts`
+- `npx vitest run src/utils/rustScenePlaybackEvaluation.test.ts src/utils/rustScenePlaybackController.test.ts src/utils/rustSceneEvaluatedGeometry.test.ts src/utils/rustSceneEvaluatedGeometryStore.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/components/sceneSelectionOverlayGeometry.test.ts src/components/SceneSelectionOverlay.test.ts src/utils/nativeOverlaySelectionDecoration.test.ts src/utils/visionDetectionOverlayGeometry.test.ts src/utils/sceneHitTest.test.ts src/components/ViewportRustTimelineSceneRpc.test.ts src/utils/rustBackendSceneControl.test.ts src/store/useStoreSplitPositionQuery.test.ts`（13 files / 138 tests）
 - `npx tsc --noEmit`
