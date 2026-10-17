@@ -33,7 +33,7 @@ describe('sharedRendererPresenterRestartSession', () => {
 
     it('stores every built session into the latest-published ref inside publish', () => {
       const code = viewportSource();
-      const start = code.indexOf('const session = evaluatedSession ?? buildSharedRendererPreviewSession({');
+      const start = code.indexOf('const session = evaluatedSession;');
       const end = code.indexOf('const diagnosticsWindow = window as unknown as {', start);
       const publishBuildBlock = code.slice(start, end);
 

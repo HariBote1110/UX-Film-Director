@@ -1,7 +1,10 @@
 # 決定ログ索引
 
+- [raw-scene-replace-performance.md](raw-scene-replace-performance.md) — shape 1/100/1,000件のgraph-only標準入出力RPCを測定。Electron・描画負荷を含まない初期値として扱い、UI許容上限は未決を維持（2026-10-18）
+- [p4-edit-position-query.md](p4-edit-position-query.md) — raw秒・revision付きRust位置queryへキー追加・Vision tracking・splitを段階移行。group-only意味論と遅延応答のscene/selection/time/graph/lock stale拒否を維持（2026-10-16）
 - [windows-dxc-packaging.md](windows-dxc-packaging.md) — Windows x64の固定版DXC取得・checksum・pack前検証とexe横配置を実装。unpacked配置を確認し、実機検証は環境待ちとして区別（2026-10-16）
 - [text-stroke-shadow-clipping.md](text-stroke-shadow-clipping.md) — 装飾余白と描画原点を分離し、途中group切替を含む文字本体の位置を維持。447-frame parityと360-frame MP4を確認（2026-10-16）
+- [resident-vibration-frame-evaluation.md](resident-vibration-frame-evaluation.md) — Vibrationを固定位置へ焼き込まず、順序付きtransportを絶対秒で毎frame評価。group合成・Text装飾原点補正・Wipe index・renderer拒否境界を定義し、456-frame parityを確認（2026-10-16）
 - [scene-build-p2d-rust-evaluation-cutover.md](scene-build-p2d-rust-evaluation-cutover.md) — 対応済みexportをRust resident評価へ接続し、原本参照・障害伝播・取消を固定。旧TS経路とP3/P4の残存責務を明記（2026-10-16）
 - [filter-param-undo-session.md](filter-param-undo-session.md) — フィルタ値編集を1操作1 Commandにまとめ、Undo待機・scene切替・通常テキスト入力を維持するショートカット境界を検証（2026-10-16）
 

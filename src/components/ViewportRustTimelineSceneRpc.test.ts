@@ -10,8 +10,8 @@ describe('shouldBuildSharedRendererPreviewSessionForTick', () => {
     expect(shouldBuildSharedRendererPreviewSessionForTick(true)).toBe(false);
   });
 
-  it('feature flagが無効なら従来の同期scene構築を維持する', () => {
-    expect(shouldBuildSharedRendererPreviewSessionForTick(false)).toBe(true);
+  it('RPC flagの状態にかかわらずTS scene構築を行わない', () => {
+    expect(shouldBuildSharedRendererPreviewSessionForTick(false)).toBe(false);
   });
 });
 
@@ -21,8 +21,8 @@ describe('shouldPublishSharedRendererPreviewSession', () => {
     expect(shouldPublishSharedRendererPreviewSession(true, true)).toBe(true);
   });
 
-  it('RPC無効時は従来のTS-built sessionをpublishする', () => {
-    expect(shouldPublishSharedRendererPreviewSession(false, false)).toBe(true);
+  it('RPC flagの状態にかかわらず評価sessionがなければpublishしない', () => {
+    expect(shouldPublishSharedRendererPreviewSession(false, false)).toBe(false);
   });
 });
 

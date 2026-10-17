@@ -24,14 +24,11 @@ import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { measureTextBoxSize } from '../utils/textBoxMeasurement';
 import {
-  buildSharedRendererPreviewSession,
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
 import { buildSharedRendererPreviewSessionFromEvaluatedScene } from '../utils/sharedRendererEvaluatedScenePreviewSession';
 import {
   createEditableRustScenePreviewController,
-  EditableRustSceneUnsupportedError,
-  shouldAttachEditableRustScene,
   shouldUseRawEditableSceneGraphOnly,
   type EditableRustScenePreviewController,
 } from '../utils/editableRustScenePreviewController';
@@ -181,14 +178,14 @@ const writeRustNativePlaybackDiagnostics = (state: RustNativePlaybackUiState) =>
 
 /** Rust常駐sceneの評価結果がある間は、Chromiumでsceneを再構築しない。 */
 export const shouldBuildSharedRendererPreviewSessionForTick = (
-  rustTimelineSceneRpcEnabled: boolean,
-): boolean => !rustTimelineSceneRpcEnabled;
+  _rustTimelineSceneRpcEnabled: boolean,
+): boolean => false;
 
 /** RPC中のpreview sessionはRust scene.evaluateの応答だけからpublishする。 */
 export const shouldPublishSharedRendererPreviewSession = (
-  rustTimelineSceneRpcEnabled: boolean,
+  _rustTimelineSceneRpcEnabled: boolean,
   hasEvaluatedSession: boolean,
-): boolean => !rustTimelineSceneRpcEnabled || hasEvaluatedSession;
+): boolean => hasEvaluatedSession;
 
 /**
  * currentTime tickをsubscribeリスナー内で即時実行してよいかの判定。
@@ -774,17 +771,14 @@ const Viewport: React.FC = () => {
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
   // 常駐Rust scene RPC は既定で有効。enabled 中は timeline の評価を
   // renderer 側へ送らず、Rustが返した評価済みsnapshotだけを提示する。
-  // '0' 指定でレガシー経路へ opt-out できる。
+  // '0' では同期TypeScript snapshotへ戻さず、Rust経路をblockedにする。
   const rustTimelineSceneRpcEnabled = import.meta.env.VITE_UXFD_RUST_TIMELINE_SCENE_RPC !== '0';
-  // Opt-in staging flag: backend eligibility decides whether the raw graph can
-  // be resident. Existing builder flags retain their combined payload contract.
-  const rustRawEditableSceneGraphOnly = shouldUseRawEditableSceneGraphOnly(
+  // Existing dual-run and builder-cutover values are accepted as graph-only
+  // aliases. An explicit RAW_GRAPH_ONLY=0 disables resident Rust and blocks.
+  const rustEditableSceneCutoverEnabled = shouldUseRawEditableSceneGraphOnly(
     import.meta.env.VITE_UXFD_RUST_SCENE_RAW_GRAPH_ONLY,
-  );
-  const rustEditableSceneCutoverEnabled = shouldAttachEditableRustScene(
     import.meta.env.VITE_UXFD_RUST_EDITABLE_SCENE_DUAL_RUN,
     import.meta.env.VITE_UXFD_RUST_SCENE_BUILDER_CUTOVER,
-    import.meta.env.VITE_UXFD_RUST_SCENE_RAW_GRAPH_ONLY,
   );
   // Phase 7 (W7) STAGE 1: macOSはopt-out（既定ON）のまま、Windowsは
   // 24時間ベンチ完了までopt-in（既定OFF）とする。判定ロジックは純粋関数
@@ -1470,10 +1464,10 @@ const Viewport: React.FC = () => {
   const publishSharedRendererPreviewSession = useCallback((
     time: number,
     currentObjects: TimelineObject[],
-    evaluatedSession?: SharedRendererPreviewSession,
+    evaluatedSession: SharedRendererPreviewSession,
   ) => {
     if (!sharedRendererPreviewEnabled) return;
-    if (!shouldPublishSharedRendererPreviewSession(rustTimelineSceneRpcEnabled, evaluatedSession !== undefined)) return;
+    if (!shouldPublishSharedRendererPreviewSession(rustTimelineSceneRpcEnabled, true)) return;
     const rawPreviewTime = isPlaying
       ? quantiseSharedRendererPlaybackPreviewTime(time)
       : time;
@@ -1488,17 +1482,7 @@ const Viewport: React.FC = () => {
       })
       : rawPreviewTime;
 
-    const session = evaluatedSession ?? buildSharedRendererPreviewSession({
-      enabled: true,
-      projectSettings,
-      layers,
-      objects: currentObjects,
-      time: previewTime,
-      editorMode,
-      isExporting,
-      webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
-      fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
-    });
+    const session = evaluatedSession;
     // presenter フル再起動時の present 対象の正本。reuse 経路（state 非更新）
     // 中でも毎 tick 最新化し、再起動が stale なフレームを出さないようにする。
     sharedRendererLatestPublishedPreviewSessionRef.current = session;
@@ -1824,7 +1808,8 @@ const Viewport: React.FC = () => {
                 // 削除されたクリップ入りのセッションを再構築して presenter を
                 // 再起動させ、削除済みフレームを復活させてしまう（.finally の
                 // pending replay と同根の既存対策コメントも参照）。
-                latestObjectsRef.current
+                latestObjectsRef.current,
+                session
               );
             }
           }
@@ -1861,7 +1846,7 @@ const Viewport: React.FC = () => {
   // （objects/layers/size/fps/projectId）と時刻要求を別effectにしたため、再生
   // tick が Project JSON の再変換・replace RPC を引き起こさない。
   useEffect(() => {
-    if (!rustTimelineSceneRpcEnabled) {
+    if (!rustTimelineSceneRpcEnabled || !rustEditableSceneCutoverEnabled) {
       expectRustSceneEvaluatedGeometryRevision(null);
       clearRustSceneEvaluatedGeometryFrame();
       rustTimelineScenePreviewControllerRef.current?.dispose();
@@ -1869,7 +1854,13 @@ const Viewport: React.FC = () => {
       setRustTimelineSceneRevision(null);
       setRustTimelineSceneResidentRevision(null);
       setNativePlaybackActive(false);
-      writeRustTimelineSceneRpcDiagnostics({ status: 'disabled', projectId: projectId ?? null });
+      writeRustTimelineSceneRpcDiagnostics({
+        status: 'blocked',
+        projectId: projectId ?? null,
+        detail: !rustTimelineSceneRpcEnabled
+          ? 'Rust scene RPC is disabled; TypeScript evaluation fallback is retired.'
+          : 'Raw editable graph-only mode is disabled; no TypeScript serializer fallback is available.',
+      });
       return;
     }
 
@@ -1942,8 +1933,6 @@ const Viewport: React.FC = () => {
     const controller = createEditableRustScenePreviewController({
       sceneId: 'viewport-rust-timeline',
       scheduler,
-      includeEditableScene: rustEditableSceneCutoverEnabled,
-      rawGraphOnly: rustRawEditableSceneGraphOnly,
     });
     rustTimelineScenePreviewControllerRef.current = controller;
     writeRustTimelineSceneRpcDiagnostics({ status: 'pending', projectId: projectId ?? null });
@@ -1961,11 +1950,11 @@ const Viewport: React.FC = () => {
     // scheduler の callback は store/refから最新値を読むため、flagの変化時のみ
     // 再生成する。ここにobjectsやcurrentTimeを足すと常駐の意味がなくなる。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rustEditableSceneCutoverEnabled, rustRawEditableSceneGraphOnly, rustTimelineSceneRpcEnabled]);
+  }, [rustEditableSceneCutoverEnabled, rustTimelineSceneRpcEnabled]);
 
   useEffect(() => {
-    if (!rustTimelineSceneRpcEnabled) {
-      clearRustScenePositionQueryRevision('scene RPC is disabled');
+    if (!rustTimelineSceneRpcEnabled || !rustEditableSceneCutoverEnabled) {
+      clearRustScenePositionQueryRevision('Rust resident scene is disabled');
       return;
     }
     const controller = rustTimelineScenePreviewControllerRef.current;
@@ -1974,35 +1963,13 @@ const Viewport: React.FC = () => {
       return;
     }
     const result = controller.replaceScene({ projectSettings, layers, objects });
-    if (!result.ok) {
-      expectRustSceneEvaluatedGeometryRevision(null);
-      clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
-      publishRustScenePositionQueryFailure(
-        'viewport-rust-timeline',
-        result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '),
-      );
-      setRustTimelineSceneRevision(null);
-      setNativePlaybackActive(false);
-      void window.rustBackend.stopScenePlayback();
-      setSharedRendererPreviewSession(null);
-      writeRustTimelineSceneRpcDiagnostics({
-        status: 'blocked',
-        projectId: projectId ?? null,
-        detail: result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '),
-      });
-      return;
-    }
-    if (rustEditableSceneCutoverEnabled) {
-      publishRustScenePositionQueryTarget({
-        sceneId: 'viewport-rust-timeline',
-        revision: result.revision,
-        projectSettings,
-        layers,
-        objects,
-      });
-    } else {
-      clearRustScenePositionQueryRevision('editable scene graph is disabled');
-    }
+    publishRustScenePositionQueryTarget({
+      sceneId: 'viewport-rust-timeline',
+      revision: result.revision,
+      projectSettings,
+      layers,
+      objects,
+    });
     setRustTimelineSceneRevision(result.revision);
     expectRustSceneEvaluatedGeometryRevision({ sceneId: 'viewport-rust-timeline', revision: result.revision });
     clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline', result.revision - 1);
@@ -2204,20 +2171,6 @@ const Viewport: React.FC = () => {
     rustTimelineSceneRpcEnabled,
     sharedRendererExternalVideoFrameReadyTick,
   ]);
-
-  // currentTime tickによるpublishは onCurrentTimeTickRef が担うため、このeffectは
-  // objects の変化と sharedRendererExternalVideoFrameReadyTick の低頻度契機のみを
-  // 担う（currentTime は useStore.getState() から読む）。
-  useEffect(() => {
-    if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
-      publishSharedRendererPreviewSession(useStore.getState().currentTime, objects);
-    }
-    // sharedRendererExternalVideoFrameReadyTick re-publishes the session so a
-    // paused frame that has just become presentable gets re-presented.
-    // This only takes effect when shouldBuildSharedRendererPreviewSessionForTick
-    // is true (i.e. the RPC path is disabled) — when the RPC path is enabled,
-    // the effect above owns this re-evaluation instead.
-  }, [objects, publishSharedRendererPreviewSession, rustTimelineSceneRpcEnabled, sharedRendererExternalVideoFrameReadyTick]);
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
@@ -2602,10 +2555,6 @@ const Viewport: React.FC = () => {
       }
     });
 
-    if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
-      publishSharedRendererPreviewSession(time, currentObjects);
-    }
-
     const workspaceMode = useStore.getState().projectSettings.editorMode ?? '2d';
     if (workspaceMode === '3d_stage' && threeStageRef.current) {
       // PixiJS 排除計画 Phase 4 でラスタライズ手段（app.renderer.extract）を
@@ -2699,9 +2648,6 @@ const Viewport: React.FC = () => {
       }
     }
     // 2) preview sessionのpublish（旧: publish effectのcurrentTime依存分）
-    if (shouldBuildSharedRendererPreviewSessionForTick(rustTimelineSceneRpcEnabled)) {
-      publishSharedRendererPreviewSession(time, latestObjectsRef.current);
-    }
     // 3) renderScene（音声同期・3Dビルボード同期。旧: renderScene effectのcurrentTime依存分）
     if (!useStore.getState().isExporting) {
       renderScene(time, latestObjectsRef.current);
@@ -2813,19 +2759,12 @@ const Viewport: React.FC = () => {
               objects: [...graphObjects],
             });
             if (confirmed.sceneSource !== 'rust') {
-              document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'directSnapshotFallback';
-              document.documentElement.dataset.uxfdRustExportFrameSourceReason = confirmed.sceneFallbackReason ?? 'sceneBuilderDidNotCutOver';
-              return null;
+              throw new Error(`Rust resident export is unavailable: ${confirmed.sceneFallbackReason ?? 'sceneBuilderDidNotCutOver'}`);
             }
             document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentScene';
             delete document.documentElement.dataset.uxfdRustExportFrameSourceReason;
             return { sceneId: confirmed.sceneId, revision: confirmed.revision };
           } catch (error) {
-            if (error instanceof EditableRustSceneUnsupportedError) {
-              document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'directSnapshotFallback';
-              document.documentElement.dataset.uxfdRustExportFrameSourceReason = error.message;
-              return null;
-            }
             document.documentElement.dataset.uxfdRustExportFrameSourceStatus = 'residentSceneConfirmationFailed';
             document.documentElement.dataset.uxfdRustExportFrameSourceReason = error instanceof Error
               ? error.message
@@ -2851,8 +2790,6 @@ const Viewport: React.FC = () => {
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
       hasVideoObjects: context.hasVideoObjects,
       hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
-      objects: context.objects,
-      time: context.time,
       ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
       preferEncodeOnly: context.preferEncodeOnly,
       presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,

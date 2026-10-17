@@ -16,9 +16,9 @@
 | 順位 | タスク | 現状・完了条件 |
 | --- | --- | --- |
 | 1 | P2c一時診断の撤去 | **完了（2026-10-16）**。controller lifecycleの全イベント履歴を撤去。export確認中・成功・失敗の通常statusと回帰テストを維持。関連8ファイル101テスト・型チェック成功。 |
-| 2 | P2全体の完了条件を棚卸し | **部分完了（2026-10-16）**。direct exportのRust resident評価、原本参照、失敗伝播、cancelに加え、未対応だった生成25型を統合。42 object kind中40 visual clipをTS/Rustで一致確認。AutoBlur欠落も修正。振動の動的評価とgraph-only経路は作業中。既存混在動画はnativeDirect有効/無効の両構成で60/60フレーム成功。 |
-| 3 | P3: TS serializer撤去 | **作業中**。契約型・境界検証・frame helperをserializerから分離済み。graph-only wireのfrontendはopt-in実装済み。backend・振動対応を統合検証後に既定切替し、production TS builder/serializerの呼出しを撤去する。 |
-| 4 | P4: UI評価値をRustへ移行 | **作業中**。現在frameの購読だけではキー追加・分割・追跡の任意秒評価を代替できないため、revision付きraw graphから未量子化のlocal/world位置を返すRust queryを実装中。最初の移行先はPropertyPanelのキー追加。選択枠・hit test・追跡・store評価の撤去と遅延検証は後続。 |
+| 2 | P2全体の完了条件を棚卸し | **部分完了（2026-10-16）**。direct exportのRust resident評価、原本参照、失敗伝播、cancelに加え、未対応だった生成25型を統合。42 object kind中40 visual clipをTS/Rustで一致確認。AutoBlur欠落と振動の動的評価も修正。既存447フレームと振動境界9フレームの計456フレームが一致。既存混在動画はnativeDirect有効/無効の両構成で60/60フレーム成功。新graph-only経路の書き出しは検証中。 |
+| 3 | P3: TS serializer撤去 | **作業中**。契約型・境界検証・frame helperをserializerから分離済み。graph-only wireのfrontendはopt-in実装、backendはraw graphの常駐保持・Rust builderへの委譲を統合済み。新経路のMP4検証後に既定切替し、production TS builder/serializerの呼出しを撤去する。 |
+| 4 | P4: UI評価値をRustへ移行 | **作業中**。revision付きraw graphから未量子化のlocal/world位置とgroup移動量を返すRust queryを統合。キー追加・分割・追跡のopt-in接続、古い応答の破棄、通常取消時の誤通知防止まで実装。キー追加は実Electronでも確認済み。分割の実操作、選択枠・hit testの評価snapshot接続、既定切替・旧TS評価の撤去と遅延検証を継続。 |
 | 5 | テキストの縁取り・影のクリップ | **完了（2026-10-16）**。装飾分の領域拡張と描画原点補正を全経路に接続。回転・負scale・keyframe・途中group_control開始/終了の位置不変性を検証。447-frame parityと影付き日本語テキストのMP4書き出し360/360フレームが成功。 |
 | 6 | フィルタ値編集のUndo/Redo | **完了（2026-10-16）**。入力開始〜終了を1操作として履歴化。連続入力・非同期応答・scene切替・フォーカス中Undo/Redo・通常テキスト入力のnative Undo維持を検証。実Electron/CDPのPropertyPanel操作でも確認。 |
 

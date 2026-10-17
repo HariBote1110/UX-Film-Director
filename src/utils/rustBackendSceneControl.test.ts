@@ -152,6 +152,34 @@ describe('rustBackendSceneControl', () => {
     }, bridge)).resolves.toMatchObject({ ok: false, reason: 'invalidResponse' });
   });
 
+  it('groupTranslationを含まない旧query responseは拒否する', async () => {
+    const bridge: RustBackendSceneBridge = {
+      replaceScene: async () => { throw new Error('replace must not run'); },
+      evaluateScene: async () => { throw new Error('evaluate must not run'); },
+      queryObjectPositions: async (payload) => ({
+        success: true,
+        result: {
+          sceneId: payload.sceneId,
+          revision: payload.revision,
+          positions: payload.queries.map((query) => ({
+            ...query,
+            localPosition: { x: 1, y: 2 },
+            worldPosition: { x: 1, y: 2 },
+            worldRotationDegrees: 0,
+            worldScaleX: 1,
+            worldScaleY: 1,
+          })),
+        },
+      }),
+    };
+
+    await expect(queryRustBackendSceneObjectPositions({
+      sceneId: 'viewport-rust-timeline',
+      revision: 12,
+      queries: [{ requestId: 'panel-1', objectId: 'object-1', timeSeconds: 0.5 }],
+    }, bridge)).resolves.toMatchObject({ ok: false, reason: 'invalidResponse' });
+  });
+
   it('重複requestIdをRustへ送らず拒否する', async () => {
     const bridge: RustBackendSceneBridge = {
       replaceScene: async () => { throw new Error('replace must not run'); },

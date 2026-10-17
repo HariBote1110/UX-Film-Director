@@ -26,7 +26,9 @@ export const subscribeRustSceneEvaluatedGeometryFrame = (listener: () => void): 
 };
 
 export const publishRustSceneEvaluatedGeometryFrame = (evaluation: RustBackendSceneEvaluation): void => {
-  if (expectedIdentity && (evaluation.sceneId !== expectedIdentity.sceneId || evaluation.revision !== expectedIdentity.revision)) return;
+  if (!expectedIdentity
+    || evaluation.sceneId !== expectedIdentity.sceneId
+    || evaluation.revision !== expectedIdentity.revision) return;
   if (currentFrame && currentFrame.sceneId === evaluation.sceneId && evaluation.revision < currentFrame.revision) return;
   const nextFrame: RustEvaluatedGeometryFrame = {
     sceneId: evaluation.sceneId,

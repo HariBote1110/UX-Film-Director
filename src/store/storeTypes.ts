@@ -198,7 +198,7 @@ export interface AppState {
   rippleDeleteObject: (id: string) => void;
   /** 選択中オブジェクトを削除し、同一レイヤーの後続クリップを左へ詰める。 */
   rippleDeleteSelectedObjects: () => void;
-  splitObject: () => void;
+  splitObject: () => Promise<void>;
   copySelectedObjects: () => void;
   cutSelectedObjects: () => void;
   pasteClipboardObjects: () => void;

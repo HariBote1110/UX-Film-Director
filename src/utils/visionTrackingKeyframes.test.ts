@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildOverlayPositionKeyframesFromVisionTrack } from './visionTrackingKeyframes';
+import {
+  buildOverlayPositionKeyframesFromPositionQuery,
+  buildVisionTrackPositionQueryPlan,
+} from './visionTrackingKeyframes';
 import type { ShapeObject, VideoObject } from '../types';
 
 const baseVideo = (): VideoObject => ({
@@ -53,48 +56,70 @@ const baseOverlay = (): ShapeObject => ({
 describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
   it('returns empty array when no samples', () => {
     expect(
-      buildOverlayPositionKeyframesFromVisionTrack({
+      buildVisionTrackPositionQueryPlan({
         samples: [],
         video: baseVideo(),
         overlay: baseOverlay(),
-        allObjects: [baseVideo(), baseOverlay()]
       })
-    ).toEqual([]);
+    ).toEqual({ queries: [], samples: [] });
   });
 
-  it('maps full-frame track to overlay keyframes preserving offset from first sample', () => {
+  it('creates raw-second queries for video and overlay at each clamped timeline sample time', () => {
     const video = baseVideo();
     const overlay = baseOverlay();
-    // First: centre (50, 50) world; overlay TL (50, 40). Second: narrow box centre x = 0.3 * 100 = 30.
     const samples = [
       { tSec: 0, boundingBox: { x: 0, y: 0, width: 1, height: 1 } },
       { tSec: 1, boundingBox: { x: 0, y: 0, width: 0.6, height: 1 } }
     ];
-    const kfs = buildOverlayPositionKeyframesFromVisionTrack({
+    const plan = buildVisionTrackPositionQueryPlan({
       samples,
       video,
       overlay,
-      allObjects: [video, overlay]
     });
-    expect(kfs.length).toBe(2);
-    expect(kfs[0].time).toBeCloseTo(5);
-    expect(kfs[0].x).toBeCloseTo(50);
-    expect(kfs[0].y).toBeCloseTo(40);
-    expect(kfs[1].time).toBeCloseTo(6);
-    expect(kfs[1].x).toBeCloseTo(30);
-    expect(kfs[1].y).toBeCloseTo(40);
+
+    expect(plan.samples.map(({ timeSeconds }) => timeSeconds)).toEqual([5, 6]);
+    expect(plan.queries).toEqual([
+      { requestId: 'vision-0-video', objectId: 'vid', timeSeconds: 5 },
+      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5 },
+      { requestId: 'vision-1-video', objectId: 'vid', timeSeconds: 6 },
+      { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6 },
+    ]);
   });
 
-  it('shifts timeline by video offset', () => {
+  it('uses video local positions and group-only overlay translation to preserve the legacy offset', () => {
+    const video = baseVideo();
+    const overlay = baseOverlay();
+    const samples = [
+      { tSec: 0, boundingBox: { x: 0, y: 0, width: 1, height: 1 } },
+      { tSec: 1, boundingBox: { x: 0, y: 0, width: 0.6, height: 1 } }
+    ];
+    const plan = buildVisionTrackPositionQueryPlan({ samples, video, overlay });
+    const positions = [
+      { requestId: 'vision-0-video', objectId: 'vid', timeSeconds: 5, localPosition: { x: 10, y: 20 }, worldPosition: { x: 10, y: 20 }, groupTranslation: { x: 0, y: 0 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+      { requestId: 'vision-0-overlay', objectId: 'ovl', timeSeconds: 5, localPosition: { x: 100, y: 110 }, worldPosition: { x: 127, y: 134 }, groupTranslation: { x: 20, y: 20 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+      { requestId: 'vision-1-video', objectId: 'vid', timeSeconds: 6, localPosition: { x: 20, y: 20 }, worldPosition: { x: 20, y: 20 }, groupTranslation: { x: 0, y: 0 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+      { requestId: 'vision-1-overlay', objectId: 'ovl', timeSeconds: 6, localPosition: { x: 130, y: 150 }, worldPosition: { x: 171, y: 194 }, groupTranslation: { x: 30, y: 30 }, worldRotationDegrees: 0, worldScaleX: 1, worldScaleY: 1 },
+    ];
+
+    expect(buildOverlayPositionKeyframesFromPositionQuery({ plan, video, overlay, positions }))
+      .toMatchObject([
+        { time: 5, x: 100, y: 110 },
+        { time: 6, x: 80, y: 100 },
+      ]);
+  });
+
+  it('fails closed when a Rust position response is absent or mismatched instead of using TS positions', () => {
     const video = { ...baseVideo(), offset: 2 };
     const overlay = baseOverlay();
     const samples = [{ tSec: 2, boundingBox: { x: 0, y: 0, width: 1, height: 1 } }];
-    const kfs = buildOverlayPositionKeyframesFromVisionTrack({
-      samples,
+    const plan = buildVisionTrackPositionQueryPlan({ samples, video, overlay });
+
+    expect(() => buildOverlayPositionKeyframesFromPositionQuery({
+      plan,
       video,
       overlay,
-      allObjects: [video, overlay]
-    });
-    expect(kfs[0].time).toBeCloseTo(5);
+      positions: [],
+    })).toThrow(/position query/i);
   });
+
 });

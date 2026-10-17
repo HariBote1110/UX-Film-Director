@@ -19,20 +19,33 @@ afterEach(() => {
 });
 
 describe('Rust evaluated geometry frame store', () => {
+  it('rejects late evaluations after dispose clears the expected revision', () => {
+    expectRustSceneEvaluatedGeometryRevision({ sceneId: 'scene-a', revision: 4 });
+    publishRustSceneEvaluatedGeometryFrame(evaluation(4, 1));
+    expect(getRustSceneEvaluatedGeometryFrame()).not.toBeNull();
+
+    expectRustSceneEvaluatedGeometryRevision(null);
+    publishRustSceneEvaluatedGeometryFrame(evaluation(4, 2));
+    expect(getRustSceneEvaluatedGeometryFrame()).toBeNull();
+  });
+
   it('publishes evaluated frames and ignores late older revision results', () => {
     const listener = vi.fn();
     const unsubscribe = subscribeRustSceneEvaluatedGeometryFrame(listener);
+    expectRustSceneEvaluatedGeometryRevision({ sceneId: 'scene-a', revision: 4 });
     publishRustSceneEvaluatedGeometryFrame(evaluation(4, 1));
+    expectRustSceneEvaluatedGeometryRevision({ sceneId: 'scene-a', revision: 5 });
     publishRustSceneEvaluatedGeometryFrame(evaluation(5, 2));
     publishRustSceneEvaluatedGeometryFrame(evaluation(4, 3));
     expect(getRustSceneEvaluatedGeometryFrame()).toMatchObject({ revision: 5, frameIndex: 2 });
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
     unsubscribe();
   });
 
   it('only clears the matching scene/revision and settles subscribers on clear', () => {
     const listener = vi.fn();
     const unsubscribe = subscribeRustSceneEvaluatedGeometryFrame(listener);
+    expectRustSceneEvaluatedGeometryRevision({ sceneId: 'scene-a', revision: 5 });
     publishRustSceneEvaluatedGeometryFrame(evaluation(5, 2));
     clearRustSceneEvaluatedGeometryFrame('scene-b');
     expect(getRustSceneEvaluatedGeometryFrame()).not.toBeNull();

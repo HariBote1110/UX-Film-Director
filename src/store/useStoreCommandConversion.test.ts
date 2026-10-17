@@ -178,13 +178,13 @@ describe('useStore の pushHistoryCommand 変換(R4-8 group c)', () => {
     expect(shiftCommand).toMatchObject({ kind: 'setObjectField', objectId: 'C', field: 'startTime', previous: 12, next: 7 });
   });
 
-  it('splitObject: RemoveObject + AddObject×2をBatchに積む', () => {
+  it('splitObject: RemoveObject + AddObject×2をBatchに積む', async () => {
     useStore.getState().addObject(shape('A', 0, 0, 10));
     useStore.getState().selectObjects(['A']);
     useStore.getState().setTime(4);
     useStore.setState({ pastCommands: [] });
 
-    useStore.getState().splitObject();
+    await useStore.getState().splitObject();
 
     const commands = useStore.getState().pastCommands;
     expect(commands).toHaveLength(1);

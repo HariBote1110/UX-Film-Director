@@ -1,47 +1,42 @@
-# P4 編集用位置query基盤とキー追加の初回移行
+# P4 編集用位置query基盤と任意時刻操作
 
 ## 決定
 
-- 任意秒の位置は`scene.evaluate`のframe snapshotから逆算せず、revision付きの
-  `EditableSceneGraph`を保持するRust sessionに対して`scene.query_object_positions`
-  を呼ぶ。`scene.replace`は従来の`project`+`media`を維持しつつ、graph-only payload
-  も受け付ける。graph-onlyはRust builderを必ず実行し、非対応診断は`-32065`で
-  rejectする。TS側評価へはfallbackしない。
-- query identityは`sceneId`/`revision`/`requestId`/`objectId`/`timeSeconds`。
-  `timeSeconds`はAPI境界でf64を保持・echoし、座標など描画値は既存のf32契約を保つ。
-  Rust responseは`typed_to_value_preserving_f32`でJSON化して、f32由来の桁ノイズを
-  UIへ戻さない。TS clientもqueryごとのidentityを厳密に照合する。
-- key追加の初回移行は`VITE_UXFD_RUST_EDIT_POSITION_QUERY=1`のopt-inとし、現行
-  scene graphが`Viewport`から送信され、同revisionのresident ackを受けるまで待つ。
-  graph更新によるsupersede、scene失敗、controller dispose、graph送信無効時は
-  pending actionをreject/settleする。query応答後もscene/対象/time/graph参照を再検査し、
-  操作中に変わっていたら挿入を中止する。
-- TSのkeyframe挿入に使う値はobject-localのlogical origin。textのpadding補正前の
-  座標を維持する。Rust world値は可視対象layerとRust group builderの数値layer差・
-  hidden layer規則に合わせる。TS側の別transform graphは追加しない。
+- 任意秒の位置は`scene.evaluate`のframe snapshotから逆算せず、revision付きの`EditableSceneGraph`を保持するRust sessionへ`scene.query_object_positions`を呼ぶ。`scene.replace`は従来の`project`+`media`とgraph-only payloadの両方を受け付ける。graph-onlyではRust builderを実行し、resident非対応診断は`-32065`でrejectする。TS側評価へfallbackしない。
+- query identityは`sceneId`/`revision`/`requestId`/`objectId`/`timeSeconds`。`timeSeconds`はAPI境界でf64のまま保持・echoし、描画座標などは既存f32契約を維持する。Rust responseはf32由来の桁ノイズを増やさない形でJSON化し、TS clientはidentityと有限座標を検証する。
+- `worldPosition`はgroup translationとvibrationを合成する。別フィールド`groupTranslation`は親groupの平行移動のみを表し、vibrationを含めない。
+- UI queryは`VITE_UXFD_RUST_EDIT_POSITION_QUERY=1`のopt-in。現在のgraphがViewportから送信され、同revisionのresident ackが届くまで待つ。graph supersede、scene失敗、controller dispose、graph送信無効化はpending actionをsettle/rejectする。
+- query結果適用前にscene、対象object、選択、再生時刻、project/layer/object graph参照を再検査する。TS側のlocal位置はtext decoration補正前のlogical originを維持する。Rust world値は可視layerとgroup builderの規則に従う。
 
-## 完了した初回範囲と残作業
+## PropertyPanelのキー追加
 
-- Rust coreの任意秒query、backendのgraph-only置換/raw graph保持/query RPC、Electron
-  bridge配線、およびPropertyPanelのキー追加opt-in移行が完了。
-- `worldPosition`はRust builderのgroup translationと共通vibration helperを合成し、
-  `groupTranslation`はvibrationを含めない親groupの平行移動だけを返す。text-decoration
-  のVision移行はこの値をoverlayのworld座標へ足す契約で進める。
-- PropertyPanelのキー追加は、同revisionのresident ackを待ってから`localPosition`を使う。
-  React closureから遅れている可能性のあるobject値を避け、action開始時にstoreからcaptureした
-  objectだけでclamp/keyframe/easingを組み立てる。非同期中にscene/object/time/graphが変われば
-  適用しない。Rust位置queryのopt-in flagはraw graph送信と一緒に有効化する。
-- このworktreeからnative overlayを無効にしたElectronを起動し、CDPで実PropertyPanelの
-  「＋キー」を操作した。raw graph resident (`sceneSource: rust`) の状態でt=2.5に(150,105)、
-  t=5に(200,130)が追加されることを確認。新規objectでt=2.5をクリック直後にt=4へ変更した
-  場合はt=2.5/t=4のどちらも挿入されず、通常のt=5追加は成功した。
-- split位置・vision tracking任意時刻・scene hit-test/selectionへの移行は別単位として残る。
+- `handleAddCurrentKeyframe`は同revisionのresident ack後に`localPosition`を採用する。action開始時にstoreからcaptureしたobjectを使い、React closureの古い値からkeyframeを作らない。
+- scene/object/time/graphが非同期中に変わった場合はkeyframeを適用しない。opt-in flagはraw graph送信と合わせて有効化する。
+- native overlayを無効にしたElectronを起動してCDPから実UIを操作し、raw graph residentでの通常追加と、クリック直後にplayheadを変更した場合のstale応答破棄を確認した。
+
+## Vision tracking移行
+
+- opt-in中は各sampleのvideo/overlayを同じraw timeline秒でRust queryし、応答identityと座標を検査してkeyframeを組み立てる。応答欠落・revision不一致・action staleは中断し、TS評価へfallbackしない。
+- 既存意味論に合わせ、video bbox中心はRust `localPosition`と元のbase rotation/scaleから算出する。overlay位置は`localPosition + groupTranslation`で作り、`worldPosition`に入るvibrationをdeltaへ混ぜない。各時刻でgroup平行移動を差し引き、従来のTS directと同じlocal位置を得る。
+- CoreML応答後、resident revision ack後、position query後、適用直前にscene・selection・再生時刻・project/layer/object graph参照を確認する。overlay選択IDも確認し、遅れて返った結果を適用しない。
+- flag OFF時は従来のTS directを維持する。flag ONでqueryが失敗した場合は終了し、誤ったfallback位置を使わない。
+
+## Split位置移行
+
+- `splitObject`は`Promise<void>`を返す。query opt-in中は現在のtimeline raw秒と対象object idでRust `localPosition`を取得し、既存の分割・keyframe同期・Batch commandを実行する。flag OFF時は従来のTS直接評価を維持する。
+- resident ack後・query response後にscene、selected id/selectedIds、時刻、settings/layers/objects参照、target object同一性、layer lockを再検証する。どれかが変わればstate/historyを変更しない。
+- toolbarとcontext menuは`void splitObject()`で非同期actionを起動する。query失敗はaction内部で記録・表示し、TS評価にfallbackしない。成功時はRemove + Add×2を1つのUndo Batchとして記録する。
+- graph supersede/controller disposeは専用cancelled errorとして扱い、store参照が未更新の瞬間でも正常取消として静かに終了する。Vision trackingも同じcancelled errorとaction identityを確認してから障害通知する。
+
+## 未対応範囲
+
+- scene hit-test/selectionへの位置query移行は別タスクとして残る。
+- 実Electron/CDPによるVision trackingとsplit操作の統合確認は未実施。純粋位置計算、query/RPC、store stale guard、既存PropertyPanel境界をVitestとTypeScript型チェックで確認している。
 
 ## 検証
 
 - `cargo test --manifest-path rust-core/Cargo.toml --test editable_scene_position_query`
 - `cargo test --manifest-path rust-backend/Cargo.toml --bin uxfd-rust-backend graph_only_replace_builds_and_retains_raw_graph_for_unquantised_queries`
+- `npx vitest run src/utils/visionTrackingKeyframes.test.ts src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/components/PropertyPanelBoundary.test.ts src/components/PropertyPanelPlaybackIsolation.test.ts`
+- `npx vitest run src/store/useStoreSplitPositionQuery.test.ts src/store/useStoreCommandConversion.test.ts`
 - `npx tsc --noEmit`
-- `npm test -- --run src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts`
-- `npx vitest run src/utils/rustBackendSceneControl.test.ts src/utils/rustBackendSceneControlBoundary.test.ts src/utils/rustScenePositionQueryRevision.test.ts src/utils/sharedRendererScenePreviewScheduler.test.ts`
-- Electron/CDP manual check: raw graph resident, ordinary key insertion and immediate playhead-change stale guard

@@ -20,6 +20,17 @@ export interface RustScenePositionQueryActionIdentity {
   objects: readonly unknown[];
 }
 
+export class RustScenePositionQueryCancelledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RustScenePositionQueryCancelledError';
+  }
+}
+
+export const isRustScenePositionQueryCancelled = (error: unknown): error is RustScenePositionQueryCancelledError => (
+  error instanceof RustScenePositionQueryCancelledError
+);
+
 export const isRustScenePositionQueryActionCurrent = (
   captured: RustScenePositionQueryActionIdentity,
   current: RustScenePositionQueryActionIdentity,
@@ -87,7 +98,9 @@ export const publishRustScenePositionQueryTarget = (target: RustScenePositionQue
   for (const waiter of waiters) {
     if (!sameGraph(waiter.target, target)
       || (waiter.revision !== null && waiter.revision !== target.revision)) {
-      settleWaiter(waiter, new Error('Rust scene position query was superseded by a newer graph revision.'));
+      settleWaiter(waiter, new RustScenePositionQueryCancelledError(
+        'Rust scene position query was superseded by a newer graph revision.'
+      ));
     } else if (waiter.revision === null) {
       waiter.revision = target.revision;
     }
@@ -130,7 +143,9 @@ export const clearRustScenePositionQueryRevision = (detail = 'controller dispose
   currentResident = null;
   currentFailure = null;
   for (const waiter of waiters) {
-    settleWaiter(waiter, new Error(`Rust scene position query is unavailable: ${detail}`));
+    settleWaiter(waiter, new RustScenePositionQueryCancelledError(
+      `Rust scene position query is unavailable: ${detail}`
+    ));
   }
 };
 

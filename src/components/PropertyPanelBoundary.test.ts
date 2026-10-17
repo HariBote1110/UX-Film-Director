@@ -15,6 +15,22 @@ describe('PropertyPanel aspect ratio controls', () => {
   });
 });
 
+describe('PropertyPanel Vision query cancellation boundary', () => {
+  it('古いactionのposition query取消は障害通知を出さず終了する', () => {
+    const visionRunStart = source().indexOf('const handleVisionTrackRun = async () => {');
+    const warningStart = source().indexOf("console.warn('[PropertyPanel] Rust Vision position query failed:'", visionRunStart);
+    const alertStart = source().indexOf('window.alert(language === \'en\'', warningStart);
+    const catchStart = source().lastIndexOf('} catch (error) {', warningStart);
+
+    expect(visionRunStart).toBeGreaterThanOrEqual(0);
+    expect(warningStart).toBeGreaterThan(visionRunStart);
+    expect(alertStart).toBeGreaterThan(warningStart);
+    expect(source().slice(catchStart, warningStart)).toContain(
+      'if (isRustScenePositionQueryCancelled(error) || !isCapturedActionCurrent()) return;'
+    );
+  });
+});
+
 describe('PropertyPanel AviUtl motion preset controls', () => {
   it('exposes AviUtlPackV4 motion presets through the keyframe panel', () => {
     const code = source();

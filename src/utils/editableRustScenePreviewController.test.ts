@@ -3,7 +3,6 @@ import type { LayerState, ProjectSettings, PsdObject, ShapeObject, VideoObject }
 import type { SharedRendererScenePreviewScheduler } from './sharedRendererScenePreviewScheduler';
 import {
   createEditableRustScenePreviewController,
-  EditableRustSceneUnsupportedError,
   shouldAttachEditableRustScene,
   shouldUseRawEditableSceneGraphOnly,
 } from './editableRustScenePreviewController';
@@ -108,13 +107,14 @@ const scheduler = () => ({
 
 describe('editableRustScenePreviewController', () => {
   it.each([
-    ['1', undefined, true],
-    [undefined, 'basic', true],
-    [undefined, '  basic,generated  ', true],
-    [undefined, '', false],
-    ['0', undefined, false],
-  ])('dual-run=%s、cut-over=%s の editableScene 添付判定は %s', (dualRun, cutover, expected) => {
-    expect(shouldAttachEditableRustScene(dualRun, cutover)).toBe(expected);
+    ['1', undefined, undefined, true],
+    [undefined, 'basic', undefined, true],
+    [undefined, '  basic,generated  ', undefined, true],
+    [undefined, '', undefined, true],
+    ['0', undefined, undefined, true],
+    [undefined, undefined, '0', false],
+  ] as const)('dual-run=%s、cut-over=%s、raw=%s のRust graph経路判定は %s', (dualRun, cutover, raw, expected) => {
+    expect(shouldAttachEditableRustScene(dualRun, cutover, raw)).toBe(expected);
   });
   it('raw graph専用flagが既存のeditable scene controllerを有効化する', () => {
     expect(shouldAttachEditableRustScene(undefined, undefined, '1')).toBe(true);
@@ -123,12 +123,13 @@ describe('editableRustScenePreviewController', () => {
   it.each([
     ['1', true],
     ['0', false],
-    [undefined, false],
+    ['', true],
+    [undefined, true],
   ] as const)('raw-graph-only flag=%s は %s', (flag, expected) => {
     expect(shouldUseRawEditableSceneGraphOnly(flag)).toBe(expected);
   });
 
-  it('編集時だけProjectを更新してrevisionを進め、時刻更新はframe要求だけを送る', () => {
+  it('編集時だけraw graphを更新してrevisionを進め、時刻更新はframe要求だけを送る', () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
@@ -148,17 +149,20 @@ describe('editableRustScenePreviewController', () => {
 
     expect(sceneScheduler.submitRevision).toHaveBeenCalledTimes(2);
     expect(sceneScheduler.submitRevision.mock.calls.map(([payload]) => payload.revision)).toEqual([41, 42]);
-    expect(sceneScheduler.submitRevision.mock.calls[0][0]).not.toHaveProperty('editableScene');
+    expect(sceneScheduler.submitRevision.mock.calls[0][0]).toMatchObject({
+      editableScene: { mediaContext: { purpose: 'previewProxy' } },
+    });
+    expect(sceneScheduler.submitRevision.mock.calls[0][0]).not.toHaveProperty('project');
+    expect(sceneScheduler.submitRevision.mock.calls[0][0]).not.toHaveProperty('media');
     expect(sceneScheduler.requestFrame).toHaveBeenCalledWith(75);
     expect(sceneScheduler.invalidate).not.toHaveBeenCalled();
   });
 
-  it('renderer flagが有効なときだけ同じZustand入力からeditableSceneを追加する', () => {
+  it('既定preview経路はRust builder向けのraw graphだけを送る', () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
-      includeEditableScene: true,
       initialRevision: 40,
     });
 
@@ -173,6 +177,8 @@ describe('editableRustScenePreviewController', () => {
         mediaContext: { purpose: 'previewProxy', sceneId: 'preview:project-1' },
       },
     });
+    expect(payload).not.toHaveProperty('project');
+    expect(payload).not.toHaveProperty('media');
   });
 
   it('raw graph専用モードはTS builderを通さずproject/mediaを送らない', () => {
@@ -180,7 +186,6 @@ describe('editableRustScenePreviewController', () => {
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
-      rawGraphOnly: true,
       initialRevision: 40,
     });
     const unsupportedUntilBackendBuilds = shape({ clipping: true });
@@ -212,7 +217,6 @@ describe('editableRustScenePreviewController', () => {
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
-      rawGraphOnly: true,
       initialRevision: 40,
     });
 
@@ -241,7 +245,6 @@ describe('editableRustScenePreviewController', () => {
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
       initialRevision: 40,
-      includeEditableScene: true,
     });
 
     await expect(controller.confirmSceneForExport({
@@ -254,7 +257,7 @@ describe('editableRustScenePreviewController', () => {
     }));
   });
 
-  it('legacy resident exportはprojectとmediaの両方にoriginal video sourceを渡す', async () => {
+  it('default exportはexportOriginalのraw graphだけをRustへ送る', async () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
@@ -270,22 +273,20 @@ describe('editableRustScenePreviewController', () => {
     });
 
     const payload = sceneScheduler.confirmExportRevision.mock.calls[0][0];
-    expect(payload.project.media[0]).toMatchObject({
-      id: 'video-1',
-      source: '/media/original.mp4',
+    expect(payload).toMatchObject({
+      editableScene: {
+        mediaContext: { purpose: 'exportOriginal', sceneId: 'export:project-1' },
+      },
     });
-    expect(payload.media[0]).toMatchObject({
-      id: 'video-1',
-      source: '/media/original.mp4',
-    });
+    expect(payload).not.toHaveProperty('project');
+    expect(payload).not.toHaveProperty('media');
   });
 
-  it('未対応graphは専用eligibility errorとして返し、RPC障害と区別できる', async () => {
+  it('eligibilityはRust側へ委譲し未対応graphもraw payloadで送る', async () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
-      includeEditableScene: true,
     });
 
     await expect(controller.confirmSceneForExport({
@@ -293,8 +294,12 @@ describe('editableRustScenePreviewController', () => {
       projectSettings,
       layers,
       objects: [shape({ clipping: true })],
-    })).rejects.toBeInstanceOf(EditableRustSceneUnsupportedError);
-    expect(sceneScheduler.confirmExportRevision).not.toHaveBeenCalled();
+    })).resolves.toMatchObject({ sceneSource: 'rust' });
+    expect(sceneScheduler.confirmExportRevision).toHaveBeenCalledWith(expect.objectContaining({
+      editableScene: expect.objectContaining({
+        objects: [expect.objectContaining({ clipping: true })],
+      }),
+    }));
   });
 
   it('export確認のeditableSceneからPSDのIPC非clone runtime値を除去する', async () => {
@@ -303,7 +308,6 @@ describe('editableRustScenePreviewController', () => {
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
       initialRevision: 40,
-      includeEditableScene: true,
     });
 
     await controller.confirmSceneForExport({
@@ -317,11 +321,12 @@ describe('editableRustScenePreviewController', () => {
     expect(() => structuredClone(payload)).not.toThrow();
   });
 
-  it('未対応編集は旧sceneを無効化し、問題を呼び出し側へ返す', () => {
+  it('未対応編集もRust eligibility判定へ委譲する', () => {
     const sceneScheduler = scheduler();
     const controller = createEditableRustScenePreviewController({
       sceneId: 'preview:project-1',
       scheduler: sceneScheduler,
+      initialRevision: 40,
     });
 
     controller.replaceScene({ projectSettings, layers, objects: [shape()] });
@@ -341,11 +346,12 @@ describe('editableRustScenePreviewController', () => {
       })],
     });
 
-    expect(result).toMatchObject({
-      ok: false,
-      issues: [{ objectId: 'shape-1', code: 'unsupportedGroup' }],
+    expect(result).toEqual({ ok: true, revision: 42 });
+    expect(sceneScheduler.invalidate).not.toHaveBeenCalled();
+    expect(sceneScheduler.submitRevision).toHaveBeenCalledTimes(2);
+    expect(sceneScheduler.submitRevision.mock.calls[1][0].editableScene?.objects[0]).toMatchObject({
+      groupId: 'group-1',
+      groupGradient: { enabled: true },
     });
-    expect(sceneScheduler.invalidate).toHaveBeenCalledTimes(1);
-    expect(sceneScheduler.submitRevision).toHaveBeenCalledTimes(1);
   });
 });

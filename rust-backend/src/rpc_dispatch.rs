@@ -224,6 +224,22 @@ mod tests {
         })
     }
 
+    fn unsupported_mask_editable_scene_graph() -> uxfd_rust_core::EditableSceneGraph {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
+        ))
+        .expect("editable scene coverage fixture");
+        let mut graph = fixture["graph"].clone();
+        let shape = graph["objects"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|object| object["id"] == "shape")
+            .expect("coverage fixture shape");
+        shape["clipping"] = json!(true);
+        serde_json::from_value(graph).unwrap()
+    }
+
     fn basic_cutover() -> SceneBuilderCutover {
         parse_scene_builder_cutover(Some("basic")).expect("basic cut-over config")
     }
@@ -307,17 +323,13 @@ mod tests {
 
     #[test]
     fn scene_replace_reports_eligibility_mismatch_for_ineligible_rust_graph() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
-        ))
-        .unwrap();
-        let graph: uxfd_rust_core::EditableSceneGraph =
-            serde_json::from_value(fixture["graph"].clone()).unwrap();
+        let graph = unsupported_mask_editable_scene_graph();
         let built = build_evaluation_scene(&graph);
-        assert!(
-            !built.resident_eligible,
-            "coverage graph must contain resident diagnostics"
-        );
+        assert!(!built.resident_eligible);
+        assert!(built
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "unsupportedMask"));
         let params = json!({ "sceneId": "eligibility", "revision": 1, "project": built.project, "media": built.media, "editableScene": graph });
         let response = handle_scene_replace_with_scene_builder(
             1,
@@ -509,12 +521,12 @@ mod tests {
             assert_eq!(result["sceneFallbackReason"], reason, "{scene_id}");
         }
 
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../rust-core/tests/fixtures/editable-scene-builder/all-object-types.json"
-        ))
-        .unwrap();
-        let graph = fixture["graph"].clone();
-        let built = build_evaluation_scene(&serde_json::from_value(graph.clone()).unwrap());
+        let graph: uxfd_rust_core::EditableSceneGraph = unsupported_mask_editable_scene_graph();
+        let built = build_evaluation_scene(&graph);
+        assert!(built
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "unsupportedMask"));
         let response = handle_scene_replace_with_scene_builder(
             1,
             json!({ "sceneId": "not-eligible", "revision": 1, "project": built.project, "media": built.media, "editableScene": graph }),
