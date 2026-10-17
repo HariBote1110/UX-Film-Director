@@ -50,6 +50,18 @@ const sameGraph = (left: RustScenePositionQueryTarget, right: RustScenePositionQ
   && left.objects === right.objects
 );
 
+export const getRustScenePositionQueryTarget = (): RustScenePositionQueryTarget | null => currentTarget;
+
+export const rustScenePositionQueryTargetMatchesGraph = (
+  target: RustScenePositionQueryTarget | null,
+  expected: Pick<RustScenePositionQueryTarget, 'sceneId' | 'revision' | 'projectSettings' | 'layers' | 'objects'>,
+): boolean => target !== null
+  && target.sceneId === expected.sceneId
+  && target.revision === expected.revision
+  && target.projectSettings === expected.projectSettings
+  && target.layers === expected.layers
+  && target.objects === expected.objects;
+
 const settleWaiter = (waiter: PendingWaiter, error?: Error, revision?: number) => {
   clearTimeout(waiter.timeoutId);
   waiters.delete(waiter);

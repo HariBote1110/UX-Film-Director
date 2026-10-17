@@ -5,6 +5,7 @@ import {
 } from './sceneSelectionOverlayGeometry';
 import type { SceneCamera, SceneHitTestViewport } from '../utils/sceneHitTest';
 import type { TimelineObject } from '../types';
+import type { RustEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometry';
 
 /**
  * `SceneSelectionOverlay.tsx` から選択枠のジオメトリ計算を純関数へ切り出すための
@@ -52,6 +53,31 @@ const imageObject = (overrides: Partial<Record<string, unknown>> = {}): Timeline
   ...overrides,
 } as unknown as TimelineObject);
 
+const frameFor = (objects: TimelineObject[], time: number): RustEvaluatedGeometryFrame => {
+  const clips = objects.filter((object) => time >= object.startTime && time < object.startTime + object.duration).map((object, zIndex) => ({
+    clip_id: object.id,
+    track_id: String(object.layer),
+    media_id: `media-${object.id}`,
+    source_frame: 0,
+    z_index: zIndex,
+    transform: {
+      translation_x: object.x,
+      translation_y: object.y,
+      scale_x: object.scaleX ?? 1,
+      scale_y: object.scaleY ?? 1,
+      rotation_degrees: object.rotation ?? 0,
+      sampling: 'bilinear' as const,
+    },
+    opacity: object.opacity,
+    effects: [],
+  }));
+  return {
+    sceneId: 'test', revision: 1, frameIndex: 0,
+    snapshot: { frame_index: 0, colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' }, clips },
+    media: objects.map((object) => { const sized = object as TimelineObject & { width?: number; height?: number }; return ({ id: `media-${object.id}`, kind: 'GeneratedShape' as const, source: '{}', width: sized.width ?? 100, height: sized.height ?? 50 }); }),
+  };
+};
+
 describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', () => {
   it('SCENE_SELECTION_RESIZE_HANDLE_SIZE は現行 SceneSelectionOverlay.tsx の RESIZE_HANDLE_SIZE と同じ 10', () => {
     expect(SCENE_SELECTION_RESIZE_HANDLE_SIZE).toBe(10);
@@ -74,8 +100,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport: baseViewport,
     });
 
@@ -106,8 +131,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport,
     });
 
@@ -146,8 +170,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport,
     });
 
@@ -190,8 +213,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport: baseViewport,
     });
 
@@ -214,8 +236,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1'],
-      objects,
-      time: 0,
+      frame: frameFor(objects, 0),
       viewport: baseViewport,
     });
 
@@ -232,8 +253,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-2'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport: baseViewport,
     });
 
@@ -250,8 +270,7 @@ describe('computeSceneSelectionOverlayGeometry: ジオメトリ計算契約', ()
 
     const result = computeSceneSelectionOverlayGeometry({
       selectedIds: ['obj-1', 'obj-2'],
-      objects,
-      time: 5,
+      frame: frameFor(objects, 5),
       viewport: baseViewport,
     });
 

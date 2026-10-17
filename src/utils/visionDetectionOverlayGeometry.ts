@@ -1,11 +1,8 @@
-import type { TimelineObject, VideoObject } from '../types';
+import type { VideoObject } from '../types';
 import type { VisionDetectionOverlayState } from '../store/storeTypes';
 import { visionNormBoundingBoxToVideoLocalRect } from './visionTrackingGeometry';
-import {
-  objectLocalPointToWorldPoint,
-  worldPointToCssPoint,
-  type SceneHitTestViewport,
-} from './sceneHitTest';
+import { worldPointToCssPoint, type SceneHitTestViewport } from './sceneHitTest';
+import { rustEvaluatedObjectLocalPointToWorld, type RustEvaluatedGeometryFrame } from './rustSceneEvaluatedGeometry';
 
 /**
  * Vision 検出枠（cat/dog の単フレーム検出プレビュー）を SVG polygon として
@@ -49,16 +46,17 @@ export const buildVisionDetectionOverlayBoxes = ({
   video,
   overlay,
   time,
-  objects,
+  frame,
   viewport,
 }: {
   video: VideoObject;
   overlay: VisionDetectionOverlayState;
   time: number;
-  objects: TimelineObject[];
+  frame: RustEvaluatedGeometryFrame | null;
   viewport: SceneHitTestViewport;
 }): VisionDetectionOverlayBoxesResult | null => {
   if (overlay.videoId !== video.id) return null;
+  if (!frame) return null;
   if (overlay.observations.length === 0) return null;
 
   const localT = time - video.startTime;
@@ -79,10 +77,11 @@ export const buildVisionDetectionOverlayBoxes = ({
       { x: rect.x, y: rect.y + rect.height },
     ];
     const points = localCorners
-      .map((local) => worldPointToCssPoint(
-        objectLocalPointToWorldPoint(local, video, time, objects),
-        viewport
-      ))
+      .map((local) => {
+        const world = rustEvaluatedObjectLocalPointToWorld(frame, video.id, local);
+        return world ? worldPointToCssPoint(world, viewport) : null;
+      })
+      .filter((point): point is { x: number; y: number } => point !== null)
       .map(formatPoint)
       .join(' ');
 

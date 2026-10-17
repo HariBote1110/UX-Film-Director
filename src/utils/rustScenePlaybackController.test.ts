@@ -84,6 +84,11 @@ describe('RustScenePlaybackController', () => {
       startTimeSeconds: 0.5,
       durationSeconds: 2,
     })).resolves.toMatchObject({ active: true, frameIndex: 30 });
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'started',
+      frameIndex: 30,
+      evaluation: expect.objectContaining({ sceneId: 'scene-1', revision: 7, frameIndex: 30 }),
+    }));
     expect(evaluateScene).toHaveBeenCalledWith({
       sceneId: 'scene-1',
       revision: 7,
@@ -153,6 +158,16 @@ describe('RustScenePlaybackController', () => {
     await vi.waitFor(() => expect(controller.diagnostics.presentedFrames).toBe(2));
     expect(emit).toHaveBeenCalledTimes(1);
 
+    nowMs = 200;
+    (scheduled as unknown as (() => void))();
+    await vi.waitFor(() => expect(emit).toHaveBeenCalledTimes(2));
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'playing',
+      frameIndex: 12,
+      evaluation: expect.objectContaining({ sceneId: 'scene-1', revision: 7, frameIndex: 12 }),
+    }));
+    expect(controller.diagnostics.requestedFrames).toBe(3);
+
     nowMs = 500;
     (scheduled as unknown as (() => void))();
     await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({
@@ -161,6 +176,48 @@ describe('RustScenePlaybackController', () => {
       isPlaying: false,
     })));
     expect(emit.mock.calls.filter(([payload]) => payload.status === 'ended')).toHaveLength(1);
+    expect(emit.mock.calls.find(([payload]) => payload.status === 'ended')?.[0]).not.toHaveProperty('evaluation');
+  });
+
+  it('pause中に遅れたpresentを評価済みとして通知せず、次revision開始では旧evaluationを再利用しない', async () => {
+    let nowMs = 0;
+    let scheduled: (() => void) | null = null;
+    const slowPresent = {
+      release: null as ((response: { success: boolean; attached: boolean }) => void) | null,
+    };
+    let presentCount = 0;
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ sceneId, revision, frameIndex }) => ({ ...evaluation(frameIndex), sceneId, revision }),
+      presentScene: async () => {
+        presentCount += 1;
+        if (presentCount === 2) return new Promise((resolve) => { slowPresent.release = resolve; });
+        return { success: true, attached: true };
+      },
+      emit,
+      nowMs: () => nowMs,
+      schedule: (callback) => { scheduled = callback; return 1; },
+      cancel: vi.fn(),
+      uiIntervalMs: 0,
+    });
+
+    await controller.start({ windowId: 4, sceneId: 'scene-1', revision: 7, fps: 30, startTimeSeconds: 0, durationSeconds: 2 });
+    nowMs = 34;
+    (scheduled as (() => void) | null)?.();
+    await vi.waitFor(() => expect(presentCount).toBe(2));
+    const paused = controller.pause();
+    expect(paused).toMatchObject({ status: 'paused', frameIndex: 1 });
+    expect(paused).not.toHaveProperty('evaluation');
+    slowPresent.release?.({ success: true, attached: true });
+    await Promise.resolve();
+
+    nowMs = 1_000;
+    await controller.start({ windowId: 4, sceneId: 'scene-1', revision: 8, fps: 30, startTimeSeconds: 1, durationSeconds: 2 });
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'started',
+      frameIndex: 30,
+      evaluation: expect.objectContaining({ revision: 8, frameIndex: 30 }),
+    }));
   });
 
   it('resident Videoをmain所有のnative scene presentへ渡す', async () => {

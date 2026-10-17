@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildVisionDetectionOverlayBoxes, VISION_DETECTION_OVERLAY_COLOURS } from './visionDetectionOverlayGeometry';
 import type { SceneHitTestViewport } from './sceneHitTest';
-import type { TimelineObject, VideoObject } from '../types';
+import type { VideoObject } from '../types';
+import type { RustEvaluatedGeometryFrame } from './rustSceneEvaluatedGeometry';
 import type { VisionDetectionOverlayState } from '../store/storeTypes';
 
 const viewport: SceneHitTestViewport = {
@@ -51,15 +52,23 @@ const overlayState = (patch: Partial<VisionDetectionOverlayState> = {}): VisionD
   ...patch,
 });
 
+const frameFor = (object: VideoObject): RustEvaluatedGeometryFrame => ({
+  sceneId: 'test', revision: 1, frameIndex: 60,
+  snapshot: { frame_index: 60, colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' }, clips: [{
+    clip_id: object.id, track_id: String(object.layer), media_id: 'video-media', source_frame: 60, z_index: 0,
+    transform: { translation_x: object.x, translation_y: object.y, scale_x: object.scaleX ?? 1, scale_y: object.scaleY ?? 1, rotation_degrees: object.rotation ?? 0, sampling: 'bilinear' }, opacity: object.opacity, effects: [],
+  }] },
+  media: [{ id: 'video-media', kind: 'Video', source: '', width: object.width, height: object.height }],
+});
+
 describe('buildVisionDetectionOverlayBoxes', () => {
   it('正規化bboxを動画ローカル→ワールド→CSSへ変換したSVG polygon点列を返す', () => {
     const obj = video();
-    const objects: TimelineObject[] = [obj];
     const result = buildVisionDetectionOverlayBoxes({
       video: obj,
       overlay: overlayState(),
       time: 2,
-      objects,
+      frame: frameFor(obj),
       viewport,
     });
 
@@ -79,7 +88,7 @@ describe('buildVisionDetectionOverlayBoxes', () => {
       video: obj,
       overlay: overlayState({ mediaTimeSec: 5 }),
       time: 2,
-      objects: [obj],
+      frame: frameFor(obj),
       viewport,
     });
 
@@ -93,7 +102,7 @@ describe('buildVisionDetectionOverlayBoxes', () => {
       video: obj,
       overlay: overlayState({ observations: [] }),
       time: 2,
-      objects: [obj],
+      frame: frameFor(obj),
       viewport,
     });
 

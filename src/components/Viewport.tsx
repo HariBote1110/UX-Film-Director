@@ -11,7 +11,10 @@ import {
 import { shallow } from 'zustand/shallow';
 
 import { useSceneInteraction } from '../hooks/useSceneInteraction';
-import { hitTestSceneObjects, type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { hitTestRustEvaluatedScene } from '../utils/rustSceneEvaluatedGeometry';
+import { clearRustSceneEvaluatedGeometryFrame, expectRustSceneEvaluatedGeometryRevision, getRustSceneEvaluatedGeometryFrame, publishRustSceneEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometryStore';
+import { secondsToFrameIndex } from '../utils/rustSceneFrameRate';
+import type { SceneHitTestViewport } from '../utils/sceneHitTest';
 import { createStablePointerSubscription } from '../utils/sceneInteractionLogic';
 import { SceneSelectionDecorationLayer } from './SceneSelectionDecorationLayer';
 import { VisionDetectionOverlayLayer } from './VisionDetectionOverlayLayer';
@@ -36,6 +39,8 @@ import { createSharedRendererScenePreviewScheduler } from '../utils/sharedRender
 import { evaluateRustBackendScene, replaceRustBackendScene } from '../utils/rustBackendSceneControl';
 import {
   clearRustScenePositionQueryRevision,
+  getRustScenePositionQueryTarget,
+  rustScenePositionQueryTargetMatchesGraph,
   publishRustScenePositionQueryFailure,
   publishRustScenePositionQueryResident,
   publishRustScenePositionQueryTarget,
@@ -102,6 +107,7 @@ import {
   shouldPollNativeOverlayAttach,
 } from '../utils/nativeOverlayAttachPolling';
 import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDecoration';
+import { isRustScenePlaybackEvaluationCurrent } from '../utils/rustScenePlaybackEvaluation';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 import { shouldPresentSharedRendererEmptyScenePresentation } from '../utils/sharedRendererViewportEmptyScenePresentation';
 import { rendererSceneRpcCollector } from '../perf/rendererSceneRpcTrace';
@@ -139,6 +145,13 @@ interface RustNativePlaybackUiState {
   currentTimeSeconds: number;
   frameIndex: number;
   isPlaying: boolean;
+  evaluation?: {
+    sceneId: string;
+    revision: number;
+    frameIndex: number;
+    snapshot: unknown;
+    media: readonly unknown[];
+  };
   reason?: string;
   diagnostics?: {
     requestedFrames: number;
@@ -1517,8 +1530,7 @@ const Viewport: React.FC = () => {
         canvasHeight: projectSettings.height,
         quads: buildSelectionDecorationQuads({
           selectedIds: latestSelectedIdsRef.current,
-          objects: currentObjects,
-          time: previewTime,
+          frame: getRustSceneEvaluatedGeometryFrame(),
         }),
       }
       : undefined;
@@ -1850,6 +1862,8 @@ const Viewport: React.FC = () => {
   // tick が Project JSON の再変換・replace RPC を引き起こさない。
   useEffect(() => {
     if (!rustTimelineSceneRpcEnabled) {
+      expectRustSceneEvaluatedGeometryRevision(null);
+      clearRustSceneEvaluatedGeometryFrame();
       rustTimelineScenePreviewControllerRef.current?.dispose();
       rustTimelineScenePreviewControllerRef.current = null;
       setRustTimelineSceneRevision(null);
@@ -1875,6 +1889,8 @@ const Viewport: React.FC = () => {
           fallbackAdapter: rustTimelineScenePresentationRef.current.fallbackAdapter,
         });
         if (!session.surfaceGate.ok) {
+          expectRustSceneEvaluatedGeometryRevision(null);
+          clearRustSceneEvaluatedGeometryFrame(evaluation.sceneId, evaluation.revision);
           setSharedRendererPreviewSession(null);
           writeRustTimelineSceneRpcDiagnostics({
             status: 'blocked',
@@ -1884,6 +1900,7 @@ const Viewport: React.FC = () => {
           });
           return;
         }
+        publishRustSceneEvaluatedGeometryFrame(evaluation);
         writeRustTimelineSceneRpcDiagnostics({
           status: 'ready',
           projectId: useStore.getState().activeSceneId ?? null,
@@ -1897,6 +1914,8 @@ const Viewport: React.FC = () => {
         );
       },
       onFailure: (failure) => {
+        expectRustSceneEvaluatedGeometryRevision(null);
+        clearRustSceneEvaluatedGeometryFrame(failure.sceneId, failure.revision);
         publishRustScenePositionQueryFailure(
           failure.sceneId ?? 'viewport-rust-timeline',
           `${failure.operation}: ${failure.reason} (${failure.detail})`,
@@ -1932,6 +1951,8 @@ const Viewport: React.FC = () => {
     return () => {
       const clearedRef = rustTimelineScenePreviewControllerRef.current === controller;
       controller.dispose();
+      if (clearedRef) expectRustSceneEvaluatedGeometryRevision(null);
+      if (clearedRef) clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
       if (clearedRef) clearRustScenePositionQueryRevision('scene controller disposed');
       if (clearedRef) {
         rustTimelineScenePreviewControllerRef.current = null;
@@ -1954,6 +1975,8 @@ const Viewport: React.FC = () => {
     }
     const result = controller.replaceScene({ projectSettings, layers, objects });
     if (!result.ok) {
+      expectRustSceneEvaluatedGeometryRevision(null);
+      clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
       publishRustScenePositionQueryFailure(
         'viewport-rust-timeline',
         result.issues.map((issue) => `${issue.objectId}:${issue.code}`).join(', '),
@@ -1981,6 +2004,8 @@ const Viewport: React.FC = () => {
       clearRustScenePositionQueryRevision('editable scene graph is disabled');
     }
     setRustTimelineSceneRevision(result.revision);
+    expectRustSceneEvaluatedGeometryRevision({ sceneId: 'viewport-rust-timeline', revision: result.revision });
+    clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline', result.revision - 1);
     writeRustTimelineSceneRpcDiagnostics({
       status: 'pending',
       projectId: projectId ?? null,
@@ -2011,6 +2036,38 @@ const Viewport: React.FC = () => {
       }
       const playbackState = state as RustNativePlaybackUiState;
       writeRustNativePlaybackDiagnostics(playbackState);
+      const evaluation = playbackState.evaluation;
+      const latestState = useStore.getState();
+      const queryTarget = getRustScenePositionQueryTarget();
+      const evaluationIsCurrent = isRustScenePlaybackEvaluationCurrent({
+        evaluation,
+        status: playbackState.status,
+        currentTimeSeconds: playbackState.currentTimeSeconds,
+        fps: latestState.projectSettings.fps,
+        target: queryTarget,
+        projectSettings: latestState.projectSettings,
+        layers: latestState.layers,
+        objects: latestState.objects,
+      });
+      if (playbackState.status === 'failed') {
+        clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
+      } else if (evaluationIsCurrent && evaluation && evaluation.frameIndex === playbackState.frameIndex) {
+        const currentSettings = latestState.projectSettings;
+        const evaluatedSession = buildSharedRendererPreviewSessionFromEvaluatedScene({
+          evaluation: evaluation as Parameters<typeof buildSharedRendererPreviewSessionFromEvaluatedScene>[0]['evaluation'],
+          projectSettings: currentSettings,
+          editorMode: currentSettings.editorMode ?? '2d',
+          isExporting: useStore.getState().isExporting,
+          webGpuAvailable: rustTimelineScenePresentationRef.current.webGpuAvailable,
+          fallbackAdapter: rustTimelineScenePresentationRef.current.fallbackAdapter,
+        });
+        if (evaluatedSession.surfaceGate.ok) publishRustSceneEvaluatedGeometryFrame(evaluation as Parameters<typeof publishRustSceneEvaluatedGeometryFrame>[0]);
+        else clearRustSceneEvaluatedGeometryFrame(evaluation.sceneId, evaluation.revision);
+      } else {
+        // Native playback can report a clock frame newer than the last completed present.
+        // Keep selection geometry tied to the frame actually shown instead of retaining a stale quad.
+        clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
+      }
       setTime(playbackState.currentTimeSeconds);
       if (playbackState.status === 'ended') {
         setNativePlaybackActive(false);
@@ -2280,16 +2337,12 @@ const Viewport: React.FC = () => {
     const nativeOverlayDirectSceneEligible = nativeOverlayReady
       && isNativeOverlayDirectSceneSession(presenterRestartSession);
 
-    const restartObjects = latestObjectsRef.current;
     const restartSelectionDecoration = (session: SharedRendererPreviewSession) => ({
       canvasWidth: projectSettings.width,
       canvasHeight: projectSettings.height,
       quads: buildSelectionDecorationQuads({
         selectedIds: latestSelectedIdsRef.current,
-        objects: restartObjects,
-        time: session.surfaceGate.ok
-          ? session.surfaceGate.snapshot.frame_index / projectSettings.fps
-          : useStore.getState().currentTime,
+        frame: getRustSceneEvaluatedGeometryFrame(),
       }),
     });
 
@@ -3010,13 +3063,32 @@ const Viewport: React.FC = () => {
               if (!rect) return;
               const cssX = e.clientX - rect.left;
               const cssY = e.clientY - rect.top;
-              const hitId = hitTestSceneObjects({
+              const state = useStore.getState();
+              const frame = getRustSceneEvaluatedGeometryFrame();
+              const queryTarget = getRustScenePositionQueryTarget();
+              const expectedFrameIndex = secondsToFrameIndex(state.currentTime, state.projectSettings.fps);
+              if (!frame
+                || !queryTarget
+                || frame.sceneId !== 'viewport-rust-timeline'
+                || frame.revision !== rustTimelineSceneRevision
+                || !rustScenePositionQueryTargetMatchesGraph(queryTarget, {
+                  sceneId: frame.sceneId,
+                  revision: frame.revision,
+                  projectSettings: state.projectSettings,
+                  layers: state.layers,
+                  objects: state.objects,
+                })
+                || frame.frameIndex !== expectedFrameIndex) return;
+              const hitId = hitTestRustEvaluatedScene({
                 cssX,
                 cssY,
-                time: useStore.getState().currentTime,
-                objects: latestObjectsRef.current,
+                frame,
+                expected: {
+                  sceneId: 'viewport-rust-timeline',
+                  revision: rustTimelineSceneRevision ?? -1,
+                  frameIndex: expectedFrameIndex,
+                },
                 viewport: sceneInteractionViewportRef.current,
-                layers,
               });
               if (hitId) {
                 onSceneObjectPointerDown(e, hitId);
@@ -3048,6 +3120,9 @@ const Viewport: React.FC = () => {
               rustVideoOnlyEnabled={rustVideoOnlyEnabled}
               sharedRendererPreviewSession={sharedRendererPreviewSession}
               nativeOverlayAttachTick={nativeOverlayAttachTick}
+              expectedRevision={rustTimelineSceneRevision}
+              expectedProjectSettings={projectSettings}
+              expectedLayers={layers}
               onResizeStart={onSceneResizeStart}
             />
           )}
@@ -3072,6 +3147,9 @@ const Viewport: React.FC = () => {
                 width={previewW}
                 height={previewH}
                 displayScale={displayScale}
+                expectedRevision={rustTimelineSceneRevision}
+                expectedProjectSettings={projectSettings}
+                expectedLayers={layers}
               />
             )}
           {shouldMountSharedRendererSurface && (
