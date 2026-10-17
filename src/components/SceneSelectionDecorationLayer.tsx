@@ -4,7 +4,7 @@ import type { TimelineObject } from '../types';
 import type { SceneHitTestViewport } from '../utils/sceneHitTest';
 import { getRustEvaluatedObjectGeometry } from '../utils/rustSceneEvaluatedGeometry';
 import { getRustSceneEvaluatedGeometryFrame, subscribeRustSceneEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometryStore';
-import { secondsToFrameIndex } from '../utils/rustSceneFrameRate';
+import { getRustSceneGeometryFrameIndexForTime } from '../utils/rustScenePlaybackEvaluation';
 import { getRustScenePositionQueryTarget, rustScenePositionQueryTargetMatchesGraph } from '../utils/rustScenePositionQueryRevision';
 import type { SharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
 import { isNativeOverlayDirectSceneSession } from '../utils/nativeOverlayDirectSceneEligibility';
@@ -356,7 +356,12 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
           })
           || state.projectSettings !== latestRef.current.expectedProjectSettings
           || state.layers !== latestRef.current.expectedLayers
-          || frame.frameIndex !== secondsToFrameIndex(state.currentTime, state.projectSettings.fps)) return;
+          || frame.frameIndex !== getRustSceneGeometryFrameIndexForTime({
+            timeSeconds: state.currentTime,
+            fps: state.projectSettings.fps,
+            nativePlaybackActive: state.nativePlaybackActive,
+            isPlaying: state.isPlaying,
+          })) return;
         const geometry = frame ? getRustEvaluatedObjectGeometry(frame, objectId) : null;
         if (!geometry) return;
         let offsetX = 0;

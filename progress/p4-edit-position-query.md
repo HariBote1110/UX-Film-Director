@@ -39,6 +39,7 @@
 - Textの表示planeは装飾padding補正前のsnapshot原点とexpanded media寸法を使い、insetを重ねて足さない。ドラッグ/resizeの基準点は別にlogical glyph originへ戻す。
 - pointerdown時はscene/revision/frameに加えてposition-query targetが最新storeのproject/layer/object graph参照と同一か確認する。stale時はselectionを変更しない。opacity 0でもclipがあるobjectを従来どおりhit可能にする。
 - native playback中はplayback controllerが最後に成功presentした評価を既存の5Hz UI state通知へ同梱する。frame indexとscene/revisionが一致しない場合は添付せず、rendererは最新graph identityとsurfaceGateを再検査する。毎tickの追加RPCや評価snapshotの毎frame転送は行わない。
+- native controllerは`floor(timeSeconds * fps)`でframeを選ぶため、通知評価はpayloadの明示`frameIndex`とfloor時刻の両方で検証する。通常scrubは既存`secondsToFrameIndex`のroundを維持し、nativePlaybackActive中のhit/resize/Vision表示だけfloor基準へ切り替える。
 - seek/revision変更、失敗、dispose、無効化でstoreをclearし、expected revisionがnullの間の遅着publishを拒否する。pause後の旧世代tickが遅れて失敗しても、新しい再生世代を終了させない。
 - 旧TS hit-test評価関数は`sceneHitTestReference.ts`へ隔離し、productionからの参照をなくした。カメラ・affine変換はproduction helperとして残す。
 
