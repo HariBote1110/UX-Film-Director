@@ -3,7 +3,7 @@ import {
   buildRealisticHeavyEditScenario,
   inspectRealisticHeavyEditScenario,
 } from './realisticHeavyEditScenario';
-import { buildSharedRendererPreviewPlan } from '../utils/sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewPlanReference } from '../utils/sharedRendererPreviewPlanReference';
 import { isSharedRendererNativeMediaReferenceSupported } from '../utils/sharedRendererNativeMediaSupport';
 
 const paths = {
@@ -108,7 +108,7 @@ describe('現実的な重量編集シナリオ', () => {
     const activeScene = scenario.scenes.find((scene) => scene.id === scenario.activeSceneId);
     expect(activeScene).toBeDefined();
 
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: scenario.settings,
       layers: activeScene!.layers,

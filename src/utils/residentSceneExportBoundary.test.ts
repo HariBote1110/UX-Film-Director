@@ -9,8 +9,28 @@ const encodeControlSource = () => read('./rustBackendVideoEncodeControl.ts');
 const encodeBridgeSource = () => read('../../electron/rustVideoEncodeBackendBridge.ts');
 const backendDispatchSource = () => read('../../rust-backend/src/rpc_dispatch.rs');
 const viewportSource = () => read('../components/Viewport.tsx');
+const exportFrameSource = () => read('./sharedRendererExportFrameSource.ts');
+const previewBridgeSource = () => read('./sharedRendererPreviewBridge.ts');
+const mainSource = () => read('../main.tsx');
 
 describe('常駐 Rust scene export 境界', () => {
+  it('production evaluation bridgeからTS snapshot serializerをimportしない', () => {
+    const exportSource = exportFrameSource();
+    const bridgeSource = previewBridgeSource();
+
+    expect(exportSource).toContain("from './sharedRendererEvaluatedExportSession'");
+    expect(exportSource).not.toMatch(/import\s*\{\s*buildSharedRendererExportSession\s*,/);
+    expect(bridgeSource).not.toContain("from './rustSceneSnapshot'");
+  });
+
+  it('serializer referenceへ到達するE2E entryをdevelopment限定にする', () => {
+    const main = mainSource();
+
+    expect(main).toMatch(/import\.meta\.env\.DEV\s*&&\s*urlSearchParams\.has\('realisticHeavyEditE2e'\)/);
+    expect(main).toMatch(/import\.meta\.env\.DEV\s*&&\s*urlSearchParams\.has\('rustTimelineGeneratedE2e'\)/);
+    expect(main).toMatch(/import\.meta\.env\.DEV\s*&&\s*urlSearchParams\.has\('psdImportParityE2e'\)/);
+  });
+
   it('各frameでChromiumのsnapshotを再構築せず、常駐scene識別子をnative encoderへ渡す', () => {
     const source = residentExportSource();
 

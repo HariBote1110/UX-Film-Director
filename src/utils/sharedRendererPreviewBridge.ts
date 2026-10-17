@@ -1,11 +1,8 @@
-import type { LayerState, ProjectSettings, TimelineObject } from '../types';
 import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
-import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshot';
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
   RustSceneSnapshotBuildIssue,
-  RustSceneVideoSourceMode,
 } from './rustSceneContract';
 
 /**
@@ -30,15 +27,6 @@ export type SharedRendererPreviewPlan =
       issues: RustSceneSnapshotBuildIssue[];
     };
 
-export interface SharedRendererPreviewPlanInput {
-  enabled: boolean;
-  projectSettings: ProjectSettings;
-  layers: LayerState[];
-  objects: TimelineObject[];
-  time: number;
-  videoSourceMode?: RustSceneVideoSourceMode;
-}
-
 /**
  * Rust の常駐 scene.evaluate 結果を共通 preview plan に包む。
  * 評価済み値は再シリアライズせず、後続の surface gate で境界検証する。
@@ -50,41 +38,3 @@ export const buildSharedRendererPreviewPlanFromEvaluation = (
   snapshot: evaluation.snapshot as RustSceneSnapshot,
   media: evaluation.media as RustSceneMediaReference[],
 });
-
-export const buildSharedRendererPreviewPlan = ({
-  enabled,
-  projectSettings,
-  layers,
-  objects,
-  time,
-  videoSourceMode = 'previewProxy',
-}: SharedRendererPreviewPlanInput): SharedRendererPreviewPlan => {
-  if (!enabled) {
-    return {
-      mode: 'disabled',
-      reason: 'disabled',
-    };
-  }
-
-  const snapshotResult = buildRustSceneSnapshotForTimeline({
-    projectSettings,
-    layers,
-    objects,
-    time,
-    videoSourceMode,
-  });
-
-  if (!snapshotResult.ok) {
-    return {
-      mode: 'blocked',
-      reason: 'unsupportedScene',
-      issues: snapshotResult.issues,
-    };
-  }
-
-  return {
-    mode: 'sharedRenderer',
-    snapshot: snapshotResult.snapshot,
-    media: snapshotResult.media,
-  };
-};
