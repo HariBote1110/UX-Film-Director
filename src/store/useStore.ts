@@ -23,7 +23,6 @@ import {
   syncLegacyEffectsWithFilters,
 } from '../utils/filterStack';
 import {
-  evaluateObjectPositionAtTime,
   normaliseKeyframesForObject,
   shiftKeyframesForObject
 } from '../utils/keyframes';
@@ -990,42 +989,38 @@ export const useStore = create<AppState>((set, get) => ({
         && !isLayerLocked(latest.layers, clampLayerIndex(target.layer));
     };
 
+    const queryTarget: RustScenePositionQueryTarget = {
+      sceneId: 'viewport-rust-timeline',
+      revision: 0,
+      ...capturedGraph,
+    };
     let splitPosition: { x: number; y: number };
-    if (import.meta.env.VITE_UXFD_RUST_EDIT_POSITION_QUERY === '1') {
-      const queryTarget: RustScenePositionQueryTarget = {
-        sceneId: 'viewport-rust-timeline',
-        revision: 0,
-        ...capturedGraph,
-      };
-      try {
-        const revision = await waitForRustScenePositionQueryRevision(queryTarget);
-        if (!isActionCurrent()) return;
-        const requestId = crypto.randomUUID();
-        const queried = await queryRustBackendSceneObjectPositions({
-          sceneId: queryTarget.sceneId,
-          revision,
-          queries: [{ requestId, objectId: target.id, timeSeconds: currentTime }],
-        });
-        if (!queried.ok) throw new Error(queried.detail);
-        if (queried.value.sceneId !== queryTarget.sceneId || queried.value.revision !== revision) {
-          throw new Error('Rust position query returned a stale scene revision.');
-        }
-        const response = queried.value.positions.find((position) => position.requestId === requestId);
-        if (!response) throw new Error('Rust position query omitted the split object.');
-        if (!isActionCurrent()) return;
-        splitPosition = response.localPosition;
-      } catch (error) {
-        if (isRustScenePositionQueryCancelled(error) || !isActionCurrent()) return;
-        console.warn('[useStore] Rust split position query failed:', error);
-        if (typeof window !== 'undefined') {
-          window.alert(get().language === 'en'
-            ? 'Could not evaluate the split position in the Rust scene.'
-            : 'Rustシーンから分割位置を取得できませんでした。');
-        }
-        return;
+    try {
+      const revision = await waitForRustScenePositionQueryRevision(queryTarget);
+      if (!isActionCurrent()) return;
+      const requestId = crypto.randomUUID();
+      const queried = await queryRustBackendSceneObjectPositions({
+        sceneId: queryTarget.sceneId,
+        revision,
+        queries: [{ requestId, objectId: target.id, timeSeconds: currentTime }],
+      });
+      if (!queried.ok) throw new Error(queried.detail);
+      if (queried.value.sceneId !== queryTarget.sceneId || queried.value.revision !== revision) {
+        throw new Error('Rust position query returned a stale scene revision.');
       }
-    } else {
-      splitPosition = evaluateObjectPositionAtTime(target, currentTime);
+      const response = queried.value.positions.find((position) => position.requestId === requestId);
+      if (!response) throw new Error('Rust position query omitted the split object.');
+      if (!isActionCurrent()) return;
+      splitPosition = response.localPosition;
+    } catch (error) {
+      if (isRustScenePositionQueryCancelled(error) || !isActionCurrent()) return;
+      console.warn('[useStore] Rust split position query failed:', error);
+      if (typeof window !== 'undefined') {
+        window.alert(get().language === 'en'
+          ? 'Could not evaluate the split position in the Rust scene.'
+          : 'Rustシーンから分割位置を取得できませんでした。');
+      }
+      return;
     }
 
     if (!isActionCurrent()) return;
