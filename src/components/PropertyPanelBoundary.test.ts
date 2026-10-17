@@ -31,6 +31,24 @@ describe('PropertyPanel Vision query cancellation boundary', () => {
   });
 });
 
+describe('PropertyPanel Rust position query cutover', () => {
+  it('uses Rust positions for Vision tracking and keyframe insertion without an opt-in flag or TS fallback', () => {
+    const code = source();
+    const visionRunStart = code.indexOf('const handleVisionTrackRun = async () => {');
+    const visionRunEnd = code.indexOf('const handlePsdScaleChange =', visionRunStart);
+    const keyframeStart = code.indexOf('const handleAddCurrentKeyframe = async () => {');
+    const keyframeEnd = code.indexOf('const handleCreateEndpointKeyframes =', keyframeStart);
+    const visionRun = code.slice(visionRunStart, visionRunEnd);
+    const addKeyframe = code.slice(keyframeStart, keyframeEnd);
+
+    expect(code).not.toContain('VITE_UXFD_RUST_EDIT_POSITION_QUERY');
+    expect(visionRun).toContain('buildOverlayPositionKeyframesFromPositionQuery');
+    expect(visionRun).not.toContain('buildOverlayPositionKeyframesFromVisionTrack');
+    expect(addKeyframe).toContain('queryRustBackendSceneObjectPositions');
+    expect(addKeyframe).not.toContain('evaluateObjectPositionAtTime');
+  });
+});
+
 describe('PropertyPanel AviUtl motion preset controls', () => {
   it('exposes AviUtlPackV4 motion presets through the keyframe panel', () => {
     const code = source();

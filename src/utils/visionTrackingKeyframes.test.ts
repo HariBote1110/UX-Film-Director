@@ -53,7 +53,7 @@ const baseOverlay = (): ShapeObject => ({
   fill: '#000000'
 });
 
-describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
+describe('Vision tracking Rust query plan and keyframes', () => {
   it('returns empty array when no samples', () => {
     expect(
       buildVisionTrackPositionQueryPlan({
@@ -108,7 +108,7 @@ describe('buildOverlayPositionKeyframesFromVisionTrack', () => {
       ]);
   });
 
-  it('fails closed when a Rust position response is absent or mismatched instead of using TS positions', () => {
+  it('fails closed when a Rust position response is absent or mismatched', () => {
     const video = { ...baseVideo(), offset: 2 };
     const overlay = baseOverlay();
     const samples = [{ tSec: 2, boundingBox: { x: 0, y: 0, width: 1, height: 1 } }];
