@@ -4437,6 +4437,71 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(stoppedJobIds).toEqual(['decode-native-close']);
   });
 
+  it('close後のnative source abort release失敗時も遅着decode jobを停止する', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const activeJob = decodeJob('decode-native-release-failure-close');
+    const stoppedJobIds: string[] = [];
+    const releaseAbortedSource = vi.fn(async () => { throw new Error('release failed'); });
+    let resolvePreparation: ((result: {
+      ok: true;
+      activeJobs: typeof activeJob[];
+      sources: Array<{
+        mediaId: string;
+        slotCount: number;
+        frame: { descriptor: Record<string, never>; ptsFrame: number };
+        releaseAfterNativeRenderComplete: () => Promise<void>;
+        releaseAfterNativeRenderAbort: () => Promise<void>;
+      }>;
+    }) => void) | undefined;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      prepareNativeRenderSources: () => new Promise((resolve) => { resolvePreparation = resolve; }),
+      renderNativeSharedFrame: async (_input: Parameters<SharedRendererExportNativeSharedFrameRenderer>[0]) => {
+        throw new Error('native render must not run after close');
+      },
+      stopVideoDecodeJob: async (job: Parameters<SharedRendererExportVideoDecodeJobStopper>[0]) => { stoppedJobIds.push(job.jobId); },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+    });
+
+    const pendingFrame = source.renderEncodeFrame!({
+      frameIndex: 3,
+      timestampUs: 50_000,
+      time: 3 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [video()],
+      encodeSessionId: 'native-release-failure-close-session',
+    });
+    await vi.waitFor(() => expect(resolvePreparation).toBeDefined());
+
+    await source.close?.();
+    resolvePreparation?.({
+      ok: true,
+      activeJobs: [activeJob],
+      sources: [{
+        mediaId: 'video-1',
+        slotCount: 1,
+        frame: { descriptor: {}, ptsFrame: 3 },
+        releaseAfterNativeRenderComplete: async () => undefined,
+        releaseAfterNativeRenderAbort: releaseAbortedSource,
+      }],
+    });
+
+    await expect(pendingFrame).rejects.toMatchObject({ reason: 'nativeRenderSourceReleaseFailed' });
+    expect(releaseAbortedSource).toHaveBeenCalledOnce();
+    expect(stoppedJobIds).toEqual(['decode-native-release-failure-close']);
+  });
+
   it('close中にpresenter開始が完了してもbitmapを返さずcontrolとdecode jobを解放する', async () => {
     const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
     const activeJob = decodeJob('decode-presenter-close');
