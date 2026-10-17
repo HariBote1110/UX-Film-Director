@@ -3,6 +3,7 @@ import {
   computeRustScenePlaybackStartTimingDiagnostics,
   createRustScenePlaybackController,
 } from '../../electron/rustScenePlaybackController';
+import type { NativeOverlayScenePayload } from '../../electron/nativeOverlayMainBridge';
 
 const audioWaveformSource =
   '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
@@ -57,6 +58,90 @@ const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
 });
 
 describe('RustScenePlaybackController', () => {
+  it('同じ評価フレームから作った選択quadをnative bodyと同一presentへ同梱する', async () => {
+    const presentScene = vi.fn(async (_payload: NativeOverlayScenePayload) => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      selectedObjectIds: ['clip-1'],
+    });
+
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      snapshot: expect.objectContaining({ frameIndex: 0 }),
+      selectionDecoration: {
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        quads: [{
+          topLeftX: 10,
+          topLeftY: 20,
+          topRightX: 330,
+          topRightY: 20,
+          bottomRightX: 330,
+          bottomRightY: 200,
+          bottomLeftX: 10,
+          bottomLeftY: 200,
+          showHandles: true,
+        }],
+      },
+    }));
+  });
+
+  it('再生中は選択IDだけを更新し、次の同一frame presentへ反映する', async () => {
+    let nowMs = 1_000;
+    let scheduled: (() => void) | null = null;
+    const presentScene = vi.fn(async (_payload: NativeOverlayScenePayload) => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene,
+      emit: vi.fn(),
+      nowMs: () => nowMs,
+      schedule: (callback) => { scheduled = callback; return 1; },
+      cancel: vi.fn(),
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      selectedObjectIds: [],
+    });
+    await controller.updateSelection({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      selectedObjectIds: ['clip-1'],
+    });
+    nowMs = 1_017;
+    const runNext = scheduled as (() => void) | null;
+    runNext?.();
+    await vi.waitFor(() => expect(presentScene).toHaveBeenCalledTimes(2));
+
+    expect(presentScene.mock.calls[0]?.[0]).toMatchObject({ selectionDecoration: { quads: [] } });
+    expect(presentScene.mock.calls[1]?.[0]).toMatchObject({
+      snapshot: { frameIndex: 1 },
+      selectionDecoration: { quads: [{ topLeftX: 10, topLeftY: 20 }] },
+    });
+    expect(await controller.updateSelection({
+      windowId: 5,
+      sceneId: 'scene-1',
+      revision: 7,
+      selectedObjectIds: [],
+    })).toBe(false);
+  });
+
   it('単調時計からframeを求め、Rust評価からnative presentまでrendererを経由せず実行する', async () => {
     let nowMs = 1_000;
     let scheduled: (() => void) | null = null;

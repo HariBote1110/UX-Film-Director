@@ -57,6 +57,7 @@ import { DEFAULT_REMOTE_DECK_LAYOUT } from '../shared/remoteDeckLayout';
 import {
   createRustScenePlaybackController,
   type RustScenePlaybackEvaluation,
+  type RustScenePlaybackSelectionUpdate,
   type RustScenePlaybackStartPayload,
 } from './rustScenePlaybackController';
 
@@ -623,6 +624,13 @@ app.whenReady().then(() => {
     async (event, payload: Omit<RustScenePlaybackStartPayload, 'windowId'>) => {
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
       return rustScenePlaybackController.start({ ...payload, windowId });
+    },
+  );
+  ipcMain.handle(
+    'rust-backend-scene-playback-selection',
+    (event, payload: Omit<RustScenePlaybackSelectionUpdate, 'windowId'>) => {
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
+      return rustScenePlaybackController.updateSelection({ ...payload, windowId });
     },
   );
   ipcMain.handle('rust-backend-scene-playback-pause', () =>

@@ -43,6 +43,7 @@ interface Window {
       fps: number;
       startTimeSeconds: number;
       durationSeconds: number;
+      selectedObjectIds?: string[];
     }) => Promise<{
       active: boolean;
       frameIndex?: number;
@@ -57,6 +58,11 @@ interface Window {
         isFirstStartSinceLaunch: boolean;
       };
     }>;
+    updateScenePlaybackSelection: (payload: {
+      sceneId: string;
+      revision: number;
+      selectedObjectIds: string[];
+    }) => Promise<boolean>;
     pauseScenePlayback: () => Promise<{
       status: string;
       currentTimeSeconds: number;

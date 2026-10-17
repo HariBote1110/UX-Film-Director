@@ -1295,6 +1295,7 @@ const Viewport: React.FC = () => {
   // （latestObjectsRef と同じパターン）。
   const latestSelectedIdsRef = useRef(selectedIds);
   latestSelectedIdsRef.current = selectedIds;
+  const lastNativePlaybackSelectionKeyRef = useRef<string | null>(null);
 
   // インタラクションは useSceneInteraction（Pixi 非依存のヒットテスト・
   // ドラッグ・リサイズ）が担う（PixiJS 排除計画 Phase 3/4）。
@@ -2095,6 +2096,7 @@ const Viewport: React.FC = () => {
       // 計測専用: engage遅延の内訳切り分け用にnative再生開始RPCの往復時間を
       // 記録する。enabled===falseなら performance.now() すら呼ばず制御フローも
       // 変えない。
+      const startSelectedObjectIds = [...latestSelectedIdsRef.current];
       const startPlaybackStartedAtMs = rendererSceneRpcCollector.enabled ? performance.now() : 0;
       const result = await window.rustBackend.startScenePlayback({
         sceneId: 'viewport-rust-timeline',
@@ -2102,7 +2104,13 @@ const Viewport: React.FC = () => {
         fps: projectSettings.fps,
         startTimeSeconds,
         durationSeconds: duration,
+        selectedObjectIds: startSelectedObjectIds,
       });
+      lastNativePlaybackSelectionKeyRef.current = JSON.stringify([
+        'viewport-rust-timeline',
+        rustTimelineSceneResidentRevision,
+        startSelectedObjectIds,
+      ]);
       if (rendererSceneRpcCollector.enabled) {
         rendererSceneRpcCollector.record({
           operation: 'startPlayback',
@@ -2138,6 +2146,22 @@ const Viewport: React.FC = () => {
     setNativePlaybackActive,
     setTime,
   ]);
+
+  useEffect(() => {
+    if (!nativePlaybackActive || rustTimelineSceneResidentRevision === null) return;
+    const selectionKey = JSON.stringify([
+      'viewport-rust-timeline',
+      rustTimelineSceneResidentRevision,
+      selectedIds,
+    ]);
+    if (lastNativePlaybackSelectionKeyRef.current === selectionKey) return;
+    lastNativePlaybackSelectionKeyRef.current = selectionKey;
+    void window.rustBackend.updateScenePlaybackSelection({
+      sceneId: 'viewport-rust-timeline',
+      revision: rustTimelineSceneResidentRevision,
+      selectedObjectIds: [...selectedIds],
+    });
+  }, [nativePlaybackActive, rustTimelineSceneResidentRevision, selectedIds]);
 
   useEffect(() => () => {
     rustNativePlaybackStartGenerationRef.current += 1;
@@ -3063,6 +3087,7 @@ const Viewport: React.FC = () => {
               projectCanvasWidth={projectSettings.width}
               projectCanvasHeight={projectSettings.height}
               nativeOverlayPreviewEnabled={nativeOverlayReady}
+              nativePlaybackActive={nativePlaybackActive}
               rustVideoOnlyEnabled={rustVideoOnlyEnabled}
               sharedRendererPreviewSession={sharedRendererPreviewSession}
               nativeOverlayAttachTick={nativeOverlayAttachTick}

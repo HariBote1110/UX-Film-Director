@@ -3,6 +3,9 @@ import type {
   NativeOverlayScenePayload,
 } from './nativeOverlayMainBridge';
 import { isNativeOverlayDirectMediaSourceSupported } from '../src/utils/nativeOverlayDirectMediaSupport';
+import { buildSelectionDecorationQuads } from '../src/utils/nativeOverlaySelectionDecoration';
+import type { RustEvaluatedGeometryFrame } from '../src/utils/rustSceneEvaluatedGeometry';
+import type { RustSceneMediaReference, RustSceneSnapshot } from '../src/utils/rustSceneContract';
 
 export interface RustScenePlaybackStartPayload {
   windowId: number;
@@ -11,6 +14,14 @@ export interface RustScenePlaybackStartPayload {
   fps: number;
   startTimeSeconds: number;
   durationSeconds: number;
+  selectedObjectIds?: string[];
+}
+
+export interface RustScenePlaybackSelectionUpdate {
+  windowId: number;
+  sceneId: string;
+  revision: number;
+  selectedObjectIds: string[];
 }
 
 export interface RustScenePlaybackEvaluation {
@@ -133,6 +144,7 @@ export type RustScenePlaybackStartResult =
 
 export interface RustScenePlaybackController {
   start: (payload: RustScenePlaybackStartPayload) => Promise<RustScenePlaybackStartResult>;
+  updateSelection: (payload: RustScenePlaybackSelectionUpdate) => boolean;
   pause: () => RustScenePlaybackUiState | null;
   stop: () => RustScenePlaybackUiState | null;
   readonly diagnostics: Readonly<RustScenePlaybackDiagnostics>;
@@ -415,6 +427,24 @@ export const createRustScenePlaybackController = ({
             ? { activeLayerIds: [...media.active_layer_ids] }
             : {}),
         })),
+        ...(request.selectedObjectIds
+          ? {
+              selectionDecoration: {
+                canvasWidth: evaluation.canvas.width,
+                canvasHeight: evaluation.canvas.height,
+                quads: buildSelectionDecorationQuads({
+                  selectedIds: request.selectedObjectIds,
+                  frame: {
+                    sceneId: evaluation.sceneId,
+                    revision: evaluation.revision,
+                    frameIndex: evaluation.frameIndex,
+                    snapshot: evaluation.snapshot as unknown as RustSceneSnapshot,
+                    media: evaluation.media as unknown as RustSceneMediaReference[],
+                  } satisfies RustEvaluatedGeometryFrame,
+                }),
+              },
+            }
+          : {}),
       });
     } catch (error) {
       diagnostics.failedFrames += 1;
@@ -539,6 +569,14 @@ export const createRustScenePlaybackController = ({
           isFirstStartSinceLaunch,
         }),
       };
+    },
+    updateSelection: (payload) => {
+      if (!active
+        || active.windowId !== payload.windowId
+        || active.sceneId !== payload.sceneId
+        || active.revision !== payload.revision) return false;
+      active.selectedObjectIds = [...payload.selectedObjectIds];
+      return true;
     },
     pause: () => {
       if (!active) return null;
