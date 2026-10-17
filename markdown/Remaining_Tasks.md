@@ -1,6 +1,6 @@
-# 残タスク一覧（2026-10-16 更新）
+# 残タスク一覧（2026-10-18 更新）
 
-`feature-proxy` / `0.1.1-Beta-522b`（調査開始時点）のコード、計画書、決定ログ、コミット履歴を照合した再開用一覧。
+`feature-proxy`のコード、計画書、決定ログ、コミット履歴を照合した再開用一覧。
 優先順位は今回の再開に向けた推奨順。未検証事項は不具合確定と区別する。
 
 ## 直近の完了事項
@@ -16,9 +16,9 @@
 | 順位 | タスク | 現状・完了条件 |
 | --- | --- | --- |
 | 1 | P2c一時診断の撤去 | **完了（2026-10-16）**。controller lifecycleの全イベント履歴を撤去。export確認中・成功・失敗の通常statusと回帰テストを維持。関連8ファイル101テスト・型チェック成功。 |
-| 2 | P2全体の完了条件を棚卸し | **部分完了（2026-10-16）**。direct exportのRust resident評価、原本参照、失敗伝播、cancelに加え、未対応だった生成25型を統合。42 object kind中40 visual clipをTS/Rustで一致確認。AutoBlur欠落と振動の動的評価も修正。既存447フレームと振動境界9フレームの計456フレームが一致。既存混在動画はnativeDirect有効/無効の両構成で60/60フレーム成功。新graph-only経路の書き出しは検証中。 |
-| 3 | P3: TS serializer撤去 | **作業中**。契約型・境界検証・frame helperをserializerから分離済み。graph-only wireのfrontendはopt-in実装、backendはraw graphの常駐保持・Rust builderへの委譲を統合済み。新経路のMP4検証後に既定切替し、production TS builder/serializerの呼出しを撤去する。 |
-| 4 | P4: UI評価値をRustへ移行 | **作業中**。revision付きraw graphから未量子化のlocal/world位置とgroup移動量を返すRust queryを統合。キー追加・分割・追跡のopt-in接続、古い応答の破棄、通常取消時の誤通知防止まで実装。キー追加は実Electronでも確認済み。分割の実操作、選択枠・hit testの評価snapshot接続、既定切替・旧TS評価の撤去と遅延検証を継続。 |
+| 2 | P2全体の完了条件を棚卸し | **部分完了（2026-10-16）**。direct exportのRust resident評価、原本参照、失敗伝播、cancelに加え、未対応だった生成25型を統合。42 object kind中40 visual clipをTS/Rustで一致確認。AutoBlur欠落と振動の動的評価も修正。既存447フレームと振動境界9フレームの計456フレームが一致。既存混在動画はnativeDirect有効/無効の両構成で60/60フレーム成功。graph-only既定経路も混在MP4を60/60フレーム出力済み。 |
+| 3 | P3: TS serializer撤去 | **完了（2026-10-18）**。raw EditableSceneGraphを既定の唯一のproduction経路とし、export評価providerを必須化。旧TS builder・serializer・位置評価をReference実装へ隔離し、production buildから除外。比較fixtureは維持。 |
+| 4 | P4: UI評価値をRustへ移行 | **最終検証中**。キー追加・分割・Vision追跡のRust位置queryを必須化。分割の単一Undo/Redo、取消、Visionの実UIで68キー適用を確認。f64のJSON往復ずれを修正し93時刻すべて一致。選択枠・hit-testはRust評価snapshotへ接続。残りはnative再生のbody/選択枠同時提示、遅延通知の破棄、実UI追従・遅延検証。 |
 | 5 | テキストの縁取り・影のクリップ | **完了（2026-10-16）**。装飾分の領域拡張と描画原点補正を全経路に接続。回転・負scale・keyframe・途中group_control開始/終了の位置不変性を検証。447-frame parityと影付き日本語テキストのMP4書き出し360/360フレームが成功。 |
 | 6 | フィルタ値編集のUndo/Redo | **完了（2026-10-16）**。入力開始〜終了を1操作として履歴化。連続入力・非同期応答・scene切替・フォーカス中Undo/Redo・通常テキスト入力のnative Undo維持を検証。実Electron/CDPのPropertyPanel操作でも確認。 |
 
@@ -26,7 +26,7 @@
 
 ## 検証・判断が必要な項目
 
-- **scene.replace性能**: raw graphのpayloadサイズ・RTTを実測し、許容上限を決める。上限は未決であり、計測を先行できる。
+- **scene.replace性能**: 標準入出力RPCの初期測定は完了（shape 1/100/1000件の中央値0.048/0.956/8.719ms）。Electron往復・実編集シーンの計測と許容上限の判断は未完了。[測定範囲と限界](../progress/raw-scene-replace-performance.md)。
 - **Windows仕上げ**: **DXC同梱は完了**。固定版・checksum取得、pack前検証、exe横へのDLL/ライセンス配置を実装し、macOSからWindows x64のunpacked配置まで確認した（[記録](../progress/windows-dxc-packaging.md)）。初回attachの同期パイプライン生成は後続のAsyncTask・段階構築で対処済み（[実装・実測記録](../progress/windows-w7-async-attach.md)）。残りはWindows実機build/起動・高DPI・HTML UI重なり検証。旧mainpc撤去とWindows接続サービス停止のため、実機検証は環境待ち。
 - **外部video経路の色差**: 既存のmatrix / colourSpace明示修正は完了。再現素材のffprobeと、現在のnative描画経路で影響が残るかの確認が必要。過去経路の仮説だけで新規修正を始めない。[調査ログ](../progress/external-video-colour-mismatch.md)。
 - **実機確認の追補**: resident音声反応export、NV12リング停止修正、3D exportのreadback待機の速度など、各ログで未実施の検証を後続履歴と照合する。未実施という古い記述だけで未修正と判定しない。
