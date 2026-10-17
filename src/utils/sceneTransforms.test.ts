@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
+import { getGroupTransforms, getVibrationOffset } from './sceneEvaluationReference';
 import type { GroupControlObject, ShapeObject, TimelineObject } from '../types';
 
 const baseShape = (overrides: Partial<ShapeObject> = {}): ShapeObject => ({

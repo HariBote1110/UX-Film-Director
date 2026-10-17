@@ -47,7 +47,7 @@ import {
 } from '../utils/projectExportFrameCanvas';
 import {
   buildRustSceneSnapshotForTimeline,
-} from '../utils/rustSceneSnapshot';
+} from '../utils/rustSceneSnapshotReference';
 import { validateRustSceneSnapshotBoundary } from '../utils/rustSceneBoundary';
 import { buildSharedRendererPreviewSession } from '../utils/sharedRendererPreviewSessionReference';
 

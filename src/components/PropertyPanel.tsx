@@ -9,7 +9,7 @@ import {
 } from '../store/commandBuilders';
 import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, HksyCheckerGridObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject, BarcodeObject, PuzzlePieceObject, ColourWheelObject, GourdObject, GearObject, TrackBarObject, PieChartObject, HistogramObject, ToneCurveObject, SunburstObject, CircularArrowObject, TriangleBracketObject, TartanCheckObject, HoundstoothObject, YagasuriObject, PaperAirplaneObject, AsanohaPatternObject, FocusLinesPlusObject, RandomLineExObject, AudioSphereObject, RegionFrameObject, SimpleTubeObject, ContourTraceObject, DisplacementPolyObject, HologramObject, ProtractorObject, ShakingPolygonObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
-import { easingNames, EasingType } from '../utils/easings';
+import { easingNames, type EasingType } from '../utils/easings';
 import { buildEndpointKeyframes } from '../utils/keyframes';
 import { useTranslation } from '../i18n';
 import {

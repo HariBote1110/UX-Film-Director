@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProjectFileData, parseProjectPayloadV2, type RustBackendProjectFileBridge } from '../projectFile';
-import { buildRustSceneSnapshotForTimeline } from '../rustSceneSnapshot';
+import { buildRustSceneSnapshotForTimeline } from '../rustSceneSnapshotReference';
 import { isSharedRendererNativeMediaReferenceSupported } from '../sharedRendererNativeMediaSupport';
 import { buildAviUtlPackPolishRepresentativeScene } from './aviutlPolishRepresentativeScene';
 

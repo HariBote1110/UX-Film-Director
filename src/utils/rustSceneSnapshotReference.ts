@@ -46,10 +46,13 @@ import type {
   YagasuriObject,
 } from '../types';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
-import { evaluateObjectPositionAtTime } from './keyframes';
-import { isObjectVisibleAtTime } from './objectVisibility';
-import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
-import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
+import {
+  evaluateObjectPositionAtTime,
+  evaluateSubjectCropNormRectAtTime,
+  getGroupTransforms,
+  getVibrationOffset,
+  isObjectVisibleAtTime,
+} from './sceneEvaluationReference';
 import {
   isSupportedMediaObject,
   isSupportedSceneObject,

@@ -50,51 +50,6 @@ export const normaliseSubjectCropKeyframesForVideo = (
   return normalised;
 };
 
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-
-export const evaluateSubjectCropNormRectAtTime = (
-  video: Pick<VideoObject, 'startTime' | 'duration' | 'subjectCropKeyframes'>,
-  timelineTime: number
-): { x: number; y: number; width: number; height: number } | null => {
-  const sorted = video.subjectCropKeyframes;
-  if (!Array.isArray(sorted) || sorted.length === 0) return null;
-
-  const start = video.startTime;
-  const end = video.startTime + video.duration;
-  const t = clamp(timelineTime, start, end);
-
-  if (sorted.length === 1) {
-    const k = sorted[0];
-    return clampNormRect({ x: k.x, y: k.y, width: k.width, height: k.height });
-  }
-
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-  if (t <= first.time) {
-    return clampNormRect({ x: first.x, y: first.y, width: first.width, height: first.height });
-  }
-  if (t >= last.time) {
-    return clampNormRect({ x: last.x, y: last.y, width: last.width, height: last.height });
-  }
-
-  let left = 0;
-  while (left < sorted.length - 1 && sorted[left + 1].time <= t + EPSILON) {
-    left += 1;
-  }
-
-  const a = sorted[left];
-  const b = sorted[Math.min(left + 1, sorted.length - 1)];
-  const span = b.time - a.time;
-  const u = span <= EPSILON ? 0 : (t - a.time) / span;
-
-  return clampNormRect({
-    x: lerp(a.x, b.x, u),
-    y: lerp(a.y, b.y, u),
-    width: lerp(a.width, b.width, u),
-    height: lerp(a.height, b.height, u)
-  });
-};
-
 export const shiftSubjectCropKeyframesForObject = (
   keyframes: SubjectCropNormKeyframe[],
   deltaTime: number,

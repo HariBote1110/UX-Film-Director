@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isObjectVisibleAtTime } from './objectVisibility';
+import { isObjectVisibleAtTime } from './sceneEvaluationReference';
 import type { LayerState, ShapeObject } from '../types';
 
 /**

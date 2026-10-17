@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { ShapeObject } from '../types';
 import {
   buildEndpointKeyframes,
-  evaluateKeyframesPositionAtTime,
-  evaluateObjectPositionAtTime,
   normaliseKeyframesForObject,
   shiftKeyframesForObject
 } from './keyframes';
+import { evaluateKeyframesPositionAtTime, evaluateObjectPositionAtTime } from './sceneEvaluationReference';
 
 const baseShape = (): Pick<
   ShapeObject,
