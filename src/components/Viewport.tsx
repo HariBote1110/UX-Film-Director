@@ -2739,8 +2739,6 @@ const Viewport: React.FC = () => {
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
       hasVideoObjects: context.hasVideoObjects,
       hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
-      objects: context.objects,
-      time: context.time,
       ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
       preferEncodeOnly: context.preferEncodeOnly,
       presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
