@@ -20,24 +20,32 @@ P2d cutoverはdefault graph-onlyで完了したが、P2全体を「全featureが
 
 ## production import台帳とP3現在地
 
-- `sharedRendererPreviewBridge.ts` は評価済みRust snapshotのplan生成と型契約を持ち、`rustSceneSnapshot.ts` のserializerをimportしない。
+- `sharedRendererPreviewBridge.ts` は評価済みRust snapshotのplan生成と型契約を持ち、`rustSceneSnapshotReference.ts` のserializerをimportしない。
 - preview/exportのproduction session facadeは型だけを提供する。旧同期builderは `sharedRendererPreviewSessionReference.ts`、`sharedRendererExportSessionReference.ts`、`sharedRendererPreviewPlanReference.ts` に隔離し、値importはtest/E2E reference側だけにする。production export frame sourceに `buildExportSessionForTest` やTS builder injectionは残さない。
 - `sharedRendererExportFrameSource.ts` はRust評価session constructorを使い、resident providerが無い時はblockedにする。legacy `buildSharedRendererExportSession` / `buildSharedRendererPreviewSession` の呼び出しはproduction sourceにはない。
-- `rustSceneSnapshot.ts` / `editableRustScene.ts` はparity、fixture生成、旧挙動比較用のreference実装としてソースに残る。production runtimeのserializer callerとしては残さない。型/wire契約、surface boundary validator、frame rate helper、object eligibilityは独立moduleに分離済み。text geometryは `textMediaGeometry.ts` に分離済み。
+- `rustSceneSnapshotReference.ts` / `editableRustSceneReference.ts` はparity、fixture生成、旧挙動比較用のreference実装としてソースに残る。`sceneEvaluationReference.ts` / `easingEvaluationReference.ts` は旧評価比較用の値helperを持つ。これらはproduction runtimeのserializer/evaluator callerとして残さず、型/wire契約、surface boundary validator、frame rate helper、object eligibility、text geometryは独立moduleに分離済み。
 - `main.tsx` のserializer依存E2E harnessは `import.meta.env.DEV` のdynamic importに限定。production Vite buildでserializer symbolと該当E2E entry chunkが含まれないことを確認した（無関係な`exportTestHarness` chunkは別途存在する）。
 - 旧migration flagはTS serializer復活用rollbackに使わない。rollbackは既知のP2 graph-only契約をrevertするrelease rollbackで行う。RPC OFF/provider不在はblockedであり、TS snapshotを生成しない。
 
-P3のproduction経路撤去は完了。reference serializerをテストから除去する作業ではなく、production import graphから隔離する作業として完了した。`rustSceneSnapshot.ts` と `editableRustScene.ts` のtest/fixture利用はparity基準を保持するため継続する。
+P3のproduction経路撤去は完了。reference serializerをテストから除去する作業ではなく、production import graphから隔離する作業として完了した。`*Reference.ts` のtest/fixture利用はparity基準を保持するため継続する。旧評価関数も専用Reference module内に保持し、production値importを持たせない。
 
 ## P4との境界
 
-`scene.query_object_positions` は `sceneId` / `revision` と任意時刻queryを使うRust編集用APIで、`scene.evaluate` のframe量子化結果から逆算しない。PropertyPanelのkey追加、Vision tracking、split位置はRust query必須になった。選択枠とhit-testは `Viewport` の評価済みsnapshotに含まれるframe/revisionのgeometryへ接続された。query `timeSeconds` のf64 echoが一部値でbit-exactにならない問題が残り、Rust JSON serialization修正を調査中である。text評価plane原点のtransformとUI geometryを二重補正しない契約も維持する。
+`scene.query_object_positions` は `sceneId` / `revision` と任意時刻queryを使うRust編集用APIで、`scene.evaluate` のframe量子化結果から逆算しない。PropertyPanelのkey追加、Vision tracking、split位置はRust query必須になった。選択枠とhit-testは `Viewport` の評価済みsnapshotに含まれるframe/revisionのgeometryへ接続された。query `timeSeconds` のf64 echoはRust側のJSON round-trip serialization修正で解消し、fractional query timeの契約テストで固定した。text評価plane原点のtransformとUI geometryを二重補正しない契約も維持する。
+
+## P3/P4 Reference隔離更新（2026-10-18）
+
+- 旧評価関数を `sceneEvaluationReference.ts` / `easingEvaluationReference.ts` に集約し、`keyframes.ts` と `subjectCropKeyframes.ts` は編集用helper、`easings.ts` は型・表示名だけを残す。`sceneTransforms.ts` / `objectVisibility.ts` は削除し、値評価の比較はReference moduleから行う。
+- 旧snapshot/builderの実装は `rustSceneSnapshotReference.ts` / `editableRustSceneReference.ts` へ改名した。parity、境界、fixture生成テストはReferenceを引き続き使う。production runtimeはこのmodule群を値importしない。
+- Reference移設後のfocused Vitestは12 files / 240 tests成功。fixture drift 3 files / 9 testsも成功し、`npx tsc --noEmit`成功。
+- 評価reference隔離は旧TS経路をproductionへ戻す変更ではない。R2の最終完了は実UI/native/performance検証が残るため未確定。
 
 ## 検証
 
 - 親担当default export E2E: raw graph/RPC flag未設定、mixed scene、60/60 frame、H.264 probe一致、runtime errorsなし、`residentScene`（`/tmp/uxfd-verified-default-export-result.json`）。
-- serializer/session reference分離後のfocused Vitest: 3 files / 58 tests passed。既存session挙動はreference module経由で維持。
+- 旧builder/evaluator Reference分離後のfocused Vitest: 12ファイル / 240件成功。fixture drift も3ファイル / 9件成功。
 - `npx tsc --noEmit`: 成功。
 - `npm run codegen:types:check`: 成功、生成差分なし。
-- 親統合後の全Vitest: 276 files / 1982 tests passed。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が参照するgitignore対象 `perf/heavy-media` fixtureの欠落によるfile existence assertionであり、隔離worktreeに素材が存在しない。fixture生成や期待値のskipは行っていない。
-- production Vite build: 成功。bundle内にserializer名はなく、serializer依存E2E entryも含まれない。テストビルドが生成したtracked `dist/index.html` と既存bundle差分は確認後に復元した。
+- `cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity`: 447フレームのTS/Rust比較に成功し、差分0件。
+- 全Vitest: 277ファイル中276成功、1986件中1985件成功。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が要求するgitignore対象 `perf/heavy-media` fixtureの欠落によるファイル存在確認。隔離worktreeには `.gitignore` のみで素材が存在しない。fixture生成や期待値のskipは行っていない。
+- production Vite build: `/tmp/uxfd-reference-isolation-build-20261018` へのbuild成功。bundle内に`rustSceneSnapshotReference` / `editableRustSceneReference` / evaluator Reference名はなく、旧serializer/evaluatorがproduction bundleへ到達しない。test buildは`dist`へ出力せず、tracked build artifactsの変更もない。

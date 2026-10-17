@@ -6,7 +6,7 @@
 
 `Rust_Source_Of_Truth_Plan.md` の責務台帳に残る「クロスオブジェクト配線」を解消するための、次段階の設計・移行計画である。詳細な判断が確定したら `architecture/01-decision-record.md` に ADR-017 として転記する。本書は計画であり、実装済みであることを示さない。
 
-**現在地（2026-10-18）**: P2cとP2dのRust resident cut-overは、preview/exportの既定graph-only経路まで到達した。旧TypeScript serializerはparity/reference test用に保持するが、production import graphから除去済みである。unsupported featureはRust diagnosticsでblockedにし、旧TS評価へfallbackしない。P2全体の全機能対応とWindows interim実機検証は残る。P4では任意時刻位置queryを使うkey追加・Vision tracking・split移行、評価済みgeometryによるselection/hit-testが実装された。現在はquery時刻のbit-exact f64 echo問題を調査中。詳細はP2dとP4進捗記録を参照する。
+**現在地（2026-10-18）**: P2cとP2dのRust resident cut-overは、preview/exportの既定graph-only経路まで到達した。旧TypeScript serializerはparity/reference test用に保持するが、production import graphから除去済みである。unsupported featureはRust diagnosticsでblockedにし、旧TS評価へfallbackしない。P2全体の全機能対応とWindows interim実機検証は残る。P4では任意時刻位置queryを使うkey追加・Vision tracking・split移行、評価済みgeometryによるselection/hit-testが実装された。query時刻のbit-exact f64 echoはRust JSON round-trip serialization修正で解消した。旧TS snapshot/builderと評価関数は明示的な`*Reference.ts` moduleへ隔離され、production値importを持たない。詳細はP2dとP4進捗記録を参照する。
 
 ## 0. ゴールと非ゴール
 
@@ -232,22 +232,22 @@ cargo test で固定した。いずれも GUI export ではなくテストで落
 
 ### P3: production TS serializer の撤去と責務台帳の解消（中、4–7日）
 
-**production import撤去完了（2026-10-18）**: preview/exportのproduction経路はRust評価済みsessionだけを消費する。`sharedRendererPreviewBridge.ts`はRust snapshotを組み立てず、export provider/frame sourceにlegacy TS builder injectionを持たない。同期preview/export buildersは`sharedRendererPreviewSessionReference.ts`と`sharedRendererExportSessionReference.ts`へ移し、test/E2E reference側からだけ値importする。`rustSceneSnapshot.ts` / `editableRustScene.ts`の実装は447-frame parityやfixture生成の比較基準としてソースに残すが、production import graphには含めない。production bundleからserializer/E2E harness chunkが出ないことを確認した。
+**production import撤去完了（2026-10-18）**: preview/exportのproduction経路はRust評価済みsessionだけを消費する。`sharedRendererPreviewBridge.ts`はRust snapshotを組み立てず、export provider/frame sourceにlegacy TS builder injectionを持たない。同期preview/export buildersは`sharedRendererPreviewSessionReference.ts`と`sharedRendererExportSessionReference.ts`へ移し、test/E2E reference側からだけ値importする。旧snapshot/builder実装は`rustSceneSnapshotReference.ts` / `editableRustSceneReference.ts`へ改名し、評価helperも`sceneEvaluationReference.ts` / `easingEvaluationReference.ts`へ隔離した。比較・parity fixtureからのみ参照し、production import graphには含めない。production bundleからserializer/E2E harness chunkが出ないことを確認した。
 
 - **残作業**: ADR-014の逸脱記録と責務台帳の最終レビュー。P4 UI query/selection切替の進捗とは別に扱う。
 - **テスト**: production import監査、focused/full Vitest、type generation drift、Rust builder tests、447-frame fixture、default export E2E、production Vite bundle。
 - **受入条件**: TS serializer値構築関数がproduction import graphから到達しない。Rust評価なし・unsupported・provider不在はblockedでありTS snapshot fallbackを行わない。
 - **rollback**: 旧TS builderを復活させるmigration flagは設けない。rollbackはP2 graph-only契約を持つreleaseへのrevertとする。
 
-### P4: UI 評価値の Rust 評価結果への付け替えと TS 評価関数の削除（中、5–8日、2026-09-13 決定で追加）
+### P4: UI 評価値の Rust 評価結果への付け替えと TS 評価referenceの隔離（中、5–8日、2026-09-13 決定で追加）
 
-- **Scope**: §7 の表にある UI 側の TS 評価利用（`PropertyPanel.tsx` の現在値表示、`SceneSelectionDecorationLayer.tsx` の選択枠位置、`visionTrackingKeyframes.ts`、`storeHelpers.ts` / `useStore.ts` の位置評価）を、常駐 session の `scene.evaluate` 結果の購読へ付け替える。その後 `keyframes.ts` の評価関数、`easings.ts` の `easingFunctions`、`objectVisibility.ts`、`sceneTransforms.ts` の `getGroupTransforms` / `getVibrationOffset`、`subjectCropKeyframes.ts` を削除し、R2 を完了させる。
+- **Scope**: §7 の表にある UI 側の TS 評価利用（`PropertyPanel.tsx` の現在値表示、`SceneSelectionDecorationLayer.tsx` の選択枠位置、`visionTrackingKeyframes.ts`、`storeHelpers.ts` / `useStore.ts` の位置評価）をRust query/evaluationへ付け替える。旧評価関数は編集用normalise/shift/build helperやUI型・表示名と分離し、比較用 `sceneEvaluationReference.ts` / `easingEvaluationReference.ts` に隔離する。旧 `rustSceneSnapshot.ts` / `editableRustScene.ts` も `*Reference.ts` に改名し、production moduleから値importできない境界を明確にする。評価referenceは447-frame等の比較基準として保持し、R2完了の判断は実UI・native・性能検証を含めて行う。
 - **担当**: 購読・評価 RPC・ストア配線は Codex、表示コンポーネント側の付け替えで見た目の確認が要る部分は UI 担当として分離する。
 - **テスト**: 各 UI 利用箇所の表示値が 447-frame fixture の Rust 評価値と一致する vitest、ドラッグ・再生中の購読頻度と `scene.evaluate` 呼び出し回数の計測、既存 E2E。
 - **受入条件**: 上記モジュールが non-test から import されない（型・定数のみ残す場合は理由を記録）。選択枠と PropertyPanel の値が Rust 評価と一致し、ドラッグ・スクラブ時の表示遅延が P1 で記録した基準値から悪化しない。`Rust_Source_Of_Truth_Plan.md` の R2 を★完了に更新できる。
 - **rollback**: query失敗やrevision不一致は操作をblockedにする。旧TS評価へ戻すmigration flagは設けず、問題時は対応するRust query/evaluation変更をrevertするrelease rollbackとする。
 
-**現在地（2026-10-18）**: revision付きraw graph position queryを追加し、PropertyPanel key追加、Vision tracking、split位置のTS評価置換を実装した。任意時刻queryはframe-quantisedな`scene.evaluate`から逆算せず、Rust sessionが保持するeditable graphから求める。query失敗/stale応答時はTSへfallbackしない。実Electron/CDPでsplit/Undo/Redo、stale応答の破棄、CoreML trackerの14 samplesを確認した。選択枠/hit-test geometryは評価済みsnapshotと同じframe/revisionを使うよう移行した。実機確認中に`timeSeconds`のf64 echoが一部値でbit-exactにならない問題が見つかり、Vision trackingのinvalid response原因候補としてRust JSON serialization修正を調査中。詳細は`progress/p4-edit-position-query.md`を参照する。
+**現在地（2026-10-18）**: revision付きraw graph position queryを追加し、PropertyPanel key追加、Vision tracking、split位置のTS評価置換を実装した。任意時刻queryはframe-quantisedな`scene.evaluate`から逆算せず、Rust sessionが保持するeditable graphから求める。query失敗/stale応答時はTSへfallbackしない。実Electron/CDPでsplit/Undo/Redo、stale応答の破棄、CoreML trackerの14 samplesを確認した。選択枠/hit-test geometryは評価済みsnapshotと同じframe/revisionを使うよう移行した。query `timeSeconds`のf64 echoはRust JSON round-trip修正済み。旧評価関数は比較用Reference moduleへ隔離し、R2全体の完了判断にはnative経路と性能検証を残す。詳細は`progress/p4-edit-position-query.md`を参照する。
 
 ## 4. リスクと緩和策
 
@@ -305,14 +305,14 @@ R2 は「TS 評価経路（経路 B）を消す」ことが本来の目標だっ
 
 | R2 削除対象 | 現在の non-test 利用箇所 |
 | --- | --- |
-| `src/utils/keyframes.ts` `evaluateObjectPositionAtTime` 等 | `rustSceneSnapshot.ts:49,198`、`visionTrackingKeyframes.ts:2`、`storeHelpers.ts`、`useStore.ts`、`PropertyPanel.tsx`、`SceneSelectionDecorationLayer.tsx` |
-| `src/utils/easings.ts` | `types.ts`、`PropertyPanel.tsx` |
-| `src/utils/objectVisibility.ts` | `rustSceneSnapshot.ts:50` |
-| `src/utils/sceneTransforms.ts` `getGroupTransforms` / `getVibrationOffset` | `rustSceneSnapshot.ts:51,200`、`visionTrackingKeyframes.ts:3` |
-| `src/utils/subjectCropKeyframes.ts` | `rustSceneSnapshot.ts:52` |
-| `filterStack.ts` `getEnabledObjectFiltersInOrder` / `getFadeOpacityMultiplier` | `rustSceneSnapshot.ts:48` |
+| `src/utils/keyframes.ts` `evaluateObjectPositionAtTime` 等 | `sceneEvaluationReference.ts`（比較fixtureのみ）。productionはnormalise/shift/build helperを使用 |
+| `src/utils/easings.ts` | `types.ts`（type-only）、`PropertyPanel.tsx`（easingNamesのみ）。関数mapは`easingEvaluationReference.ts`へ隔離 |
+| `objectVisibility.ts` の時間評価 | `sceneEvaluationReference.ts`（比較fixtureのみ） |
+| `sceneTransforms.ts` の `getGroupTransforms` / `getVibrationOffset` | `sceneEvaluationReference.ts`（比較fixtureのみ） |
+| `subjectCropKeyframes.ts` の時刻評価 | `sceneEvaluationReference.ts`（比較fixtureのみ）。normalise/shift/build helperはproduction維持 |
+| `filterStack.ts` `getEnabledObjectFiltersInOrder` / `getFadeOpacityMultiplier` | 現状production renderer/editing機能にも利用されるため維持。snapshot referenceからのimportだけ隔離 |
 
-本計画の P2（direct 経路の Rust 評価への収束）と P3（TS serializer 撤去）が完了すると、`rustSceneSnapshot.ts` 経由の利用は消える。残るのは UI の評価済み値の利用（PropertyPanel の現在値表示、選択枠の位置、vision tracking）であり、これらを `scene.evaluate` 結果の購読へ付け替えない限り TS の評価関数は削除できない（R2 節の「性能上の要注意点」§7 設計判断 4 と同じ論点）。
+本計画のP2 graph-only cutoverとP3 production serializer撤去後、旧snapshot/builder及び評価関数はReference moduleへ隔離された。P4の任意時刻queryとframe/revision一致の表示geometry接続は実装済みだが、Reference評価は比較検証に残す。UI実操作/native経路/performance検証の証拠を揃えるまでR2全体を完了扱いにしない。
 
-- P3 の受入条件に「`rustSceneSnapshot.ts` から上表の評価関数 import が消える」ことを加える。
+- P3 の受入条件に「production moduleからReference snapshot/evaluatorを値importしない」ことを加える（達成済み）。
 - UI 利用の付け替えと評価関数そのものの削除は、§6 決定事項 5 の結論に従い P4 として追加するか別計画にする。P4 とする場合の受入条件は「上表のモジュールが non-test から import されない、または型・定数のみになる」「選択枠・PropertyPanel の表示値が 447-frame fixture の Rust 評価値と一致する」とする。
