@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ImageObject, ProjectSettings, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import {
-  createSharedRendererExportFrameSource,
+  createSharedRendererExportFrameSource as createSharedRendererExportFrameSourceImpl,
   isSharedRendererExportFrameSourceBlockedError,
   SharedRendererExportFrameSourceBlockedError,
   type SharedRendererExportNativeRenderSourcesPreparer,
@@ -20,6 +20,13 @@ const settings: ProjectSettings = {
   fps: 60,
   sampleRate: 48000,
 };
+
+const createSharedRendererExportFrameSource = (
+  input: Parameters<typeof createSharedRendererExportFrameSourceImpl>[0]
+) => createSharedRendererExportFrameSourceImpl({
+  buildExportSession: buildSharedRendererExportSession,
+  ...input,
+});
 
 describe('SharedRendererExportFrameSourceBlockedError', () => {
   it('does not allow legacy canvas fallback unless the caller opts in explicitly', () => {
@@ -193,6 +200,43 @@ describe('createSharedRendererExportFrameSource', () => {
     });
 
     expect(buildExportSession).not.toHaveBeenCalled();
+    expect(presenterCalls).toHaveLength(0);
+  });
+
+  it('resident Rust evaluatorが未接続ならTS serializerを使わずblockedにする', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const presenterCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSourceImpl({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async (input) => {
+        presenterCalls.push(input);
+        return {
+          control: { dispose: () => undefined },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+    });
+
+    await expect(source.renderFrame({
+      frameIndex: 18,
+      timestampUs: 300_000,
+      time: 0.3,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    })).rejects.toMatchObject({
+      reason: 'residentEvaluationUnavailable',
+      frameIndex: 18,
+      legacyCanvasFallbackAllowed: false,
+    });
     expect(presenterCalls).toHaveLength(0);
   });
 
