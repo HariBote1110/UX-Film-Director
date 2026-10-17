@@ -243,7 +243,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      prepareNativeRenderSources: async (input) => {
+      prepareNativeRenderSources: async (input: Parameters<SharedRendererExportNativeRenderSourcesPreparer>[0]) => {
         prepareCalls.push(input);
         return { ok: false, reason: 'noVideoDecodeRequest', detail: 'unused', activeJobs: [] };
       },

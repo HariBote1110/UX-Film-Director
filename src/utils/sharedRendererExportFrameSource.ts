@@ -284,6 +284,7 @@ export function createSharedRendererExportFrameSource({
     request: ProjectExportRustFrameRequest
   ): Promise<StartSharedRendererViewportPresenterResult> => {
     const session = await buildFrameSession(request);
+    throwIfClosed();
 
     const presenterResult = await startViewportPresenter({
       canvas,
@@ -393,6 +394,7 @@ export function createSharedRendererExportFrameSource({
     }
 
     const session = await buildFrameSession(request);
+    throwIfClosed();
     const nextRequestId = requestId + 1;
     const nativeSources = await prepareNativeRenderSources({
       session,
@@ -400,16 +402,16 @@ export function createSharedRendererExportFrameSource({
       activeJobs: activeVideoDecodeJobs,
     });
     if (closed) {
-      if (nativeSources.ok) {
-        const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeSources.sources);
-        if (releaseFailure) {
-          throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
-        }
-      }
+      const releaseFailure = nativeSources.ok
+        ? await releaseNativeRenderSourcesAfterAbort(nativeSources.sources)
+        : null;
       await stopVideoDecodeJobs([
         ...activeVideoDecodeJobs,
         ...nativeSources.activeJobs,
       ]);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
       throwIfClosed();
     }
 
