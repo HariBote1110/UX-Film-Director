@@ -637,6 +637,51 @@ mod tests {
     }
 
     #[test]
+    fn position_query_wire_round_trip_preserves_fractional_time_bits() {
+        let mut state = BackendState::default();
+        let replaced = handle_request(
+            request(
+                1,
+                "scene.replace",
+                editable_graph_only_replace_params("fractional-query", 9),
+            ),
+            &mut state,
+        );
+        assert!(replaced.ok);
+
+        let wire_request = r#"{"id":2,"method":"scene.query_object_positions","params":{"sceneId":"fractional-query","revision":9,"queries":[{"requestId":"sample-1","objectId":"waveform-direct","timeSeconds":0.23333333333333334},{"requestId":"sample-2","objectId":"waveform-direct","timeSeconds":1.4333333333333333},{"requestId":"sample-3","objectId":"waveform-direct","timeSeconds":2.3700000000000001}]}}"#;
+        let parsed_request: RpcRequest =
+            serde_json::from_str(wire_request).expect("wire query request should parse");
+        let requested_times = [
+            0.23333333333333334_f64,
+            1.4333333333333333_f64,
+            2.3700000000000001_f64,
+        ];
+        let response = handle_request(parsed_request, &mut state);
+        assert!(response.ok, "fractional position query should succeed");
+
+        let wire_response =
+            serde_json::to_string(&response).expect("RPC response should serialise");
+        let parsed_response: Value =
+            serde_json::from_str(&wire_response).expect("wire query response should parse");
+        let returned_times = parsed_response["result"]["positions"]
+            .as_array()
+            .expect("position array")
+            .iter()
+            .map(|position| {
+                position["timeSeconds"]
+                    .as_f64()
+                    .expect("returned query time")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(returned_times.len(), requested_times.len());
+        for (requested, returned) in requested_times.iter().zip(returned_times) {
+            assert_eq!(requested.to_bits(), returned.to_bits());
+        }
+    }
+
+    #[test]
     fn position_query_rejects_stale_revision_and_legacy_sessions_without_raw_graph() {
         let mut state = BackendState::default();
         let replaced = handle_request(

@@ -5,8 +5,8 @@ import type { VisionDetectionOverlayState } from '../store/storeTypes';
 import type { SceneHitTestViewport } from '../utils/sceneHitTest';
 import { buildVisionDetectionOverlayBoxes } from '../utils/visionDetectionOverlayGeometry';
 import { getRustSceneEvaluatedGeometryFrame, subscribeRustSceneEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometryStore';
-import { secondsToFrameIndex } from '../utils/rustSceneFrameRate';
 import { getRustScenePositionQueryTarget, rustScenePositionQueryTargetMatchesGraph } from '../utils/rustScenePositionQueryRevision';
+import { getRustSceneGeometryFrameIndexForTime } from '../utils/rustScenePlaybackEvaluation';
 
 export interface VisionDetectionOverlayLayerProps {
   objects: TimelineObject[];
@@ -60,7 +60,12 @@ export const VisionDetectionOverlayLayer: React.FC<VisionDetectionOverlayLayerPr
       })
       || state.projectSettings !== latest.expectedProjectSettings
       || state.layers !== latest.expectedLayers
-      || frame.frameIndex !== secondsToFrameIndex(latest.currentTime, latest.fps)) {
+      || frame.frameIndex !== getRustSceneGeometryFrameIndexForTime({
+        timeSeconds: latest.currentTime,
+        fps: latest.fps,
+        nativePlaybackActive: state.nativePlaybackActive,
+        isPlaying: state.isPlaying,
+      })) {
       if (svg) svg.style.display = 'none';
       return;
     }
