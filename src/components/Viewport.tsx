@@ -104,7 +104,10 @@ import {
   shouldPollNativeOverlayAttach,
 } from '../utils/nativeOverlayAttachPolling';
 import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDecoration';
-import { isRustScenePlaybackEvaluationCurrent } from '../utils/rustScenePlaybackEvaluation';
+import {
+  getRustSceneGeometryFrameIndexForTime,
+  isRustScenePlaybackEvaluationCurrent,
+} from '../utils/rustScenePlaybackEvaluation';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 import { shouldPresentSharedRendererEmptyScenePresentation } from '../utils/sharedRendererViewportEmptyScenePresentation';
 import { rendererSceneRpcCollector } from '../perf/rendererSceneRpcTrace';
@@ -2008,6 +2011,7 @@ const Viewport: React.FC = () => {
       const queryTarget = getRustScenePositionQueryTarget();
       const evaluationIsCurrent = isRustScenePlaybackEvaluationCurrent({
         evaluation,
+        frameIndex: playbackState.frameIndex,
         status: playbackState.status,
         currentTimeSeconds: playbackState.currentTimeSeconds,
         fps: latestState.projectSettings.fps,
@@ -2018,7 +2022,7 @@ const Viewport: React.FC = () => {
       });
       if (playbackState.status === 'failed') {
         clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
-      } else if (evaluationIsCurrent && evaluation && evaluation.frameIndex === playbackState.frameIndex) {
+      } else if (evaluationIsCurrent && evaluation) {
         const currentSettings = latestState.projectSettings;
         const evaluatedSession = buildSharedRendererPreviewSessionFromEvaluatedScene({
           evaluation: evaluation as Parameters<typeof buildSharedRendererPreviewSessionFromEvaluatedScene>[0]['evaluation'],
@@ -3003,7 +3007,12 @@ const Viewport: React.FC = () => {
               const state = useStore.getState();
               const frame = getRustSceneEvaluatedGeometryFrame();
               const queryTarget = getRustScenePositionQueryTarget();
-              const expectedFrameIndex = secondsToFrameIndex(state.currentTime, state.projectSettings.fps);
+              const expectedFrameIndex = getRustSceneGeometryFrameIndexForTime({
+                timeSeconds: state.currentTime,
+                fps: state.projectSettings.fps,
+                nativePlaybackActive: state.nativePlaybackActive,
+                isPlaying: state.isPlaying,
+              });
               if (!frame
                 || !queryTarget
                 || frame.sceneId !== 'viewport-rust-timeline'
