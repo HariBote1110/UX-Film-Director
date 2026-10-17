@@ -49,7 +49,7 @@ import {
   buildRustSceneSnapshotForTimeline,
 } from '../utils/rustSceneSnapshot';
 import { validateRustSceneSnapshotBoundary } from '../utils/rustSceneBoundary';
-import { buildSharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
+import { buildSharedRendererPreviewSession } from '../utils/sharedRendererPreviewSessionReference';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 

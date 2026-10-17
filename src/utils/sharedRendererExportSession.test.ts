@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { ImageObject, ProjectSettings, PsdObject, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import {
-  buildSharedRendererExportSession,
   buildSharedRendererExportSessionFromEvaluation,
 } from './sharedRendererExportSession';
-import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import { buildSharedRendererExportSession } from './sharedRendererExportSessionReference';
+import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSessionReference';
 
 const settings: ProjectSettings = {
   width: 1920,

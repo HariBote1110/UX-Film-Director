@@ -9,7 +9,7 @@ import {
   type SharedRendererExportNativeSharedFrameReleaser,
   type SharedRendererExportNativeSharedFrameRenderer,
 } from './sharedRendererExportFrameSource';
-import { buildSharedRendererExportSession } from './sharedRendererExportSession';
+import { buildSharedRendererExportSession } from './sharedRendererExportSessionReference';
 import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
