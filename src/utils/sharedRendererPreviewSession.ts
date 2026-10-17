@@ -1,12 +1,9 @@
 import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
 import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
-import { buildSharedRendererPreviewPlanReference } from './sharedRendererPreviewPlanReference';
 import {
-  buildSharedRendererPreviewSurfaceGate,
   type SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
 import {
-  buildSharedRendererPresentationContract,
   type SharedRendererPresentationContract,
 } from './sharedRendererPresentationContract';
 
@@ -27,37 +24,3 @@ export interface SharedRendererPreviewSession {
   surfaceGate: SharedRendererPreviewSurfaceGate;
   presentationContract: SharedRendererPresentationContract;
 }
-
-export const buildSharedRendererPreviewSession = ({
-  enabled,
-  projectSettings,
-  layers,
-  objects,
-  time,
-  editorMode,
-  isExporting,
-  webGpuAvailable,
-  fallbackAdapter,
-}: SharedRendererPreviewSessionInput): SharedRendererPreviewSession => {
-  const plan = buildSharedRendererPreviewPlanReference({
-    enabled,
-    projectSettings,
-    layers,
-    objects,
-    time,
-  });
-  const surfaceGate = buildSharedRendererPreviewSurfaceGate({
-    plan,
-    projectSettings,
-    editorMode,
-    isExporting,
-    webGpuAvailable,
-    fallbackAdapter,
-  });
-
-  return {
-    plan,
-    surfaceGate,
-    presentationContract: buildSharedRendererPresentationContract(),
-  };
-};
