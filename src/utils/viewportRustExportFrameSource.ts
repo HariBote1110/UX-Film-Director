@@ -1,21 +1,14 @@
-import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
+import type { EditorMode, LayerState, ProjectSettings } from '../types';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
 import {
   createSharedRendererExportFrameSource,
   type CreateSharedRendererExportFrameSourceInput,
 } from './sharedRendererExportFrameSource';
 import {
-  buildSharedRendererExportSession,
-  type SharedRendererExportSession,
-  type SharedRendererExportSessionInput,
   type SharedRendererNativeRenderEnvelope,
 } from './sharedRendererExportSession';
 import type { ProjectExportRustFrameSource } from './projectExportFrameCanvas';
 import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
-
-type BuildSharedRendererExportSession = (
-  input: SharedRendererExportSessionInput
-) => SharedRendererExportSession;
 
 export interface BuildViewportRustExportFrameSourceInput {
   exportEnabled: boolean;
@@ -30,10 +23,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   hasNativeRenderMediaObjects?: boolean;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
-  objects?: TimelineObject[];
-  time?: number;
   evaluateResidentScene?: SharedRendererExportEvaluationProvider;
-  buildExportSession?: BuildSharedRendererExportSession;
   createFrameSource?: (
     input: CreateSharedRendererExportFrameSourceInput
   ) => ProjectExportRustFrameSource;
@@ -48,7 +38,7 @@ export type ViewportRustExportFrameSourceFallbackReason =
   | 'webGpuUnavailable'
   | 'fallbackAdapter'
   | 'videoCutoverDisabled'
-  | 'exportSessionBlocked';
+  | 'residentEvaluationUnavailable';
 
 export type ViewportRustExportFrameSourceDecision =
   | {
@@ -93,10 +83,7 @@ export const resolveViewportRustExportFrameSource = ({
   hasNativeRenderMediaObjects = false,
   preferEncodeOnly = false,
   presentedFrameSharedFrameTaker,
-  objects,
-  time,
   evaluateResidentScene,
-  buildExportSession = buildSharedRendererExportSession,
   createFrameSource = createSharedRendererExportFrameSource,
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
   const effectiveVideoCutoverEnabled = videoCutoverEnabled || hasVideoObjects;
@@ -139,58 +126,13 @@ export const resolveViewportRustExportFrameSource = ({
       'Shared renderer Rust export requires Rust video cutover to be enabled.'
     );
   }
-
-  if (objects && time !== undefined && !evaluateResidentScene) {
-    let nativeRenderEnvelope: SharedRendererNativeRenderEnvelope | undefined;
-    for (const preflightTime of buildViewportRustExportPreflightTimes(objects, time, projectSettings.fps)) {
-      const session = buildExportSession({
-        enabled: true,
-        projectSettings,
-        layers,
-        objects,
-        time: preflightTime,
-        editorMode,
-        webGpuAvailable,
-        fallbackAdapter,
-      });
-      if (!session.surfaceGate.ok) {
-        return fallback(
-          'exportSessionBlocked',
-          session.surfaceGate.detail,
-          session.nativeRenderEnvelope,
-          requiresNativeRenderOutput ? 'blocked' : undefined
-        );
-      }
-      nativeRenderEnvelope = session.nativeRenderEnvelope;
-      if (!nativeRenderEnvelope.ok) {
-        return fallback(
-          'exportSessionBlocked',
-          nativeRenderEnvelope.detail,
-          nativeRenderEnvelope,
-          requiresNativeRenderOutput ? 'blocked' : undefined
-        );
-      }
-    }
-
-    return {
-      ok: true,
-      source: createFrameSource({
-        canvas,
-        projectSettings,
-        layers,
-        editorMode,
-        webGpuAvailable,
-        fallbackAdapter,
-        videoCutoverEnabled: effectiveVideoCutoverEnabled,
-        ...(effectivePreferEncodeOnly ? {
-          bitmapCaptureEnabled: false,
-          nativeRenderRequired: true,
-        } : {}),
-        ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
-        ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
-      }),
-      ...(nativeRenderEnvelope ? { nativeRenderEnvelope } : {}),
-    };
+  if (!evaluateResidentScene) {
+    return fallback(
+      'residentEvaluationUnavailable',
+      'Rust resident scene evaluation provider is unavailable.',
+      undefined,
+      'blocked',
+    );
   }
 
   return {
@@ -208,7 +150,7 @@ export const resolveViewportRustExportFrameSource = ({
         nativeRenderRequired: true,
       } : {}),
       ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
-      ...(evaluateResidentScene ? { evaluateResidentScene } : {}),
+      evaluateResidentScene,
     }),
   };
 };
@@ -275,28 +217,4 @@ const clearNativeRenderEnvelopeDiagnostics = (
   delete dataset.uxfdRustExportFrameSourceNativeRenderMediaKinds;
   delete dataset.uxfdRustExportFrameSourceNativeRenderSourceCount;
   delete dataset.uxfdRustExportFrameSourceNativeRenderSourceMediaIds;
-};
-
-const buildViewportRustExportPreflightTimes = (
-  objects: TimelineObject[],
-  initialTime: number,
-  fps: number
-): number[] => {
-  const times = new Set<number>();
-  const frameDuration = fps > 0 ? 1 / fps : 0;
-  addPreflightTime(times, initialTime);
-  objects.forEach((object) => {
-    if (object.duration <= 0) return;
-    addPreflightTime(times, Math.max(0, object.startTime));
-    if (frameDuration > 0) {
-      addPreflightTime(times, Math.max(object.startTime, object.startTime + object.duration - frameDuration));
-    }
-  });
-  return Array.from(times).sort((left, right) => left - right);
-};
-
-const addPreflightTime = (times: Set<number>, time: number): void => {
-  if (!Number.isFinite(time)) return;
-  if (time < 0) return;
-  times.add(time);
 };

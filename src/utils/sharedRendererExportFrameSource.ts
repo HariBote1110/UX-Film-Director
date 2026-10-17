@@ -1,11 +1,10 @@
-import type { EditorMode, LayerState, ProjectSettings } from '../types';
+import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
 import type {
   ProjectExportRustEncodeFrameRequest,
   ProjectExportRustFrameRequest,
   ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import {
-  buildSharedRendererExportSession,
   buildSharedRendererExportSessionFromEvaluation,
   type SharedRendererExportSession,
 } from './sharedRendererExportSession';
@@ -73,7 +72,9 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'webGpuDrawUnavailable'
   | 'nativeRenderTextureViewUnavailable'
   | 'preparedNativeRenderSourceAbortReleaseFailed'
-  | 'nativeRenderFailed';
+  | 'nativeRenderFailed'
+  | 'residentEvaluationUnavailable'
+  | 'unsupportedScene';
 
 export type SharedRendererExportFrameBitmapFactory = (
   canvas: HTMLCanvasElement,
@@ -83,7 +84,17 @@ export type SharedRendererExportFrameBitmapFactory = (
   sh: number
 ) => Promise<ImageBitmap>;
 
-export type SharedRendererExportSessionBuilder = typeof buildSharedRendererExportSession;
+/** Explicit session override used by focused tests; production callers provide a Rust evaluator. */
+export type SharedRendererExportSessionBuilder = (input: {
+  enabled: true;
+  projectSettings: ProjectSettings;
+  layers: LayerState[];
+  objects: TimelineObject[];
+  time: number;
+  editorMode: EditorMode;
+  webGpuAvailable: boolean;
+  fallbackAdapter: boolean;
+}) => SharedRendererExportSession;
 
 export type SharedRendererExportViewportPresenterStarter = (
   input: StartSharedRendererViewportPresenterInput
@@ -117,7 +128,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   nativeRenderRequired?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   datasets?: PresenterDataset[];
-  buildExportSession?: SharedRendererExportSessionBuilder;
+  buildExportSessionForTest?: SharedRendererExportSessionBuilder;
   evaluateResidentScene?: SharedRendererExportEvaluationProvider;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
@@ -183,7 +194,7 @@ export function createSharedRendererExportFrameSource({
   nativeRenderRequired = false,
   presentedFrameSharedFrameTaker,
   datasets = [canvas.dataset as unknown as PresenterDataset],
-  buildExportSession = buildSharedRendererExportSession,
+  buildExportSessionForTest,
   evaluateResidentScene,
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
@@ -205,22 +216,31 @@ export function createSharedRendererExportFrameSource({
       throw new Error('Shared renderer export frame source has already been closed.');
     }
 
-    const evaluation = await evaluateResidentScene?.({
-      objects: request.objects,
-      frameIndex: request.frameIndex,
-    });
-    if (closed) {
-      throw new Error('Shared renderer export frame source has already been closed.');
-    }
-    const session = evaluation
-      ? buildSharedRendererExportSessionFromEvaluation({
+    let session: SharedRendererExportSession;
+    if (evaluateResidentScene) {
+      const evaluation = await evaluateResidentScene({
+        objects: request.objects,
+        frameIndex: request.frameIndex,
+      });
+      if (closed) {
+        throw new Error('Shared renderer export frame source has already been closed.');
+      }
+      if (!evaluation) {
+        throw new SharedRendererExportFrameSourceBlockedError(
+          'Rust resident scene evaluation rejected the export graph.',
+          'unsupportedScene',
+          request.frameIndex
+        );
+      }
+      session = buildSharedRendererExportSessionFromEvaluation({
         evaluation,
         projectSettings,
         editorMode,
         webGpuAvailable,
         fallbackAdapter,
-      })
-      : buildExportSession({
+      });
+    } else if (buildExportSessionForTest) {
+      session = buildExportSessionForTest({
         enabled: true,
         projectSettings,
         layers,
@@ -230,6 +250,13 @@ export function createSharedRendererExportFrameSource({
         webGpuAvailable,
         fallbackAdapter,
       });
+    } else {
+      throw new SharedRendererExportFrameSourceBlockedError(
+        'Rust resident scene evaluation provider is unavailable.',
+        'residentEvaluationUnavailable',
+        request.frameIndex
+      );
+    }
     const surfaceGate = session.surfaceGate;
     if (!surfaceGate.ok) {
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
