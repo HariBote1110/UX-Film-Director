@@ -1,8 +1,6 @@
 import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
-import {
-  buildSharedRendererPreviewPlan,
-  type SharedRendererPreviewPlan,
-} from './sharedRendererPreviewBridge';
+import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewPlanReference } from './sharedRendererPreviewPlanReference';
 import {
   buildSharedRendererPreviewSurfaceGate,
   type SharedRendererPreviewSurfaceGate,
@@ -41,7 +39,7 @@ export const buildSharedRendererPreviewSession = ({
   webGpuAvailable,
   fallbackAdapter,
 }: SharedRendererPreviewSessionInput): SharedRendererPreviewSession => {
-  const plan = buildSharedRendererPreviewPlan({
+  const plan = buildSharedRendererPreviewPlanReference({
     enabled,
     projectSettings,
     layers,

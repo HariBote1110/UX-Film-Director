@@ -56,19 +56,19 @@ if (agentProjectPath) {
     });
 }
 
-if (urlSearchParams.has('realisticHeavyEditE2e')) {
+if (import.meta.env.DEV && urlSearchParams.has('realisticHeavyEditE2e')) {
   void import('./e2e/realisticHeavyEditHarness').then(({ installRealisticHeavyEditHarness }) => {
     installRealisticHeavyEditHarness();
   });
 }
 
-if (urlSearchParams.has('rustTimelineGeneratedE2e')) {
+if (import.meta.env.DEV && urlSearchParams.has('rustTimelineGeneratedE2e')) {
   void import('./e2e/rustTimelineGeneratedScenario').then(({ installRustTimelineGeneratedHarness }) => {
     installRustTimelineGeneratedHarness();
   });
 }
 
-if (urlSearchParams.has('psdImportParityE2e')) {
+if (import.meta.env.DEV && urlSearchParams.has('psdImportParityE2e')) {
   void import('./e2e/psdImportParityHarness').then(({ installPsdImportParityHarness }) => {
     installPsdImportParityHarness();
   });

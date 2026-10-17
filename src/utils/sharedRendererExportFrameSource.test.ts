@@ -10,6 +10,7 @@ import {
   type SharedRendererExportNativeSharedFrameRenderer,
 } from './sharedRendererExportFrameSource';
 import { buildSharedRendererExportSession } from './sharedRendererExportSession';
+import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { RustBackendAudioWaveformSamplesPayload } from './rustBackendAudioWaveformControl';
@@ -21,12 +22,44 @@ const settings: ProjectSettings = {
   sampleRate: 48000,
 };
 
+type SharedRendererExportFrameSourceTestInput = Parameters<typeof createSharedRendererExportFrameSourceImpl>[0] & {
+  buildReferenceExportSession?: typeof buildSharedRendererExportSession;
+};
+
 const createSharedRendererExportFrameSource = (
-  input: Parameters<typeof createSharedRendererExportFrameSourceImpl>[0]
-) => createSharedRendererExportFrameSourceImpl({
-  buildExportSessionForTest: buildSharedRendererExportSession,
-  ...input,
-});
+  input: SharedRendererExportFrameSourceTestInput
+) => {
+  const {
+    buildReferenceExportSession = buildSharedRendererExportSession,
+    evaluateResidentScene,
+    ...sourceInput
+  } = input;
+  const referenceEvaluationProvider: SharedRendererExportEvaluationProvider = async ({ objects, frameIndex }) => {
+    const referenceSession = buildReferenceExportSession({
+      enabled: true,
+      projectSettings: input.projectSettings,
+      layers: input.layers,
+      objects: [...objects],
+      time: frameIndex / input.projectSettings.fps,
+      editorMode: input.editorMode,
+      webGpuAvailable: input.webGpuAvailable,
+      fallbackAdapter: input.fallbackAdapter,
+    });
+    if (referenceSession.plan.mode !== 'sharedRenderer') return null;
+    return {
+      sceneId: 'export-frame-source-test',
+      revision: 1,
+      frameIndex,
+      snapshot: referenceSession.plan.snapshot,
+      media: referenceSession.plan.media,
+    };
+  };
+
+  return createSharedRendererExportFrameSourceImpl({
+    ...sourceInput,
+    evaluateResidentScene: evaluateResidentScene ?? referenceEvaluationProvider,
+  });
+};
 
 describe('SharedRendererExportFrameSourceBlockedError', () => {
   it('does not allow legacy canvas fallback unless the caller opts in explicitly', () => {
@@ -134,7 +167,7 @@ describe('createSharedRendererExportFrameSource', () => {
           media: [],
         };
       },
-      buildExportSessionForTest: () => { throw new Error('TS export builder must not run for Rust evaluation'); },
+      buildReferenceExportSession: () => { throw new Error('TS export builder must not run for Rust evaluation'); },
       startViewportPresenter: async (input) => {
         presenterCalls.push(input);
         return {
@@ -163,7 +196,7 @@ describe('createSharedRendererExportFrameSource', () => {
   it('Rust builderがgraphを受理しない場合はTS export builderへ戻さずblockedにする', async () => {
     const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
     const objects = [image()];
-    const buildExportSessionForTest = vi.fn((input) => buildSharedRendererExportSession(input));
+    const buildReferenceExportSession = vi.fn((input) => buildSharedRendererExportSession(input));
     const presenterCalls: unknown[] = [];
     const source = createSharedRendererExportFrameSource({
       canvas,
@@ -174,7 +207,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       evaluateResidentScene: async () => null,
-      buildExportSessionForTest,
+      buildReferenceExportSession,
       startViewportPresenter: async (input) => {
         presenterCalls.push(input);
         return {
@@ -199,7 +232,7 @@ describe('createSharedRendererExportFrameSource', () => {
       legacyCanvasFallbackAllowed: false,
     });
 
-    expect(buildExportSessionForTest).not.toHaveBeenCalled();
+    expect(buildReferenceExportSession).not.toHaveBeenCalled();
     expect(presenterCalls).toHaveLength(0);
   });
 
@@ -1163,7 +1196,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -1399,7 +1432,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -1596,7 +1629,7 @@ describe('createSharedRendererExportFrameSource', () => {
         fallbackAdapter: false,
         videoCutoverEnabled: true,
         bitmapCaptureEnabled: false,
-        buildExportSessionForTest: () => ({
+        buildReferenceExportSession: () => ({
           plan: {
             mode: 'sharedRenderer',
             snapshot,
@@ -1768,7 +1801,7 @@ describe('createSharedRendererExportFrameSource', () => {
         fallbackAdapter: false,
         videoCutoverEnabled: true,
         bitmapCaptureEnabled: false,
-        buildExportSessionForTest: () => ({
+        buildReferenceExportSession: () => ({
           plan: {
             mode: 'sharedRenderer',
             snapshot,
@@ -1955,7 +1988,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -2129,7 +2162,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -2433,7 +2466,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -2644,7 +2677,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -2832,7 +2865,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -3019,7 +3052,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -3217,7 +3250,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -3441,7 +3474,7 @@ describe('createSharedRendererExportFrameSource', () => {
         fallbackAdapter: false,
         videoCutoverEnabled: true,
         bitmapCaptureEnabled: false,
-        buildExportSessionForTest: () => ({
+        buildReferenceExportSession: () => ({
           plan: {
             mode: 'sharedRenderer',
             snapshot,
@@ -3636,7 +3669,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -3808,7 +3841,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -3978,7 +4011,7 @@ describe('createSharedRendererExportFrameSource', () => {
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
       nativeRenderRequired: true,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,
@@ -4126,7 +4159,7 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSessionForTest: () => ({
+      buildReferenceExportSession: () => ({
         plan: {
           mode: 'sharedRenderer',
           snapshot,

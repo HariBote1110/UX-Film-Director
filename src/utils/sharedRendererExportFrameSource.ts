@@ -1,13 +1,13 @@
-import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
+import type { EditorMode, LayerState, ProjectSettings } from '../types';
 import type {
   ProjectExportRustEncodeFrameRequest,
   ProjectExportRustFrameRequest,
   ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import {
-  buildSharedRendererExportSessionFromEvaluation,
   type SharedRendererExportSession,
 } from './sharedRendererExportSession';
+import { buildSharedRendererExportSessionFromEvaluation } from './sharedRendererEvaluatedExportSession';
 import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import {
   releaseRustBackendNativeSharedFrame,
@@ -85,17 +85,6 @@ export type SharedRendererExportFrameBitmapFactory = (
 ) => Promise<ImageBitmap>;
 
 /** Explicit session override used by focused tests; production callers provide a Rust evaluator. */
-export type SharedRendererExportSessionBuilder = (input: {
-  enabled: true;
-  projectSettings: ProjectSettings;
-  layers: LayerState[];
-  objects: TimelineObject[];
-  time: number;
-  editorMode: EditorMode;
-  webGpuAvailable: boolean;
-  fallbackAdapter: boolean;
-}) => SharedRendererExportSession;
-
 export type SharedRendererExportViewportPresenterStarter = (
   input: StartSharedRendererViewportPresenterInput
 ) => Promise<StartSharedRendererViewportPresenterResult>;
@@ -128,7 +117,6 @@ export interface CreateSharedRendererExportFrameSourceInput {
   nativeRenderRequired?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   datasets?: PresenterDataset[];
-  buildExportSessionForTest?: SharedRendererExportSessionBuilder;
   evaluateResidentScene?: SharedRendererExportEvaluationProvider;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
@@ -194,7 +182,6 @@ export function createSharedRendererExportFrameSource({
   nativeRenderRequired = false,
   presentedFrameSharedFrameTaker,
   datasets = [canvas.dataset as unknown as PresenterDataset],
-  buildExportSessionForTest,
   evaluateResidentScene,
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
@@ -235,17 +222,6 @@ export function createSharedRendererExportFrameSource({
       session = buildSharedRendererExportSessionFromEvaluation({
         evaluation,
         projectSettings,
-        editorMode,
-        webGpuAvailable,
-        fallbackAdapter,
-      });
-    } else if (buildExportSessionForTest) {
-      session = buildExportSessionForTest({
-        enabled: true,
-        projectSettings,
-        layers,
-        objects: [...request.objects],
-        time: request.time,
         editorMode,
         webGpuAvailable,
         fallbackAdapter,

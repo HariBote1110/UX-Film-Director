@@ -1,8 +1,6 @@
 import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
-import {
-  buildSharedRendererPreviewPlan,
-  type SharedRendererPreviewPlan,
-} from './sharedRendererPreviewBridge';
+import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewPlanReference } from './sharedRendererPreviewPlanReference';
 import {
   buildSharedRendererPresentationContract,
   type SharedRendererPresentationContract,
@@ -11,23 +9,12 @@ import {
   buildSharedRendererPreviewSurfaceGate,
   type SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
-import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
-import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
-import { buildSharedRendererPreviewPlanFromEvaluation } from './sharedRendererPreviewBridge';
+import {
+  buildSharedRendererExportNativeRenderEnvelope,
+  type SharedRendererNativeRenderEnvelope,
+} from './sharedRendererExportEnvelope';
 
-export type SharedRendererNativeRenderEnvelope =
-  | {
-      ok: true;
-      mediaCount: number;
-      mediaKinds: string[];
-      sourceCount: number;
-      sourceMediaIds: string[];
-    }
-  | {
-      ok: false;
-      reason: 'surfaceGateUnavailable' | 'nativeRenderUnsupportedMedia';
-      detail: string;
-    };
+export type { SharedRendererNativeRenderEnvelope } from './sharedRendererExportEnvelope';
 
 export interface SharedRendererExportSessionInput {
   enabled: boolean;
@@ -47,13 +34,8 @@ export interface SharedRendererExportSession {
   nativeRenderEnvelope: SharedRendererNativeRenderEnvelope;
 }
 
-export interface SharedRendererExportEvaluatedSceneInput {
-  evaluation: Pick<RustBackendSceneEvaluation, 'snapshot' | 'media'>;
-  projectSettings: Pick<ProjectSettings, 'width' | 'height'>;
-  editorMode: EditorMode;
-  webGpuAvailable: boolean;
-  fallbackAdapter: boolean;
-}
+export { buildSharedRendererExportSessionFromEvaluation } from './sharedRendererEvaluatedExportSession';
+export type { SharedRendererExportEvaluatedSceneInput } from './sharedRendererEvaluatedExportSession';
 
 export const buildSharedRendererExportSession = ({
   enabled,
@@ -65,7 +47,7 @@ export const buildSharedRendererExportSession = ({
   webGpuAvailable,
   fallbackAdapter,
 }: SharedRendererExportSessionInput): SharedRendererExportSession => {
-  const plan = buildSharedRendererPreviewPlan({
+  const plan = buildSharedRendererPreviewPlanReference({
     enabled,
     projectSettings,
     layers,
@@ -87,67 +69,6 @@ export const buildSharedRendererExportSession = ({
     plan,
     surfaceGate,
     presentationContract: buildSharedRendererPresentationContract(),
-    nativeRenderEnvelope: buildNativeRenderEnvelope(surfaceGate),
-  };
-};
-
-export const buildSharedRendererExportSessionFromEvaluation = ({
-  evaluation,
-  projectSettings,
-  editorMode,
-  webGpuAvailable,
-  fallbackAdapter,
-}: SharedRendererExportEvaluatedSceneInput): SharedRendererExportSession => {
-  const plan = buildSharedRendererPreviewPlanFromEvaluation(evaluation);
-  const surfaceGate = buildSharedRendererPreviewSurfaceGate({
-    plan,
-    projectSettings,
-    editorMode,
-    isExporting: false,
-    webGpuAvailable,
-    fallbackAdapter,
-  });
-
-  return {
-    plan,
-    surfaceGate,
-    presentationContract: buildSharedRendererPresentationContract(),
-    nativeRenderEnvelope: buildNativeRenderEnvelope(surfaceGate),
-  };
-};
-
-const buildNativeRenderEnvelope = (
-  surfaceGate: SharedRendererPreviewSurfaceGate
-): SharedRendererNativeRenderEnvelope => {
-  if (!surfaceGate.ok) {
-    return {
-      ok: false,
-      reason: 'surfaceGateUnavailable',
-      detail: surfaceGate.detail,
-    };
-  }
-
-  const unsupportedMedia = resolveMixedNativeRenderUnsupportedMedia({
-    snapshot: surfaceGate.snapshot,
-    media: surfaceGate.media,
-  });
-  if (unsupportedMedia) {
-    return {
-      ok: false,
-      reason: 'nativeRenderUnsupportedMedia',
-      detail: unsupportedMedia,
-    };
-  }
-
-  const sourceMediaIds = surfaceGate.media
-    .filter((reference) => reference.kind === 'Video')
-    .map((reference) => reference.id);
-
-  return {
-    ok: true,
-    mediaCount: surfaceGate.media.length,
-    mediaKinds: surfaceGate.media.map((reference) => reference.kind),
-    sourceCount: sourceMediaIds.length,
-    sourceMediaIds,
+    nativeRenderEnvelope: buildSharedRendererExportNativeRenderEnvelope(surfaceGate),
   };
 };

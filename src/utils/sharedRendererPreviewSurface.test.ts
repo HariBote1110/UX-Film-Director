@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
-import {
-  buildSharedRendererPreviewPlan,
-  type SharedRendererPreviewPlan,
-} from './sharedRendererPreviewBridge';
+import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewPlanReference } from './sharedRendererPreviewPlanReference';
 import { buildSharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
 import type { ImageObject, ProjectSettings } from '../types';
 
@@ -40,7 +38,7 @@ const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
 
 describe('buildSharedRendererPreviewSurfaceGate', () => {
   it('allows a read-only shared renderer surface only for 2D parallel compare plans', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -69,7 +67,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
   });
 
   it('blocks non-compare, exporting, 3D, invalid size, and unsupported WebGPU states with explicit reasons', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -92,7 +90,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
       detail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
 
-    const comparePlan = buildSharedRendererPreviewPlan({
+    const comparePlan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),

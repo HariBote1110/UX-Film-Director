@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
 import {
-  buildSharedRendererPreviewPlan,
   buildSharedRendererPreviewPlanFromEvaluation,
 } from './sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewPlanReference } from './sharedRendererPreviewPlanReference';
 import type { ImageObject, ProjectSettings } from '../types';
 
 const settings: ProjectSettings = {
@@ -37,7 +37,7 @@ const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
   ...patch,
 });
 
-describe('buildSharedRendererPreviewPlan', () => {
+describe('buildSharedRendererPreviewPlanReference', () => {
   it('Rust評価結果をそのまま共通preview planにし、TS graphを再評価しない', () => {
     const evaluation = {
       snapshot: {
@@ -62,7 +62,7 @@ describe('buildSharedRendererPreviewPlan', () => {
   });
 
   it('flag が無効なときは disabled プランを返す', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: false,
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -77,7 +77,7 @@ describe('buildSharedRendererPreviewPlan', () => {
   });
 
   it('表現可能なシーンでは sharedRenderer を唯一の presenter とするプランを返す（Pixi 併走モードは存在しない）', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -95,7 +95,7 @@ describe('buildSharedRendererPreviewPlan', () => {
   });
 
   it('表現不能なシーンでは blocked（unsupportedScene）を返し、issues を保持する', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -111,7 +111,7 @@ describe('buildSharedRendererPreviewPlan', () => {
   });
 
   it('スケール付き画像の transform を sharedRenderer プランに保持する', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -125,7 +125,7 @@ describe('buildSharedRendererPreviewPlan', () => {
   });
 
   it('サブピクセルの translation を sharedRenderer プランに保持する', () => {
-    const plan = buildSharedRendererPreviewPlan({
+    const plan = buildSharedRendererPreviewPlanReference({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
