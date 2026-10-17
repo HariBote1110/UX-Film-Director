@@ -8,12 +8,14 @@ import {
   type SharedRendererExportNativeRenderSourcesPreparer,
   type SharedRendererExportNativeSharedFrameReleaser,
   type SharedRendererExportNativeSharedFrameRenderer,
+  type SharedRendererExportVideoDecodeJobStopper,
 } from './sharedRendererExportFrameSource';
 import { buildSharedRendererExportSession } from './sharedRendererExportSessionReference';
 import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { RustBackendAudioWaveformSamplesPayload } from './rustBackendAudioWaveformControl';
+import type { StartSharedRendererViewportPresenterResult } from './sharedRendererViewportPresenterOrchestration';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -4395,11 +4397,11 @@ describe('createSharedRendererExportFrameSource', () => {
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
       prepareNativeRenderSources: () => new Promise((resolve) => { resolvePreparation = resolve; }),
-      renderNativeSharedFrame: async (input) => {
+      renderNativeSharedFrame: async (input: Parameters<SharedRendererExportNativeSharedFrameRenderer>[0]) => {
         nativeRenderCalls.push(input);
         return { success: false, error: 'native render must not run after close' } as never;
       },
-      stopVideoDecodeJob: async (job) => { stoppedJobIds.push(job.jobId); },
+      stopVideoDecodeJob: async (job: Parameters<SharedRendererExportVideoDecodeJobStopper>[0]) => { stoppedJobIds.push(job.jobId); },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
@@ -4441,7 +4443,7 @@ describe('createSharedRendererExportFrameSource', () => {
     const stoppedJobIds: string[] = [];
     const disposePresenter = vi.fn();
     const createBitmap = vi.fn(async () => ({ close: () => undefined }) as ImageBitmap);
-    let resolvePresenter: ((result: unknown) => void) | undefined;
+    let resolvePresenter: ((result: StartSharedRendererViewportPresenterResult) => void) | undefined;
 
     const source = createSharedRendererExportFrameSource({
       canvas,
@@ -4451,7 +4453,7 @@ describe('createSharedRendererExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
-      startViewportPresenter: () => new Promise((resolve) => { resolvePresenter = resolve; }),
+      startViewportPresenter: () => new Promise<StartSharedRendererViewportPresenterResult>((resolve) => { resolvePresenter = resolve; }),
       createFrameBitmap: createBitmap,
       stopVideoDecodeJob: async (job) => { stoppedJobIds.push(job.jobId); },
     });
@@ -4471,7 +4473,7 @@ describe('createSharedRendererExportFrameSource', () => {
       control: { dispose: disposePresenter },
       activeVideoDecodeJob: activeJob,
       activeVideoDecodeJobs: [activeJob],
-    });
+    } as never);
 
     await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
     expect(disposePresenter).toHaveBeenCalledOnce();

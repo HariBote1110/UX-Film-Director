@@ -194,9 +194,27 @@ export function createSharedRendererExportFrameSource({
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let requestId = 0;
   let closed = false;
+  const stoppedVideoDecodeJobIds = new Set<string>();
   const renderNativeSharedFrame = inputRenderNativeSharedFrame ?? defaultRenderNativeSharedFrame;
   const nativeSharedFrameRendererAvailable =
     inputRenderNativeSharedFrame != null || isDefaultNativeSharedFrameRendererAvailable();
+
+  const throwIfClosed = (): void => {
+    if (closed) {
+      throw new Error('Shared renderer export frame source has already been closed.');
+    }
+  };
+
+  const stopVideoDecodeJobs = async (
+    jobs: readonly SharedRendererViewportVideoDecodeJob[]
+  ): Promise<void> => {
+    const jobsToStop = jobs.filter((job) => {
+      if (stoppedVideoDecodeJobIds.has(job.jobId)) return false;
+      stoppedVideoDecodeJobIds.add(job.jobId);
+      return true;
+    });
+    await Promise.all(jobsToStop.map(stopVideoDecodeJob));
+  };
 
   const buildFrameSession = async (request: ProjectExportRustFrameRequest): Promise<SharedRendererExportSession> => {
     if (closed) {
@@ -285,6 +303,14 @@ export function createSharedRendererExportFrameSource({
         activeVideoDecodeJobs = job ? [job] : [];
       },
     });
+    if (closed) {
+      presenterResult.control.dispose();
+      await stopVideoDecodeJobs([
+        ...activeVideoDecodeJobs,
+        ...presenterResult.activeVideoDecodeJobs,
+      ]);
+      throwIfClosed();
+    }
     activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
 
     const sharedRendererOutputBlock = resolveSharedRendererOutputBlock(
@@ -373,6 +399,19 @@ export function createSharedRendererExportFrameSource({
       requestId: nextRequestId,
       activeJobs: activeVideoDecodeJobs,
     });
+    if (closed) {
+      if (nativeSources.ok) {
+        const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeSources.sources);
+        if (releaseFailure) {
+          throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+        }
+      }
+      await stopVideoDecodeJobs([
+        ...activeVideoDecodeJobs,
+        ...nativeSources.activeJobs,
+      ]);
+      throwIfClosed();
+    }
 
     let nativeRenderSources: SharedRendererViewportNativeRenderSource[];
     if (!nativeSources.ok) {
@@ -499,6 +538,13 @@ export function createSharedRendererExportFrameSource({
       media: surfaceGate.media,
       requestAudioWaveformSamples,
     });
+    if (closed) {
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
+      throwIfClosed();
+    }
     const nativeEncodeFramePayload = {
       sessionId: request.encodeSessionId,
       renderId,
@@ -560,12 +606,33 @@ export function createSharedRendererExportFrameSource({
       if (releaseFailure) {
         throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
       }
+      if (closed) throwIfClosed();
       return throwNativeRenderFailed(
         canvas,
         request.frameIndex,
         formatNativeRenderError(error),
         !effectiveNativeRenderRequired
       );
+    }
+    if (closed) {
+      if (renderResponse.success && renderResponse.result) {
+        const releaseFailure = await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
+        const outputReleaseFailure = await releaseNativeRenderOutputAfterSourceReleaseFailure({
+          memoryId: renderResponse.result.frame.descriptor.memoryId,
+        }, releaseNativeSharedFrame);
+        if (outputReleaseFailure) {
+          throwNativeRenderOutputReleaseFailed(canvas, request.frameIndex, outputReleaseFailure);
+        }
+        if (releaseFailure) {
+          throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+        }
+      } else {
+        const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+        if (releaseFailure) {
+          throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+        }
+      }
+      throwIfClosed();
     }
     if (!renderResponse.success || !renderResponse.result) {
       const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
@@ -594,6 +661,15 @@ export function createSharedRendererExportFrameSource({
         throwNativeRenderOutputReleaseFailed(canvas, request.frameIndex, outputReleaseFailure);
       }
       throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, completeReleaseFailure);
+    }
+    if (closed) {
+      const outputReleaseFailure = await releaseNativeRenderOutputAfterSourceReleaseFailure({
+        memoryId: renderResponse.result.frame.descriptor.memoryId,
+      }, releaseNativeSharedFrame);
+      if (outputReleaseFailure) {
+        throwNativeRenderOutputReleaseFailed(canvas, request.frameIndex, outputReleaseFailure);
+      }
+      throwIfClosed();
     }
 
     writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
@@ -639,13 +715,18 @@ export function createSharedRendererExportFrameSource({
 
     const presenterResult = await presentFrame(request);
     try {
-      return await createFrameBitmap(
+      const bitmap = await createFrameBitmap(
         canvas,
         0,
         0,
         request.width,
         request.height
       );
+      if (closed) {
+        bitmap.close();
+        throwIfClosed();
+      }
+      return bitmap;
     } finally {
       presenterResult.control.dispose();
     }
@@ -673,7 +754,9 @@ export function createSharedRendererExportFrameSource({
               height: request.height,
               fps: projectSettings.fps,
             });
+            throwIfClosed();
           } catch (error) {
+            if (closed) throwIfClosed();
             writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
               status: 'blocked',
               frameIndex: request.frameIndex,
@@ -717,7 +800,7 @@ export function createSharedRendererExportFrameSource({
       closed = true;
       const jobsToStop = activeVideoDecodeJobs;
       activeVideoDecodeJobs = [];
-      await Promise.all(jobsToStop.map(stopVideoDecodeJob));
+      await stopVideoDecodeJobs(jobsToStop);
     },
   };
 

@@ -49,3 +49,10 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - `cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity`: 447フレームのTS/Rust比較に成功し、差分0件。
 - 全Vitest: 277ファイル中276成功、1986件中1985件成功。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が要求するgitignore対象 `perf/heavy-media` fixtureの欠落によるファイル存在確認。隔離worktreeには `.gitignore` のみで素材が存在しない。fixture生成や期待値のskipは行っていない。
 - production Vite build: `/tmp/uxfd-reference-isolation-build-20261018` へのbuild成功。bundle内に`rustSceneSnapshotReference` / `editableRustSceneReference` / evaluator Reference名はなく、旧serializer/evaluatorがproduction bundleへ到達しない。test buildは`dist`へ出力せず、tracked build artifactsの変更もない。
+
+## Export close競合の追加修正（2026-10-18）
+
+- native render source準備中、およびviewport presenter開始中にframe sourceがcloseされる競合を回帰テストで再現した。close後に非同期処理が完了するとnative renderが呼ばれたりbitmapが返ったりする状態を確認してから修正した。
+- close後に戻ったnative sourceはabort releaseし、新規decode jobを停止する。遅れて返ったpresenter controlもdisposeし、decode jobを停止する。停止済みjobの重複停止を避け、close後のframe/payload返却を拒否する。
+- resident evaluation、native source準備、audio waveform準備、native render、presenter開始、bitmap作成、presented shared-frame受け渡しの各await後にclose状態を確認する。native renderがclose後に完了した場合は出力frameをreleaseしてからキャンセルエラーにする。
+- 回帰テストはRED→GREENで確認。`sharedRendererExportFrameSource` / native source / native uploadの3 suiteで93 tests成功、`npx tsc --noEmit`成功。
