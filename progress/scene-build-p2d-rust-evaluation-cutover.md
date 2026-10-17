@@ -56,3 +56,11 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - close後に戻ったnative sourceはabort releaseし、新規decode jobを停止する。遅れて返ったpresenter controlもdisposeし、decode jobを停止する。停止済みjobの重複停止を避け、close後のframe/payload返却を拒否する。
 - resident evaluation、native source準備、audio waveform準備、native render、presenter開始、bitmap作成、presented shared-frame受け渡しの各await後にclose状態を確認する。native renderがclose後に完了した場合は出力frameをreleaseしてからキャンセルエラーにする。
 - 回帰テストはRED→GREENで確認。`sharedRendererExportFrameSource` / native source / native uploadの3 suiteで93 tests成功、`npx tsc --noEmit`成功。
+
+## 統合後の再検証（2026-10-18）
+
+- Reference隔離を統合した`feature-proxy`で全Vitest 277ファイル / 1,986件成功。親checkoutの実素材を使用し、隔離worktreeで欠落していた素材テストも成功した。型チェック・生成型整合性チェックも成功。
+- production buildを`/tmp/uxfd-reference-production-build-20261018`へ出力して成功。
+- f64 round-trip修正を含む検証済みbackendで、raw graph/RPC flagを未設定のまま混在MP4を60/60フレーム出力した。動画・画像・音声・PSD・生成エフェクト・groupを含み、生成エフェクト画素検査とH.264 probeが成功、runtime errorsは空（`/tmp/uxfd-reference-default-export-result.json`）。native overlayは無効、native direct encodeは無効の構成。
+- Rust backend releaseテストは203件成功、2件ignored（`/tmp/uxfd-final-backend-tests.log`）。
+- レビューで見つかったexport close中の非同期準備と旧native再生通知の競合は、別途回帰修正・最終統合検証を行う。
