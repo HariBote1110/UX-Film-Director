@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
 import { validateRustSceneSnapshotBoundary } from './rustSceneBoundary';
 import type { RustSceneSnapshotBoundaryIssue } from './rustSceneContract';
-import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshot';
+import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshotReference';
 import type { ImageObject, ProjectSettings } from '../types';
 
 const settings: ProjectSettings = {

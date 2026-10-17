@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { easingFunctions, easingNames, EasingType } from './easings';
+import { easingNames, type EasingType } from './easings';
+import { easingFunctions } from './easingEvaluationReference';
 
 const ALL_EASING_TYPES = Object.keys(easingFunctions) as EasingType[];
 

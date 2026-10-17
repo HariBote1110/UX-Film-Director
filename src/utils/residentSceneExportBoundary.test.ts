@@ -20,7 +20,7 @@ describe('常駐 Rust scene export 境界', () => {
 
     expect(exportSource).toContain("from './sharedRendererEvaluatedExportSession'");
     expect(exportSource).not.toMatch(/import\s*\{\s*buildSharedRendererExportSession\s*,/);
-    expect(bridgeSource).not.toContain("from './rustSceneSnapshot'");
+    expect(bridgeSource).not.toContain("from './rustSceneSnapshotReference'");
   });
 
   it('serializer referenceへ到達するE2E entryをdevelopment限定にする', () => {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSubjectCropKeyframesFromVisionTrackSamples,
-  evaluateSubjectCropNormRectAtTime,
   normaliseSubjectCropKeyframesForVideo
 } from './subjectCropKeyframes';
+import { evaluateSubjectCropNormRectAtTime } from './sceneEvaluationReference';
 import type { VideoObject } from '../types';
 
 const videoBase = (): VideoObject => ({

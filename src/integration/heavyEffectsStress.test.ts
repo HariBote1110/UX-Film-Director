@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FilterType, PositionKeyframe, ShapeObject } from '../types';
 import { useStore } from '../store/useStore';
-import { easingFunctions, type EasingType } from '../utils/easings';
+import type { EasingType } from '../utils/easings';
+import { easingFunctions, evaluateObjectPositionAtTime } from '../utils/sceneEvaluationReference';
 import {
   createDefaultFilter,
   getEnabledObjectFiltersInOrder,
@@ -12,7 +13,6 @@ import {
   syncLegacyEffectsWithFilters,
 } from '../utils/filterStack';
 import {
-  evaluateObjectPositionAtTime,
   normaliseKeyframesForObject,
   shiftKeyframesForObject,
 } from '../utils/keyframes';

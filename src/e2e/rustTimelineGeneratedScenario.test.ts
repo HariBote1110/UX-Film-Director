@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEditableRustScene } from '../utils/editableRustScene';
+import { buildEditableRustScene } from '../utils/editableRustSceneReference';
 import { buildRustTimelineGeneratedScenario } from './rustTimelineGeneratedScenario';
 
 describe('Rust常駐タイムライン生成エフェクトシナリオ', () => {
