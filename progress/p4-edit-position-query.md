@@ -38,7 +38,7 @@
 ## 未対応範囲
 
 - 実Electron/CDPでのnative playback中の選択枠とhit-testの目視確認は未実施。frame identity、再生中の低頻度評価再利用、pause/revision/遅延presentの取消はVitestで固定した。
-- 実Electron/CDPによるVision tracking後のキー適用は確認中。分割の実操作と取消は上記の条件で確認済み。
+- 分割とVision trackingの実操作は上記の条件で確認済み。native再生のbody/quad同時提示と、旧再生通知による時刻上書きの防止を最終確認する。
 
 ## Rust評価snapshotの選択geometry
 

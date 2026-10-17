@@ -8,12 +8,14 @@ import {
   type SharedRendererExportNativeRenderSourcesPreparer,
   type SharedRendererExportNativeSharedFrameReleaser,
   type SharedRendererExportNativeSharedFrameRenderer,
+  type SharedRendererExportVideoDecodeJobStopper,
 } from './sharedRendererExportFrameSource';
 import { buildSharedRendererExportSession } from './sharedRendererExportSessionReference';
 import type { SharedRendererExportEvaluationProvider } from './sharedRendererExportEvaluationProvider';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { RustBackendAudioWaveformSamplesPayload } from './rustBackendAudioWaveformControl';
+import type { StartSharedRendererViewportPresenterResult } from './sharedRendererViewportPresenterOrchestration';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -191,6 +193,81 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(evaluationCalls).toEqual([15]);
     expect(presenterCalls).toHaveLength(1);
     expect((presenterCalls[0] as { session: { plan: { snapshot: { frame_index: number } } } }).session.plan.snapshot.frame_index).toBe(15);
+  });
+
+  it('buildFrameSession完了とpresenter開始の間にcloseされた場合はpresenterを開始しない', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const presenterCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async (input) => {
+        presenterCalls.push(input);
+        return {
+          control: { dispose: () => undefined },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+    });
+
+    const pendingFrame = source.renderFrame!({
+      frameIndex: 4,
+      timestampUs: 66_667,
+      time: 4 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    });
+    queueMicrotask(() => { void source.close?.(); });
+
+    await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
+    expect(presenterCalls).toEqual([]);
+  });
+
+  it('buildFrameSession完了とnative source準備の間にcloseされた場合は準備を開始しない', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const prepareCalls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      prepareNativeRenderSources: async (input: Parameters<SharedRendererExportNativeRenderSourcesPreparer>[0]) => {
+        prepareCalls.push(input);
+        return { ok: false, reason: 'noVideoDecodeRequest', detail: 'unused', activeJobs: [] };
+      },
+      renderNativeSharedFrame: async (_input: Parameters<SharedRendererExportNativeSharedFrameRenderer>[0]) => {
+        throw new Error('native render must not run after close');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+    });
+
+    const pendingFrame = source.renderEncodeFrame!({
+      frameIndex: 5,
+      timestampUs: 83_333,
+      time: 5 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [video()],
+      encodeSessionId: 'session-close-before-native-prepare',
+    });
+    queueMicrotask(() => { void source.close?.(); });
+
+    await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
+    expect(prepareCalls).toEqual([]);
   });
 
   it('Rust builderがgraphを受理しない場合はTS export builderへ戻さずblockedにする', async () => {
@@ -4365,6 +4442,183 @@ describe('createSharedRendererExportFrameSource', () => {
     await source.close?.();
 
     expect(stoppedJobIds).toEqual(['decode-close']);
+  });
+
+  it('close中にnative render source準備が完了してもnative renderへ進まない', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const activeJob = decodeJob('decode-native-close');
+    const stoppedJobIds: string[] = [];
+    const releaseAbortedSource = vi.fn(async () => undefined);
+    const nativeRenderCalls: unknown[] = [];
+    let resolvePreparation: ((result: {
+      ok: true;
+      activeJobs: typeof activeJob[];
+      sources: Array<{
+        mediaId: string;
+        slotCount: number;
+        frame: { descriptor: Record<string, never>; ptsFrame: number };
+        releaseAfterNativeRenderComplete: () => Promise<void>;
+        releaseAfterNativeRenderAbort: () => Promise<void>;
+      }>;
+    }) => void) | undefined;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      prepareNativeRenderSources: () => new Promise((resolve) => { resolvePreparation = resolve; }),
+      renderNativeSharedFrame: async (input: Parameters<SharedRendererExportNativeSharedFrameRenderer>[0]) => {
+        nativeRenderCalls.push(input);
+        return { success: false, error: 'native render must not run after close' } as never;
+      },
+      stopVideoDecodeJob: async (job: Parameters<SharedRendererExportVideoDecodeJobStopper>[0]) => { stoppedJobIds.push(job.jobId); },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+    });
+
+    const pendingFrame = source.renderEncodeFrame!({
+      frameIndex: 1,
+      timestampUs: 16_667,
+      time: 1 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [video()],
+      encodeSessionId: 'native-close-session',
+    });
+    await vi.waitFor(() => expect(resolvePreparation).toBeDefined());
+
+    await source.close?.();
+    resolvePreparation?.({
+      ok: true,
+      activeJobs: [activeJob],
+      sources: [{
+        mediaId: 'video-1',
+        slotCount: 1,
+        frame: { descriptor: {}, ptsFrame: 1 },
+        releaseAfterNativeRenderComplete: async () => undefined,
+        releaseAfterNativeRenderAbort: releaseAbortedSource,
+      }],
+    });
+
+    await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
+    expect(nativeRenderCalls).toEqual([]);
+    expect(releaseAbortedSource).toHaveBeenCalledOnce();
+    expect(stoppedJobIds).toEqual(['decode-native-close']);
+  });
+
+  it('close後のnative source abort release失敗時も遅着decode jobを停止する', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const activeJob = decodeJob('decode-native-release-failure-close');
+    const stoppedJobIds: string[] = [];
+    const releaseAbortedSource = vi.fn(async () => { throw new Error('release failed'); });
+    let resolvePreparation: ((result: {
+      ok: true;
+      activeJobs: typeof activeJob[];
+      sources: Array<{
+        mediaId: string;
+        slotCount: number;
+        frame: { descriptor: Record<string, never>; ptsFrame: number };
+        releaseAfterNativeRenderComplete: () => Promise<void>;
+        releaseAfterNativeRenderAbort: () => Promise<void>;
+      }>;
+    }) => void) | undefined;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      prepareNativeRenderSources: () => new Promise((resolve) => { resolvePreparation = resolve; }),
+      renderNativeSharedFrame: async (_input: Parameters<SharedRendererExportNativeSharedFrameRenderer>[0]) => {
+        throw new Error('native render must not run after close');
+      },
+      stopVideoDecodeJob: async (job: Parameters<SharedRendererExportVideoDecodeJobStopper>[0]) => { stoppedJobIds.push(job.jobId); },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+    });
+
+    const pendingFrame = source.renderEncodeFrame!({
+      frameIndex: 3,
+      timestampUs: 50_000,
+      time: 3 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [video()],
+      encodeSessionId: 'native-release-failure-close-session',
+    });
+    await vi.waitFor(() => expect(resolvePreparation).toBeDefined());
+
+    await source.close?.();
+    resolvePreparation?.({
+      ok: true,
+      activeJobs: [activeJob],
+      sources: [{
+        mediaId: 'video-1',
+        slotCount: 1,
+        frame: { descriptor: {}, ptsFrame: 3 },
+        releaseAfterNativeRenderComplete: async () => undefined,
+        releaseAfterNativeRenderAbort: releaseAbortedSource,
+      }],
+    });
+
+    await expect(pendingFrame).rejects.toMatchObject({ reason: 'nativeRenderSourceReleaseFailed' });
+    expect(releaseAbortedSource).toHaveBeenCalledOnce();
+    expect(stoppedJobIds).toEqual(['decode-native-release-failure-close']);
+  });
+
+  it('close中にpresenter開始が完了してもbitmapを返さずcontrolとdecode jobを解放する', async () => {
+    const canvas = { width: 1, height: 1, dataset: {} } as unknown as HTMLCanvasElement;
+    const activeJob = decodeJob('decode-presenter-close');
+    const stoppedJobIds: string[] = [];
+    const disposePresenter = vi.fn();
+    const createBitmap = vi.fn(async () => ({ close: () => undefined }) as ImageBitmap);
+    let resolvePresenter: ((result: StartSharedRendererViewportPresenterResult) => void) | undefined;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: () => new Promise<StartSharedRendererViewportPresenterResult>((resolve) => { resolvePresenter = resolve; }),
+      createFrameBitmap: createBitmap,
+      stopVideoDecodeJob: async (job) => { stoppedJobIds.push(job.jobId); },
+    });
+
+    const pendingFrame = source.renderFrame!({
+      frameIndex: 2,
+      timestampUs: 33_333,
+      time: 2 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    });
+    await vi.waitFor(() => expect(resolvePresenter).toBeDefined());
+
+    await source.close?.();
+    resolvePresenter?.({
+      control: { dispose: disposePresenter },
+      activeVideoDecodeJob: activeJob,
+      activeVideoDecodeJobs: [activeJob],
+    } as never);
+
+    await expect(pendingFrame).rejects.toThrow('Shared renderer export frame source has already been closed.');
+    expect(disposePresenter).toHaveBeenCalledOnce();
+    expect(stoppedJobIds).toEqual(['decode-presenter-close']);
+    expect(createBitmap).not.toHaveBeenCalled();
   });
 
   it('fails loud before presenter work when the export session is not renderable', async () => {
