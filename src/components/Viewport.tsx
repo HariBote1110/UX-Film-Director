@@ -2058,7 +2058,6 @@ const Viewport: React.FC = () => {
         // Native playback can report a clock frame newer than the last completed present.
         // Keep selection geometry tied to the frame actually shown instead of retaining a stale quad.
         clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
-        if (playbackState.status === 'started' || playbackState.status === 'playing') return;
       }
       applyingNativePlaybackTimeRef.current = true;
       setTime(playbackState.currentTimeSeconds);
