@@ -58,6 +58,44 @@ const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
 });
 
 describe('RustScenePlaybackController', () => {
+  it('全playback eventに同じsession/scene/revision identityを含める', async () => {
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene: async () => ({ success: true, attached: true }),
+      emit,
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 45,
+    });
+    const paused = controller.pause();
+    const stopped = await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 46,
+    }).then(() => controller.stop());
+
+    expect(emit.mock.calls.map(([event]) => event)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: 45, sceneId: 'scene-1', revision: 7, status: 'started' }),
+      expect.objectContaining({ sessionId: 45, sceneId: 'scene-1', revision: 7, status: 'paused' }),
+      expect.objectContaining({ sessionId: 46, sceneId: 'scene-1', revision: 7, status: 'started' }),
+      expect.objectContaining({ sessionId: 46, sceneId: 'scene-1', revision: 7, status: 'stopped' }),
+    ]));
+    expect(paused).toMatchObject({ sessionId: 45, sceneId: 'scene-1', revision: 7 });
+    expect(stopped).toMatchObject({ sessionId: 46, sceneId: 'scene-1', revision: 7 });
+  });
+
   it('同じ評価フレームから作った選択quadをnative bodyと同一presentへ同梱する', async () => {
     const presentScene = vi.fn(async (_payload: NativeOverlayScenePayload) => ({ success: true, attached: true }));
     const controller = createRustScenePlaybackController({

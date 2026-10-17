@@ -44,6 +44,7 @@ interface Window {
       startTimeSeconds: number;
       durationSeconds: number;
       selectedObjectIds?: string[];
+      sessionId?: number;
     }) => Promise<{
       active: boolean;
       frameIndex?: number;

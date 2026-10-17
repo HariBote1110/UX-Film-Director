@@ -15,6 +15,7 @@ export interface RustScenePlaybackStartPayload {
   startTimeSeconds: number;
   durationSeconds: number;
   selectedObjectIds?: string[];
+  sessionId?: number;
 }
 
 export interface RustScenePlaybackSelectionUpdate {
@@ -72,6 +73,9 @@ export interface RustScenePlaybackEvaluation {
 }
 
 export interface RustScenePlaybackUiState {
+  sessionId: number;
+  sceneId: string;
+  revision: number;
   status: 'started' | 'playing' | 'paused' | 'stopped' | 'ended' | 'failed';
   currentTimeSeconds: number;
   frameIndex: number;
@@ -318,6 +322,9 @@ export const createRustScenePlaybackController = ({
       ? lastPresentedEvaluation
       : undefined;
     const state: RustScenePlaybackUiState = {
+      sessionId: active?.sessionId ?? generation,
+      sceneId: active?.sceneId ?? '',
+      revision: active?.revision ?? -1,
       status,
       currentTimeSeconds: timeSeconds,
       frameIndex,
@@ -542,10 +549,12 @@ export const createRustScenePlaybackController = ({
         || payload.startTimeSeconds < 0
         || !Number.isFinite(payload.durationSeconds)
         || payload.durationSeconds <= payload.startTimeSeconds
+        || (payload.sessionId !== undefined
+          && (!Number.isSafeInteger(payload.sessionId) || payload.sessionId < 0))
       ) {
         return { active: false, reason: 'invalidRequest' };
       }
-      active = payload;
+      active = { ...payload, sessionId: payload.sessionId ?? generation };
       lastPresentedEvaluation = null;
       clockStartedAtMs = nowMs();
       lastUiNotificationAtMs = clockStartedAtMs;

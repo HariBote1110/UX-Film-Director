@@ -22,6 +22,7 @@ describe('Rust scene native playback境界', () => {
     expect(preload).toContain('updateScenePlaybackSelection');
     expect(controller).toContain('selectionDecoration:');
     expect(controller).toContain('updateSelection:');
+    expect(controller).toContain('sessionId: active?.sessionId ?? generation');
   });
 
   it('native playback中は選択枠をbody frameへ同梱しstandalone presentを停止する', () => {
@@ -30,6 +31,8 @@ describe('Rust scene native playback境界', () => {
 
     expect(viewport).toContain('selectedObjectIds: startSelectedObjectIds');
     expect(viewport).toContain('updateScenePlaybackSelection({');
+    expect(viewport).toContain('isRustScenePlaybackUiStateOwner({');
+    expect(viewport).toContain('rustNativePlaybackSessionIdRef.current = null');
     expect(decorationLayer).toContain('latest.nativePlaybackActive && latest.nativeOverlayPreviewEnabled');
     expect(decorationLayer).toContain('selectionDecorationSendStateRef.current = {');
   });

@@ -107,6 +107,8 @@ import { buildSelectionDecorationQuads } from '../utils/nativeOverlaySelectionDe
 import {
   getRustSceneGeometryFrameIndexForTime,
   isRustScenePlaybackEvaluationCurrent,
+  isRustScenePlaybackPauseResultCurrent,
+  isRustScenePlaybackUiStateOwner,
 } from '../utils/rustScenePlaybackEvaluation';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 import { shouldPresentSharedRendererEmptyScenePresentation } from '../utils/sharedRendererViewportEmptyScenePresentation';
@@ -141,6 +143,9 @@ interface RustTimelineSceneRpcDiagnostics {
 }
 
 interface RustNativePlaybackUiState {
+  sessionId: number;
+  sceneId: string;
+  revision: number;
   status: 'started' | 'playing' | 'paused' | 'stopped' | 'ended' | 'failed';
   currentTimeSeconds: number;
   frameIndex: number;
@@ -754,6 +759,8 @@ const Viewport: React.FC = () => {
   const rustTimelineScenePreviewControllerRef = useRef<EditableRustScenePreviewController | null>(null);
   const rustTimelineSceneExportGenerationRef = useRef(0);
   const rustNativePlaybackStartGenerationRef = useRef(0);
+  const rustNativePlaybackSessionIdRef = useRef<number | null>(null);
+  const applyingNativePlaybackTimeRef = useRef(false);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
@@ -1999,6 +2006,9 @@ const Viewport: React.FC = () => {
       const state = rawState as Partial<RustNativePlaybackUiState>;
       if (
         typeof state.status !== 'string'
+        || typeof state.sessionId !== 'number'
+        || typeof state.sceneId !== 'string'
+        || typeof state.revision !== 'number'
         || typeof state.currentTimeSeconds !== 'number'
         || !Number.isFinite(state.currentTimeSeconds)
         || typeof state.frameIndex !== 'number'
@@ -2006,10 +2016,19 @@ const Viewport: React.FC = () => {
         return;
       }
       const playbackState = state as RustNativePlaybackUiState;
-      writeRustNativePlaybackDiagnostics(playbackState);
-      const evaluation = playbackState.evaluation;
       const latestState = useStore.getState();
       const queryTarget = getRustScenePositionQueryTarget();
+      if (!isRustScenePlaybackUiStateOwner({
+        state: playbackState,
+        currentSessionId: rustNativePlaybackSessionIdRef.current,
+        target: queryTarget,
+        expectedRevision: rustTimelineSceneResidentRevision,
+        projectSettings: latestState.projectSettings,
+        layers: latestState.layers,
+        objects: latestState.objects,
+      })) return;
+      writeRustNativePlaybackDiagnostics(playbackState);
+      const evaluation = playbackState.evaluation;
       const evaluationIsCurrent = isRustScenePlaybackEvaluationCurrent({
         evaluation,
         frameIndex: playbackState.frameIndex,
@@ -2039,8 +2058,11 @@ const Viewport: React.FC = () => {
         // Native playback can report a clock frame newer than the last completed present.
         // Keep selection geometry tied to the frame actually shown instead of retaining a stale quad.
         clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
+        if (playbackState.status === 'started' || playbackState.status === 'playing') return;
       }
+      applyingNativePlaybackTimeRef.current = true;
       setTime(playbackState.currentTimeSeconds);
+      applyingNativePlaybackTimeRef.current = false;
       if (playbackState.status === 'ended') {
         setNativePlaybackActive(false);
         setIsPlaying(false);
@@ -2056,6 +2078,7 @@ const Viewport: React.FC = () => {
     };
   }, [
     rustTimelineSceneRpcEnabled,
+    rustTimelineSceneResidentRevision,
     setIsPlaying,
     setNativePlaybackActive,
     setTime,
@@ -2063,6 +2086,7 @@ const Viewport: React.FC = () => {
 
   useEffect(() => {
     if (!rustTimelineSceneRpcEnabled || rustTimelineSceneResidentRevision === null) {
+      rustNativePlaybackSessionIdRef.current = null;
       if (useStore.getState().nativePlaybackActive) {
         void window.rustBackend.stopScenePlayback();
         setNativePlaybackActive(false);
@@ -2073,10 +2097,30 @@ const Viewport: React.FC = () => {
     const startGeneration = rustNativePlaybackStartGenerationRef.current + 1;
     rustNativePlaybackStartGenerationRef.current = startGeneration;
     if (!isPlaying) {
+      rustNativePlaybackSessionIdRef.current = null;
       if (useStore.getState().nativePlaybackActive) {
+        const pausedAtTime = useStore.getState().currentTime;
+        const pauseTarget = getRustScenePositionQueryTarget();
         void window.rustBackend.pauseScenePlayback().then((state) => {
-          if (state && Number.isFinite(state.currentTimeSeconds)) {
+          if (rustNativePlaybackStartGenerationRef.current !== startGeneration) return;
+          const current = useStore.getState();
+          const pauseResultCurrent = Boolean(pauseTarget) && isRustScenePlaybackPauseResultCurrent({
+            requestGeneration: startGeneration,
+            currentGeneration: rustNativePlaybackStartGenerationRef.current,
+            requestedTimeSeconds: pausedAtTime,
+            currentTimeSeconds: current.currentTime,
+            requestedSceneId: pauseTarget!.sceneId,
+            requestedRevision: pauseTarget!.revision,
+            target: getRustScenePositionQueryTarget(),
+            expectedRevision: rustTimelineSceneResidentRevision,
+            projectSettings: current.projectSettings,
+            layers: current.layers,
+            objects: current.objects,
+          });
+          if (state && Number.isFinite(state.currentTimeSeconds) && pauseResultCurrent) {
+            applyingNativePlaybackTimeRef.current = true;
             setTime(state.currentTimeSeconds);
+            applyingNativePlaybackTimeRef.current = false;
           }
           setNativePlaybackActive(false);
         });
@@ -2084,13 +2128,36 @@ const Viewport: React.FC = () => {
       return;
     }
 
+    rustNativePlaybackSessionIdRef.current = startGeneration;
+
     void (async () => {
       let startTimeSeconds = useStore.getState().currentTime;
       if (useStore.getState().nativePlaybackActive) {
+        const pausedAtTime = useStore.getState().currentTime;
+        const pauseTarget = getRustScenePositionQueryTarget();
         const paused = await window.rustBackend.pauseScenePlayback();
-        if (paused && Number.isFinite(paused.currentTimeSeconds)) {
+        if (rustNativePlaybackStartGenerationRef.current !== startGeneration) return;
+        const current = useStore.getState();
+        const pauseResultCurrent = Boolean(pauseTarget) && isRustScenePlaybackPauseResultCurrent({
+          requestGeneration: startGeneration,
+          currentGeneration: rustNativePlaybackStartGenerationRef.current,
+          requestedTimeSeconds: pausedAtTime,
+          currentTimeSeconds: current.currentTime,
+          requestedSceneId: pauseTarget!.sceneId,
+          requestedRevision: pauseTarget!.revision,
+          target: getRustScenePositionQueryTarget(),
+          expectedRevision: rustTimelineSceneResidentRevision,
+          projectSettings: current.projectSettings,
+          layers: current.layers,
+          objects: current.objects,
+        });
+        if (paused && Number.isFinite(paused.currentTimeSeconds) && pauseResultCurrent) {
           startTimeSeconds = paused.currentTimeSeconds;
+          applyingNativePlaybackTimeRef.current = true;
           setTime(startTimeSeconds);
+          applyingNativePlaybackTimeRef.current = false;
+        } else {
+          startTimeSeconds = current.currentTime;
         }
       }
       // 計測専用: engage遅延の内訳切り分け用にnative再生開始RPCの往復時間を
@@ -2105,6 +2172,7 @@ const Viewport: React.FC = () => {
         startTimeSeconds,
         durationSeconds: duration,
         selectedObjectIds: startSelectedObjectIds,
+        sessionId: startGeneration,
       });
       lastNativePlaybackSelectionKeyRef.current = JSON.stringify([
         'viewport-rust-timeline',
@@ -2165,6 +2233,7 @@ const Viewport: React.FC = () => {
 
   useEffect(() => () => {
     rustNativePlaybackStartGenerationRef.current += 1;
+    rustNativePlaybackSessionIdRef.current = null;
     void window.rustBackend.stopScenePlayback();
     useStore.getState().setNativePlaybackActive(false);
   }, []);
@@ -2661,6 +2730,10 @@ const Viewport: React.FC = () => {
   // 実行順は旧effectの宣言順（requestTime → publish → renderScene）を保存する。
   const onCurrentTimeTickRef = useRef<(time: number) => void>(() => {});
   onCurrentTimeTickRef.current = (time: number) => {
+    if (nativePlaybackActive && !applyingNativePlaybackTimeRef.current) {
+      // A direct timeline scrub relinquishes native playback's UI-state ownership.
+      rustNativePlaybackSessionIdRef.current = null;
+    }
     // 1) Rust常駐sceneへの評価要求（旧: requestTime effectのcurrentTime依存分）
     if (shouldRequestRustTimelineSceneEvaluationForTick({
       rustTimelineSceneRpcEnabled,
