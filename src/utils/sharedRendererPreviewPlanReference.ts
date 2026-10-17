@@ -1,6 +1,6 @@
 import type { LayerState, ProjectSettings, TimelineObject } from '../types';
 import type { SharedRendererPreviewPlan } from './sharedRendererPreviewBridge';
-import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshot';
+import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshotReference';
 import type { RustSceneVideoSourceMode } from './rustSceneContract';
 
 export interface SharedRendererPreviewPlanReferenceInput {
