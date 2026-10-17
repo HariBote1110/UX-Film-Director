@@ -1,6 +1,6 @@
 import React from 'react';
-import type { TimelineObject } from '../types';
 import { type SceneHitTestViewport } from '../utils/sceneHitTest';
+import type { RustEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometry';
 import { computeSceneSelectionOverlayGeometry, SCENE_SELECTION_RESIZE_HANDLE_SIZE, type SceneSelectionHandleCorner } from './sceneSelectionOverlayGeometry';
 import type { SceneSelectionOverlayPatchTargets } from './sceneSelectionOverlayPatch';
 
@@ -22,8 +22,7 @@ import type { SceneSelectionOverlayPatchTargets } from './sceneSelectionOverlayP
 
 export interface SceneSelectionOverlayProps {
   selectedIds: string[];
-  objects: TimelineObject[];
-  time: number;
+  frame: RustEvaluatedGeometryFrame | null;
   viewport: SceneHitTestViewport;
   /** preview 要素の CSS 幅・高さ（SVG の viewBox に用いる）。 */
   width: number;
@@ -60,8 +59,7 @@ const HANDLE_CORNER_ORDER: SceneSelectionHandleCorner[] = ['top-left', 'top-righ
 
 export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
   selectedIds,
-  objects,
-  time,
+  frame,
   viewport,
   width,
   height,
@@ -72,8 +70,7 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
   // ジオメトリ計算を純関数へ委譲
   const geometries = computeSceneSelectionOverlayGeometry({
     selectedIds,
-    objects,
-    time,
+    frame,
     viewport,
   });
 
@@ -138,7 +135,8 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
       }}
     >
       {geometries.map((entry) => {
-        const isText = objects.find((object) => object.id === entry.objectId)?.type === 'text';
+        const mediaId = frame?.snapshot.clips.find((clip) => clip.clip_id === entry.objectId)?.media_id;
+        const isText = frame?.media.find((media) => media.id === mediaId)?.kind === 'Text';
         return (
           <g
             key={entry.objectId}

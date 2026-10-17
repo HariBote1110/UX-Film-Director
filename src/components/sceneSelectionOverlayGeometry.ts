@@ -1,5 +1,5 @@
-import { getObjectWorldCorners, worldPointToCssPoint, type SceneHitTestViewport } from '../utils/sceneHitTest';
-import type { TimelineObject } from '../types';
+import { worldPointToCssPoint, type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { getRustEvaluatedObjectGeometry, type RustEvaluatedGeometryFrame } from '../utils/rustSceneEvaluatedGeometry';
 
 /**
  * 選択枠オーバーレイのジオメトリ計算を純関数として切り出したモジュール。
@@ -29,8 +29,7 @@ export interface SceneSelectionOverlayObjectGeometry {
 
 interface ComputeParams {
   selectedIds: string[];
-  objects: TimelineObject[];
-  time: number;
+  frame: RustEvaluatedGeometryFrame | null;
   viewport: SceneHitTestViewport;
 }
 
@@ -42,16 +41,22 @@ interface ComputeParams {
  *   `objects` 配列の順を保持し、selected でない要素は除外される。
  */
 export function computeSceneSelectionOverlayGeometry(params: ComputeParams): SceneSelectionOverlayObjectGeometry[] {
-  const { selectedIds, objects, time, viewport } = params;
+  const { selectedIds, frame, viewport } = params;
 
-  return objects
-    .filter((obj) => selectedIds.includes(obj.id))
-    .map((obj) => {
-      const corners = getObjectWorldCorners(obj, time, objects);
+  const selectedSet = new Set(selectedIds);
+  const evaluatedIds = frame?.snapshot.clips
+    .filter((clip) => selectedSet.has(clip.clip_id))
+    .slice()
+    .sort((first, second) => first.z_index - second.z_index)
+    .map((clip) => clip.clip_id) ?? [];
+  const order = [...evaluatedIds, ...selectedIds.filter((objectId) => !evaluatedIds.includes(objectId))];
+  return order
+    .map((objectId) => {
+      const corners = frame ? getRustEvaluatedObjectGeometry(frame, objectId)?.worldCorners : null;
 
       if (!corners) {
         return {
-          objectId: obj.id,
+          objectId,
           visible: false,
           points: '',
           handles: [],
@@ -78,10 +83,10 @@ export function computeSceneSelectionOverlayGeometry(params: ComputeParams): Sce
       ];
 
       return {
-        objectId: obj.id,
+        objectId,
         visible: true,
         points,
         handles,
       };
-    });
+    }) ?? [];
 }

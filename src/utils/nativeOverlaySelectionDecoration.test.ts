@@ -2,13 +2,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { TimelineObject } from '../types';
+import type { RustEvaluatedGeometryFrame } from './rustSceneEvaluatedGeometry';
+import { textMediaBox, textMediaInsets } from './textMediaGeometry';
+import { getObjectWorldCorners } from './sceneHitTestReference';
 import {
   buildSelectionDecorationQuads,
   createNativeOverlaySelectionDecorationSender,
   shouldSendStandaloneDecoration,
   type SelectionDecorationSendState,
 } from './nativeOverlaySelectionDecoration';
-import { getObjectWorldCorners, worldPointToCssPoint, type SceneHitTestViewport } from './sceneHitTest';
+import { worldPointToCssPoint, type SceneHitTestViewport } from './sceneHitTest';
 
 const root = resolve(__dirname, '../..');
 
@@ -40,14 +43,33 @@ const imageObject = (overrides: Partial<Record<string, unknown>> = {}): Timeline
   ...overrides,
 } as unknown as TimelineObject);
 
+const frameFor = (objects: TimelineObject[], time: number): RustEvaluatedGeometryFrame => {
+  const active = objects.filter((object) => time >= object.startTime && time < object.startTime + object.duration && object.type !== 'group_control');
+  return {
+    sceneId: 'test', revision: 1, frameIndex: Math.round(time * 30),
+    snapshot: { frame_index: Math.round(time * 30), colour: { profile: 'rec709-sdr', working_space: 'linear-light', alpha: 'premultiplied' }, clips: active.map((object, zIndex) => ({
+      clip_id: object.id, track_id: String(object.layer), media_id: `media-${object.id}`, source_frame: 0, z_index: zIndex,
+      transform: { translation_x: object.x, translation_y: object.y, scale_x: object.scaleX ?? 1, scale_y: object.scaleY ?? 1, rotation_degrees: object.rotation ?? 0, sampling: 'bilinear' as const },
+      opacity: object.opacity, effects: [],
+    })) },
+    media: active.map((object) => {
+      const sized = object as TimelineObject & { width?: number; height?: number };
+      const textSize = object.type === 'text' ? textMediaBox(object) : null;
+      const insets = object.type === 'text' ? textMediaInsets(object) : null;
+      return ({ id: `media-${object.id}`, kind: object.type === 'text' ? 'Text' as const : 'GeneratedShape' as const,
+        source: insets ? JSON.stringify({ __renderOffsetX: insets.left, __renderOffsetY: insets.top }) : '{}',
+        width: textSize?.width ?? Number(sized.width ?? 100), height: textSize?.height ?? Number(sized.height ?? 50) });
+    }),
+  };
+};
+
 describe('buildSelectionDecorationQuads', () => {
   it('returns world corner quads for selected objects using getObjectWorldCorners', () => {
     const objects = [imageObject()];
 
     const quads = buildSelectionDecorationQuads({
       selectedIds: ['obj-1'],
-      objects,
-      time: 1,
+      frame: frameFor(objects, 1),
     });
 
     expect(quads).toEqual([{
@@ -66,7 +88,7 @@ describe('buildSelectionDecorationQuads', () => {
   it('hides native resize handles for text while retaining shape handles', () => {
     const text = imageObject({ id: 'text-1', type: 'text', text: 'Hello', fontSize: 37, measuredWidth: 80, measuredHeight: 45 });
     const shape = imageObject({ id: 'shape-1', type: 'shape' });
-    const quads = buildSelectionDecorationQuads({ selectedIds: ['text-1', 'shape-1'], objects: [text, shape], time: 1 });
+    const quads = buildSelectionDecorationQuads({ selectedIds: ['text-1', 'shape-1'], frame: frameFor([text, shape], 1) });
     expect(quads.map((quad) => quad.showHandles)).toEqual([false, true]);
   });
 
@@ -81,7 +103,7 @@ describe('buildSelectionDecorationQuads', () => {
     const fontUpdated = { ...first, fontSize: 50 } as TimelineObject;
     const measured = { ...fontUpdated, measuredWidth: 120, measuredHeight: 65 } as TimelineObject;
     const payloadFor = (object: TimelineObject) => ({ canvasWidth: 1920, canvasHeight: 1080,
-      quads: buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects: [object], time: 1 }) });
+      quads: buildSelectionDecorationQuads({ selectedIds: ['obj-1'], frame: frameFor([object], 1) }) });
     await sender.update(payloadFor(first));
     await sender.update(payloadFor(fontUpdated));
     await sender.update(payloadFor(measured));
@@ -95,23 +117,23 @@ describe('buildSelectionDecorationQuads', () => {
       { id: 'group-1', type: 'group_control', layer: 1, startTime: 0, duration: 10 } as unknown as TimelineObject,
     ];
 
-    expect(buildSelectionDecorationQuads({ selectedIds: [], objects, time: 1 })).toEqual([]);
-    expect(buildSelectionDecorationQuads({ selectedIds: ['missing'], objects, time: 1 })).toEqual([]);
-    expect(buildSelectionDecorationQuads({ selectedIds: ['group-1'], objects, time: 1 })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: [], frame: frameFor(objects, 1) })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['missing'], frame: frameFor(objects, 1) })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['group-1'], frame: frameFor(objects, 1) })).toEqual([]);
   });
 
   it('returns an empty list for a selected object that is off-time (playhead outside [startTime, startTime+duration)) — 症状A: ゴースト選択枠対策', () => {
     const objects = [imageObject({ startTime: 5, duration: 10 })];
 
-    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 0 })).toEqual([]);
-    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 20 })).toEqual([]);
-    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 5 })).toHaveLength(1);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], frame: frameFor(objects, 0) })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], frame: frameFor(objects, 20) })).toEqual([]);
+    expect(buildSelectionDecorationQuads({ selectedIds: ['obj-1'], frame: frameFor(objects, 5) })).toHaveLength(1);
   });
 
   it('applies object rotation to the quad corners', () => {
     const objects = [imageObject({ x: 0, y: 0, rotation: 90 })];
 
-    const quads = buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 1 });
+    const quads = buildSelectionDecorationQuads({ selectedIds: ['obj-1'], frame: frameFor(objects, 1) });
 
     expect(quads).toHaveLength(1);
     expect(quads[0].topLeftX).toBeCloseTo(0, 5);
@@ -399,7 +421,7 @@ describe('native decoration quad matches the SVG overlay CSS position (default c
       camera: { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 },
     };
 
-    const quads = buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 0 });
+    const quads = buildSelectionDecorationQuads({ selectedIds: ['obj-1'], frame: frameFor(objects, 0) });
     expect(quads).toHaveLength(1);
     const quad = quads[0];
 
