@@ -20,10 +20,10 @@ import {
   buildEditableRustScene,
   type EditableRustProject,
   type EditableRustSceneIssue,
-} from './editableRustScene';
+} from './editableRustSceneReference';
 import {
   buildRustSceneSnapshotForTimeline,
-} from './rustSceneSnapshot';
+} from './rustSceneSnapshotReference';
 import type { RustSceneSnapshot, RustSceneSnapshotBuildIssue } from './rustSceneContract';
 
 export interface EvaluationParityFixtureFrame {

@@ -60,7 +60,7 @@ import type {
 import {
   mediaReferenceForEditableRustScene,
   rustEffectsForObject,
-} from './rustSceneSnapshot';
+} from './rustSceneSnapshotReference';
 import {
   rustColourPipeline,
   type RustEffect,

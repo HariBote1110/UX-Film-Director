@@ -1,7 +1,7 @@
 /** Builds the P0 editable scene builder contract fixture from current TS behaviour. */
 import type { LayerState, ProjectSettings, TimelineObject } from '../types';
-import { buildEditableRustScene } from './editableRustScene';
-import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshot';
+import { buildEditableRustScene } from './editableRustSceneReference';
+import { buildRustSceneSnapshotForTimeline } from './rustSceneSnapshotReference';
 import type { RustSceneMediaReference, RustSceneVideoSourceMode } from './rustSceneContract';
 
 export interface EditableSceneBuilderContractCase {

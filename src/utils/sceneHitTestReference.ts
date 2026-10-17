@@ -27,9 +27,12 @@
  *   ローカル矩形は常に左上原点 `(0,0)-(width,height)`（pivot/anchor 補正なし）。
  */
 import type { LayerState, TimelineObject } from '../types';
-import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
-import { evaluateObjectPositionAtTime } from './keyframes';
-import { isObjectVisibleAtTime } from './objectVisibility';
+import {
+  evaluateObjectPositionAtTime,
+  getGroupTransforms,
+  getVibrationOffset,
+  isObjectVisibleAtTime,
+} from './sceneEvaluationReference';
 import { textMediaBox, textMediaInsets } from './textMediaGeometry';
 
 export interface SceneCamera {
