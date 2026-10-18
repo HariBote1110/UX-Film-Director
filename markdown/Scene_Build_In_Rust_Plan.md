@@ -75,13 +75,13 @@ Zustand → buildRustSceneSnapshotForTimeline(time) → SceneSnapshot, media
 
 ### 責務台帳（本計画の完了条件）
 
-| 責務 | 現在 | 完了時 |
+| 責務 | 計画開始時 | 2026-10-18のproduction経路 |
 | --- | --- | --- |
-| object graph→評価用 `Project` | TS `buildEditableRustScene` | Rust builder |
+| object graph→評価用 `Project` | TS `buildEditableRustScene` | Rust builder（既定graph-only） |
 | object→`SceneMediaReference` / generator source JSON | TS `mediaReferenceForObject` | Rust builder |
 | audio / GetColor / group-control 解決 | TS | Rust builder |
 | frame 評価 | Rust `timeline.rs` | Rust（不変） |
-| path 選択・PSD runtime metadata の取得 | TS/UI | wire で Rust builder に入力。ファイル I/O は既存 backend / overlay |
+| path 選択・PSD runtime metadata の取得 | TS/UI | TS/UIで取得しwireでRust builderへ入力。ファイルI/Oはbackend/overlay |
 | UI state、RPC scheduling | TS | TS（不変） |
 
 ## 2. 目標アーキテクチャ（To-Be）
@@ -234,7 +234,7 @@ cargo test で固定した。いずれも GUI export ではなくテストで落
 
 **production import撤去完了（2026-10-18）**: preview/exportのproduction経路はRust評価済みsessionだけを消費する。`sharedRendererPreviewBridge.ts`はRust snapshotを組み立てず、export provider/frame sourceにlegacy TS builder injectionを持たない。同期preview/export buildersは`sharedRendererPreviewSessionReference.ts`と`sharedRendererExportSessionReference.ts`へ移し、test/E2E reference側からだけ値importする。旧snapshot/builder実装は`rustSceneSnapshotReference.ts` / `editableRustSceneReference.ts`へ改名し、評価helperも`sceneEvaluationReference.ts` / `easingEvaluationReference.ts`へ隔離した。比較・parity fixtureからのみ参照し、production import graphには含めない。production bundleからserializer/E2E harness chunkが出ないことを確認した。
 
-- **残作業**: ADR-014の逸脱記録と責務台帳の最終レビュー。P4 UI query/selection切替の進捗とは別に扱う。
+- **責務台帳レビュー完了（2026-10-18）**: 上表を計画開始時と現在のproduction経路へ更新。ADR-014にはクロスオブジェクト解決のRust移管と、比較用Reference保持・production import除外を記録した。UI編集/RPC schedulingは引き続きTSが担当する。P4の実操作・遅延比較の受入とは別にP3を完了とする。
 - **テスト**: production import監査、focused/full Vitest、type generation drift、Rust builder tests、447-frame fixture、default export E2E、production Vite bundle。
 - **受入条件**: TS serializer値構築関数がproduction import graphから到達しない。Rust評価なし・unsupported・provider不在はblockedでありTS snapshot fallbackを行わない。
 - **rollback**: 旧TS builderを復活させるmigration flagは設けない。rollbackはP2 graph-only契約を持つreleaseへのrevertとする。
