@@ -109,6 +109,8 @@ import {
   isRustScenePlaybackEvaluationCurrent,
   isRustScenePlaybackPauseResultCurrent,
   isRustScenePlaybackUiStateOwner,
+  shouldRebaseRustScenePlaybackForScrub,
+  shouldRequestRustScenePlaybackPause,
 } from '../utils/rustScenePlaybackEvaluation';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 import { shouldPresentSharedRendererEmptyScenePresentation } from '../utils/sharedRendererViewportEmptyScenePresentation';
@@ -760,6 +762,7 @@ const Viewport: React.FC = () => {
   const rustTimelineSceneExportGenerationRef = useRef(0);
   const rustNativePlaybackStartGenerationRef = useRef(0);
   const rustNativePlaybackSessionIdRef = useRef<number | null>(null);
+  const rustNativePlaybackPendingPauseSessionIdRef = useRef<number | null>(null);
   const applyingNativePlaybackTimeRef = useRef(false);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
@@ -775,6 +778,7 @@ const Viewport: React.FC = () => {
   // 維持し、resident exportが楽観revisionを送らないために使う。
   const [rustTimelineSceneExportRevision, setRustTimelineSceneExportRevision] = useState<number | null>(null);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
+  const [nativePlaybackRebaseVersion, setNativePlaybackRebaseVersion] = useState(0);
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0';
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
@@ -2095,12 +2099,19 @@ const Viewport: React.FC = () => {
 
     const startGeneration = rustNativePlaybackStartGenerationRef.current + 1;
     rustNativePlaybackStartGenerationRef.current = startGeneration;
+    const previousSessionId = rustNativePlaybackPendingPauseSessionIdRef.current
+      ?? rustNativePlaybackSessionIdRef.current;
+    rustNativePlaybackPendingPauseSessionIdRef.current = null;
     if (!isPlaying) {
+      const pauseSessionId = previousSessionId;
       rustNativePlaybackSessionIdRef.current = null;
-      if (useStore.getState().nativePlaybackActive) {
+      if (shouldRequestRustScenePlaybackPause({
+        sessionId: pauseSessionId,
+        nativePlaybackActive: useStore.getState().nativePlaybackActive,
+      })) {
         const pausedAtTime = useStore.getState().currentTime;
         const pauseTarget = getRustScenePositionQueryTarget();
-        void window.rustBackend.pauseScenePlayback().then((state) => {
+        void window.rustBackend.pauseScenePlayback(pauseSessionId ?? undefined).then((state) => {
           if (rustNativePlaybackStartGenerationRef.current !== startGeneration) return;
           const current = useStore.getState();
           const pauseResultCurrent = Boolean(pauseTarget) && isRustScenePlaybackPauseResultCurrent({
@@ -2134,7 +2145,7 @@ const Viewport: React.FC = () => {
       if (useStore.getState().nativePlaybackActive) {
         const pausedAtTime = useStore.getState().currentTime;
         const pauseTarget = getRustScenePositionQueryTarget();
-        const paused = await window.rustBackend.pauseScenePlayback();
+        const paused = await window.rustBackend.pauseScenePlayback(previousSessionId ?? undefined);
         if (rustNativePlaybackStartGenerationRef.current !== startGeneration) return;
         const current = useStore.getState();
         const pauseResultCurrent = Boolean(pauseTarget) && isRustScenePlaybackPauseResultCurrent({
@@ -2212,6 +2223,7 @@ const Viewport: React.FC = () => {
     rustTimelineSceneRpcEnabled,
     setNativePlaybackActive,
     setTime,
+    nativePlaybackRebaseVersion,
   ]);
 
   useEffect(() => {
@@ -2729,9 +2741,16 @@ const Viewport: React.FC = () => {
   // 実行順は旧effectの宣言順（requestTime → publish → renderScene）を保存する。
   const onCurrentTimeTickRef = useRef<(time: number) => void>(() => {});
   onCurrentTimeTickRef.current = (time: number) => {
-    if (nativePlaybackActive && !applyingNativePlaybackTimeRef.current) {
-      // A direct timeline scrub relinquishes native playback's UI-state ownership.
+    if (shouldRebaseRustScenePlaybackForScrub({
+      nativePlaybackActive,
+      isPlaying,
+      applyingNativePlaybackTime: applyingNativePlaybackTimeRef.current,
+    })) {
+      // Timeline scrubs keep playback active but move it onto a new native session at
+      // the requested time. The current native tick path is excluded by the guard above.
+      rustNativePlaybackPendingPauseSessionIdRef.current = rustNativePlaybackSessionIdRef.current;
       rustNativePlaybackSessionIdRef.current = null;
+      setNativePlaybackRebaseVersion((version) => version + 1);
     }
     // 1) Rust常駐sceneへの評価要求（旧: requestTime effectのcurrentTime依存分）
     if (shouldRequestRustTimelineSceneEvaluationForTick({

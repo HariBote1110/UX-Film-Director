@@ -96,6 +96,61 @@ describe('RustScenePlaybackController', () => {
     expect(stopped).toMatchObject({ sessionId: 46, sceneId: 'scene-1', revision: 7 });
   });
 
+  it('開始応答待ちのsessionだけをpauseし、古いsessionのpauseで新再生を止めない', async () => {
+    const deferredEvaluation: { resolve: ((value: ReturnType<typeof evaluation>) => void) | null } = { resolve: null };
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: () => new Promise((resolve) => { deferredEvaluation.resolve = resolve; }),
+      presentScene,
+      emit: vi.fn(),
+    });
+    const starting = controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 45,
+    });
+    await vi.waitFor(() => expect(deferredEvaluation.resolve).not.toBeNull());
+
+    expect(controller.pause(44)).toBeNull();
+    deferredEvaluation.resolve?.(evaluation(0));
+    await expect(starting).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledTimes(1);
+
+    expect(controller.pause(45)).toMatchObject({ sessionId: 45, status: 'paused' });
+  });
+
+  it('開始応答前に同じsessionをpauseしたら遅着evaluationを提示しない', async () => {
+    const deferredEvaluation: { resolve: ((value: ReturnType<typeof evaluation>) => void) | null } = { resolve: null };
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene: () => new Promise((resolve) => { deferredEvaluation.resolve = resolve; }),
+      presentScene,
+      emit,
+    });
+    const starting = controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 45,
+    });
+    await vi.waitFor(() => expect(deferredEvaluation.resolve).not.toBeNull());
+
+    expect(controller.pause(45)).toMatchObject({ sessionId: 45, status: 'paused' });
+    deferredEvaluation.resolve?.(evaluation(0));
+
+    await expect(starting).resolves.toMatchObject({ active: false });
+    expect(presentScene).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'started', sessionId: 45 }));
+  });
+
   it('同じ評価フレームから作った選択quadをnative bodyと同一presentへ同梱する', async () => {
     const presentScene = vi.fn(async (_payload: NativeOverlayScenePayload) => ({ success: true, attached: true }));
     const controller = createRustScenePlaybackController({

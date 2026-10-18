@@ -17,6 +17,24 @@ export interface RustScenePlaybackUiStateIdentity {
   status: string;
 }
 
+export const shouldRequestRustScenePlaybackPause = ({
+  sessionId,
+  nativePlaybackActive,
+}: {
+  sessionId: number | null;
+  nativePlaybackActive: boolean;
+}): boolean => sessionId !== null || nativePlaybackActive;
+
+export const shouldRebaseRustScenePlaybackForScrub = ({
+  nativePlaybackActive,
+  isPlaying,
+  applyingNativePlaybackTime,
+}: {
+  nativePlaybackActive: boolean;
+  isPlaying: boolean;
+  applyingNativePlaybackTime: boolean;
+}): boolean => nativePlaybackActive && isPlaying && !applyingNativePlaybackTime;
+
 export const isRustScenePlaybackUiStateOwner = ({
   state,
   currentSessionId,

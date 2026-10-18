@@ -633,8 +633,8 @@ app.whenReady().then(() => {
       return rustScenePlaybackController.updateSelection({ ...payload, windowId });
     },
   );
-  ipcMain.handle('rust-backend-scene-playback-pause', () =>
-    rustScenePlaybackController.pause());
+  ipcMain.handle('rust-backend-scene-playback-pause', (_event, sessionId?: number) =>
+    rustScenePlaybackController.pause(sessionId));
   ipcMain.handle('rust-backend-scene-playback-stop', () =>
     rustScenePlaybackController.stop());
   app.on('before-quit', () => {

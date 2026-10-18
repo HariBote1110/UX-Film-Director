@@ -142,14 +142,14 @@ export type RustScenePlaybackStartResult =
     }
   | {
       active: false;
-      reason: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+      reason: 'cancelled' | 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
       detail?: string;
     };
 
 export interface RustScenePlaybackController {
   start: (payload: RustScenePlaybackStartPayload) => Promise<RustScenePlaybackStartResult>;
   updateSelection: (payload: RustScenePlaybackSelectionUpdate) => boolean;
-  pause: () => RustScenePlaybackUiState | null;
+  pause: (sessionId?: number) => RustScenePlaybackUiState | null;
   stop: () => RustScenePlaybackUiState | null;
   readonly diagnostics: Readonly<RustScenePlaybackDiagnostics>;
 }
@@ -278,6 +278,7 @@ export const createRustScenePlaybackController = ({
   let generation = 0;
   let timer: TimerHandle | number | null = null;
   let active: RustScenePlaybackStartPayload | null = null;
+  const cancelledSessionIds = new Set<number>();
   let clockStartedAtMs = 0;
   let lastPresentedFrame = -1;
   let lastPresentedEvaluation: RustScenePlaybackEvaluation | null = null;
@@ -535,6 +536,10 @@ export const createRustScenePlaybackController = ({
       hasStartedOnceSinceLaunch = true;
       const timingSink: { evaluateSceneMs?: number; presentSceneMs?: number } = {};
 
+      if (payload.sessionId !== undefined && cancelledSessionIds.delete(payload.sessionId)) {
+        return { active: false, reason: 'cancelled' };
+      }
+
       cancelTimer();
       generation += 1;
       active = null;
@@ -563,8 +568,10 @@ export const createRustScenePlaybackController = ({
       const frameIndex = Math.floor(payload.startTimeSeconds * payload.fps);
       const result = await renderFrame(runGeneration, frameIndex, true, timingSink);
       if (!result.active) {
-        active = null;
-        generation += 1;
+        if (generation === runGeneration) {
+          active = null;
+          generation += 1;
+        }
         return result;
       }
       emitState('started', payload.startTimeSeconds, true);
@@ -587,7 +594,16 @@ export const createRustScenePlaybackController = ({
       active.selectedObjectIds = [...payload.selectedObjectIds];
       return true;
     },
-    pause: () => {
+    pause: (sessionId) => {
+      if (sessionId !== undefined && active?.sessionId !== sessionId) {
+        cancelledSessionIds.add(sessionId);
+        while (cancelledSessionIds.size > 64) {
+          const oldest = cancelledSessionIds.values().next().value;
+          if (oldest === undefined) break;
+          cancelledSessionIds.delete(oldest);
+        }
+        return null;
+      }
       if (!active) return null;
       const time = currentTimeSeconds();
       cancelTimer();

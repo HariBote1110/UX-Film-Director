@@ -4,6 +4,8 @@ import {
   isRustScenePlaybackEvaluationCurrent,
   isRustScenePlaybackPauseResultCurrent,
   isRustScenePlaybackUiStateOwner,
+  shouldRebaseRustScenePlaybackForScrub,
+  shouldRequestRustScenePlaybackPause,
 } from './rustScenePlaybackEvaluation';
 import type { RustScenePositionQueryTarget } from './rustScenePositionQueryRevision';
 
@@ -144,5 +146,31 @@ describe('isRustScenePlaybackPauseResultCurrent', () => {
     ['graph変更', { objects: [{}] }],
   ])('%sの遅着pause結果を拒否する', (_label, override) => {
     expect(isRustScenePlaybackPauseResultCurrent({ ...base, ...override })).toBe(false);
+  });
+});
+
+describe('native playback transition decisions', () => {
+  it('nativeActive確定前でも所有中sessionのpauseを送る', () => {
+    expect(shouldRequestRustScenePlaybackPause({ sessionId: 45, nativePlaybackActive: false })).toBe(true);
+    expect(shouldRequestRustScenePlaybackPause({ sessionId: null, nativePlaybackActive: true })).toBe(true);
+    expect(shouldRequestRustScenePlaybackPause({ sessionId: null, nativePlaybackActive: false })).toBe(false);
+  });
+
+  it('native再生中の直接scrubだけを新sessionへrebaseし、native clock tickでは再起動しない', () => {
+    expect(shouldRebaseRustScenePlaybackForScrub({
+      nativePlaybackActive: true,
+      isPlaying: true,
+      applyingNativePlaybackTime: false,
+    })).toBe(true);
+    expect(shouldRebaseRustScenePlaybackForScrub({
+      nativePlaybackActive: true,
+      isPlaying: true,
+      applyingNativePlaybackTime: true,
+    })).toBe(false);
+    expect(shouldRebaseRustScenePlaybackForScrub({
+      nativePlaybackActive: true,
+      isPlaying: false,
+      applyingNativePlaybackTime: false,
+    })).toBe(false);
   });
 });

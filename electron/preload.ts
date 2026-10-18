@@ -166,8 +166,8 @@ contextBridge.exposeInMainWorld('rustBackend', {
   updateScenePlaybackSelection(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-scene-playback-selection', payload)
   },
-  pauseScenePlayback() {
-    return ipcRenderer.invoke('rust-backend-scene-playback-pause')
+  pauseScenePlayback(sessionId?: number) {
+    return ipcRenderer.invoke('rust-backend-scene-playback-pause', sessionId)
   },
   stopScenePlayback() {
     return ipcRenderer.invoke('rust-backend-scene-playback-stop')
