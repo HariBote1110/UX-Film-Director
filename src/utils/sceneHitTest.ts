@@ -19,6 +19,21 @@ export interface ScenePoint {
   y: number;
 }
 
+export interface PreviewClientOrigin {
+  left: number;
+  top: number;
+}
+
+/** Convert a window client point into preview-local CSS coordinates. */
+export const clientPointToPreviewLocalPoint = (
+  clientX: number,
+  clientY: number,
+  origin: PreviewClientOrigin
+): ScenePoint => ({
+  x: clientX - origin.left,
+  y: clientY - origin.top,
+});
+
 const rotateVec = (v: ScenePoint, rad: number): ScenePoint => {
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);

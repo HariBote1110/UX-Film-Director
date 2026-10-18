@@ -10,7 +10,7 @@ import {
   type ResizeBounds,
   type ResizeCorner,
 } from '../utils/transformGeometry';
-import { cssPointToWorldPoint, type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { clientPointToPreviewLocalPoint, cssPointToWorldPoint, type SceneHitTestViewport } from '../utils/sceneHitTest';
 import {
   computeDragUpdate,
   normaliseRecordedMotionPath,
@@ -53,7 +53,8 @@ const MIN_RESIZE_SCALE = 0.05;
 
 export const useSceneInteraction = (
   latestObjectsRef: React.MutableRefObject<TimelineObject[]>,
-  viewportRef: React.MutableRefObject<SceneHitTestViewport>
+  viewportRef: React.MutableRefObject<SceneHitTestViewport>,
+  getPreviewOrigin: () => { left: number; top: number }
 ) => {
   const {
     updateObject, selectObject, toggleObjectSelection, selectObjects, selectedIds, pushHistoryCommand, isPlaying, togglePlay, layers
@@ -84,6 +85,11 @@ export const useSceneInteraction = (
 
   const toWorld = (cssX: number, cssY: number): Vec2 =>
     cssPointToWorldPoint(cssX, cssY, viewportRef.current);
+
+  const toResizeWorld = (clientX: number, clientY: number): Vec2 => {
+    const localPoint = clientPointToPreviewLocalPoint(clientX, clientY, getPreviewOrigin());
+    return toWorld(localPoint.x, localPoint.y);
+  };
 
   const onPointerDown = (e: React.PointerEvent, targetId: string) => {
     if (useStore.getState().isExporting) return;
@@ -242,7 +248,7 @@ export const useSceneInteraction = (
     const targetObject = latestObjectsRef.current.find(o => o.id === targetId);
     if (targetObject && layers[targetObject.layer]?.locked) return;
 
-    const pointerWorld = toWorld(e.clientX, e.clientY);
+    const pointerWorld = toResizeWorld(e.clientX, e.clientY);
 
     const result = computeResize(
       { corner, bounds, rotationRad, anchorParent: anchorWorld, minScale: MIN_RESIZE_SCALE, lockAspectRatio },

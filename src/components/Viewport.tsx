@@ -1317,6 +1317,10 @@ const Viewport: React.FC = () => {
     displayScale: 1,
     camera,
   });
+  const getSceneInteractionPreviewOrigin = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    return { left: rect?.left ?? 0, top: rect?.top ?? 0 };
+  }, []);
 
   const {
     onPointerDown: onSceneObjectPointerDown,
@@ -1325,7 +1329,7 @@ const Viewport: React.FC = () => {
     onResizeStart: onSceneResizeStart,
     onResizeMove: onSceneResizeMove,
     onResizeEnd: onSceneResizeEnd,
-  } = useSceneInteraction(latestObjectsRef, sceneInteractionViewportRef);
+  } = useSceneInteraction(latestObjectsRef, sceneInteractionViewportRef, getSceneInteractionPreviewOrigin);
 
   // ドラッグ／リサイズ中にポインタが preview 要素の外へ出ても追従できるよう、
   // window レベルで pointermove/pointerup を監視する（要素外に出ても継続する
