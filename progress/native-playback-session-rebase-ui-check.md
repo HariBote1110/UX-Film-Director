@@ -1,4 +1,4 @@
-# Native playback session / scrub 実UI確認
+# ネイティブ再生セッションとスクラブの実UI確認
 
 2026-10-18、専用Electron profileとport 5321/9341を使い、`UXFD_NATIVE_OVERLAY=1`でmacOS実Electronを起動した。検証用に移動する図形と、stroke/shadow付きTextを作成し、選択枠とnative playbackの更新をCDPとアプリ画面で確認した。専用profile変更用の一時的な`electron/main.ts` hookは確認後に削除した。
 

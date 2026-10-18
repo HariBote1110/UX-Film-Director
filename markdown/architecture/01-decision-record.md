@@ -203,7 +203,7 @@ Native Overlay を main BrowserWindow の contentView subview ではなく、独
 
 ## ADR-014: `rust-core` を編集モデル・保存形式・評価の唯一の正本とし、TS 型を生成物にする
 
-**状態**: 確定・実装完了（R0-R4、★2026-08-22）
+**状態**: 決定は確定。R0-R4の当初完了記録は2026-08-22。追加のScene Build P3は2026-10-18完了、P4/R2の最終受入はUI操作・遅延比較を継続する。
 
 ### 決定
 
@@ -237,11 +237,9 @@ group transform / filter stack の評価、command / undo、validation の正本
 
 - 提案時点では想定していなかった `Command::Batch`（複数オブジェクトへ同時作用する
   UI 操作を単一コマンドで表現できないため R4-7b で追加）が正本の一部になった。
-- クロスオブジェクト配線（4 kind）・`filterStack.ts` の編集 forward path・
-  `layerTrackOps.ts` の reorder 計算は、TS 側に**意図的に**残っている
-  （即時解消の対象外、`Rust_Source_Of_Truth_Plan.md` の「思想上の残り（責務台帳）」参照）。
-  これは ADR-014 の決定を覆すものではなく、スナップショットスキーマ変更を伴う
-  別フェーズの課題として切り出したもの。
+- クロスオブジェクト配線（audio/GetColor/group-control）のproduction評価は、2026-10-18時点でraw graphを受けるRust builderへ移管した。旧TS snapshot/builder/easing/位置評価は`*Reference.ts`として比較・parity用に保持し、production import graphから除外した。これはproductionの二重評価を残す例外ではなく、差分検証の基準を保存する判断である。
+- `filterStack.ts` の編集forward path、`layerTrackOps.ts` のreorder計算、UI state/RPC schedulingはTS側に残す。編集操作と評価の責務を区別し、評価snapshotの正本はRustとする（詳細は`Scene_Build_In_Rust_Plan.md`の責務台帳）。
+- P4では任意時刻の編集位置queryとframe/revision付き選択geometryもRustへ接続した。機能移行をもって遅延比較まで完了とせず、R2の追加受入条件は同計画と最新進捗ログで追跡する。
 
 ### 却下案 (A)
 
