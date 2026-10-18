@@ -35,10 +35,11 @@
 - 旧verified backendは93件中8件でJSON wire後のf64が1 ULPずれていた。`serde_json`の`float_roundtrip` featureを有効にし、raw RPC JSON parse→scene query→response serialization→wire JSON parseで要求時刻と応答時刻のbit列が等しいことをテストした。修正backendでは93件のecho不一致が0件となり、実UI Vision適用も成功した。identity比較には許容誤差を導入していない。
 - Vitestのsplit/Rust query、PropertyPanel境界、Vision keyframe utilityの関連33 testsと`tsc --noEmit`が成功。
 
-## 未対応範囲
+## 実UI確認と残条件
 
-- 実Electron/CDPでのnative playback中の選択枠とhit-testの目視確認は未実施。frame identity、再生中の低頻度評価再利用、pause/revision/遅延presentの取消はVitestで固定した。
-- 分割とVision trackingの実操作は上記の条件で確認済み。native再生のbody/quad同時提示と、旧再生通知による時刻上書きの防止を最終確認する。
+- macOS実Electronでnative再生中の図形/Text選択quad、再生中scrubのsession切替、自然な即Pause停止を確認した。bodyとquadは同じnative presentへ同梱し、安定再生中の追加scene評価RPCは0だった。[条件と限界](native-playback-session-rebase-ui-check.md)。
+- native UI通知はsession/scene/revisionと最新graph参照を検査し、旧sessionの終了・失敗・一時停止通知で現在の時刻や状態を上書きしない。開始応答待ち中も所有者付きPauseで取消し、scrub先を旧pause時計で上書きしない。
+- 分割とVision trackingの実操作は上記の条件で確認済み。ドラッグ/resize/hit-testの境界は単体テストで検証し、代表実シーンの操作と以前の基準値に対する表示遅延の比較は残す。Windows実機は環境待ち。
 
 ## Rust評価snapshotの選択geometry
 
