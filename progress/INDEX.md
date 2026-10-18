@@ -1,5 +1,6 @@
 # 決定ログ索引
 
+- [stage3d-export-readback-frame-alignment.md](stage3d-export-readback-frame-alignment.md) — Rust bridge存在時の3D exportをH.264互換canvas/readback経路へ振り分け、HEVC/ProResを明示拒否。実Electronの空stageで30-frame H.264完走と約106.7ms/frameを確認し、動的sceneの整合は未検証として区別（2026-10-18）
 - [raw-scene-replace-performance.md](raw-scene-replace-performance.md) — shape 1/100/1,000件のgraph-only標準入出力RPCを測定。Electron・描画負荷を含まない初期値として扱い、UI許容上限は未決を維持（2026-10-18）
 - [p4-edit-position-query.md](p4-edit-position-query.md) — split・Vision tracking・現在位置keyframe追加でRust raw秒位置queryを必須化。group-only意味論、Undo Batch、stale応答拒否を維持（2026-10-18）
 - [windows-dxc-packaging.md](windows-dxc-packaging.md) — Windows x64の固定版DXC取得・checksum・pack前検証とexe横配置を実装。unpacked配置を確認し、実機検証は環境待ちとして区別（2026-10-16）
@@ -39,7 +40,7 @@
 
 - [../markdown/Scene_Build_In_Rust_Plan.md](../markdown/Scene_Build_In_Rust_Plan.md) — 責務台帳 item 1（オブジェクト間配線）と R2 残作業（TS評価経路の削除）を解消する次段階計画を策定（提案 ADR-017）。編集用object graphを`scene.replace`でRustへ渡し、rust-coreが評価用Project/SceneMediaReference/group-control targetを構築、常駐preview経路とdirect snapshot経路（export・Windows interim presenter）を同じRust builderへ収束させる。P0 契約固定と差分ハーネス拡張 → P1 Rust builderとdual-run → P2 kind群ごとcut-over → P3 TS serializer撤去（+UI評価値の`scene.evaluate`購読付け替えをP4候補）。あわせて`Rust_Source_Of_Truth_Plan.md`の「R0-R7全フェーズ完了」を訂正し、R2を部分完了（評価差3クラス解消済み・経路B削除は未実施）と明記。未決事項5件（session authoritative化の範囲、payload/RTT上限、PSD schema、direct export方式、UI付け替えの扱い）はユーザー判断待ち（2026-09-13）
 
-- [stage3d-export-readback-frame-alignment.md](stage3d-export-readback-frame-alignment.md) — 3Dステージ（oxidise-engine）動画exportの1フレーム遅延を実在確認し修正。`renderProjectExportFrame`が`renderScene`を呼んだ直後に非同期`StageRenderer#readbackRgba()`の完了を待たずlegacy captureしていたため、エンコーダには前フレームの画素が渡っていた（非同期frame-tag付きfake rendererでframe 7にtag 0が渡ることを再現）。3D経路の`renderScene`がreadback Promiseを返し、exportフレームループがそれを待ってから捕捉する形に変更、古いreadbackの後着上書きは世代番号で防止。2D exportと通常プレビューの非同期更新は不変（プレビュー側呼び出しは`!isExporting`ガード済み）。vitest 261/1857（0.1.1-Beta-520a）。フレームごとのGPU readback待ちによる書き出し速度は実機で要確認
+- [stage3d-export-readback-frame-alignment.md](stage3d-export-readback-frame-alignment.md) — frame-tag付きfake rendererで3D Stageの非同期readbackを待たずにlegacy captureすると1フレーム遅れる不具合を再現・修正。実Electron検証ではRust encoder bridgeが3DにRust frame sourceを要求してunsupportedEditorModeで停止する別経路不具合を発見し、editorMode/codecに応じて3D H.264をWebCodecs legacy canvasへ、HEVC/ProResを明示拒否する修正を実装。2DのRust必須・video sentinel・fail-closedは維持。修正後の実GPU export/frame数/速度検証は未完了
 
 - [cross-object-wiring-to-rust.md](cross-object-wiring-to-rust.md) — 責務台帳 item 1（audio_visualization/audio_sphere/getcolor_dot_field/group_controlのオブジェクト間参照解決）のRust移管を調査し、今回は移管しないと判断。Rustが受け取る`scene.replace`のProject/SceneMediaReferenceも旧snapshot経路も、TSが解決済みの値だけを持ち、音声object・候補image/PSD・targetLayerCount等の解決入力が失われているため、Rustに純粋関数を置いても呼び出し元がなく第二実装になるだけ。推奨案は「編集用object graphをRustへ渡しRustが評価用Project/mediaを構築する」大規模再設計（447フレームparity再取得を含む）。ID優先時は時間外でも採用・layer fallbackのみ時間窓を要求する非対称規約等の移植時注意点を記録。コード変更なし（2026-09-13）
 

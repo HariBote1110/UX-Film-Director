@@ -12,6 +12,14 @@ const exportProgressModalSource = () =>
   readFileSync(new URL('../components/ExportProgressModal.tsx', import.meta.url), 'utf8');
 
 describe('useProjectExport legacy browser dependency boundary', () => {
+  it('selects the encoder and frame policy from the current editor mode and codec', () => {
+    const code = source();
+
+    expect(code).toContain("editorMode: projectSettings.editorMode ?? '2d'");
+    expect(code).toContain('codec: exportVideoCodec');
+    expect(code).toContain('resolveProjectExportFrameSourcePolicyForEncode({');
+  });
+
   it('does not load legacy browser video providers from the production export hook', () => {
     const code = source();
 

@@ -1,4 +1,4 @@
-import type { TimelineObject } from '../types';
+import type { EditorMode, TimelineObject } from '../types';
 import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
 import { isSupportedSceneObject } from './sharedRendererSceneObjectSupport';
@@ -137,6 +137,7 @@ export interface ResolveProjectExportFrameRuntimePlanInput {
 }
 
 export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
+  editorMode: EditorMode;
   rustExportOnly: boolean;
   hasVideoObjects: boolean;
   hasNativeRenderMediaObjects?: boolean;
@@ -299,11 +300,19 @@ const formatUnavailableNativeRenderEnvelope = (
 };
 
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
+  editorMode,
   rustExportOnly,
   hasVideoObjects,
   hasNativeRenderMediaObjects = false,
   encodeEngine,
 }: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
+  if (editorMode === '3d_stage' && encodeEngine === 'webCodecsMp4Muxer') {
+    return {
+      rustFrameSourcePolicy: 'allowLegacyCanvas',
+      rustFrameSourceBlockedFallback: 'legacyCanvas',
+    };
+  }
+
   const requiresRustFrameSource = rustExportOnly
     || encodeEngine === 'rustBackendVideoEncoder'
     || hasVideoObjects
