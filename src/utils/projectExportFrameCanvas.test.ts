@@ -1213,6 +1213,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
 
   it('requires a Rust frame source whenever the Rust backend encoder is selected', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: false,
       hasVideoObjects: false,
       encodeEngine: 'rustBackendVideoEncoder',
@@ -1224,6 +1225,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
 
   it('keeps legacy canvas fallback only for the WebCodecs compatibility encoder', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: false,
       hasVideoObjects: false,
       encodeEngine: 'webCodecsMp4Muxer',
@@ -1235,6 +1237,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
 
   it('requires a Rust frame source for video exports even when the WebCodecs compatibility encoder is selected', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: false,
       hasVideoObjects: true,
       encodeEngine: 'webCodecsMp4Muxer',
@@ -1246,6 +1249,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
 
   it('requires a Rust frame source for native-render media exports even when the WebCodecs compatibility encoder is selected', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: false,
       hasVideoObjects: false,
       hasNativeRenderMediaObjects: true,
@@ -1258,12 +1262,26 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
 
   it('requires a Rust frame source when Rust-only export is enabled', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: true,
       hasVideoObjects: false,
       encodeEngine: 'webCodecsMp4Muxer',
     })).toEqual({
       rustFrameSourcePolicy: 'requireRustFrameSource',
       rustFrameSourceBlockedFallback: 'failExport',
+    });
+  });
+
+  it('uses the 3D Stage snapshot canvas with WebCodecs despite the 2D Rust-only flag and media sentinels', () => {
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '3d_stage',
+      rustExportOnly: true,
+      hasVideoObjects: true,
+      hasNativeRenderMediaObjects: true,
+      encodeEngine: 'webCodecsMp4Muxer',
+    })).toEqual({
+      rustFrameSourcePolicy: 'allowLegacyCanvas',
+      rustFrameSourceBlockedFallback: 'legacyCanvas',
     });
   });
 
@@ -1678,6 +1696,7 @@ describe('text単体プロジェクトのRust frame source方針: legacy canvas�
     expect(context.hasNativeRenderMediaObjects).toBe(true);
 
     expect(resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: false,
       hasVideoObjects: context.hasVideoObjects,
       hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,

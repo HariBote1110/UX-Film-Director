@@ -23,28 +23,28 @@ describe('resolveProjectExportEncodePlan', () => {
 
   it('keeps WebCodecs mp4-muxer encoding only when the Rust encoder is unavailable', () => {
     expect(resolveProjectExportEncodePlan({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: false,
       hasVideoObjects: false,
       rustEncoderAvailable: false,
-    })).toEqual({
-      ok: true,
-      engine: 'webCodecsMp4Muxer',
-    });
+    })).toEqual({ ok: true, engine: 'webCodecsMp4Muxer' });
   });
 
-  it('prefers the Rust backend encoder in normal export mode when the bridge is available', () => {
+  it('prefers the Rust backend encoder in normal 2D export mode when the bridge is available', () => {
     expect(resolveProjectExportEncodePlan({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: false,
       hasVideoObjects: false,
       rustEncoderAvailable: true,
-    })).toEqual({
-      ok: true,
-      engine: 'rustBackendVideoEncoder',
-    });
+    })).toEqual({ ok: true, engine: 'rustBackendVideoEncoder' });
   });
 
-  it('refuses WebCodecs encoding when Rust-only export is requested but no Rust encoder is available', () => {
+  it('refuses WebCodecs encoding when Rust-only 2D export is requested but no Rust encoder is available', () => {
     expect(resolveProjectExportEncodePlan({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: true,
       hasVideoObjects: false,
       rustEncoderAvailable: false,
@@ -55,8 +55,10 @@ describe('resolveProjectExportEncodePlan', () => {
     });
   });
 
-  it('refuses WebCodecs encoding for video exports regardless of preview flags', () => {
+  it('refuses 2D video exports when the Rust encoder is unavailable', () => {
     expect(resolveProjectExportEncodePlan({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: false,
       hasVideoObjects: true,
       rustEncoderAvailable: false,
@@ -67,61 +69,59 @@ describe('resolveProjectExportEncodePlan', () => {
     });
   });
 
-  it('keeps WebCodecs available for non-video exports while Rust export-only mode is disabled', () => {
+  it('uses WebCodecs H.264 for 3D Stage exports with a Rust backend present and Rust-only mode enabled', () => {
     expect(resolveProjectExportEncodePlan({
-      rustExportOnly: false,
+      editorMode: '3d_stage',
+      codec: 'h264',
+      rustExportOnly: true,
       hasVideoObjects: false,
-      rustEncoderAvailable: false,
-    })).toEqual({
-      ok: true,
-      engine: 'webCodecsMp4Muxer',
-    });
+      rustEncoderAvailable: true,
+    })).toEqual({ ok: true, engine: 'webCodecsMp4Muxer' });
   });
 
-  it('selects the Rust backend encoder when Rust-only export has an encoder available', () => {
+  it.each(['hevc', 'prores'] as const)('rejects 3D Stage %s instead of silently converting it to H.264', (codec) => {
     expect(resolveProjectExportEncodePlan({
+      editorMode: '3d_stage',
+      codec,
       rustExportOnly: true,
       hasVideoObjects: false,
       rustEncoderAvailable: true,
     })).toEqual({
-      ok: true,
-      engine: 'rustBackendVideoEncoder',
+      ok: false,
+      reason: 'unsupportedCodecForEditorMode',
+      detail: `${codec === 'hevc' ? 'HEVC (H.265)' : 'Apple ProRes'} は3Dステージ書き出しでは未対応です。H.264を選択してください。`,
     });
   });
 
-  it('derives Rust encoder availability from the renderer bridge shape', () => {
+  it('derives Rust encoder availability from the renderer bridge shape for 2D exports', () => {
+    const bridge = {
+      startVideoEncode: async () => ({ success: true }),
+      writeVideoEncodeFrame: async () => ({ success: true }),
+      finishVideoEncode: async () => ({ success: true }),
+    };
+
     expect(resolveProjectExportEncodePlanFromBridge({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: false,
       hasVideoObjects: false,
-      rustVideoEncoderBridge: {
-        startVideoEncode: async () => ({ success: true }),
-        writeVideoEncodeFrame: async () => ({ success: true }),
-        finishVideoEncode: async () => ({ success: true }),
-      },
-    })).toEqual({
-      ok: true,
-      engine: 'rustBackendVideoEncoder',
-    });
+      rustVideoEncoderBridge: bridge,
+    })).toEqual({ ok: true, engine: 'rustBackendVideoEncoder' });
 
     expect(resolveProjectExportEncodePlanFromBridge({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: true,
       hasVideoObjects: false,
-      rustVideoEncoderBridge: {
-        startVideoEncode: async () => ({ success: true }),
-        writeVideoEncodeFrame: async () => ({ success: true }),
-        finishVideoEncode: async () => ({ success: true }),
-      },
-    })).toEqual({
-      ok: true,
-      engine: 'rustBackendVideoEncoder',
-    });
+      rustVideoEncoderBridge: bridge,
+    })).toEqual({ ok: true, engine: 'rustBackendVideoEncoder' });
 
     expect(resolveProjectExportEncodePlanFromBridge({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: true,
       hasVideoObjects: false,
-      rustVideoEncoderBridge: {
-        startVideoEncode: async () => ({ success: true }),
-      },
+      rustVideoEncoderBridge: { startVideoEncode: bridge.startVideoEncode },
     })).toEqual({
       ok: false,
       reason: 'rustEncoderRequired',
@@ -129,11 +129,11 @@ describe('resolveProjectExportEncodePlan', () => {
     });
 
     expect(resolveProjectExportEncodePlanFromBridge({
+      editorMode: '2d',
+      codec: 'h264',
       rustExportOnly: false,
       hasVideoObjects: true,
-      rustVideoEncoderBridge: {
-        startVideoEncode: async () => ({ success: true }),
-      },
+      rustVideoEncoderBridge: { startVideoEncode: bridge.startVideoEncode },
     })).toEqual({
       ok: false,
       reason: 'rustEncoderRequired',
