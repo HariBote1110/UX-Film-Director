@@ -1,6 +1,6 @@
 # 決定ログ索引
 
-- [native-playback-session-rebase-ui-check.md](native-playback-session-rebase-ui-check.md) — native本体/選択枠の同時提示、再生中scrubのsession切替と即Pause停止を実Electronで確認。追加frame評価RPCなし、遅延比較・Windows実機は対象外（2026-10-18）
+- [native-playback-session-rebase-ui-check.md](native-playback-session-rebase-ui-check.md) — native本体/選択枠の同時提示、再生中scrubと即Pause、停止中の図形/Text直接編集を実Electronで確認。resizeのpreview原点混入を修正。追加frame評価RPCなし、遅延比較・Windows実機は対象外（2026-10-18）
 - [stage3d-export-readback-frame-alignment.md](stage3d-export-readback-frame-alignment.md) — Rust bridge存在時の3D exportをH.264互換canvas/readback経路へ振り分け、HEVC/ProResを明示拒否。実Electronの空stageで30-frame H.264完走と約106.7ms/frameを確認し、動的sceneの整合は未検証として区別（2026-10-18）
 - [raw-scene-replace-performance.md](raw-scene-replace-performance.md) — shape 1/100/1,000件のgraph-only標準入出力RPCを測定。Electron・描画負荷を含まない初期値として扱い、UI許容上限は未決を維持（2026-10-18）
 - [p4-edit-position-query.md](p4-edit-position-query.md) — split・Vision tracking・現在位置keyframe追加でRust raw秒位置queryを必須化。group-only意味論、Undo Batch、stale応答拒否を維持（2026-10-18）

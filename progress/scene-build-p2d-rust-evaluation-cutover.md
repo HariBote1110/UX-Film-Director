@@ -74,3 +74,9 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - native再生の選択枠同時提示、所有者付きPause、スクラブ時の再生位置切り替え、3D H.264互換経路を統合後、全Vitest 277ファイル / 2,016件と`npx tsc --noEmit`が成功。
 - production buildは`/tmp/uxfd-final-production-build-20261018`へ出力して成功。ログは`/tmp/uxfd-final-integrated-vitest.log`、`/tmp/uxfd-final-integrated-tsc.log`、`/tmp/uxfd-final-production-build.log`。
 - P4の遅延比較は以前の基準値との比較証跡がなく、機能確認のみでR2全体を完了扱いにしない。
+
+## 直接編集の受入追補（2026-10-18、Beta-525b）
+
+- 停止scrub後の図形/Textクリック・ドラッグと図形resizeを実Electronで検証した。resizeの絶対pointer座標にpreview原点が混入する不具合を修正し、同じ実UI条件で期待倍率とRust transform追従を確認。詳細は`native-playback-session-rebase-ui-check.md`。
+- 最終コードの全Vitestは277ファイル / 2,018件成功、型チェック・production buildも成功。ログは`/tmp/uxfd-resize-final-vitest.log`、`/tmp/uxfd-resize-final-tsc.log`、`/tmp/uxfd-resize-final-build.log`。build出力は`/tmp/uxfd-resize-final-build-20261018`。
+- P4/R2の残条件は以前の基準値に対する遅延比較と対象外実機の確認であり、直接編集が未実装という意味ではない。

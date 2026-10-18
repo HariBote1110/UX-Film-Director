@@ -18,7 +18,7 @@
 | 1 | P2c一時診断の撤去 | **完了（2026-10-16）**。controller lifecycleの全イベント履歴を撤去。export確認中・成功・失敗の通常statusと回帰テストを維持。関連8ファイル101テスト・型チェック成功。 |
 | 2 | P2全体の完了条件を棚卸し | **部分完了（2026-10-16）**。direct exportのRust resident評価、原本参照、失敗伝播、cancelに加え、未対応だった生成25型を統合。42 object kind中40 visual clipをTS/Rustで一致確認。AutoBlur欠落と振動の動的評価も修正。既存447フレームと振動境界9フレームの計456フレームが一致。既存混在動画はnativeDirect有効/無効の両構成で60/60フレーム成功。graph-only既定経路も混在MP4を60/60フレーム出力済み。 |
 | 3 | P3: TS serializer撤去 | **完了（2026-10-18）**。raw EditableSceneGraphを既定の唯一のproduction経路とし、export評価providerを必須化。旧TS builder・serializer・位置評価をReference実装へ隔離し、production buildから除外。比較fixtureは維持。 |
-| 4 | P4: UI評価値をRustへ移行 | **機能移行・再生実UI確認済み（2026-10-18）**。キー追加・分割・Vision追跡のRust位置queryを必須化。分割の単一Undo/Redo、取消、Visionの実UIで68キー適用を確認。f64のJSON往復ずれを修正し93時刻すべて一致。選択枠・hit-testはRust評価snapshotへ接続。native本体/選択枠の同時提示、旧通知破棄、再生中scrubと即Pauseも実Electronで確認済み。代表シーンのドラッグ/resize実操作と、以前の基準値に対する遅延比較が残る。 |
+| 4 | P4: UI評価値をRustへ移行 | **機能移行・再生実UI確認済み（2026-10-18）**。キー追加・分割・Vision追跡のRust位置queryを必須化。分割の単一Undo/Redo、取消、Visionの実UIで68キー適用を確認。f64のJSON往復ずれを修正し93時刻すべて一致。選択枠・hit-testはRust評価snapshotへ接続。native本体/選択枠の同時提示、旧通知破棄、再生中scrubと即Pauseも実Electronで確認済み。停止スクラブ後の図形・装飾Textのクリック/ドラッグ、図形resizeも実UI確認し、preview原点混入によるresize過大を修正した。以前の基準値に対する遅延比較が残る。 |
 | 5 | テキストの縁取り・影のクリップ | **完了（2026-10-16）**。装飾分の領域拡張と描画原点補正を全経路に接続。回転・負scale・keyframe・途中group_control開始/終了の位置不変性を検証。447-frame parityと影付き日本語テキストのMP4書き出し360/360フレームが成功。 |
 | 6 | フィルタ値編集のUndo/Redo | **完了（2026-10-16）**。入力開始〜終了を1操作として履歴化。連続入力・非同期応答・scene切替・フォーカス中Undo/Redo・通常テキスト入力のnative Undo維持を検証。実Electron/CDPのPropertyPanel操作でも確認。 |
 

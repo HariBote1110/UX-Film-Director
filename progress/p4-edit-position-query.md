@@ -39,7 +39,7 @@
 
 - macOS実Electronでnative再生中の図形/Text選択quad、再生中scrubのsession切替、自然な即Pause停止を確認した。bodyとquadは同じnative presentへ同梱し、安定再生中の追加scene評価RPCは0だった。[条件と限界](native-playback-session-rebase-ui-check.md)。
 - native UI通知はsession/scene/revisionと最新graph参照を検査し、旧sessionの終了・失敗・一時停止通知で現在の時刻や状態を上書きしない。開始応答待ち中も所有者付きPauseで取消し、scrub先を旧pause時計で上書きしない。
-- 分割とVision trackingの実操作は上記の条件で確認済み。ドラッグ/resize/hit-testの境界は単体テストで検証し、代表実シーンの操作と以前の基準値に対する表示遅延の比較は残す。Windows実機は環境待ち。
+- 分割とVision trackingの実操作は上記の条件で確認済み。停止scrub .209秒/frame13後の図形・装飾Textのクリック/ドラッグと図形resizeを実UI確認した。resize pointerにpreview原点が混入する不具合はlocal座標補正で修正し、Rust transform追従も確認した。以前の基準値に対する表示遅延の比較は残す。Windows実機は環境待ち。
 
 ## Rust評価snapshotの選択geometry
 
