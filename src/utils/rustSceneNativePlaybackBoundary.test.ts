@@ -9,6 +9,7 @@ describe('Rust scene native playback境界', () => {
   it('Electron main内でscene.evaluateからnative overlay presentまで完結する', () => {
     const main = read('electron/main.ts');
     const preload = read('electron/preload.ts');
+    const controller = read('electron/rustScenePlaybackController.ts');
 
     expect(main).toContain('createRustScenePlaybackController');
     expect(main).toContain("'rust-backend-scene-playback-start'");
@@ -17,6 +18,23 @@ describe('Rust scene native playback境界', () => {
     expect(main).toContain("'rust-backend-scene-playback-ui-state'");
     expect(preload).toContain('startScenePlayback');
     expect(preload).toContain('pauseScenePlayback');
+    expect(main).toContain("'rust-backend-scene-playback-selection'");
+    expect(preload).toContain('updateScenePlaybackSelection');
+    expect(controller).toContain('selectionDecoration:');
+    expect(controller).toContain('updateSelection:');
+    expect(controller).toContain('sessionId: active?.sessionId ?? generation');
+  });
+
+  it('native playback中は選択枠をbody frameへ同梱しstandalone presentを停止する', () => {
+    const viewport = read('src/components/Viewport.tsx');
+    const decorationLayer = read('src/components/SceneSelectionDecorationLayer.tsx');
+
+    expect(viewport).toContain('selectedObjectIds: startSelectedObjectIds');
+    expect(viewport).toContain('updateScenePlaybackSelection({');
+    expect(viewport).toContain('isRustScenePlaybackUiStateOwner({');
+    expect(viewport).toContain('rustNativePlaybackSessionIdRef.current = null');
+    expect(decorationLayer).toContain('latest.nativePlaybackActive && latest.nativeOverlayPreviewEnabled');
+    expect(decorationLayer).toContain('selectionDecorationSendStateRef.current = {');
   });
 
   it('native playback中はReact rAFとViewportのframe要求を止め、UI時刻だけ低頻度同期する', () => {

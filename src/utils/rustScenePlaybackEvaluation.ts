@@ -10,6 +10,117 @@ export interface RustScenePlaybackEvaluationIdentity {
   frameIndex: number;
 }
 
+export interface RustScenePlaybackUiStateIdentity {
+  sessionId: number;
+  sceneId: string;
+  revision: number;
+  status: string;
+}
+
+export const shouldRequestRustScenePlaybackPause = ({
+  sessionId,
+  nativePlaybackActive,
+}: {
+  sessionId: number | null;
+  nativePlaybackActive: boolean;
+}): boolean => sessionId !== null || nativePlaybackActive;
+
+export const shouldRebaseRustScenePlaybackForScrub = ({
+  nativePlaybackActive,
+  isPlaying,
+  applyingNativePlaybackTime,
+}: {
+  nativePlaybackActive: boolean;
+  isPlaying: boolean;
+  applyingNativePlaybackTime: boolean;
+}): boolean => nativePlaybackActive && isPlaying && !applyingNativePlaybackTime;
+
+export const resolveRustScenePlaybackStartTimeAfterPause = ({
+  currentTimeSeconds,
+  pausedTimeSeconds,
+  pauseResultCurrent,
+  isScrubRebase,
+}: {
+  currentTimeSeconds: number;
+  pausedTimeSeconds: number | null;
+  pauseResultCurrent: boolean;
+  isScrubRebase: boolean;
+}): number => pauseResultCurrent
+  && !isScrubRebase
+  && pausedTimeSeconds !== null
+  && Number.isFinite(pausedTimeSeconds)
+  ? pausedTimeSeconds
+  : currentTimeSeconds;
+
+export const isRustScenePlaybackUiStateOwner = ({
+  state,
+  currentSessionId,
+  target,
+  expectedRevision,
+  projectSettings,
+  layers,
+  objects,
+}: {
+  state: RustScenePlaybackUiStateIdentity;
+  currentSessionId: number | null;
+  target: RustScenePositionQueryTarget | null;
+  expectedRevision: number | null;
+  projectSettings: object;
+  layers: readonly unknown[];
+  objects: readonly unknown[];
+}): boolean => Number.isSafeInteger(state.sessionId)
+  && currentSessionId !== null
+  && state.sessionId === currentSessionId
+  && state.sceneId === 'viewport-rust-timeline'
+  && Number.isSafeInteger(state.revision)
+  && state.revision === expectedRevision
+  && target?.revision === state.revision
+  && rustScenePositionQueryTargetMatchesGraph(target, {
+    sceneId: state.sceneId,
+    revision: state.revision,
+    projectSettings,
+    layers,
+    objects,
+  });
+
+export const isRustScenePlaybackPauseResultCurrent = ({
+  requestGeneration,
+  currentGeneration,
+  requestedTimeSeconds,
+  currentTimeSeconds,
+  requestedSceneId,
+  requestedRevision,
+  target,
+  expectedRevision,
+  projectSettings,
+  layers,
+  objects,
+}: {
+  requestGeneration: number;
+  currentGeneration: number;
+  requestedTimeSeconds: number;
+  currentTimeSeconds: number;
+  requestedSceneId: string;
+  requestedRevision: number;
+  target: RustScenePositionQueryTarget | null;
+  expectedRevision: number | null;
+  projectSettings: object;
+  layers: readonly unknown[];
+  objects: readonly unknown[];
+}): boolean => requestGeneration === currentGeneration
+  && Number.isFinite(requestedTimeSeconds)
+  && requestedTimeSeconds === currentTimeSeconds
+  && target?.sceneId === requestedSceneId
+  && target.revision === requestedRevision
+  && target.revision === expectedRevision
+  && rustScenePositionQueryTargetMatchesGraph(target, {
+    sceneId: requestedSceneId,
+    revision: requestedRevision,
+    projectSettings,
+    layers,
+    objects,
+  });
+
 export const getRustSceneGeometryFrameIndexForTime = ({
   timeSeconds,
   fps,

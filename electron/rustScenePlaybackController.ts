@@ -3,6 +3,9 @@ import type {
   NativeOverlayScenePayload,
 } from './nativeOverlayMainBridge';
 import { isNativeOverlayDirectMediaSourceSupported } from '../src/utils/nativeOverlayDirectMediaSupport';
+import { buildSelectionDecorationQuads } from '../src/utils/nativeOverlaySelectionDecoration';
+import type { RustEvaluatedGeometryFrame } from '../src/utils/rustSceneEvaluatedGeometry';
+import type { RustSceneMediaReference, RustSceneSnapshot } from '../src/utils/rustSceneContract';
 
 export interface RustScenePlaybackStartPayload {
   windowId: number;
@@ -11,6 +14,15 @@ export interface RustScenePlaybackStartPayload {
   fps: number;
   startTimeSeconds: number;
   durationSeconds: number;
+  selectedObjectIds?: string[];
+  sessionId?: number;
+}
+
+export interface RustScenePlaybackSelectionUpdate {
+  windowId: number;
+  sceneId: string;
+  revision: number;
+  selectedObjectIds: string[];
 }
 
 export interface RustScenePlaybackEvaluation {
@@ -61,6 +73,9 @@ export interface RustScenePlaybackEvaluation {
 }
 
 export interface RustScenePlaybackUiState {
+  sessionId: number;
+  sceneId: string;
+  revision: number;
   status: 'started' | 'playing' | 'paused' | 'stopped' | 'ended' | 'failed';
   currentTimeSeconds: number;
   frameIndex: number;
@@ -133,7 +148,8 @@ export type RustScenePlaybackStartResult =
 
 export interface RustScenePlaybackController {
   start: (payload: RustScenePlaybackStartPayload) => Promise<RustScenePlaybackStartResult>;
-  pause: () => RustScenePlaybackUiState | null;
+  updateSelection: (payload: RustScenePlaybackSelectionUpdate) => boolean;
+  pause: (sessionId?: number) => RustScenePlaybackUiState | null;
   stop: () => RustScenePlaybackUiState | null;
   readonly diagnostics: Readonly<RustScenePlaybackDiagnostics>;
 }
@@ -306,6 +322,9 @@ export const createRustScenePlaybackController = ({
       ? lastPresentedEvaluation
       : undefined;
     const state: RustScenePlaybackUiState = {
+      sessionId: active?.sessionId ?? generation,
+      sceneId: active?.sceneId ?? '',
+      revision: active?.revision ?? -1,
       status,
       currentTimeSeconds: timeSeconds,
       frameIndex,
@@ -415,6 +434,24 @@ export const createRustScenePlaybackController = ({
             ? { activeLayerIds: [...media.active_layer_ids] }
             : {}),
         })),
+        ...(request.selectedObjectIds
+          ? {
+              selectionDecoration: {
+                canvasWidth: evaluation.canvas.width,
+                canvasHeight: evaluation.canvas.height,
+                quads: buildSelectionDecorationQuads({
+                  selectedIds: request.selectedObjectIds,
+                  frame: {
+                    sceneId: evaluation.sceneId,
+                    revision: evaluation.revision,
+                    frameIndex: evaluation.frameIndex,
+                    snapshot: evaluation.snapshot as unknown as RustSceneSnapshot,
+                    media: evaluation.media as unknown as RustSceneMediaReference[],
+                  } satisfies RustEvaluatedGeometryFrame,
+                }),
+              },
+            }
+          : {}),
       });
     } catch (error) {
       diagnostics.failedFrames += 1;
@@ -512,10 +549,12 @@ export const createRustScenePlaybackController = ({
         || payload.startTimeSeconds < 0
         || !Number.isFinite(payload.durationSeconds)
         || payload.durationSeconds <= payload.startTimeSeconds
+        || (payload.sessionId !== undefined
+          && (!Number.isSafeInteger(payload.sessionId) || payload.sessionId < 0))
       ) {
         return { active: false, reason: 'invalidRequest' };
       }
-      active = payload;
+      active = { ...payload, sessionId: payload.sessionId ?? generation };
       lastPresentedEvaluation = null;
       clockStartedAtMs = nowMs();
       lastUiNotificationAtMs = clockStartedAtMs;
@@ -524,8 +563,10 @@ export const createRustScenePlaybackController = ({
       const frameIndex = Math.floor(payload.startTimeSeconds * payload.fps);
       const result = await renderFrame(runGeneration, frameIndex, true, timingSink);
       if (!result.active) {
-        active = null;
-        generation += 1;
+        if (generation === runGeneration) {
+          active = null;
+          generation += 1;
+        }
         return result;
       }
       emitState('started', payload.startTimeSeconds, true);
@@ -540,7 +581,18 @@ export const createRustScenePlaybackController = ({
         }),
       };
     },
-    pause: () => {
+    updateSelection: (payload) => {
+      if (!active
+        || active.windowId !== payload.windowId
+        || active.sceneId !== payload.sceneId
+        || active.revision !== payload.revision) return false;
+      active.selectedObjectIds = [...payload.selectedObjectIds];
+      return true;
+    },
+    pause: (sessionId) => {
+      if (sessionId !== undefined && active?.sessionId !== sessionId) {
+        return null;
+      }
       if (!active) return null;
       const time = currentTimeSeconds();
       cancelTimer();

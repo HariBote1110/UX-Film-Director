@@ -46,6 +46,7 @@ export interface SceneSelectionDecorationLayerProps {
   /** 送信 payload の canvasHeight（projectSettings.height）。 */
   projectCanvasHeight: number;
   nativeOverlayPreviewEnabled: boolean;
+  nativePlaybackActive: boolean;
   rustVideoOnlyEnabled: boolean;
   sharedRendererPreviewSession: SharedRendererPreviewSession | null;
   nativeOverlayAttachTick: number;
@@ -95,6 +96,7 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
   projectCanvasWidth,
   projectCanvasHeight,
   nativeOverlayPreviewEnabled,
+  nativePlaybackActive,
   rustVideoOnlyEnabled,
   sharedRendererPreviewSession,
   nativeOverlayAttachTick,
@@ -139,6 +141,7 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
     projectCanvasWidth,
     projectCanvasHeight,
     nativeOverlayPreviewEnabled,
+    nativePlaybackActive,
     rustVideoOnlyEnabled,
     sharedRendererPreviewSession,
     nativeOverlayAttachTick,
@@ -152,6 +155,7 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
     projectCanvasWidth,
     projectCanvasHeight,
     nativeOverlayPreviewEnabled,
+    nativePlaybackActive,
     rustVideoOnlyEnabled,
     sharedRendererPreviewSession,
     nativeOverlayAttachTick,
@@ -190,6 +194,19 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
    */
   const sendStandaloneDecoration = (time: number) => {
     const latest = latestRef.current;
+
+    if (latest.nativePlaybackActive && latest.nativeOverlayPreviewEnabled) {
+      // Native playback controller evaluates and co-presents the quad with each
+      // body frame. A standalone present here would race that same surface.
+      setActive(true);
+      selectionDecorationSendStateRef.current = {
+        selectedIds: latest.selectedIds,
+        objects: latest.objects,
+        time,
+        nativeOverlayBodyCoDeliveryEligible: true,
+      };
+      return;
+    }
 
     if (
       !latest.nativeOverlayPreviewEnabled
@@ -321,6 +338,7 @@ export const SceneSelectionDecorationLayer: React.FC<SceneSelectionDecorationLay
     selectedIds,
     objects,
     nativeOverlayPreviewEnabled,
+    nativePlaybackActive,
     rustVideoOnlyEnabled,
     sharedRendererPreviewSession,
     nativeOverlayAttachTick,

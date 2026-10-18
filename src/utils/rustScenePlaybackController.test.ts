@@ -3,6 +3,7 @@ import {
   computeRustScenePlaybackStartTimingDiagnostics,
   createRustScenePlaybackController,
 } from '../../electron/rustScenePlaybackController';
+import type { NativeOverlayScenePayload } from '../../electron/nativeOverlayMainBridge';
 
 const audioWaveformSource =
   '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
@@ -57,6 +58,201 @@ const evaluation = (frameIndex: number, kind = 'GeneratedSimpleTube') => ({
 });
 
 describe('RustScenePlaybackController', () => {
+  it('全playback eventに同じsession/scene/revision identityを含める', async () => {
+    const emit = vi.fn();
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene: async () => ({ success: true, attached: true }),
+      emit,
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 45,
+    });
+    const paused = controller.pause();
+    const stopped = await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 46,
+    }).then(() => controller.stop());
+
+    expect(emit.mock.calls.map(([event]) => event)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: 45, sceneId: 'scene-1', revision: 7, status: 'started' }),
+      expect.objectContaining({ sessionId: 45, sceneId: 'scene-1', revision: 7, status: 'paused' }),
+      expect.objectContaining({ sessionId: 46, sceneId: 'scene-1', revision: 7, status: 'started' }),
+      expect.objectContaining({ sessionId: 46, sceneId: 'scene-1', revision: 7, status: 'stopped' }),
+    ]));
+    expect(paused).toMatchObject({ sessionId: 45, sceneId: 'scene-1', revision: 7 });
+    expect(stopped).toMatchObject({ sessionId: 46, sceneId: 'scene-1', revision: 7 });
+  });
+
+  it('開始応答待ちのsessionだけをpauseし、古いsessionのpauseで新再生を止めない', async () => {
+    const deferredEvaluation: { resolve: ((value: ReturnType<typeof evaluation>) => void) | null } = { resolve: null };
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: () => new Promise((resolve) => { deferredEvaluation.resolve = resolve; }),
+      presentScene,
+      emit: vi.fn(),
+    });
+    const starting = controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 45,
+    });
+    await vi.waitFor(() => expect(deferredEvaluation.resolve).not.toBeNull());
+
+    expect(controller.pause(44)).toBeNull();
+    deferredEvaluation.resolve?.(evaluation(0));
+    await expect(starting).resolves.toMatchObject({ active: true, frameIndex: 0 });
+    expect(presentScene).toHaveBeenCalledTimes(1);
+
+    expect(controller.pause(45)).toMatchObject({ sessionId: 45, status: 'paused' });
+  });
+
+  it('開始応答前に同じsessionをpauseしたら遅着evaluationを提示しない', async () => {
+    const deferredEvaluation: { resolve: ((value: ReturnType<typeof evaluation>) => void) | null } = { resolve: null };
+    const presentScene = vi.fn(async () => ({ success: true, attached: true }));
+    const emit = vi.fn();
+    let evaluationCallCount = 0;
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex, sceneId, revision }) => {
+        evaluationCallCount += 1;
+        if (evaluationCallCount === 1) {
+          return new Promise((resolve) => { deferredEvaluation.resolve = resolve; });
+        }
+        return { ...evaluation(frameIndex), sceneId, revision };
+      },
+      presentScene,
+      emit,
+    });
+    const starting = controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      sessionId: 45,
+    });
+    await vi.waitFor(() => expect(deferredEvaluation.resolve).not.toBeNull());
+
+    expect(controller.pause(45)).toMatchObject({ sessionId: 45, status: 'paused' });
+    const restarted = controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0.209,
+      durationSeconds: 1,
+      sessionId: 46,
+    });
+    await expect(restarted).resolves.toMatchObject({ active: true, frameIndex: 12 });
+
+    deferredEvaluation.resolve?.(evaluation(0));
+    await expect(starting).resolves.toMatchObject({ active: false });
+    expect(presentScene).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'started', sessionId: 46 }));
+    expect(controller.pause(46)).toMatchObject({ sessionId: 46, status: 'paused' });
+  });
+
+  it('同じ評価フレームから作った選択quadをnative bodyと同一presentへ同梱する', async () => {
+    const presentScene = vi.fn(async (_payload: NativeOverlayScenePayload) => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene,
+      emit: vi.fn(),
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      selectedObjectIds: ['clip-1'],
+    });
+
+    expect(presentScene).toHaveBeenCalledWith(expect.objectContaining({
+      snapshot: expect.objectContaining({ frameIndex: 0 }),
+      selectionDecoration: {
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        quads: [{
+          topLeftX: 10,
+          topLeftY: 20,
+          topRightX: 330,
+          topRightY: 20,
+          bottomRightX: 330,
+          bottomRightY: 200,
+          bottomLeftX: 10,
+          bottomLeftY: 200,
+          showHandles: true,
+        }],
+      },
+    }));
+  });
+
+  it('再生中は選択IDだけを更新し、次の同一frame presentへ反映する', async () => {
+    let nowMs = 1_000;
+    let scheduled: (() => void) | null = null;
+    const presentScene = vi.fn(async (_payload: NativeOverlayScenePayload) => ({ success: true, attached: true }));
+    const controller = createRustScenePlaybackController({
+      evaluateScene: async ({ frameIndex }) => evaluation(frameIndex),
+      presentScene,
+      emit: vi.fn(),
+      nowMs: () => nowMs,
+      schedule: (callback) => { scheduled = callback; return 1; },
+      cancel: vi.fn(),
+    });
+
+    await controller.start({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      fps: 60,
+      startTimeSeconds: 0,
+      durationSeconds: 1,
+      selectedObjectIds: [],
+    });
+    await controller.updateSelection({
+      windowId: 4,
+      sceneId: 'scene-1',
+      revision: 7,
+      selectedObjectIds: ['clip-1'],
+    });
+    nowMs = 1_017;
+    const runNext = scheduled as (() => void) | null;
+    runNext?.();
+    await vi.waitFor(() => expect(presentScene).toHaveBeenCalledTimes(2));
+
+    expect(presentScene.mock.calls[0]?.[0]).toMatchObject({ selectionDecoration: { quads: [] } });
+    expect(presentScene.mock.calls[1]?.[0]).toMatchObject({
+      snapshot: { frameIndex: 1 },
+      selectionDecoration: { quads: [{ topLeftX: 10, topLeftY: 20 }] },
+    });
+    expect(await controller.updateSelection({
+      windowId: 5,
+      sceneId: 'scene-1',
+      revision: 7,
+      selectedObjectIds: [],
+    })).toBe(false);
+  });
+
   it('単調時計からframeを求め、Rust評価からnative presentまでrendererを経由せず実行する', async () => {
     let nowMs = 1_000;
     let scheduled: (() => void) | null = null;
