@@ -29,7 +29,7 @@
 - **scene.replace性能**: 標準入出力RPCの初期測定は完了（shape 1/100/1000件の中央値0.048/0.956/8.719ms）。Electron往復・実編集シーンの計測と許容上限の判断は未完了。[測定範囲と限界](../progress/raw-scene-replace-performance.md)。
 - **Windows仕上げ**: **DXC同梱は完了**。固定版・checksum取得、pack前検証、exe横へのDLL/ライセンス配置を実装し、macOSからWindows x64のunpacked配置まで確認した（[記録](../progress/windows-dxc-packaging.md)）。初回attachの同期パイプライン生成は後続のAsyncTask・段階構築で対処済み（[実装・実測記録](../progress/windows-w7-async-attach.md)）。残りはWindows実機build/起動・高DPI・HTML UI重なり検証。旧mainpc撤去とWindows接続サービス停止のため、実機検証は環境待ち。
 - **外部video経路の色差**: 既存のmatrix / colourSpace明示修正は完了。再現素材のffprobeと、現在のnative描画経路で影響が残るかの確認が必要。過去経路の仮説だけで新規修正を始めない。[調査ログ](../progress/external-video-colour-mismatch.md)。
-- **実機確認の追補**: NV12リング停止は原本/proxy実測と後続混在E2Eを含め検証済み。resident評価exportの音声waveform/sphereも混在E2Eの画素検査で確認済み。native direct encodeも音声反応を含む混在シーンで60/60フレーム出力・画素検査成功。3D Stage exportは通常設定で経路選択が遮断される不具合を検出し、修正と実機フレーム整合・速度計測を継続する。速度未測定を性能劣化と判定しない。
+- **実機確認の追補**: NV12リング停止は原本/proxy実測と後続混在E2Eを含め検証済み。resident評価exportの音声waveform/sphereも混在E2Eの画素検査で確認済み。native direct encodeも音声反応を含む混在シーンで60/60フレーム出力・画素検査成功。3D Stage exportの経路選択不具合は修正済み。空の静的stageをH.264で30/30フレーム出力し、約3.2秒を観測（[範囲と制約](../progress/stage3d-export-readback-frame-alignment.md)）。動的scene・実コンテンツのpreview/export一致とGPU別の性能比較は未検証。速度未測定を性能劣化と判定しない。
 
 ## 後続の機能・改善候補
 

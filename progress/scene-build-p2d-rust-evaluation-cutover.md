@@ -68,3 +68,9 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - レビューで見つかったexport close中のnative/presenter非同期準備、session返却直後のclose割り込み、abort release失敗時のdecode job停止漏れは回帰修正済み。個別テストと型チェックはgreen、最新統合後の全体検証を親側で継続する。
 
 - native direct encode有効でも、同じ混在構成を60/60フレーム出力した。`residentScene`、`iosurfaceVideoToolboxAudioMux`、H.264 probe一致、runtime errors空。waveform 1,203画素・audio sphere 12,680画素を既存検査で検出した（`/tmp/uxfd-native-direct-final-export-result.json`）。書き出し時間12,445msは当該短fixtureの観測値であり、一般性能の保証値ではない。
+
+## 最終コード統合の検証（2026-10-18）
+
+- native再生の選択枠同時提示、所有者付きPause、スクラブ時の再生位置切り替え、3D H.264互換経路を統合後、全Vitest 277ファイル / 2,016件と`npx tsc --noEmit`が成功。
+- production buildは`/tmp/uxfd-final-production-build-20261018`へ出力して成功。ログは`/tmp/uxfd-final-integrated-vitest.log`、`/tmp/uxfd-final-integrated-tsc.log`、`/tmp/uxfd-final-production-build.log`。
+- P4の遅延比較は以前の基準値との比較証跡がなく、機能確認のみでR2全体を完了扱いにしない。
