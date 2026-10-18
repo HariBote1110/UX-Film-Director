@@ -66,3 +66,5 @@ P3のproduction経路撤去は完了。reference serializerをテストから除
 - f64 round-trip修正を含む検証済みbackendで、raw graph/RPC flagを未設定のまま混在MP4を60/60フレーム出力した。動画・画像・音声・PSD・生成エフェクト・groupを含み、生成エフェクト画素検査とH.264 probeが成功、runtime errorsは空（`/tmp/uxfd-reference-default-export-result.json`）。native overlayは無効、native direct encodeは無効の構成。
 - Rust backend releaseテストは203件成功、2件ignored（`/tmp/uxfd-final-backend-tests.log`）。
 - レビューで見つかったexport close中のnative/presenter非同期準備、session返却直後のclose割り込み、abort release失敗時のdecode job停止漏れは回帰修正済み。個別テストと型チェックはgreen、最新統合後の全体検証を親側で継続する。
+
+- native direct encode有効でも、同じ混在構成を60/60フレーム出力した。`residentScene`、`iosurfaceVideoToolboxAudioMux`、H.264 probe一致、runtime errors空。waveform 1,203画素・audio sphere 12,680画素を既存検査で検出した（`/tmp/uxfd-native-direct-final-export-result.json`）。書き出し時間12,445msは当該短fixtureの観測値であり、一般性能の保証値ではない。
