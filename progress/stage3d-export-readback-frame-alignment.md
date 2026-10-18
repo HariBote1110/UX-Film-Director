@@ -33,3 +33,24 @@
   `void` の場合は待機しない。したがって2D exportの描画・capture順序は変更しない。
 - readback完了待ちは3Dステージexportの各フレームに必要なGPU同期であり、実機の
   GPU/ドライバ別の書き出し速度はElectron実機で別途確認する必要がある。
+
+## 実機経路の調査とencoder選択の修正（2026-10-18）
+
+- 検証済みRust backendを指定した実Electronの3D Stage exportで、WebGPU adapter/deviceの
+  初期化までは成功したが、export開始後330〜348msで `unsupportedEditorMode` により停止し、
+  出力動画は作成されなかった。設定の `VITE_UXFD_RUST_EXPORT_ONLY` を無効にしても再現した。
+- 原因は、Rust encoder bridgeが存在するとencoder計画がRust backendを選び、frame source policyも
+  Rust frame sourceを必須化していたこと。3D Stageは `viewportRustExportFrameSource` が明示的に
+  unsupportedとなるため、既存の `StageRenderer#readbackRgba()` → legacy canvas経路へ到達できなかった。
+- encoder計画へ `editorMode` と選択codecを渡す。3D StageはH.264のときWebCodecs互換encoderを選び、
+  `VITE_UXFD_RUST_EXPORT_ONLY=1` は2D resident-render exportの指定として扱う。2Dは引き続きRust
+  encoder/frame source必須、video sentinelおよびfail-closedを維持する。
+- WebCodecs互換exportはH.264のみ対応するため、3D StageでHEVCまたはProResを選んだ場合は日本語の
+  明示エラーを返す。別codecへ無言変換しない。3D Stageにvideo objectが含まれる場合も既存の
+  WebCodecs video sentinelが適用され、Rust sourceのないvideo exportを通さない。
+- 自動テストは3D H.264 route、HEVC/ProRes拒否、3D legacy canvas policy、encoder-hookのmode/codec
+  接続、既存2D Rust-only/video sentinelの維持を確認する。`projectExportFrameRenderer.test.ts` の
+  async readback待ち契約は引き続き対象となる。
+- 実Electronではverified backendでWebGPU初期化と3D export拒否を確認済みだが、修正後の正常export、
+  frame数/画素、フレーム当たり時間はGPU検証枠の調整後に再確認する。静的stageでは動的な画素差分に
+  よる1フレーム遅延検出はできないため、遅延契約はframe-tag付きfake renderer testで担保する。

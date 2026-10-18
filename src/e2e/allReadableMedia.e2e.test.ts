@@ -947,6 +947,7 @@ describe('全読込可能メディア E2E', () => {
     const hasVideoObjects = objects.some((object) => object.type === 'video');
     const hasNativeRenderMediaObjects = hasProjectExportNativeRenderMediaObjects(objects);
     const policy = resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '2d',
       rustExportOnly: false,
       hasVideoObjects,
       hasNativeRenderMediaObjects,

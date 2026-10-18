@@ -1108,6 +1108,46 @@ describe('buildProjectExportFrameSourcePlan', () => {
     });
   });
 
+  it('uses the 3D Stage snapshot canvas for native-render media while preserving the video sentinel', () => {
+    const exportCanvas = { id: 'stage3d-snapshot' } as unknown as HTMLCanvasElement;
+    const framePolicy = resolveProjectExportFrameSourcePolicyForEncode({
+      editorMode: '3d_stage',
+      rustExportOnly: true,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      encodeEngine: 'webCodecsMp4Muxer',
+    });
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      rustFrameSourcePolicy: framePolicy.rustFrameSourcePolicy,
+      rustFrameSourceBlockedFallback: framePolicy.rustFrameSourceBlockedFallback,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      getExportCanvas: () => exportCanvas,
+    })).toEqual({
+      ok: true,
+      source: 'explicitExportCanvas',
+      canvas: exportCanvas,
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: true,
+    });
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      rustFrameSourcePolicy: framePolicy.rustFrameSourcePolicy,
+      rustFrameSourceBlockedFallback: framePolicy.rustFrameSourceBlockedFallback,
+      hasVideoObjects: true,
+      hasNativeRenderMediaObjects: false,
+      getExportCanvas: () => exportCanvas,
+    })).toEqual({
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Video export requires a shared renderer Rust frame source.',
+    });
+  });
+
   it('refuses legacy canvas capture when the Rust frame source is required', () => {
     const legacyCanvas = { id: 'legacy-export' } as unknown as HTMLCanvasElement;
 
@@ -1276,7 +1316,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       editorMode: '3d_stage',
       rustExportOnly: true,
-      hasVideoObjects: true,
+      hasVideoObjects: false,
       hasNativeRenderMediaObjects: true,
       encodeEngine: 'webCodecsMp4Muxer',
     })).toEqual({

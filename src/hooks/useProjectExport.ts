@@ -133,6 +133,8 @@ export const useProjectExport = (
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
       const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
       const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
+        editorMode: projectSettings.editorMode ?? '2d',
+        codec: exportVideoCodec,
         rustExportOnly,
         hasVideoObjects,
         rustVideoEncoderBridge: window.rustVideoEncoder,
@@ -144,6 +146,7 @@ export const useProjectExport = (
       }
       const hasNativeRenderMediaObjects = hasProjectExportNativeRenderMediaObjects(exportObjects);
       const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
+        editorMode: projectSettings.editorMode ?? '2d',
         rustExportOnly,
         hasVideoObjects,
         hasNativeRenderMediaObjects,
