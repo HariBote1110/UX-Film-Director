@@ -51,6 +51,21 @@
 - 自動テストは3D H.264 route、HEVC/ProRes拒否、3D legacy canvas policy、encoder-hookのmode/codec
   接続、既存2D Rust-only/video sentinelの維持を確認する。`projectExportFrameRenderer.test.ts` の
   async readback待ち契約は引き続き対象となる。
-- 実Electronではverified backendでWebGPU初期化と3D export拒否を確認済みだが、修正後の正常export、
-  frame数/画素、フレーム当たり時間はGPU検証枠の調整後に再確認する。静的stageでは動的な画素差分に
-  よる1フレーム遅延検出はできないため、遅延契約はframe-tag付きfake renderer testで担保する。
+- 修正後、`VITE_UXFD_RUST_EXPORT_ONLY=1`、verified backend `uxfd-rust-backend-verified-20261018`、
+  overlay無効・shared preview/export有効の実Electronで、640×360・30fps・1秒の空3D stageを
+  H.264 exportした。完了ダイアログは`avc1.640028`で成功し、runtime errorは空。`ffprobe`でH.264
+  High、640×360、30/1 fps、30 frames、duration 0.966667秒を確認した。動画は2359 bytes。
+- E2E wrapperの結果全体は、互換経路の完了ダイアログに汎用parserが期待する`フレーム: N`表示がなく、
+  `exportedFrameCount`を取得できなかったため`passed:false`となる。これはexport失敗を示さない。
+  UI完了ダイアログ、生成物、codec probeと独立した`ffprobe`のframe countで完走を確認した。
+- JSONの`exportDurationMs`は3200 ms（完了ダイアログ表示は3.0秒）で、空sceneの今回の観測値は
+  約106.7 ms/frame。GPU、codec、静的な空sceneに限定した一回の測定であり、性能保証値ではない。
+- frame 0とframe 15のPNGは640×360、SHA-256が両方
+  `bdb45551126b13f695e9518e7ed75a6fdc12c587166e2eb7f3d214d1865829ba`で、画素配列も同一だった。
+  目視上は暗灰色の背景と一部の床線で、空sceneの設定（背景#1e1e1e、床線#333333、中心線#444444）と
+  整合する。これは空stageのreadback出力の確認に限り、preview/export画素一致やgrid全体の描画正当性は
+  検証していない。PNGは`/tmp/uxfd-p4-stage3d-frame0.png`と`/tmp/uxfd-p4-stage3d-frame15.png`、
+  動画は`/tmp/uxfd-p4-stage3d-export.mp4`、E2E記録は`/tmp/uxfd-p4-stage3d-export-result.json`。
+- この空sceneは静的なため、実コンテンツの動的フレーム整合・1フレーム遅延は未検証。非同期readback
+  の順序は引き続き`projectExportFrameRenderer.test.ts`のframe-tag付きfake renderer testで担保する。
+  検証用recipeは実行後に削除した。
