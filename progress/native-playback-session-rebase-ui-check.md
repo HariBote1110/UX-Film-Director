@@ -1,0 +1,11 @@
+# Native playback session / scrub 実UI確認
+
+2026-10-18、専用Electron profileとport 5321/9341を使い、`UXFD_NATIVE_OVERLAY=1`でmacOS実Electronを起動した。検証用に移動する図形と、stroke/shadow付きTextを作成し、選択枠とnative playbackの更新をCDPとアプリ画面で確認した。専用profile変更用の一時的な`electron/main.ts` hookは確認後に削除した。
+
+再生中にscene position query RPCが追加で増えないことを確認した。安定再生中のscene RPC request数は6のままで、native playback診断ではpresent済みframeが増加した。再生中に図形からTextへ選択を変えると、約400 ms後の観測で選択quadがText側へ移り、UI notificationも増えた。これは選択変更から最初のnative presentまでの厳密な遅延計測ではなく、観測窓内での動作確認である。
+
+再生中のscrubでは、time 1.9秒付近のsession 5から0.209秒への要求に対してsession 6が始まり、250 ms後には再生中のtimeが約0.410秒、geometry frameが24となった。`isPlaying`とnative playbackが維持され、旧clockのpause応答でscrub先へ巻き戻る挙動は観測しなかった。要求直後から再開presentまでの間に旧geometryを再利用しない契約は単体テストでも確認済み。
+
+即Pauseは、0.209秒からPlayし40 ms後にPauseする自然な操作を一度確認した。UI stateは`isPlaying=false`かつ`nativePlaybackActive=false`となり、main playback診断のrequested/presented frameは初期1 frameだけ増え、その後1秒間増えなかった。preload bridgeはfrozenであるため、CDPからstart RPC応答を人工的に遅延させる試験は行っていない。start RPC中の所有者付きPauseとinitial evaluation後の再スケジュール抑止は、遅延evaluationを使うcontroller/hook境界テストで検証した。
+
+確認したElectronは終了済み。Windows実機やmacOS以外の実機挙動はこの確認範囲に含まれない。
