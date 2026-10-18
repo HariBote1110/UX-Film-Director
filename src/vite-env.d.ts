@@ -48,7 +48,7 @@ interface Window {
     }) => Promise<{
       active: boolean;
       frameIndex?: number;
-      reason?: 'cancelled' | 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+      reason?: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
       detail?: string;
       // 計測専用: electron main側で計測したengage遅延内訳（start()成功時のみ）。
       startTimingDiagnostics?: {

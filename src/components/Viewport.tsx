@@ -109,6 +109,7 @@ import {
   isRustScenePlaybackEvaluationCurrent,
   isRustScenePlaybackPauseResultCurrent,
   isRustScenePlaybackUiStateOwner,
+  resolveRustScenePlaybackStartTimeAfterPause,
   shouldRebaseRustScenePlaybackForScrub,
   shouldRequestRustScenePlaybackPause,
 } from '../utils/rustScenePlaybackEvaluation';
@@ -2101,6 +2102,7 @@ const Viewport: React.FC = () => {
     rustNativePlaybackStartGenerationRef.current = startGeneration;
     const previousSessionId = rustNativePlaybackPendingPauseSessionIdRef.current
       ?? rustNativePlaybackSessionIdRef.current;
+    const isScrubRebase = rustNativePlaybackPendingPauseSessionIdRef.current !== null;
     rustNativePlaybackPendingPauseSessionIdRef.current = null;
     if (!isPlaying) {
       const pauseSessionId = previousSessionId;
@@ -2161,13 +2163,16 @@ const Viewport: React.FC = () => {
           layers: current.layers,
           objects: current.objects,
         });
-        if (paused && Number.isFinite(paused.currentTimeSeconds) && pauseResultCurrent) {
-          startTimeSeconds = paused.currentTimeSeconds;
+        startTimeSeconds = resolveRustScenePlaybackStartTimeAfterPause({
+          currentTimeSeconds: current.currentTime,
+          pausedTimeSeconds: paused?.currentTimeSeconds ?? null,
+          pauseResultCurrent,
+          isScrubRebase,
+        });
+        if (paused && Number.isFinite(paused.currentTimeSeconds) && pauseResultCurrent && !isScrubRebase) {
           applyingNativePlaybackTimeRef.current = true;
           setTime(startTimeSeconds);
           applyingNativePlaybackTimeRef.current = false;
-        } else {
-          startTimeSeconds = current.currentTime;
         }
       }
       // 計測専用: engage遅延の内訳切り分け用にnative再生開始RPCの往復時間を
@@ -2750,6 +2755,7 @@ const Viewport: React.FC = () => {
       // the requested time. The current native tick path is excluded by the guard above.
       rustNativePlaybackPendingPauseSessionIdRef.current = rustNativePlaybackSessionIdRef.current;
       rustNativePlaybackSessionIdRef.current = null;
+      clearRustSceneEvaluatedGeometryFrame('viewport-rust-timeline');
       setNativePlaybackRebaseVersion((version) => version + 1);
     }
     // 1) Rust常駐sceneへの評価要求（旧: requestTime effectのcurrentTime依存分）

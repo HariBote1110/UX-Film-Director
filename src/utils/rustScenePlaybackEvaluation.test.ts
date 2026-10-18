@@ -4,6 +4,7 @@ import {
   isRustScenePlaybackEvaluationCurrent,
   isRustScenePlaybackPauseResultCurrent,
   isRustScenePlaybackUiStateOwner,
+  resolveRustScenePlaybackStartTimeAfterPause,
   shouldRebaseRustScenePlaybackForScrub,
   shouldRequestRustScenePlaybackPause,
 } from './rustScenePlaybackEvaluation';
@@ -172,5 +173,20 @@ describe('native playback transition decisions', () => {
       isPlaying: false,
       applyingNativePlaybackTime: false,
     })).toBe(false);
+  });
+
+  it('scrub rebaseでは旧native clockのpause時刻を無視し、通常pauseからの再startでは採用する', () => {
+    expect(resolveRustScenePlaybackStartTimeAfterPause({
+      currentTimeSeconds: 0.209,
+      pausedTimeSeconds: 1.542,
+      pauseResultCurrent: true,
+      isScrubRebase: true,
+    })).toBe(0.209);
+    expect(resolveRustScenePlaybackStartTimeAfterPause({
+      currentTimeSeconds: 1.5,
+      pausedTimeSeconds: 1.542,
+      pauseResultCurrent: true,
+      isScrubRebase: false,
+    })).toBe(1.542);
   });
 });

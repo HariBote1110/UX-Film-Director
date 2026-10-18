@@ -142,7 +142,7 @@ export type RustScenePlaybackStartResult =
     }
   | {
       active: false;
-      reason: 'cancelled' | 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
+      reason: 'invalidRequest' | 'unsupportedDirectMedia' | 'evaluationFailed' | 'presentFailed';
       detail?: string;
     };
 
@@ -278,7 +278,6 @@ export const createRustScenePlaybackController = ({
   let generation = 0;
   let timer: TimerHandle | number | null = null;
   let active: RustScenePlaybackStartPayload | null = null;
-  const cancelledSessionIds = new Set<number>();
   let clockStartedAtMs = 0;
   let lastPresentedFrame = -1;
   let lastPresentedEvaluation: RustScenePlaybackEvaluation | null = null;
@@ -536,10 +535,6 @@ export const createRustScenePlaybackController = ({
       hasStartedOnceSinceLaunch = true;
       const timingSink: { evaluateSceneMs?: number; presentSceneMs?: number } = {};
 
-      if (payload.sessionId !== undefined && cancelledSessionIds.delete(payload.sessionId)) {
-        return { active: false, reason: 'cancelled' };
-      }
-
       cancelTimer();
       generation += 1;
       active = null;
@@ -596,12 +591,6 @@ export const createRustScenePlaybackController = ({
     },
     pause: (sessionId) => {
       if (sessionId !== undefined && active?.sessionId !== sessionId) {
-        cancelledSessionIds.add(sessionId);
-        while (cancelledSessionIds.size > 64) {
-          const oldest = cancelledSessionIds.values().next().value;
-          if (oldest === undefined) break;
-          cancelledSessionIds.delete(oldest);
-        }
         return null;
       }
       if (!active) return null;

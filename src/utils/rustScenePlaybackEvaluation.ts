@@ -35,6 +35,23 @@ export const shouldRebaseRustScenePlaybackForScrub = ({
   applyingNativePlaybackTime: boolean;
 }): boolean => nativePlaybackActive && isPlaying && !applyingNativePlaybackTime;
 
+export const resolveRustScenePlaybackStartTimeAfterPause = ({
+  currentTimeSeconds,
+  pausedTimeSeconds,
+  pauseResultCurrent,
+  isScrubRebase,
+}: {
+  currentTimeSeconds: number;
+  pausedTimeSeconds: number | null;
+  pauseResultCurrent: boolean;
+  isScrubRebase: boolean;
+}): number => pauseResultCurrent
+  && !isScrubRebase
+  && pausedTimeSeconds !== null
+  && Number.isFinite(pausedTimeSeconds)
+  ? pausedTimeSeconds
+  : currentTimeSeconds;
+
 export const isRustScenePlaybackUiStateOwner = ({
   state,
   currentSessionId,
