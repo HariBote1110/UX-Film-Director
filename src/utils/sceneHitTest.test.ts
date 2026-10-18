@@ -8,6 +8,8 @@ import {
 } from './sceneHitTestReference';
 import type { LayerState, ShapeObject, TextObject, TimelineObject } from '../types';
 import { textMediaBox } from './textMediaGeometry';
+import { computeResize } from './transformGeometry';
+import { clientPointToPreviewLocalPoint, cssPointToWorldPoint } from './sceneHitTest';
 
 const identityCamera: SceneCamera = { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 };
 
@@ -17,6 +19,44 @@ const viewport = (overrides: Partial<SceneHitTestViewport> = {}): SceneHitTestVi
   displayScale: 1,
   camera: identityCamera,
   ...overrides,
+});
+
+describe('preview-local resize pointer coordinates', () => {
+  const resizeStart = {
+    corner: 'bottom-right' as const,
+    bounds: { bx: 0, by: 0, bw: 320, bh: 210 },
+    rotationRad: 0,
+    anchorParent: { x: 460, y: 280 },
+    minScale: 0.05,
+  };
+  const scaledViewport = viewport({ displayScale: 781.65 / 1920 });
+
+  it('keeps scale unchanged at the handle and applies preview-local drag distance', () => {
+    const previewOrigin = { left: 98.67, top: 50.16 };
+    const cssHandlePoint = {
+      x: previewOrigin.left + (460 + 320) * scaledViewport.displayScale,
+      y: previewOrigin.top + (280 + 210) * scaledViewport.displayScale,
+    };
+    const worldPoint = (clientX: number, clientY: number) => {
+      const local = clientPointToPreviewLocalPoint(clientX, clientY, previewOrigin);
+      return cssPointToWorldPoint(local.x, local.y, scaledViewport);
+    };
+
+    const stationary = computeResize(resizeStart, worldPoint(cssHandlePoint.x, cssHandlePoint.y));
+    expect(stationary.scaleX).toBeCloseTo(1, 2);
+    expect(stationary.scaleY).toBeCloseTo(1, 2);
+
+    const moved = computeResize(resizeStart, worldPoint(cssHandlePoint.x + 36, cssHandlePoint.y + 24));
+    expect(moved.scaleX).toBeCloseTo(1.28, 2);
+    expect(moved.scaleY).toBeCloseTo(1.28, 2);
+  });
+
+  it('preserves the existing coordinates when the preview origin is zero', () => {
+    const local = clientPointToPreviewLocalPoint(781.65 / 2, 439.68 / 2, { left: 0, top: 0 });
+    expect(cssPointToWorldPoint(local.x, local.y, scaledViewport)).toEqual(
+      cssPointToWorldPoint(781.65 / 2, 439.68 / 2, scaledViewport)
+    );
+  });
 });
 
 const shape = (overrides: Partial<ShapeObject> = {}): ShapeObject => ({
