@@ -3,6 +3,13 @@
  *
  * fixture が古いと `rust-core/tests/ts_evaluation_parity.rs` は「昔の TS」と
  * 比較してしまい、差分が増えても気付けない。
+ *
+ * 比較は文字列の完全一致ではなく、JSON として読んだ値同士で行う。
+ * 数値リーフには数 ulp の許容を与える: 参照評価の `Math.pow` 等は実装定義
+ * 精度のため、エンジンが変わると意味の同じ結果が末尾数 ulp 動き、文字列
+ * 比較ではマシン差だけで落ちてしまう（詳細は
+ * evaluationParityFixtureCompare.ts の冒頭コメント）。構造や文字列など
+ * 数値以外は従来どおり厳密に比較する。
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,6 +19,7 @@ import {
   buildEvaluationParityFixtureSet,
   serialiseEvaluationParityFixture,
 } from '../e2e/evaluationParityFixtureSet';
+import { diffEvaluationParityFixtureValues } from './evaluationParityFixtureCompare';
 
 const FIXTURE_DIR = join(__dirname, '..', '..', 'rust-core', 'tests', 'fixtures', 'ts-evaluation-parity');
 
@@ -34,10 +42,20 @@ describe('rust-core 差分比較 fixture', () => {
       } catch {
         throw new Error(`fixture が無い: ${path}\n${REGENERATE} で生成する`);
       }
+      const generated = serialiseEvaluationParityFixture(entry);
+      let committedValue: unknown;
+      let generatedValue: unknown;
+      try {
+        committedValue = JSON.parse(committed);
+        generatedValue = JSON.parse(generated);
+      } catch {
+        throw new Error(`fixture の JSON が読めない: ${path}\n${REGENERATE} で再生成する`);
+      }
+      const differences = diffEvaluationParityFixtureValues(committedValue, generatedValue);
       expect(
-        committed,
+        differences,
         `fixture が古い: ${path}\n${REGENERATE} で再生成する`
-      ).toBe(serialiseEvaluationParityFixture(entry));
+      ).toEqual([]);
     }
   );
 
