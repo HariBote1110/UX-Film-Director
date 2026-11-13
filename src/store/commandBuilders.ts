@@ -104,6 +104,25 @@ export const buildSetStageCamera3DCommand = (previous: StageCamera3D, next: Stag
   };
 };
 
+/**
+ * レイヤーの名前/可視/ロック変更（`SetLayerState`）。Rust 側は
+ * `layerSlice` の3 setter のために用意されていたが TS 側の配線が
+ * 無かった（履歴 Phase 2 で接続）。`previous`===`next` なら `null`。
+ */
+export const buildSetLayerStateCommand = (
+  index: number,
+  previous: LayerState,
+  next: LayerState,
+): Command | null => {
+  if (JSON.stringify(previous) === JSON.stringify(next)) return null;
+  return {
+    kind: 'setLayerState',
+    index,
+    previous: { ...previous },
+    next: { ...next },
+  };
+};
+
 export type LayerTrackCommand = Extract<Command, {
   kind: 'swapLayerTracks' | 'insertLayerTrack' | 'deleteLayerTrack';
 }>;

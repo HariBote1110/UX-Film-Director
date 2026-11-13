@@ -1,6 +1,7 @@
 import type { StoreApi } from 'zustand';
 import { createDefaultLayers } from '../../utils/sceneState';
 import type { AppState } from '../storeTypes';
+import type { LayerState } from '../../types';
 import {
   growDurationToFit,
 } from '../storeHelpers';
@@ -9,6 +10,7 @@ import {
   buildInsertLayerTrackCommand,
   buildSwapLayerTracksCommand,
   type LayerTrackCommand,
+  buildSetLayerStateCommand,
 } from '../commandBuilders';
 import { getCommandBridge } from '../../utils/rustBackendCommandBridge';
 import type { SceneData } from '../../generated/rustCore/SceneData';
@@ -88,29 +90,57 @@ const applyLayerTrackCommand = async (
 export const createLayerSlice = (set: SetState, get: GetState): LayerSlice => ({
   layers: createDefaultLayers(),
 
-  setLayerName: (layer, name) => set((state) => {
-    if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
-    const trimmedName = name.trim();
-    const nextName = trimmedName === '' ? `Layer ${layer + 1}` : trimmedName;
-    if (state.layers[layer].name === nextName) return {};
-    const nextLayers = state.layers.slice();
-    nextLayers[layer] = { ...nextLayers[layer], name: nextName };
-    return { layers: nextLayers, futureCommands: [] };
-  }),
+  // レイヤーのメタ編集（名前/可視/ロック）は SetLayerState コマンドとして
+  // 履歴へ積む（Phase 2）。通常コマンド化されたことで、layer-track 系の
+  // スナップショット undo より後のメタ編集が巻き戻される問題も、履歴の
+  // LIFO 規律により構造的に解消する。
+  setLayerName: (layer, name) => {
+    const recorded: { value: { previous: LayerState; next: LayerState } | null } = { value: null };
+    set((state) => {
+      if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
+      const trimmedName = name.trim();
+      const nextName = trimmedName === '' ? `Layer ${layer + 1}` : trimmedName;
+      if (state.layers[layer].name === nextName) return {};
+      const nextLayers = state.layers.slice();
+      nextLayers[layer] = { ...nextLayers[layer], name: nextName };
+      recorded.value = { previous: state.layers[layer], next: nextLayers[layer] };
+      return { layers: nextLayers, futureCommands: [] };
+    });
+    if (recorded.value) {
+      const command = buildSetLayerStateCommand(layer, recorded.value.previous, recorded.value.next);
+      if (command) get().pushHistoryCommand(command);
+    }
+  },
 
-  toggleLayerVisibility: (layer) => set((state) => {
-    if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
-    const nextLayers = state.layers.slice();
-    nextLayers[layer] = { ...nextLayers[layer], visible: !nextLayers[layer].visible };
-    return { layers: nextLayers, futureCommands: [] };
-  }),
+  toggleLayerVisibility: (layer) => {
+    const recorded: { value: { previous: LayerState; next: LayerState } | null } = { value: null };
+    set((state) => {
+      if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
+      const nextLayers = state.layers.slice();
+      nextLayers[layer] = { ...nextLayers[layer], visible: !nextLayers[layer].visible };
+      recorded.value = { previous: state.layers[layer], next: nextLayers[layer] };
+      return { layers: nextLayers, futureCommands: [] };
+    });
+    if (recorded.value) {
+      const command = buildSetLayerStateCommand(layer, recorded.value.previous, recorded.value.next);
+      if (command) get().pushHistoryCommand(command);
+    }
+  },
 
-  toggleLayerLock: (layer) => set((state) => {
-    if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
-    const nextLayers = state.layers.slice();
-    nextLayers[layer] = { ...nextLayers[layer], locked: !nextLayers[layer].locked };
-    return { layers: nextLayers, futureCommands: [] };
-  }),
+  toggleLayerLock: (layer) => {
+    const recorded: { value: { previous: LayerState; next: LayerState } | null } = { value: null };
+    set((state) => {
+      if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
+      const nextLayers = state.layers.slice();
+      nextLayers[layer] = { ...nextLayers[layer], locked: !nextLayers[layer].locked };
+      recorded.value = { previous: state.layers[layer], next: nextLayers[layer] };
+      return { layers: nextLayers, futureCommands: [] };
+    });
+    if (recorded.value) {
+      const command = buildSetLayerStateCommand(layer, recorded.value.previous, recorded.value.next);
+      if (command) get().pushHistoryCommand(command);
+    }
+  },
 
   swapLayerTracks: (indexA, indexB) => {
     const state = get();
