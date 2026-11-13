@@ -5,7 +5,9 @@
 §10 の未決事項はこのデフォルトで決着。手動 push 箇所の一本化は「削除して
 updateObject の記録に寄せる」形で行い、複数オブジェクト編集は
 `withObjectHistoryBatch` で1バッチに保つ。**Phase 2（setLayerState 配線）も
-実装済み**（同日、コミット e3e77a80）。残りは Phase 3（3D カメラ）と Phase 4。
+実装済み**（同日、コミット e3e77a80）。**Phase 3（3D カメラ）も実装済み**
+（recordStageCameraHistory / amendStageCameraHistoryNext を useStore に置き、
+OxidiseStageViewport の begin/end/settle へ配線）。残りは Phase 4 のみ。
 対象ブランチ `feat/preview-export-compare`。
 前提として済んでいるもの: 履歴を経由しない編集が redo スタック（`futureCommands`）を
 無効化することと、`duration` の grow-only 化（コミット `d65a2176`）。
