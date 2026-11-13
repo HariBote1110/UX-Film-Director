@@ -1,6 +1,11 @@
 # updateObject の差分コマンド化 設計（レビュー所見 B-2/B-3/B-4 の解消）
 
-状態: 設計（2026-11-13、A案＝差分コマンド化をユーザー決定済み）。対象ブランチ `feat/preview-export-compare`。
+状態: **Phase 1 実装済み**（2026-11-13、推奨デフォルトで確定: 合体の時間窓
+1000ms、blur 単位のセッション化は v1 に含めない、許可リストは手書き＋契約テスト）。
+§10 の未決事項はこのデフォルトで決着。手動 push 箇所の一本化は「削除して
+updateObject の記録に寄せる」形で行い、複数オブジェクト編集は
+`withObjectHistoryBatch` で1バッチに保つ。Phase 2 以降は未着手。
+対象ブランチ `feat/preview-export-compare`。
 前提として済んでいるもの: 履歴を経由しない編集が redo スタック（`futureCommands`）を
 無効化することと、`duration` の grow-only 化（コミット `d65a2176`）。
 
