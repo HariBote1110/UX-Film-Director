@@ -27,6 +27,9 @@ type RealisticHeavyEditHarnessApi = {
   prepareShortExport: (durationSeconds?: number) => HarnessResult;
   serialiseProject: () => string;
   snapshot: () => HarnessResult;
+  seekTo: (timeSeconds: number) => Promise<HarnessResult>;
+  previewRect: () => HarnessResult;
+  playAndPauseAt: (timeSeconds: number) => Promise<HarnessResult>;
 };
 
 declare global {
@@ -473,6 +476,92 @@ const prepareShortExport = (durationSeconds = 2): HarnessResult => {
   };
 };
 
+// preview/export画素比較用のseek。再生を止め、選択デコレーションが比較画像に
+// 混ざらないよう選択を解除してから目標時刻へ移動し、presenterとRust
+// timelineの双方が整定するまで待つ。currentTimeが目標へ到達していない場合は
+// ok:falseを返し、呼び出し側が古いフレームを掴んだまま比較へ進まないようにする。
+const seekTo = async (timeSeconds: number): Promise<HarnessResult> => {
+  const state = useStore.getState();
+  const target = Math.max(0, Math.min(state.duration, timeSeconds));
+  state.setIsPlaying(false);
+  state.selectObjects([]);
+  state.setTime(target);
+  await waitForPaint();
+  const settledStatus = await waitForPresenterSettled();
+  const snap = snapshot();
+  const snapTime = typeof snap.currentTime === 'number' ? snap.currentTime : Number.NaN;
+  return {
+    ok: snap.ok && Math.abs(snapTime - target) < 0.05,
+    requestedTime: timeSeconds,
+    targetTime: target,
+    settledStatus,
+    snapshot: snap,
+  };
+};
+
+// プレビュー面（shared rendererのsurface canvas）のCSSピクセル矩形を返す。
+// ランナー側はスクリーンショット実ピクセルとの比（devicePixelRatio相当）を
+// innerWidth/Heightと併せて算出し、この矩形で切り抜く。canvasが無い、または
+// 可視でない（native overlay提示中など）場合は比較が成立しないため、
+// visibilityも含めてそのまま記録できる形で返す。
+const previewRect = (): HarnessResult => {
+  const canvas = document.querySelector<HTMLCanvasElement>(
+    'canvas[data-shared-renderer-preview-surface="true"]',
+  );
+  if (!canvas) {
+    return {
+      ok: false,
+      reason: 'previewSurfaceNotFound',
+      canvasCount: document.querySelectorAll('canvas').length,
+    };
+  }
+  const rect = canvas.getBoundingClientRect();
+  const visibility = window.getComputedStyle(canvas).visibility;
+  return {
+    ok: rect.width > 10 && rect.height > 10 && visibility === 'visible',
+    reason: visibility !== 'visible' ? `previewSurfaceNotVisible:${visibility}` : null,
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    backingWidth: canvas.width,
+    backingHeight: canvas.height,
+    devicePixelRatio: window.devicePixelRatio,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    visibility,
+  };
+};
+
+// preview/export比較の切り分け用: 目標時刻の少し手前から実際に再生し、
+// 目標へ到達した瞬間に止める。停止seekでは合成結果が提示されない経路
+// （再生中のみpresenterが回る等）と、seekでも提示される経路を区別するため。
+// 戻り値のsnapshot.currentTimeが実際に止まった時刻で、呼び出し側は
+// 書き出しフレーム抽出にこちらを使う。
+const playAndPauseAt = async (timeSeconds: number): Promise<HarnessResult> => {
+  const state = useStore.getState();
+  const target = Math.max(0, Math.min(state.duration, timeSeconds));
+  state.selectObjects([]);
+  state.setTime(Math.max(0, target - 0.8));
+  state.setIsPlaying(true);
+  const deadline = performance.now() + 5_000;
+  while (performance.now() < deadline) {
+    if (useStore.getState().currentTime >= target) break;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 16));
+  }
+  useStore.getState().setIsPlaying(false);
+  await waitForPaint();
+  const settledStatus = await waitForPresenterSettled();
+  const snap = snapshot();
+  return {
+    ok: snap.ok,
+    requestedTime: timeSeconds,
+    targetTime: target,
+    settledStatus,
+    snapshot: snap,
+  };
+};
+
 export const installRealisticHeavyEditHarness = () => {
   window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__ = {
     seed,
@@ -481,5 +570,8 @@ export const installRealisticHeavyEditHarness = () => {
     prepareShortExport,
     serialiseProject: () => JSON.stringify(activeProjectFile(), null, 2),
     snapshot,
+    seekTo,
+    previewRect,
+    playAndPauseAt,
   };
 };

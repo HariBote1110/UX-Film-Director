@@ -58,6 +58,31 @@ const PLAYBACK_MS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_PLAYBACK_MS ?? 
 const SCRUB_ITERATIONS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_SCRUB_ITERATIONS ?? 360);
 const EXPORT_SECONDS = Number(process.env.UXFD_REALISTIC_HEAVY_EDIT_EXPORT_SECONDS ?? 2);
 const SKIP_EXPORT = process.env.UXFD_REALISTIC_HEAVY_EDIT_SKIP_EXPORT === '1';
+// preview/export画素比較（任意・既定OFF）。有効時はprepareShortExport後の
+// プロジェクト状態のままCOMPARE_AT_SECONDSへseekしてプレビュー面を撮影し、
+// 書き出しMP4の同時刻フレームとブロック平均で色差を比較する。閾値は
+// コーデックノイズとスケーリングぼけを通し、色パイプライン（range/matrix）
+// の不一致を落とすための初期値。実測メトリクスは常にresult.jsonへ記録する。
+const COMPARE_ENABLED = process.env.UXFD_REALISTIC_HEAVY_EDIT_COMPARE === '1';
+const COMPARE_AT_SECONDS = Number(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_COMPARE_AT_SECONDS ?? 1.0,
+);
+const COMPARE_MAX_MEAN_BLOCK_DIFF = Number(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_COMPARE_MAX_MEAN_DIFF ?? 8,
+);
+const COMPARE_MAX_P95_BLOCK_DIFF = Number(
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_COMPARE_MAX_P95_DIFF ?? 20,
+);
+const PREVIEW_WINDOW_PATH = resolve(OUTPUT_DIR, 'preview-window.png');
+const PREVIEW_FRAME_PATH = resolve(OUTPUT_DIR, 'preview-frame.png');
+const PREVIEW_FRAME_LATE_PATH = resolve(OUTPUT_DIR, 'preview-frame-late.png');
+const EXPORT_FRAME_PATH = resolve(OUTPUT_DIR, 'export-frame.png');
+// 撮影方法: 'seek'（停止seek後に撮影。seekモードでは2.5秒後の遅延撮影も
+// 併せて行い、描画遅延か構造的な提示欠落かを切り分ける）か、
+// 'play'（手前から再生して目標時刻で止めて撮影。実際に止まった時刻を
+// 書き出しフレーム抽出に使う）。
+const COMPARE_CAPTURE_MODE =
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_COMPARE_CAPTURE === 'play' ? 'play' : 'seek';
 // IPC発生源（選択デコレーション送信経路 vs. presentフレーム本体経路）を切り分ける
 // ための計測専用オプション。既定はfalseで従来どおり選択を維持したまま再生する。
 const CLEAR_SELECTION_BEFORE_PLAYBACK = parseClearSelectionBeforePlaybackOption(process.env);
@@ -67,6 +92,15 @@ const CLEAR_SELECTION_BEFORE_PLAYBACK = parseClearSelectionBeforePlaybackOption(
 const CPU_THROTTLE_RATE = parseCpuThrottleRateOption(process.env);
 const COLLECT_CHROMIUM_TRACE =
   process.env.UXFD_REALISTIC_HEAVY_EDIT_CHROMIUM_TRACE !== '0';
+// ネイティブオーバーレイの有効/無効（既定は有効で従来どおり）。
+// preview/export画素比較はDOM canvas経由でプレビューを撮影するため、
+// ネイティブオーバーレイが唯一の表示サーフェスになる構成では成立しない。
+// 比較を行う場合は '0' を指定してフォールバックプレゼンター経路で実行する。
+// （オーバーレイ側の画素そのものの検証は、ネイティブreadbackの全フレーム
+// 取得が前提になるため別課題。）
+const NATIVE_OVERLAY_ENABLED =
+  process.env.UXFD_REALISTIC_HEAVY_EDIT_NATIVE_OVERLAY !== '0';
+const NATIVE_OVERLAY_ENV = NATIVE_OVERLAY_ENABLED ? '1' : '0';
 const USER_DATA_DIR = resolve(
   process.env.UXFD_REALISTIC_HEAVY_EDIT_USER_DATA_DIR
     ?? resolve(OUTPUT_DIR, `electron-profile-${process.pid}`),
@@ -300,6 +334,105 @@ const inspectScreenshot = (filePath) => {
   };
 };
 
+// 実ピクセル矩形でPNGを切り抜く。矩形は端数切り捨て＋画像範囲へクランプする。
+const cropPng = (png, rect) => {
+  const x0 = Math.max(0, Math.min(png.width - 1, Math.floor(rect.x)));
+  const y0 = Math.max(0, Math.min(png.height - 1, Math.floor(rect.y)));
+  const x1 = Math.max(x0 + 1, Math.min(png.width, Math.ceil(rect.x + rect.width)));
+  const y1 = Math.max(y0 + 1, Math.min(png.height, Math.ceil(rect.y + rect.height)));
+  const out = new PNG({ width: x1 - x0, height: y1 - y0 });
+  for (let y = y0; y < y1; y += 1) {
+    const srcStart = (y * png.width + x0) * 4;
+    const srcEnd = (y * png.width + x1) * 4;
+    png.data.copy(out.data, (y - y0) * out.width * 4, srcStart, srcEnd);
+  }
+  return out;
+};
+
+// 指定矩形内をblocksX×blocksYの格子に分け、各ブロックのRGB平均を返す。
+// 生ピクセル単位ではなくブロック平均で比べることで、プレビューの
+// スケーリングぼけとエンコードノイズを平均化し、面全体の色のズレだけを拾う。
+const blockMeans = (png, rect, blocksX, blocksY) => {
+  const means = [];
+  for (let by = 0; by < blocksY; by += 1) {
+    for (let bx = 0; bx < blocksX; bx += 1) {
+      const x0 = Math.floor(rect.x + (rect.width * bx) / blocksX);
+      const x1 = Math.max(x0 + 1, Math.floor(rect.x + (rect.width * (bx + 1)) / blocksX));
+      const y0 = Math.floor(rect.y + (rect.height * by) / blocksY);
+      const y1 = Math.max(y0 + 1, Math.floor(rect.y + (rect.height * (by + 1)) / blocksY));
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let count = 0;
+      for (let y = y0; y < y1; y += 1) {
+        for (let x = x0; x < x1; x += 1) {
+          const offset = (y * png.width + x) * 4;
+          r += png.data[offset];
+          g += png.data[offset + 1];
+          b += png.data[offset + 2];
+          count += 1;
+        }
+      }
+      means.push([r / count, g / count, b / count]);
+    }
+  }
+  return means;
+};
+
+// プレビュー切り抜きと書き出しフレームを比較する。プレビュー面の矩形が
+// プロジェクトのアスペクトと完全一致しない場合に備え、書き出しフレームの
+// アスペクトをプレビュー側へ中央フィットさせた部分矩形だけを対象にする。
+const comparePreviewAndExportFrames = (previewPng, exportPng) => {
+  const blocksX = 48;
+  const blocksY = 27;
+  const exportAspect = exportPng.width / exportPng.height;
+  let fitWidth = previewPng.width;
+  let fitHeight = Math.round(fitWidth / exportAspect);
+  if (fitHeight > previewPng.height) {
+    fitHeight = previewPng.height;
+    fitWidth = Math.round(fitHeight * exportAspect);
+  }
+  const fitRect = {
+    x: Math.floor((previewPng.width - fitWidth) / 2),
+    y: Math.floor((previewPng.height - fitHeight) / 2),
+    width: fitWidth,
+    height: fitHeight,
+  };
+  const previewMeans = blockMeans(previewPng, fitRect, blocksX, blocksY);
+  const exportMeans = blockMeans(
+    exportPng,
+    { x: 0, y: 0, width: exportPng.width, height: exportPng.height },
+    blocksX,
+    blocksY,
+  );
+  const diffs = previewMeans.map((mean, index) => {
+    const other = exportMeans[index];
+    return (
+      Math.abs(mean[0] - other[0])
+      + Math.abs(mean[1] - other[1])
+      + Math.abs(mean[2] - other[2])
+    ) / 3;
+  });
+  const sorted = [...diffs].sort((a, b) => a - b);
+  const meanBlockDiff = diffs.reduce((total, value) => total + value, 0) / diffs.length;
+  const p95BlockDiff = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+  const maxBlockDiff = sorted[sorted.length - 1];
+  return {
+    blocksX,
+    blocksY,
+    fitRect,
+    meanBlockDiff,
+    p95BlockDiff,
+    maxBlockDiff,
+    thresholds: {
+      maxMeanBlockDiff: COMPARE_MAX_MEAN_BLOCK_DIFF,
+      maxP95BlockDiff: COMPARE_MAX_P95_BLOCK_DIFF,
+    },
+    ok: meanBlockDiff <= COMPARE_MAX_MEAN_BLOCK_DIFF
+      && p95BlockDiff <= COMPARE_MAX_P95_BLOCK_DIFF,
+  };
+};
+
 const waitForHarness = async () => client.evaluate(`
   new Promise((resolve) => {
     const startedAt = Date.now();
@@ -370,6 +503,144 @@ const waitForSettledSnapshot = async () => client.evaluate(`
   })
 `);
 
+// preview/export比較の前半: 目標時刻へseekし、整定を待ってからプレビュー面の
+// 矩形でウィンドウ撮影を切り抜く。失敗した場合は理由を記録してcaptured:false
+// を返し、呼び出し側で比較全体をFAILにできるようにする（無言スキップしない）。
+const capturePreviewFrameForCompare = async () => {
+  const requestedSeconds = Math.max(
+    0.05,
+    Math.min(EXPORT_SECONDS - 0.05, COMPARE_AT_SECONDS),
+  );
+  let seek;
+  let atSeconds = requestedSeconds;
+  if (COMPARE_CAPTURE_MODE === 'play') {
+    seek = await client.evaluate(`
+      window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.playAndPauseAt(${JSON.stringify(requestedSeconds)})
+    `);
+    const actual = seek?.snapshot?.currentTime;
+    if (typeof actual === 'number' && Number.isFinite(actual)) {
+      atSeconds = actual;
+    }
+  } else {
+    seek = await client.evaluate(`
+      window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.seekTo(${JSON.stringify(requestedSeconds)})
+    `);
+  }
+  if (!seek?.ok) {
+    return {
+      ok: false,
+      captured: false,
+      reason: 'seekFailed',
+      captureMode: COMPARE_CAPTURE_MODE,
+      atSeconds,
+      seek,
+    };
+  }
+  const settled = await waitForSettledSnapshot();
+  const rect = await client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.previewRect()
+  `);
+  if (!rect?.ok) {
+    return {
+      ok: false,
+      captured: false,
+      reason: 'previewRectFailed',
+      hint: rect?.visibility === 'hidden'
+        ? 'プレビュー面が非表示です。ネイティブオーバーレイ提示中はDOM canvasに画素が無いため、比較は UXFD_REALISTIC_HEAVY_EDIT_NATIVE_OVERLAY=0 のフォールバック経路で実行してください。'
+        : null,
+      captureMode: COMPARE_CAPTURE_MODE,
+      atSeconds,
+      seek,
+      rect,
+    };
+  }
+  const captureCroppedFrame = async (windowPath, framePath) => {
+    const shot = await client.send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: false,
+    });
+    writeFileSync(windowPath, Buffer.from(shot.data, 'base64'));
+    const windowPng = PNG.sync.read(Buffer.from(readFileSync(windowPath)));
+    const scaleX = windowPng.width / rect.innerWidth;
+    const scaleY = windowPng.height / rect.innerHeight;
+    const deviceRect = {
+      x: rect.x * scaleX,
+      y: rect.y * scaleY,
+      width: rect.width * scaleX,
+      height: rect.height * scaleY,
+    };
+    const frame = cropPng(windowPng, deviceRect);
+    writeFileSync(framePath, PNG.sync.write(frame));
+    return deviceRect;
+  };
+  const deviceRect = await captureCroppedFrame(PREVIEW_WINDOW_PATH, PREVIEW_FRAME_PATH);
+  // seekモードのみ: 同じ状態のまま2.5秒後にもう一度撮る。遅延撮影で合成が
+  // 現れるなら描画タイミングの問題、現れないなら構造的な提示欠落。
+  let lateCapture = null;
+  if (COMPARE_CAPTURE_MODE === 'seek') {
+    await sleep(2_500);
+    await captureCroppedFrame(PREVIEW_WINDOW_PATH, PREVIEW_FRAME_LATE_PATH);
+    lateCapture = { previewFrameLate: PREVIEW_FRAME_LATE_PATH, delayMs: 2_500 };
+  }
+  // 書き出し自体はplayhead位置に依存しないが、従来フロー（prepareShortExport
+  // 直後はcurrentTime=0）と条件を揃えるため、先頭へ戻してから書き出しへ進む。
+  const backToStart = await client.evaluate(`
+    window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.seekTo(0)
+  `);
+  return {
+    ok: false,
+    captured: true,
+    pendingExport: true,
+    captureMode: COMPARE_CAPTURE_MODE,
+    requestedSeconds,
+    atSeconds,
+    seek,
+    settledSnapshot: settled,
+    rect,
+    deviceRect,
+    backToStart,
+    lateCapture,
+    previewFrame: PREVIEW_FRAME_PATH,
+    previewWindow: PREVIEW_WINDOW_PATH,
+  };
+};
+
+// preview/export比較の後半: 書き出しMP4から同時刻フレームを抽出し、
+// ブロック平均の色差メトリクスで判定する。
+const finishPreviewExportCompare = (partial) => {
+  try {
+    execFileSync('ffmpeg', [
+      '-y',
+      '-ss', String(partial.atSeconds),
+      '-i', EXPORT_PATH,
+      '-frames:v', '1',
+      EXPORT_FRAME_PATH,
+    ], { stdio: 'pipe' });
+  } catch (error) {
+    return {
+      ...partial,
+      ok: false,
+      reason: 'exportFrameExtractFailed',
+      error: String(error?.message ?? error),
+    };
+  }
+  const previewPng = PNG.sync.read(Buffer.from(readFileSync(PREVIEW_FRAME_PATH)));
+  const exportPng = PNG.sync.read(Buffer.from(readFileSync(EXPORT_FRAME_PATH)));
+  const metrics = comparePreviewAndExportFrames(previewPng, exportPng);
+  let lateMetrics = null;
+  if (partial.lateCapture && existsSync(PREVIEW_FRAME_LATE_PATH)) {
+    const latePng = PNG.sync.read(Buffer.from(readFileSync(PREVIEW_FRAME_LATE_PATH)));
+    lateMetrics = comparePreviewAndExportFrames(latePng, exportPng);
+  }
+  return {
+    ...partial,
+    ...metrics,
+    lateMetrics,
+    exportFrame: EXPORT_FRAME_PATH,
+    ok: metrics.ok,
+  };
+};
+
 const stopProcesses = () => {
   client?.close();
   for (const child of [electron, vite]) {
@@ -413,7 +684,7 @@ const main = async () => {
     env: {
       ...process.env,
       VITE_UXFD_RUST_TIMELINE_SCENE_RPC: '1',
-      VITE_UXFD_NATIVE_OVERLAY: '1',
+      VITE_UXFD_NATIVE_OVERLAY: NATIVE_OVERLAY_ENV,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -437,8 +708,8 @@ const main = async () => {
       ...process.env,
       VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?realisticHeavyEditE2e=1`,
       UXFD_VIDEO_EXPORT_E2E_SAVE_PATH: EXPORT_PATH,
-      VITE_UXFD_NATIVE_OVERLAY: '1',
-      UXFD_NATIVE_OVERLAY: '1',
+      VITE_UXFD_NATIVE_OVERLAY: NATIVE_OVERLAY_ENV,
+      UXFD_NATIVE_OVERLAY: NATIVE_OVERLAY_ENV,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -517,16 +788,28 @@ const main = async () => {
   let exportPreparation = { ok: true, skipped: true };
   let exportRun = { ok: true, skipped: true };
   let exportedFile = { ok: true, skipped: true };
+  let previewExportCompare = { ok: true, skipped: true };
   if (!SKIP_EXPORT) {
     log(`${EXPORT_SECONDS}秒の重量混在シーンを書き出し`);
     exportPreparation = await client.evaluate(`
       window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.prepareShortExport(${JSON.stringify(EXPORT_SECONDS)})
     `);
+    if (COMPARE_ENABLED) {
+      // prepareShortExport後の状態（全オブジェクトの尺・開始時刻が書き出し用に
+      // 揃った状態）でプレビューを撮る。書き出しと評価条件を一致させるため、
+      // 撮影は必ずこの後・書き出し実行の前に行う。
+      previewExportCompare = await capturePreviewFrameForCompare();
+    }
     exportRun = await waitForExport();
     exportedFile = inspectExport({
       expectedDurationSeconds: exportPreparation.expectedDurationSeconds,
       expectedFrameCount: exportPreparation.expectedFrameCount,
     });
+    if (COMPARE_ENABLED && previewExportCompare.captured === true) {
+      previewExportCompare = exportedFile?.ok === true
+        ? finishPreviewExportCompare(previewExportCompare)
+        : { ...previewExportCompare, ok: false, reason: 'exportFailed' };
+    }
   }
 
   const finalSnapshot = await waitForSettledSnapshot();
@@ -549,7 +832,8 @@ const main = async () => {
       && missingSourceLines.length === 0
       && nativeRenderErrorLines.length === 0
       && finalSnapshot?.ok === true
-      && screenshotInspection.ok === true,
+      && screenshotInspection.ok === true
+      && (!COMPARE_ENABLED || previewExportCompare?.ok === true),
     paths: {
       video: VIDEO_PATH,
       proxy: existsSync(PROXY_PATH) ? PROXY_PATH : null,
@@ -572,12 +856,14 @@ const main = async () => {
       rate: CPU_THROTTLE_RATE,
       scope: 'rendererMainThreadOnly',
     },
+    nativeOverlayEnabled: NATIVE_OVERLAY_ENABLED,
     seed,
     exercise,
     roundTrip,
     exportPreparation,
     exportRun,
     exportedFile,
+    previewExportCompare: COMPARE_ENABLED ? previewExportCompare : { skipped: true },
     finalSnapshot,
     screenshotInspection,
     processesDuringPlayback,
@@ -587,6 +873,9 @@ const main = async () => {
     nativeRenderErrorLines,
     dialogs: client.dialogs,
   };
+  if (COMPARE_ENABLED) {
+    log(`previewExportCompare: ok=${previewExportCompare?.ok} meanBlockDiff=${previewExportCompare?.meanBlockDiff} p95BlockDiff=${previewExportCompare?.p95BlockDiff} maxBlockDiff=${previewExportCompare?.maxBlockDiff} reason=${previewExportCompare?.reason ?? 'none'}`);
+  }
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
   log(`結果: ${result.passed ? 'PASS' : 'FAIL'} ${RESULT_JSON}`);
