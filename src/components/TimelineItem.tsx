@@ -18,6 +18,10 @@ interface DragTargetState {
   startTime: number;
   duration: number;
   layer: number;
+  /** ドラッグ開始時点のオブジェクト全体（不変参照）。終了時の差分は
+   * これと現在値から取るため、開始時間シフトに追随したキーフレーム等の
+   * 派生変更も undo で戻る（Phase 4 で部分再構築から完全化）。 */
+  object: TimelineObject;
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
@@ -88,7 +92,8 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         id: candidate.id,
         startTime: candidate.startTime,
         duration: candidate.duration,
-        layer: candidate.layer
+        layer: candidate.layer,
+        object: candidate
       }));
     const canGroupMove = type === 'move'
       && isSelected
@@ -104,7 +109,8 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         id: object.id,
         startTime: object.startTime,
         duration: object.duration,
-        layer: object.layer
+        layer: object.layer,
+        object
       }]);
     }
     setIsDragging(true);
@@ -263,20 +269,16 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
     const handleMouseUp = () => {
       if (isDragging) {
-        // previous はドラッグ開始時(handleMouseDown)に dragTargets/initialState
-        // へ捕捉済み。next はドラッグ終了時点の実データ(objects)から取る。
-        // ドラッグ中(handleMouseMove)は毎フレーム updateObject するのみで
-        // Command は一切積まない — ここで1回だけ、開始→終了の差分をまとめて積む。
+        // previous はドラッグ開始時(handleMouseDown)に捕捉したオブジェクト
+        // 全体のスナップショット。next はドラッグ終了時点の実データ(objects)
+        // から取る。ドラッグ中(handleMouseMove)は毎フレーム updateObject
+        // (history: 'defer')するのみで Command は一切積まない — ここで1回
+        // だけ、開始→終了の差分をまとめて積む。全体同士の差分なので、
+        // 開始時間のシフトで追随移動したキーフレーム等も差分に含まれる。
         const diffCommands = dragTargets.flatMap((target) => {
           const currentObject = objects.find((candidate) => candidate.id === target.id);
           if (!currentObject) return [];
-          const previousObject: TimelineObject = {
-            ...currentObject,
-            startTime: target.startTime,
-            duration: target.duration,
-            layer: target.layer,
-          };
-          return buildObjectFieldDiffCommands(previousObject, currentObject);
+          return buildObjectFieldDiffCommands(target.object, currentObject);
         });
         const batch = buildBatchCommand(diffCommands);
         if (batch) pushHistoryCommand(batch);
