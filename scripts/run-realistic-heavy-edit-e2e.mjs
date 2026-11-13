@@ -73,6 +73,22 @@ const COMPARE_MAX_MEAN_BLOCK_DIFF = Number(
 const COMPARE_MAX_P95_BLOCK_DIFF = Number(
   process.env.UXFD_REALISTIC_HEAVY_EDIT_COMPARE_MAX_P95_DIFF ?? 20,
 );
+// envの不整合は数分のビルド・実行を終えてから気付く形にしない。比較ONなのに
+// 書き出しがスキップされる組み合わせは、比較が一度も走らないまま総合PASSに
+// なる穴だったため、起動時点で即時エラーにする。数値envのNaNも同様。
+if (COMPARE_ENABLED && SKIP_EXPORT) {
+  console.error('[realistic-heavy-edit-e2e] COMPARE=1 と SKIP_EXPORT=1 は両立しません（比較には書き出しが必要です）。');
+  process.exit(2);
+}
+if (
+  COMPARE_ENABLED
+  && (!Number.isFinite(COMPARE_AT_SECONDS)
+    || !Number.isFinite(COMPARE_MAX_MEAN_BLOCK_DIFF)
+    || !Number.isFinite(COMPARE_MAX_P95_BLOCK_DIFF))
+) {
+  console.error('[realistic-heavy-edit-e2e] COMPARE系の数値envが不正です。');
+  process.exit(2);
+}
 const PREVIEW_WINDOW_PATH = resolve(OUTPUT_DIR, 'preview-window.png');
 const PREVIEW_FRAME_PATH = resolve(OUTPUT_DIR, 'preview-frame.png');
 const PREVIEW_FRAME_LATE_PATH = resolve(OUTPUT_DIR, 'preview-frame-late.png');
@@ -536,7 +552,32 @@ const capturePreviewFrameForCompare = async () => {
       seek,
     };
   }
+  // playモードで目標時刻へ到達できなかった場合は、別時刻同士の比較に
+  // なるため進めない（抽出には実到達時刻を使うので、到達さえしていれば
+  // 要求時刻との小数差は問題にならない）。
+  if (COMPARE_CAPTURE_MODE === 'play' && atSeconds < requestedSeconds - 0.05) {
+    return {
+      ok: false,
+      captured: false,
+      reason: 'playDidNotReachTarget',
+      captureMode: COMPARE_CAPTURE_MODE,
+      requestedSeconds,
+      atSeconds,
+      seek,
+    };
+  }
   const settled = await waitForSettledSnapshot();
+  if (!settled?.ok) {
+    return {
+      ok: false,
+      captured: false,
+      reason: 'notSettled',
+      captureMode: COMPARE_CAPTURE_MODE,
+      atSeconds,
+      seek,
+      settledSnapshot: settled,
+    };
+  }
   const rect = await client.evaluate(`
     window.__UXFD_REALISTIC_HEAVY_EDIT_E2E__.previewRect()
   `);
