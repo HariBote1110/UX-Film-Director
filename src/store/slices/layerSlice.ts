@@ -2,7 +2,7 @@ import type { StoreApi } from 'zustand';
 import { createDefaultLayers } from '../../utils/sceneState';
 import type { AppState } from '../storeTypes';
 import {
-  calculateAutoDuration,
+  growDurationToFit,
 } from '../storeHelpers';
 import {
   buildDeleteLayerTrackCommand,
@@ -72,7 +72,7 @@ const applyLayerTrackCommand = async (
       return {
         layers: response.result!.scene.layers.map((layer) => ({ ...layer })),
         objects,
-        duration: calculateAutoDuration(objects),
+        duration: growDurationToFit(current.duration, objects),
         selectedId: null,
         selectedIds: [],
       };
@@ -95,21 +95,21 @@ export const createLayerSlice = (set: SetState, get: GetState): LayerSlice => ({
     if (state.layers[layer].name === nextName) return {};
     const nextLayers = state.layers.slice();
     nextLayers[layer] = { ...nextLayers[layer], name: nextName };
-    return { layers: nextLayers };
+    return { layers: nextLayers, futureCommands: [] };
   }),
 
   toggleLayerVisibility: (layer) => set((state) => {
     if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
     const nextLayers = state.layers.slice();
     nextLayers[layer] = { ...nextLayers[layer], visible: !nextLayers[layer].visible };
-    return { layers: nextLayers };
+    return { layers: nextLayers, futureCommands: [] };
   }),
 
   toggleLayerLock: (layer) => set((state) => {
     if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
     const nextLayers = state.layers.slice();
     nextLayers[layer] = { ...nextLayers[layer], locked: !nextLayers[layer].locked };
-    return { layers: nextLayers };
+    return { layers: nextLayers, futureCommands: [] };
   }),
 
   swapLayerTracks: (indexA, indexB) => {

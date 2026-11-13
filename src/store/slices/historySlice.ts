@@ -4,7 +4,7 @@ import {
   sanitiseStageCamera3D,
 } from '../../utils/sceneState';
 import type { AppState } from '../storeTypes';
-import { calculateAutoDuration } from '../storeHelpers';
+import { growDurationToFit } from '../storeHelpers';
 import type { Command } from '../../generated/rustCore/Command';
 import type { SceneData } from '../../generated/rustCore/SceneData';
 import type { TimelineObject } from '../../types';
@@ -65,7 +65,7 @@ const applySceneResult = (scene: SceneData) => {
     layers: scene.layers.map((layer) => ({ ...layer })),
     camera: sanitiseCamera(scene.camera),
     stageCamera3D: sanitiseStageCamera3D(scene.stageCamera3D),
-    duration: calculateAutoDuration(objects),
+    duration: growDurationToFit(scene.duration, objects),
     selectedId: null,
     selectedIds: [],
   };

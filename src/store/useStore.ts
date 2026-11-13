@@ -39,6 +39,7 @@ import type { AppState } from './storeTypes';
 import {
   buildClipboardState,
   calculateAutoDuration,
+  growDurationToFit,
   clampLayerIndex,
   computeRippledObjects,
   cloneTimelineObject,
@@ -329,7 +330,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setCamera: (patch) => set((state) => ({
-    camera: sanitiseCamera({ ...state.camera, ...patch })
+    camera: sanitiseCamera({ ...state.camera, ...patch }),
+    futureCommands: []
   })),
 
   setStageCamera3D: (patch) => set((state) => {
@@ -344,7 +346,7 @@ export const useStore = create<AppState>((set, get) => ({
       position: nextPosition,
       target: nextTarget
     });
-    return { stageCamera3D: merged };
+    return { stageCamera3D: merged, futureCommands: [] };
   }),
 
   setEditorMode: (mode) => set((state) => ({
@@ -494,7 +496,8 @@ export const useStore = create<AppState>((set, get) => ({
       scene.id === sceneId
         ? { ...scene, name: name.trim() === '' ? scene.name : name.trim() }
         : scene
-    ))
+    )),
+    futureCommands: []
   })),
 
   addObject: (obj) => {
@@ -520,7 +523,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: syncedObject.id,
         selectedIds: [syncedObject.id],
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(state.duration, newObjects)
       };
     });
   },
@@ -659,7 +662,8 @@ export const useStore = create<AppState>((set, get) => ({
 
     return {
       objects: newObjects,
-      duration: calculateAutoDuration(newObjects)
+      duration: growDurationToFit(state.duration, newObjects),
+      futureCommands: []
     };
   }),
 
@@ -835,7 +839,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: state.selectedId === id ? lastSelectedId : state.selectedId,
         selectedIds: nextSelectedIds,
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(state.duration, newObjects)
       };
     });
   },
@@ -870,7 +874,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: null,
         selectedIds: [],
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(currentState.duration, newObjects)
       };
     });
   },
@@ -906,7 +910,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: state.selectedId === id ? lastSelectedId : state.selectedId,
         selectedIds: nextSelectedIds,
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(state.duration, newObjects)
       };
     });
   },
@@ -943,7 +947,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: null,
         selectedIds: [],
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(currentState.duration, newObjects)
       };
     });
   },
@@ -1096,7 +1100,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: syncedObjects,
         selectedId: secondPart.id,
         selectedIds: [secondPart.id],
-        duration: calculateAutoDuration(syncedObjects)
+        duration: growDurationToFit(get().duration, syncedObjects)
     });
   },
 
@@ -1133,7 +1137,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: null,
         selectedIds: [],
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(currentState.duration, newObjects)
       };
     });
   },
@@ -1202,7 +1206,7 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: pastedObjects[pastedObjects.length - 1].id,
         selectedIds: pastedObjects.map((obj) => obj.id),
-        duration: calculateAutoDuration(newObjects)
+        duration: growDurationToFit(currentState.duration, newObjects)
       };
     });
   },
@@ -1429,7 +1433,7 @@ export const useStore = create<AppState>((set, get) => ({
         };
       });
       if (!changed) return {};
-      return { objects: newObjects };
+      return { objects: newObjects, futureCommands: [] };
     });
   },
 

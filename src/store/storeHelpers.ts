@@ -32,6 +32,23 @@ export const normaliseExportProgressDiagnostics = (progress: ExportProgress): Ex
   } : {}),
 });
 
+/**
+ * 編集の副作用で duration を差し戻すときに使う「伸ばすだけ」の計算。
+ *
+ * duration はシーンの状態で、コマンド層（Rust）は変更しない
+ * （rust-core/src/command.rs 冒頭コメント）。にもかかわらず編集経路が
+ * calculateAutoDuration で上書きしていたため、ユーザーが明示設定した尺が
+ * 無関係な編集や undo/redo で黙って消えていた（レビュー所見 B-1）。
+ * 編集経路では現在の duration を下回らず、収まるまでだけ伸ばす。
+ * 縮めるのは setDuration（明示操作）とシーン読込・切替・新規作成だけ。
+ */
+export const growDurationToFit = (currentDuration: number, objects: TimelineObject[]): number => {
+  const auto = calculateAutoDuration(objects);
+  return Number.isFinite(currentDuration) && currentDuration >= 1
+    ? Math.max(currentDuration, auto)
+    : auto;
+};
+
 export const calculateAutoDuration = (objects: TimelineObject[]) => {
   if (objects.length === 0) return 30;
   const maxEndTime = Math.max(...objects.map(o => o.startTime + o.duration));

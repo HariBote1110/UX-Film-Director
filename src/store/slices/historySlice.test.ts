@@ -36,6 +36,48 @@ describe('historySlice command stack (R4-8 group b)', () => {
     next,
   });
 
+  it('undoCommand preserves an explicitly set duration (grow-only, B-1)', async () => {
+    // setDuration で明示した尺は履歴対象外だが、undo で自動計算に潰れてはいけない。
+    // Rust の apply_command は duration を変更しないため、返ってきた
+    // scene.duration がそのまま正であり、applySceneResult はそれを保持する。
+    useStore.setState({ duration: 60 });
+    const cmd = opacityCommand(1, 0.5);
+    useStore.getState().pushHistoryCommand(cmd);
+
+    const activeSceneId = useStore.getState().activeSceneId;
+    const resultScene: SceneData = {
+      id: activeSceneId,
+      name: 'restored',
+      duration: 60,
+      layers: useStore.getState().layers,
+      objects: [],
+      camera: useStore.getState().camera,
+      stageCamera3D: useStore.getState().stageCamera3D,
+    };
+    const bridge: RustBackendCommandBridge = {
+      applyCommand: vi.fn(async (): Promise<RustBackendApplyCommandResult> => (
+        { success: true, result: { scene: resultScene } }
+      )),
+    };
+    setCommandBridgeForTests(bridge);
+
+    await useStore.getState().undoCommand();
+
+    expect(useStore.getState().duration).toBe(60);
+  });
+
+  it('direct (non-history) edits clear futureCommands so redo cannot replay stale commands', () => {
+    const cmd = opacityCommand(1, 0.5);
+
+    useStore.setState({ futureCommands: [cmd] });
+    useStore.getState().setLayerName(0, 'Foo');
+    expect(useStore.getState().futureCommands).toEqual([]);
+
+    useStore.setState({ futureCommands: [cmd] });
+    useStore.getState().setDuration(45);
+    expect(useStore.getState().futureCommands).toEqual([]);
+  });
+
   it('pushHistoryCommand appends to pastCommands and clears futureCommands', () => {
     useStore.setState({ futureCommands: [opacityCommand(1, 0.5)] });
     const cmd = opacityCommand(1, 0.8);

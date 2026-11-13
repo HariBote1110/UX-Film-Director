@@ -33,7 +33,7 @@ export const createPlaybackSlice = (set: SetState, get: GetState): PlaybackSlice
   setDuration: (duration) => set((state) => {
     const nextDuration = Math.max(1, duration);
     if (Math.abs(state.duration - nextDuration) < 0.0001) return {};
-    return { duration: nextDuration };
+    return { duration: nextDuration, futureCommands: [] };
   }),
 
   advanceTime: (deltaTime) => {
