@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useStore } from '../store/useStore';
+import { useStore, withObjectHistoryBatch } from '../store/useStore';
 import { createFilterParamEditEventHandlers } from './filterParamEditEvents';
 import {
-  buildBatchCommand,
-  buildObjectFieldDiffCommands,
   buildSetCameraCommand,
   buildSetStageCamera3DCommand,
 } from '../store/commandBuilders';
@@ -971,15 +969,12 @@ const PropertyPanel: React.FC = () => {
       .filter((entry): entry is { id: string; patch: Partial<TimelineObject> } => entry !== null);
     if (updates.length === 0) return;
 
-    const diffCommands = updates.flatMap((entry) => {
-      const previousObject = selectedObjects.find((obj) => obj.id === entry.id);
-      if (!previousObject) return [];
-      return buildObjectFieldDiffCommands(previousObject, { ...previousObject, ...entry.patch } as TimelineObject);
-    });
-    const batch = buildBatchCommand(diffCommands);
-    if (batch) pushHistoryCommand(batch);
-    updates.forEach((entry) => {
-      updateObject(entry.id, entry.patch);
+    // 差分の記録は updateObject 本体へ移行済み。複数オブジェクトへの
+    // 一括変更を1つの undo ステップに保つためバッチ収集で囲む。
+    withObjectHistoryBatch(() => {
+      updates.forEach((entry) => {
+        updateObject(entry.id, entry.patch);
+      });
     });
   };
 
@@ -1168,9 +1163,6 @@ const PropertyPanel: React.FC = () => {
     const kfs = buildSubjectCropKeyframesFromVisionTrackSamples(lastVisionTrackSamples, video);
     if (kfs.length === 0) return;
     const patch = { subjectCropEnabled: true, subjectCropKeyframes: kfs } as Partial<TimelineObject>;
-    const diffCommands = buildObjectFieldDiffCommands(video, { ...video, ...patch } as TimelineObject);
-    const batch = buildBatchCommand(diffCommands);
-    if (batch) pushHistoryCommand(batch);
     updateObject(video.id, patch);
   };
 
@@ -1347,9 +1339,6 @@ const PropertyPanel: React.FC = () => {
         nextKeyframes = Array.from(byTime.values()).sort((a, b) => a.time - b.time);
       }
       const overlayPatch = { keyframes: nextKeyframes, enableAnimation: false } as Partial<TimelineObject>;
-      const diffCommands = buildObjectFieldDiffCommands(overlay, { ...overlay, ...overlayPatch } as TimelineObject);
-      const batch = buildBatchCommand(diffCommands);
-      if (batch) pushHistoryCommand(batch);
       updateObject(overlay.id, overlayPatch);
     } finally {
       setVisionTrackBusy(false);
@@ -1677,23 +1666,15 @@ const PropertyPanel: React.FC = () => {
           sequenceTotal: selectedObjects.length
         }) as Partial<TimelineObject>
       ]));
-      const diffCommands = selectedObjects.flatMap((object) => {
-        const patch = patchesByObjectId.get(object.id);
-        if (!patch) return [];
-        return buildObjectFieldDiffCommands(object, { ...object, ...patch } as TimelineObject);
-      });
-      const batch = buildBatchCommand(diffCommands);
-      if (batch) pushHistoryCommand(batch);
-      selectedObjects.forEach((object) => {
-        const patch = patchesByObjectId.get(object.id);
-        if (patch) updateObject(object.id, patch);
+      withObjectHistoryBatch(() => {
+        selectedObjects.forEach((object) => {
+          const patch = patchesByObjectId.get(object.id);
+          if (patch) updateObject(object.id, patch);
+        });
       });
       return;
     }
     const patch = buildAviUtlMotionPresetPatch(selectedObject, presetId) as Partial<TimelineObject>;
-    const diffCommands = buildObjectFieldDiffCommands(selectedObject, { ...selectedObject, ...patch } as TimelineObject);
-    const batch = buildBatchCommand(diffCommands);
-    if (batch) pushHistoryCommand(batch);
     updateObject(selectedObject.id, patch);
   };
 
@@ -1716,9 +1697,6 @@ const PropertyPanel: React.FC = () => {
       shadow: nextObject.shadow,
       ...(nextObject.type === 'shape' ? { gradient: nextObject.gradient } : {})
     } as Partial<TimelineObject>;
-    const diffCommands = buildObjectFieldDiffCommands(selectedObject, { ...selectedObject, ...patch } as TimelineObject);
-    const batch = buildBatchCommand(diffCommands);
-    if (batch) pushHistoryCommand(batch);
     updateObject(selectedObject.id, patch);
     setActiveFilterId(nextFilters[nextFilters.length - 1]?.id ?? null);
   };

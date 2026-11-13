@@ -145,7 +145,7 @@ export const useSceneInteraction = (
 
       const world = toWorld(e.clientX, e.clientY);
       recordedPathRef.current.push({ time: 0, x: world.x, y: world.y });
-      updateObject(targetId, { x: world.x, y: world.y });
+      updateObject(targetId, { x: world.x, y: world.y }, { history: 'defer' });
       return;
     }
 
@@ -157,7 +157,7 @@ export const useSceneInteraction = (
     const nowWorld = toWorld(e.clientX, e.clientY);
     const delta: Vec2 = { x: nowWorld.x - startWorld.x, y: nowWorld.y - startWorld.y };
 
-    updateObject(targetId, computeDragUpdate(initialObjState, delta));
+    updateObject(targetId, computeDragUpdate(initialObjState, delta), { history: 'defer' });
   };
 
   const onPointerUp = () => {
@@ -176,7 +176,7 @@ export const useSceneInteraction = (
           );
           if (batch) pushHistoryCommand(batch);
         }
-        updateObject(dragRef.current.targetId, { motionPath: normalised });
+        updateObject(dragRef.current.targetId, { motionPath: normalised }, { history: 'skip' });
         alert('Motion Path Recorded!');
       }
       (window as any).isPathRecordingMode = false;
@@ -260,7 +260,7 @@ export const useSceneInteraction = (
       scaleY: result.scaleY,
       x: Math.round(result.x),
       y: Math.round(result.y),
-    });
+    }, { history: 'defer' });
   };
 
   const onResizeEnd = () => {

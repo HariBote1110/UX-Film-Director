@@ -189,7 +189,7 @@ if (urlSearchParams.has('videoExportE2e')) {
     const state = useStore.getState();
     const videoObjects = state.objects.filter((object) => object.type === 'video');
     videoObjects.forEach((object) => {
-      state.updateObject(object.id, { duration });
+      state.updateObject(object.id, { duration }, { history: 'skip' });
     });
     state.setDuration(duration);
     return videoObjects.length > 0;
@@ -209,7 +209,7 @@ if (urlSearchParams.has('videoExportE2e')) {
       const startTime = Number.isFinite(object.startTime) ? Math.max(0, object.startTime) : 0;
       state.updateObject(object.id, {
         duration: Math.max(1 / 60, safeDuration - startTime),
-      });
+      }, { history: 'skip' });
     });
     state.setDuration(safeDuration);
     return {
@@ -468,7 +468,7 @@ if (urlSearchParams.has('videoExportE2e')) {
     const state = useStore.getState();
     const videoObject = state.objects.find((object) => object.type === 'video');
     if (!videoObject) return false;
-    state.updateObject(videoObject.id, patch);
+    state.updateObject(videoObject.id, patch, { history: 'skip' });
     return true;
   };
   (window as typeof window & {

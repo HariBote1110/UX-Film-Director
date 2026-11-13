@@ -177,7 +177,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
             updateObject(target.id, {
               startTime: Math.max(0, parseFloat((target.startTime + clampedDeltaTime).toFixed(2))),
               layer: target.layer + finalLayerDiff
-            });
+            }, { history: 'defer' });
           });
           return;
         }
@@ -236,10 +236,10 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
         constrainedStartTime = Math.max(0, constrainedStartTime);
 
-        updateObject(object.id, { 
+        updateObject(object.id, {
             startTime: constrainedStartTime,
             layer: rawNewLayer
-        });
+        }, { history: 'defer' });
 
       } else if (dragType === 'resize') {
         const deltaTime = deltaX / pxPerSec;
@@ -257,7 +257,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
                 }
             }
         }
-        updateObject(object.id, { duration: constrainedDuration });
+        updateObject(object.id, { duration: constrainedDuration }, { history: 'defer' });
       }
     };
 

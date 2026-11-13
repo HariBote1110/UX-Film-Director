@@ -1290,7 +1290,7 @@ const Viewport: React.FC = () => {
     if (!o || o.type !== 'psd' || !o.worldPlacement) return;
     useStore.getState().updateObject(id, {
       worldPlacement: { ...o.worldPlacement, position: { ...position } },
-    });
+    }, { history: 'defer' });
   }, []);
   
   const t = useTranslation(language);
@@ -1474,10 +1474,11 @@ const Viewport: React.FC = () => {
       });
       if (!size) return;
       if (object.measuredWidth === size.width && object.measuredHeight === size.height) return;
+      // 実測値の書き戻しはユーザーの編集ではないので履歴へ積まない。
       useStore.getState().updateObject(object.id, {
         measuredWidth: size.width,
         measuredHeight: size.height,
-      });
+      }, { history: 'skip' });
     });
   }, [objects]);
 
