@@ -120,6 +120,28 @@ describe('evaluateObjectPositionAtTime', () => {
     expect(evaluateObjectPositionAtTime(object, 10)).toEqual({ x: 100, y: 0 });
   });
 
+  it('clamps overshooting easings in the animation branch, matching Rust and the keyframe branch', () => {
+    // 回帰テスト: easeOutBack は途中で 1 を超え、easeInBack は 0 を下回る。
+    // キーフレーム分岐と Rust evaluate_position_keyframes はイージング結果を
+    // [0, 1] にクランプするので、animation 分岐も endX/endY を overshoot しない。
+    const object = {
+      ...baseShape(),
+      enableAnimation: true,
+      startTime: 0,
+      duration: 10,
+      x: 0,
+      y: 0,
+      endX: 100,
+      endY: 0,
+      easing: 'easeOutBack' as const
+    };
+    expect(evaluateObjectPositionAtTime(object, 7).x).toBe(100);
+    expect(evaluateObjectPositionAtTime(object, 10)).toEqual({ x: 100, y: 0 });
+
+    const inBack = { ...object, easing: 'easeInBack' as const };
+    expect(evaluateObjectPositionAtTime(inBack, 3).x).toBe(0);
+  });
+
   it('returns static position when no keyframes and animation disabled', () => {
     const object = { ...baseShape(), x: 3, y: 7 };
     expect(evaluateObjectPositionAtTime(object, 999)).toEqual({ x: 3, y: 7 });

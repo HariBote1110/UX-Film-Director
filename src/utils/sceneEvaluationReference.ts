@@ -88,7 +88,10 @@ export const evaluateObjectPositionAtTime = (
     const rawProgress = (time - object.startTime) / object.duration;
     const progress = clamp(rawProgress, 0, 1);
     const easing = easingFunctions[object.easing] ?? easingFunctions.linear;
-    const eased = easing(progress);
+    // キーフレーム分岐・Rust (evaluate_position_keyframes) と同じく、イージング
+    // 結果も [0, 1] にクランプする。Back/Elastic 系は範囲外を返すため、ここを
+    // 素通しすると TS 参照評価だけが endX/endY を overshoot して Rust とずれる。
+    const eased = clamp(easing(progress), 0, 1);
     return {
       x: object.x + (object.endX - object.x) * eased,
       y: object.y + (object.endY - object.y) * eased,
