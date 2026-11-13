@@ -25,7 +25,18 @@ fn ts_and_rust_core_evaluate_the_same_scene_identically() {
         fixture_dir().display()
     );
 
+    // assert_non_zero_frames は合計しか見ないため、frames が空の fixture が
+    // 混ざるとその fixture だけ無言で素通しになる。個別にも空を禁じる。
+    for (_, fixture) in &fixtures {
+        assert!(
+            !fixture.frames.is_empty(),
+            "fixture {} の frames が空。`npm run fixture:evaluation-parity` で再生成する",
+            fixture.name
+        );
+    }
+
     let summary = compare_fixtures(&fixtures, |fixture| fixture.project.clone());
+    summary.assert_non_zero_frames();
     summary.print();
     summary.assert_matches_known_differences("TS 評価と rust-core 評価");
 }
