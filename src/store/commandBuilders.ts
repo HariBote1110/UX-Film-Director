@@ -190,3 +190,37 @@ export const buildObjectFieldDiffCommands = (
 
   return commands;
 };
+
+/**
+ * 2つの差分コマンド列を「最初の `previous` × 最新の `next`」へ畳む。
+ * `updateObject` の連続編集の合体（coalescing）専用: 同一フィールドが
+ * 両方に現れたら previous は先行側、next は後続側を採る。畳んだ結果
+ * previous と next が等しくなったフィールド（編集が打ち消し合った）は
+ * 落とす。対象は `setObjectField` のみで、それ以外が混ざっていたら
+ * そのまま壊さず連結して返す（呼び出し側は差分列しか渡さない想定の
+ * 防御）。
+ */
+export const mergeFieldDiffCommands = (
+  earlier: readonly Command[],
+  later: readonly Command[],
+): Command[] => {
+  const merged = new Map<string, Extract<Command, { kind: 'setObjectField' }>>();
+  const order: string[] = [];
+  for (const command of [...earlier, ...later]) {
+    if (command.kind !== 'setObjectField') return [...earlier, ...later];
+    const key = `${command.objectId}${command.field}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, command);
+      order.push(key);
+    } else {
+      merged.set(key, { ...existing, next: command.next });
+    }
+  }
+  return order
+    .map((key) => merged.get(key)!)
+    .filter(
+      (command) =>
+        JSON.stringify(command.previous) !== JSON.stringify(command.next),
+    );
+};

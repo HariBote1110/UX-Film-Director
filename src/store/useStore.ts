@@ -51,6 +51,7 @@ import {
   normaliseSceneObjectList,
   syncObjectKeyframes,
 } from './storeHelpers';
+import { isFieldDiffRepresentable } from './objectFieldAllowlist';
 import { createExportSlice } from './slices/exportSlice';
 import { createPlaybackSlice } from './slices/playbackSlice';
 import { createSelectionSlice } from './slices/selectionSlice';
@@ -64,6 +65,7 @@ import {
   buildBatchCommand,
   buildMoveFilterCommand,
   buildObjectFieldDiffCommands,
+  mergeFieldDiffCommands,
   buildRemoveFilterCommand,
   buildRemoveObjectCommand,
   buildToggleFilterEnabledCommand,
@@ -99,6 +101,17 @@ type FilterParamEditSession = {
   ending: boolean;
 };
 const filterParamEditSessions = new Map<string, FilterParamEditSession>();
+
+// `updateObject` の履歴記録（設計: markdown/UpdateObject_History_Design.md）。
+// 連続編集の合体は「直前に自分が積んだコマンドが履歴の末尾にあり、同一
+// オブジェクトで、時間窓内」のときだけ行う。他のコマンドが挟まったり
+// undo/redo で末尾が変わったりしたら同一性チェックで自然に無効化される。
+const UPDATE_HISTORY_COALESCE_WINDOW_MS = 1000;
+let lastRecordedObjectUpdate: { objectId: string; command: Command; at: number } | null = null;
+// `withObjectHistoryBatch` の収集スコープ。深さ > 0 の間の差分は即座に
+// 積まず、最外スコープの終了時に1バッチへまとめて積む。
+let objectHistoryBatchDepth = 0;
+let collectedObjectDiffCommands: Command[] = [];
 const filterParamEditCommitPromises = new Map<number, Promise<void>>();
 let nextFilterParamEditSessionId = 1;
 
@@ -528,7 +541,10 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
   
-  updateObject: (id, newProps) => set((state) => {
+  updateObject: (id, newProps, options) => {
+    const historyMode = options?.history ?? 'record';
+    const capturedChange: { value: { previous: TimelineObject; next: TimelineObject } | null } = { value: null };
+    set((state) => {
     const targetIndex = state.objects.findIndex((obj) => obj.id === id);
     if (targetIndex < 0) return {};
 
@@ -656,8 +672,10 @@ export const useStore = create<AppState>((set, get) => ({
     const newObjects = state.objects.slice();
     newObjects[targetIndex] = updatedObject;
 
+    capturedChange.value = { previous: currentObject, next: updatedObject };
+
     if (!needsDurationRecalculation(adjustedNewProps)) {
-      return { objects: newObjects };
+      return { objects: newObjects, futureCommands: [] };
     }
 
     return {
@@ -665,7 +683,51 @@ export const useStore = create<AppState>((set, get) => ({
       duration: growDurationToFit(state.duration, newObjects),
       futureCommands: []
     };
-  }),
+    });
+
+    // 履歴記録: patch ではなく実行前後の最終オブジェクト同士の差分を取る
+    // ため、キーフレーム同期等の派生変更も自動的に含まれる。スキーマ外
+    // フィールドを含む差分は記録ごと諦める（部分記録は undo を壊す）。
+    if (capturedChange.value && historyMode === 'record') {
+      const { previous, next } = capturedChange.value;
+      const diffCommands = buildObjectFieldDiffCommands(previous, next);
+      if (diffCommands.length > 0 && isFieldDiffRepresentable(next, diffCommands)) {
+        if (objectHistoryBatchDepth > 0) {
+          collectedObjectDiffCommands.push(...diffCommands);
+        } else {
+          const now = Date.now();
+          const last = lastRecordedObjectUpdate;
+          const pastCommands = get().pastCommands;
+          const canCoalesce = last !== null
+            && last.objectId === id
+            && now - last.at <= UPDATE_HISTORY_COALESCE_WINDOW_MS
+            && pastCommands[pastCommands.length - 1] === last.command;
+          if (canCoalesce) {
+            const mergedCommand = buildBatchCommand(mergeFieldDiffCommands(
+              last.command.kind === 'batch' ? last.command.commands : [last.command],
+              diffCommands,
+            ));
+            if (mergedCommand) {
+              set((state) => ({
+                pastCommands: [...state.pastCommands.slice(0, -1), mergedCommand],
+              }));
+              lastRecordedObjectUpdate = { objectId: id, command: mergedCommand, at: now };
+            } else {
+              // 編集が打ち消し合って差分が消えたら履歴ごと取り除く。
+              set((state) => ({ pastCommands: state.pastCommands.slice(0, -1) }));
+              lastRecordedObjectUpdate = null;
+            }
+          } else {
+            const command = buildBatchCommand(diffCommands);
+            if (command) {
+              get().pushHistoryCommand(command);
+              lastRecordedObjectUpdate = { objectId: id, command, at: now };
+            }
+          }
+        }
+      }
+    }
+  },
 
   addObjectFilter: async (objectId, filterType) => {
     const targetObject = get().objects.find((obj) => obj.id === objectId);
@@ -1438,3 +1500,24 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
 }));
+
+/**
+ * スコープ内の `updateObject`（record モード）の差分を集めて、終了時に
+ * 1つのバッチとして履歴へ積む。複数オブジェクトへの一括編集を
+ * 「1回の undo で戻る1操作」に保つための仕組み（設計:
+ * markdown/UpdateObject_History_Design.md §4/§8）。同期スコープ専用。
+ */
+export const withObjectHistoryBatch = (fn: () => void): void => {
+  objectHistoryBatchDepth += 1;
+  try {
+    fn();
+  } finally {
+    objectHistoryBatchDepth -= 1;
+    if (objectHistoryBatchDepth === 0 && collectedObjectDiffCommands.length > 0) {
+      const batch = buildBatchCommand(collectedObjectDiffCommands);
+      collectedObjectDiffCommands = [];
+      lastRecordedObjectUpdate = null;
+      if (batch) useStore.getState().pushHistoryCommand(batch);
+    }
+  }
+};

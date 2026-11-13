@@ -67,6 +67,17 @@ export interface ExportDiagnostics {
   nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
 }
 
+export interface UpdateObjectOptions {
+  /**
+   * `updateObject` の履歴記録モード（設計: markdown/UpdateObject_History_Design.md）。
+   * - `record`（既定）: 実行前後の差分を履歴へ積む（連続編集は合体する）。
+   * - `defer`: 積まない。ドラッグ等の連続編集の途中経過用で、終了時の
+   *   コミットは呼び出し側の責務。
+   * - `skip`: 積まない。計測値の書き戻しなどユーザーの編集でない変更用。
+   */
+  history?: 'record' | 'defer' | 'skip';
+}
+
 export interface AppState {
   language: 'ja' | 'en';
   isProjectLoaded: boolean;
@@ -182,7 +193,7 @@ export interface AppState {
   redoCommand: () => Promise<void>;
 
   addObject: (obj: TimelineObject) => void;
-  updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
+  updateObject: (id: string, newProps: Partial<TimelineObject>, options?: UpdateObjectOptions) => void;
   addObjectFilter: (objectId: string, filterType: FilterType) => Promise<void>;
   beginObjectFilterParamsEdit: (objectId: string, filterId: string) => number | null;
   commitObjectFilterParamsEdit: (objectId: string, filterId: string, sessionId?: number) => Promise<void>;
