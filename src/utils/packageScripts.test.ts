@@ -83,8 +83,12 @@ describe('package scripts', () => {
     expect(script).toContain('cargo');
     expect(script).toContain("'build', '--manifest-path'");
     expect(script).toContain("VITE_UXFD_RUST_TIMELINE_SCENE_RPC: '1'");
-    expect(script).toContain("VITE_UXFD_NATIVE_OVERLAY: '1'");
-    expect(script).toContain("UXFD_NATIVE_OVERLAY: '1'");
+    // オーバーレイは既定で有効（env未指定なら '1'）。preview/export比較のために
+    // UXFD_REALISTIC_HEAVY_EDIT_NATIVE_OVERLAY=0 で無効化できるよう変数化した
+    // ので、リテラルではなく「既定で有効になる配線」自体を固定する。
+    expect(script).toContain("process.env.UXFD_REALISTIC_HEAVY_EDIT_NATIVE_OVERLAY !== '0'");
+    expect(script).toContain('VITE_UXFD_NATIVE_OVERLAY: NATIVE_OVERLAY_ENV');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY: NATIVE_OVERLAY_ENV');
     expect(script).toContain('nativeRenderErrorLines');
     expect(script).toContain('wgpu uncaptured error');
     expect(script).toContain('nativeRenderErrorLines.length === 0');
