@@ -1,6 +1,7 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { PsdWorldPlacement, StageCamera3D, TimelineObject } from '../types';
 import { buildBatchCommand, buildObjectFieldDiffCommands } from '../store/commandBuilders';
+import type { Command } from '../generated/rustCore/Command';
 import { billboardYawRadians } from '../utils/stage3dMath';
 import {
   computeBillboardSyncPlan,
@@ -34,7 +35,7 @@ import {
   type GizmoConstraint,
   type GizmoDragSession,
 } from '../utils/stage3d/translateGizmo';
-import { useStore } from '../store/useStore';
+import { useStore, recordStageCameraHistory, amendStageCameraHistoryNext } from '../store/useStore';
 
 export type BillboardTextureEntry = {
   id: string;
@@ -182,6 +183,10 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
     const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
     /** ドラッグ終了後、ダンピングの積み残しが収束(静止)し次第 store へ永続化する必要があるか。 */
     const settlePendingRef = useRef(false);
+    /** カメラジェスチャ開始時点の stageCamera3D（履歴記録用、Phase 3）。 */
+    const cameraGestureStartRef = useRef<StageCamera3D | null>(null);
+    /** 直近に記録したカメラコマンド。settle の確定値で next を差し替えるために保持する。 */
+    const pendingCameraCommandRef = useRef<Command | null>(null);
     /**
      * 直近にローカルの軌道モデルへ適用済み、または store へ永続化済みの stageCamera3D。
      * syncBillboards/props経由の再適用が必要かどうかの比較基準に使う
@@ -368,6 +373,12 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
               };
               lastKnownStageCameraRef.current = settled;
               setStageCamera3DRef.current({ position: settled.position, target: settled.target });
+              // 収束した確定値を、ジェスチャ終了時に記録した履歴コマンドの
+              // next へ反映する（履歴の末尾にあるときだけ。Phase 3）。
+              if (pendingCameraCommandRef.current) {
+                const amended = amendStageCameraHistoryNext(pendingCameraCommandRef.current, settled);
+                pendingCameraCommandRef.current = amended;
+              }
             }
           };
           rafRef.current = requestAnimationFrame(tick);
@@ -421,6 +432,7 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
 
       const beginCameraAdjust = () => {
         userAdjustingRef.current = true;
+        cameraGestureStartRef.current = useStore.getState().stageCamera3D;
       };
       const endCameraAdjust = () => {
         userAdjustingRef.current = false;
@@ -435,6 +447,13 @@ export const OxidiseStageViewport = forwardRef<OxidiseStageViewportHandle, Oxidi
         lastKnownStageCameraRef.current = current;
         setStageCamera3D({ position: current.position, target: current.target });
         settlePendingRef.current = true;
+        // ジェスチャ開始→終了を1つの履歴ステップとして記録する（Phase 3）。
+        // 収束後の確定値は tick() 側でこのコマンドの next へ差し替える。
+        const gestureStart = cameraGestureStartRef.current;
+        cameraGestureStartRef.current = null;
+        if (gestureStart) {
+          pendingCameraCommandRef.current = recordStageCameraHistory(gestureStart, current);
+        }
       };
 
       const pickGizmoConstraint = (point: { x: number; y: number }): GizmoConstraint | null => {

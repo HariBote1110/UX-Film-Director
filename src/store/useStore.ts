@@ -66,6 +66,7 @@ import {
   buildMoveFilterCommand,
   buildObjectFieldDiffCommands,
   mergeFieldDiffCommands,
+  buildSetStageCamera3DCommand,
   buildRemoveFilterCommand,
   buildRemoveObjectCommand,
   buildToggleFilterEnabledCommand,
@@ -1507,6 +1508,75 @@ export const useStore = create<AppState>((set, get) => ({
  * 「1回の undo で戻る1操作」に保つための仕組み（設計:
  * markdown/UpdateObject_History_Design.md §4/§8）。同期スコープ専用。
  */
+
+// --- ステージカメラ（3D）の履歴記録（Phase 3） ---
+// viewport のジェスチャは begin→end が短時間に繰り返される（ホイール等）
+// ため、updateObject と同じ「末尾一致＋時間窓」の合体をこちらにも適用する。
+const STAGE_CAMERA_COALESCE_WINDOW_MS = 1000;
+let lastStageCameraCommand: { command: Command; at: number } | null = null;
+
+/**
+ * カメラジェスチャ1回分の確定を履歴へ記録する。直前のカメラコマンドが
+ * 末尾にあり時間窓内なら、その `next` を差し替えて1ステップに畳む
+ * （畳んだ結果が無変化になったら履歴ごと取り除く）。戻り値は履歴に
+ * 残ったコマンド（settle の確定値で `next` を後から差し替えるために
+ * 呼び出し側が保持する）。記録されなかった場合は `null`。
+ */
+export const recordStageCameraHistory = (
+  previous: StageCamera3D,
+  next: StageCamera3D,
+): Command | null => {
+  const state = useStore.getState();
+  const now = Date.now();
+  const last = lastStageCameraCommand;
+  const top = state.pastCommands[state.pastCommands.length - 1];
+  if (last && top === last.command && now - last.at <= STAGE_CAMERA_COALESCE_WINDOW_MS
+    && last.command.kind === 'setStageCamera3D') {
+    const merged: Command = {
+      ...last.command,
+      next: { position: { ...next.position }, target: { ...next.target } },
+    };
+    if (JSON.stringify(merged.previous) === JSON.stringify(merged.next)) {
+      useStore.setState({ pastCommands: state.pastCommands.slice(0, -1) });
+      lastStageCameraCommand = null;
+      return null;
+    }
+    useStore.setState({ pastCommands: [...state.pastCommands.slice(0, -1), merged] });
+    lastStageCameraCommand = { command: merged, at: now };
+    return merged;
+  }
+  const command = buildSetStageCamera3DCommand(previous, next);
+  if (!command) return null;
+  state.pushHistoryCommand(command);
+  lastStageCameraCommand = { command, at: now };
+  return command;
+};
+
+/**
+ * settle（ダンピング収束後の確定値）で、記録済みカメラコマンドの `next`
+ * を差し替える。対象コマンドが履歴の末尾にあるときだけ作用する（他の
+ * 操作が挟まったら何もしない）。戻り値は差し替え後のコマンド、または
+ * 作用しなかった場合は `null`。
+ */
+export const amendStageCameraHistoryNext = (
+  command: Command,
+  next: StageCamera3D,
+): Command | null => {
+  if (command.kind !== 'setStageCamera3D') return null;
+  const state = useStore.getState();
+  const top = state.pastCommands[state.pastCommands.length - 1];
+  if (top !== command) return null;
+  const updated: Command = {
+    ...command,
+    next: { position: { ...next.position }, target: { ...next.target } },
+  };
+  useStore.setState({ pastCommands: [...state.pastCommands.slice(0, -1), updated] });
+  if (lastStageCameraCommand?.command === command) {
+    lastStageCameraCommand = { command: updated, at: lastStageCameraCommand.at };
+  }
+  return updated;
+};
+
 export const withObjectHistoryBatch = (fn: () => void): void => {
   objectHistoryBatchDepth += 1;
   try {
