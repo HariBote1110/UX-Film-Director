@@ -17,15 +17,16 @@
 | lane-h1.md | DeepSeek V4.1 Flash 1017 | stage3d/cameraRay.ts | 6 | 高2・中4・低0 |
 | lane-j2.md | GLM 5.3（敵対的） | updateObject 記録・合体・バッチ・カメラ履歴 | 7 | 高3・中3・低1 |
 | lane-p1.md | DeepSeek V4.1 Flash 1017 | PropertyPanel フィルタ編集セッション（抜粋） | 7 | 中3・低4 |
-| 合計 | | | **58** | |
+| lane-k2.md | DeepSeek V4.1 Flash 1017（追跡、当初担当 Kimi は全滅のため振替） | レガシー⇔filters 同期の追跡 | 7 | 高2・中5 |
+| lane-v1.md | DeepSeek V4.1 Flash 1017 | OxidiseStageViewport 同期・描画ループ（抜粋） | 6 | 高2・中4 |
+| 合計 | | | **71** | |
 
 ※ lane-f2 は深刻度表記の延べ数と項目数が一致しないため項目数ベース。
 ※ 抜粋ベースの単発監査のため、抜粋の圧縮に起因する偽候補を含み得る（例: lane-f1 の「absDeltaY 未定義」は実ファイルでは単体分岐側に宣言があり、抜粋で落ちた行が原因の可能性が高い）。検証時に最初に落とす候補として扱うこと。
 
 ## 未完（プロバイダ混雑で生成できず）
 
-- lane-k（Kimi、レガシー⇔filters 同期の追跡）: 計4回試行し全滅（初回は単発チャットでツール使用を幻覚し実質空応答、以降 503/429/503）。Kimi のエンドポイントは窓を通じて最も不安定だった。
-- Viewport 等の大型コンポーネント走査: 未実施（PropertyPanel は密度の高い抜粋で lane-p1 として実施）。
+- 当初 Kimi 担当だった同期追跡（lane-k）は Kimi が計4回全滅したため未完だったが、DeepSeek の復活を受けて lane-k2 として振替実施し完了。Viewport 走査も lane-v1 として完了。これで当初計画の全レーンが走査済みとなった。
 - lane-j.md は OpenCode 版 GLM の調査進捗メモ（所見なし、読了範囲の記録のみ）。
 
 ## 事故と復旧の記録
