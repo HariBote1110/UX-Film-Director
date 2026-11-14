@@ -1,0 +1,18 @@
+**結論**
+
+- 収集済みの差分は**破棄されず、そのまま履歴に確定（push）される**。finally ブロックが必ず実行され、`objectHistoryBatchDepth` が 0 に戻った時点で `collectedObjectDiffCommands` の内容が `buildBatchCommand` でバッチ化され `pushHistoryCommand` されるため（1586–1590行）。
+- 例外は**呼び出し側へ伝播する**。
+
+**根拠となるコード構造**
+
+1. `try { fn(); } finally { ... }`（1582–1584行）という構造で、**catch 節が存在しない**。finally は例外の有無にかかわらず実行されるが、例外を握り潰さないため、finally の処理完了後に例外はそのまま外へ伝播する。
+
+2. finally 内の後処理（1585–1591行）は例外時にも走る：
+   - `objectHistoryBatchDepth -= 1` で深度を必ず戻す。
+   - 深度が 0 かつ `collectedObjectDiffCommands.length > 0` なら、**コールバックが途中で異常終了しても、それまでに収集された差分はすべて `buildBatchCommand` でバッチ化され履歴に push される**。つまり「失敗した操作の partially 完了した差分」が履歴に残る。
+   - `collectedObjectDiffCommands = []` と `lastRecordedObjectUpdate = null` もこのタイミングでリセットされるため、収集バッファに差分が残留することはない。
+
+**補足**
+
+- ネストbatch（深度 > 0 のまま内側で例外）の場合、内側の finally では深度が 0 にならないためフラッシュされず、外側の batch の finally で一括フラッシュされる。
+- なお、`buildBatchCommand` や `pushHistoryCommand` 自体が finally 内で例外を投げた場合は、元の例外がそれに置き換わって伝播する点に注意。

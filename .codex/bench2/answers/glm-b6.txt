@@ -1,0 +1,33 @@
+```ts
+function mergeFieldDiffCommands(
+  earlier: readonly Command[],
+  later: readonly Command[],
+): Command[] {
+  type SetObjectFieldCommand = Extract<Command, { kind: 'setObjectField' }>;
+
+  const merged: Command[] = [...earlier, ...later];
+
+  const folded = new Map<string, SetObjectFieldCommand>();
+
+  for (const cmd of merged) {
+    if (cmd.kind !== 'setObjectField') {
+      return merged;
+    }
+    const key = JSON.stringify([cmd.objectId, cmd.field]);
+    const first = folded.get(key);
+    if (first === undefined) {
+      folded.set(key, cmd);
+    } else {
+      folded.set(key, { ...cmd, previous: first.previous });
+    }
+  }
+
+  const result: Command[] = [];
+  for (const cmd of folded.values()) {
+    if (JSON.stringify(cmd.previous) !== JSON.stringify(cmd.next)) {
+      result.push(cmd);
+    }
+  }
+  return result;
+}
+```

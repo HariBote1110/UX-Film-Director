@@ -1,0 +1,34 @@
+## 結論
+
+**例外は呼び出し側へそのまま伝播します。ただし、傳播前に `finally` が必ず実行されるため、その時点までに収集されていた差分は破棄されず、1つのバッチコマンドとして履歴に記録されます。**
+
+## 動作の詳細
+
+| 項目 | 挙動 |
+|---|---|
+| 例外の伝播 | **伝播する**（`catch` がないため、`finally` 実行後に上へ投げ直される） |
+| 収集済み差分 `collectedObjectDiffCommands` | **消されずに残る** → `finally` 内でバッチ化・履歴へ push → クリアされる |
+| 履歴 | fn 実行中に投射されるまでの部分変更が `buildBatchCommand` でまとめられ、`pushHistoryCommand(batch)` で**記録される** |
+| `objectHistoryBatchDepth` | `finally` 内で確実に `-= 1` されるため、例外後も深さカウンタは元に戻る |
+
+つまり、**「コールバックが失敗した＝バッチ全体がロールバックされる」わけではなく、中途半端な状態変更までが履歴コマンドとして確定してしまう**点に注意が必要です。
+
+## 根拠となるコード構造
+
+1. **`catch` 節を持たない `try〜finally` 構造**（1582–1584行）
+   ```ts
+   try {
+     fn();
+   } finally {
+   ```
+   例外を捕捉しないため傳播は阻害されず、一方で `finally` は例外発生時でも保証されて実行される。
+
+2. **`finally` 内の確定ロジック**（1586–1590行）
+   ```ts
+   if (objectHistoryBatchDepth === 0 && collectedObjectDiffCommands.length > 0) { ... pushHistoryCommand(batch); }
+   ```
+   収集済み差分の有無だけで判断しており、「fn が正常に完了したか」を判定する条件は存在しない。例外時に差分を破棄する処理（`catch` 内でのクリア等）もない。
+
+## 補足（ネスト時）
+
+`withObjectHistoryBatch` がネストしていて内側の `fn` が例外を投げた場合、内側の `finally` では `objectHistoryBatchDepth > 0` のため履歴確定は行われず、差分は収集され続けます。例外は外側の `finally` を経由して傳播し、そこで初めて depth が 0 となった時点の差分がまとめて履歴に記録されます。

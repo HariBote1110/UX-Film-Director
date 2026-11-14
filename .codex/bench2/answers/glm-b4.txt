@@ -1,0 +1,29 @@
+## 結論
+
+`updateObject(id, { x: 150 })` は、keyframes を持つオブジェクトに対しては「単なる x の上書き」ではなく、**x の移動量 (deltaX) に応じて keyframes 全体を平行移動する処理**に変換され、その後 `syncObjectKeyframes` による整合を経て、**実行前後の最終オブジェクト同士の差分**として undo 履歴に記録される。
+
+## 処理の流れ（順序）
+
+1. **判定**: `hasXUpdate = true`（L569）、`hasExplicitKeyframesUpdate = false`（L571）。
+2. **nextStartTime / nextDuration の確定**: startTime・duration の指定がないため、どちらも現状の値を引き継ぐ（L578/581）。
+3. **シフト量の算出**（L594–604）: keyframes が1つ以上あるためこの分岐に入る。
+   - `nextX = 150`、`deltaTime = 0`、`deltaY = 0`、duration 不変。
+   - `deltaX = 150 - currentObject.x`。
+4. **keyframes のシフト**（L610）: `|deltaX| > 0.0001` なら `needsKeyframeShift` が真になり、`adjustedNewProps` に `keyframes: shiftKeyframesForObject(...)` が追加される。`adjustedNewProps` は `{ x: 150, keyframes: <x方向に deltaX だけ平行移動した配列> }` となる。
+5. **差分チェック**（L653–658）: x（と keyframes 配列）が `Object.is` で等しくなければ処理続行。
+6. **マージと整合**（L667–668）: `mergedObject = { ...currentObject, ...adjustedNewProps }` を作り、`syncLegacyEffectsWithFilters` → `syncObjectKeyframes` を通して最終オブジェクト `updatedObject` を確定。
+
+## (1) keyframes 自体が変化する条件と内容
+
+- **条件**: props に `keyframes` が明示されておらず、かつ `currentObject.keyframes.length > 0` のとき、`|deltaX| > 0.0001`（または startTime/duration/y の変化）があればシフトされる。今回のケースは `deltaX = 150 - 現在のx ≠ 0` で該当。**150 が現在の x と同一なら deltaX = 0 でシフトされず、さらに hasAnyDiff も偽になって `{}` を返し更新自体が中断される**。
+- **内容**: `shiftKeyframesForObject` により、keyframes の**x 座標が deltaTime/deltaY とともに平行移動**する（今回は時間方向のシフトなし、x 方向のみ）。つまり「キーフレームアニメーションの位置全体がオブジェクトの移動に追従して動く」。
+
+## (2) syncObjectKeyframes の役割
+
+L668 で、シフト済み keyframes を含むマージ済みオブジェクトに対して呼ばれる。シフト後の keyframes とオブジェクト本体のプロパティ（x 等の静的値）との**整合・正規化を行い、最終状態を確定する**層。シフトだけでは賄いきれない派生フィールド（端点キーフレームの同期など）の同期結果もこの段階で `updatedObject` に反映される。履歴はこの出力同士の差分を取るため、ここでの同期変更は履歴に自動的に取り込まれる。
+
+## (3) 履歴（undo）への記録
+
+- L676 で `capturedChange.value = { previous: currentObject, next: updatedObject }`、すなわち**patch（`{ x: 150 }`）ではなく、実行前と実行後の最終オブジェクトそのもの**を捕捉する。
+- L692–695 で `historyMode === 'record'` なら `buildObjectFieldDiffCommands(previous, next)` によりフィールド単位の差分コマンドを生成。**keyframes の平行移動や syncObjectKeyframes による派生変更は、前後最終オブジェクトの差分に自然に含まれるため明示的な記述なしで undo 対象になる**（L689 のコメントの通り）。
+- 差分が1つ以上存在し、`isFieldDiffRepresentable`（差分がすべて履歴スキーマ内のフィールド）を満たす場合のみ履歴へ push（連続操作は合体）。**スキーマ外フィールドが混ざる差分の場合は履歴記録そのものを諦める**（undo 不可になる）。

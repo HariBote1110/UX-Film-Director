@@ -1,0 +1,17 @@
+1. **内部処理の順序**
+- `hasXUpdate` が true となり、`hasExplicitKeyframesUpdate`（keyframesの直接更新）は false と判定されます。
+- 594行目の条件（keyframesを1つ以上持つ）に合致し、現在の `x` と新しい `x` (150) の差分 `deltaX` が計算されます。
+- `needsKeyframeShift` が true となり、`shiftKeyframesForObject` によって、既存の全キーフレームの座標に `deltaX` が加算された新しい `keyframes` 配列が `adjustedNewProps` に格納されます。
+- `mergedObject` が作成され、`syncObjectKeyframes` を経て最終的な `updatedObject` が生成されます。
+- 最終的な状態が履歴に記録されます。
+
+2. **(1) keyframes 自体が変化し得る条件と変化の内容**
+- **条件**: `hasOwnProperty(normalisedNewProps, 'keyframes')` が false かつ、オブジェクトが既に1つ以上のキーフレームを持っており、かつ `x, y, startTime, duration` のいずれかに変化がある場合。
+- **内容**: `shiftKeyframesForObject` により、オブジェクト本体の移動量（`deltaX` 等）に合わせて、すべてのキーフレームの座標や時間が相対的にシフト（平行移動）します。
+
+3. **(2) syncObjectKeyframes が担う役割**
+- オブジェクトのプロパティ（現在の値）とキーフレームの値を整合させる役割を担います。例えば、キーフレームが存在する場合に、現在の再生時間における適切な値がオブジェクトのプロパティに反映されているか、あるいはプロパティの変更がキーフレームに正しく波及しているかを最終的に同期させます。
+
+4. **(3) 履歴（undo）への記録方法**
+- `capturedChange.value` に「変更前のオブジェクト（`currentObject`）」と「すべての処理（シフトや同期）が終わった後の最終的なオブジェクト（`updatedObject`）」が格納されます。
+- `buildObjectFieldDiffCommands` により、この前後2つの状態から差分が抽出されます。したがって、`x` の変更だけでなく、それに伴い自動的に計算・変更された `keyframes` の全変更分もひとつの履歴として記録されます。

@@ -1,0 +1,14 @@
+`updateObject(id, { x: 150 })` が実行されると、内部では以下の順序で処理が行われます。
+
+1.  **変更内容の判定と keyframes のシフト判定**
+    `x` の更新であることが検知されます。`keyframes` 自体の直接的な更新（`hasExplicitKeyframesUpdate`）ではないため、既存の `keyframes` が存在するか、および `x` の変化量（`deltaX`）が閾値を超えているかが判定されます。
+
+2.  **(1) keyframes 自体の変化**
+    *   **条件**: `currentObject.keyframes` が存在し、かつ `x` の変化量（`deltaX`）が `0.0001` より大きい場合に発生します。
+    *   **内容**: `shiftKeyframesForObject` が呼び出され、`x` の変化量に合わせて keyframes の値が再計算（シフト）されます。この計算結果が `adjustedNewProps` に格納されます。
+
+3.  **オブジェクトの統合と (2) syncObjectKeyframes による同期**
+    変更された `x` と、必要に応じてシフトされた `keyframes` を含む `mergedObject` が作成されます。その後、`syncObjectKeyframes` が実行されます。この関数は、エフェクトやフィルタなどの関連するプロパティ間で、オブジェクトの状態（整合性）が保たれるように値を同期・補正する役割を担います。
+
+4.  **(3) 履歴（undo）への記録**
+    変更前の `currentObject` と、同期処理まで完了した最終的な `updatedObject` の両方を比較し、その差分（diff）を計算して履歴に記録します。これにより、ユーザーが指定した `x` の変更だけでなく、内部で自動的に計算された `keyframes` の変化もまとめて一つの履歴として保存されます。

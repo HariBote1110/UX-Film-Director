@@ -1,0 +1,33 @@
+
+
+`withObjectHistoryBatch` のコールバック `fn()` が例外を投げても、例外は呼び出し側へ伝播します。ただし、例外が伝播する前に `finally` が実行されるため、その時点までに `collectedObjectDiffCommands` に収集されていた差分は破棄されず、バッチ化されて履歴へ push されます。
+
+根拠となるコード構造は以下の通りです。
+
+1. `try { fn(); }` に `catch` が存在しない  
+   - `fn()` で例外が発生しても捕捉されないため、例外は `finally` 実行後、呼び出し側へ伝播します。
+
+2. `finally` 内で行われている処理  
+   ```ts
+   finally {
+     objectHistoryBatchDepth -= 1;
+     if (objectHistoryBatchDepth === 0 && collectedObjectDiffCommands.length > 0) {
+       const batch = buildBatchCommand(collectedObjectDiffCommands);
+       collectedObjectDiffCommands = [];
+       lastRecordedObjectUpdate = null;
+       if (batch) useStore.getState().pushHistoryCommand(batch);
+     }
+   }
+   ```
+   - 例外時でも `finally` は必ず実行される。
+   - `objectHistoryBatchDepth` が `0` に戻り、かつ `collectedObjectDiffCommands` が空でなければ、収集済み差分から `buildBatchCommand` でバッチを作成する。
+   - その後、`collectedObjectDiffCommands` は空配列にリセットされ、`lastRecordedObjectUpdate` も `null` になる。
+   - `batch` が truthy なら、`pushHistoryCommand(batch)` が呼び出されるため、例外が発生した時点までに収集されていた差分は履歴として記録される。
+
+したがって、結論として：
+
+- **例外は呼び出し側へ伝播する。**
+- **例外発生前に収集されていた差分はそのままバッチ化され、履歴へ push される。**
+- **`collectedObjectDiffCommands` と `lastRecordedObjectUpdate` はリセットされる。**
+
+なお、もし `buildBatchCommand()` や `pushHistoryCommand()` 自体が例外を投げた場合は、`finally` 内で発生した新しい例外として伝播し、原本の `fn()` の例外は置き換わります。

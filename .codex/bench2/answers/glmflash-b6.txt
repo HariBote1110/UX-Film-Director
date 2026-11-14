@@ -1,0 +1,54 @@
+```ts
+type JsonValue = unknown;
+type Command =
+  | { kind: 'setObjectField'; objectId: string; field: string; previous: JsonValue; next: JsonValue }
+  | { kind: 'other'; [key: string]: unknown };
+
+type SetObjectFieldCommand = Extract<Command, { kind: 'setObjectField' }>;
+
+function mergeFieldDiffCommands(earlier: readonly Command[], later: readonly Command[]): Command[] {
+  const combined: Command[] = [...earlier, ...later];
+  const fieldCommands: SetObjectFieldCommand[] = [];
+
+  for (const command of combined) {
+    if (command.kind !== 'setObjectField') {
+      return combined;
+    }
+    fieldCommands.push(command);
+  }
+
+  const folded = new Map<string, SetObjectFieldCommand>();
+
+  for (const command of fieldCommands) {
+    const key = JSON.stringify([command.objectId, command.field]);
+    const existing = folded.get(key);
+    if (existing === undefined) {
+      folded.set(key, {
+        kind: 'setObjectField',
+        objectId: command.objectId,
+        field: command.field,
+        previous: command.previous,
+        next: command.next,
+      });
+    } else {
+      existing.next = command.next;
+    }
+  }
+
+  const result: Command[] = [];
+  for (const entry of folded.values()) {
+    if (JSON.stringify(entry.previous) === JSON.stringify(entry.next)) {
+      continue;
+    }
+    result.push({
+      kind: 'setObjectField',
+      objectId: entry.objectId,
+      field: entry.field,
+      previous: entry.previous,
+      next: entry.next,
+    });
+  }
+
+  return result;
+}
+```

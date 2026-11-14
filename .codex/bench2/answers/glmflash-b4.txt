@@ -1,0 +1,20 @@
+**結論**：`updateObject(id, { x: 150 })` は、x の変更量に応じて既存 keyframes を「平行移動」させてから、同期処理を経た最終オブジェクト同士の差分として履歴に記録する。keyframes は明示的に渡していないのに変わり得る点がポイント。
+
+**処理の順序**
+
+1. **前処理・分岐判定**
+   `normalisedNewProps` に `x` があるので `hasXUpdate = true`、`keyframes` は渡していないので `hasExplicitKeyframesUpdate = false`。よって 594 行目の else-if（`currentObject.keyframes.length > 0`）に入る。
+
+2. **(1) keyframes 自体が変化する条件と内容**
+   `deltaX = 150 - currentObject.x` を計算し、`|deltaX| > 0.0001` などが一つでも成立すれば `needsKeyframeShift = true`（x の場合は通常成立）。すると 610 行目で
+   `shiftKeyframesForObject(currentObject.keyframes, deltaTime=0, deltaX, deltaY=0, nextStartTime, nextDuration, currentObject)`
+   が呼ばれ、**全キーフレームの x が deltaX だけ平行シフトされた新しい keyframes 配列**が `adjustedNewProps.keyframes` にセットされる。つまりオブジェクトの移動にアニメーション（キーフレーム間の相対的な動き）が追従する。startTime/duration を同時に変えていれば時間軸方向のシフト・duration 相対変化も反映される。deltaX がほぼ 0 なら keyframes は変化しない。`subjectCropKeyframes` にも同様のシフト判定がある。
+
+3. **差分チェック**
+   `hasAnyDiff` で currentObject と adjustedNewProps を比較。x も keyframes も実質変わらなければここで `{}` を返し、履歴記録には進まない。
+
+4. **(2) syncObjectKeyframes の役割**
+   `mergedObject = { ...currentObject, ...adjustedNewProps }`（シフト済み keyframes 込み）を作り、`syncLegacyEffectsWithFilters`（レガシー effects → filters 変換）を通した後、`syncObjectKeyframes` で**オブジェクト本体の状態と keyframes（および関連する派生キーフレーム、例: crop keyframes）の整合性を最終保証**する。シフト後の keyframes をオブジェクトの最終的な startTime/duration/位置に矛盾なく揃え、必要なら派生フィールドを再計算・正規化する。なお filters/レガシー編集時は同期の向き（どちらを正とするか）が変わる分岐がある。この出力が undo 記録の「next」になる。
+
+5. **(3) 履歴（undo）への記録**
+   `capturedChange.value = { previous: currentObject, next: updatedObject }` として実行前後の**最終オブジェクト**を保存。`historyMode === 'record'` なら `buildObjectFieldDiffCommands(previous, next)` で**props のパッチではなく最終オブジェクト同士のフィールド差分**からコマンドを生成するため、明示的に渡していない `keyframes` のシフトや sync による派生変更も**自動的に差分に含まれる**。差分があれば（既存コマンドと合体可能なら合体して）履歴に push され、undo はこの diff コマンドに基づいて previous の状態を復元する。差分にスキーマ外フィールドが混ざる場合は記録ごと諦める（その編集は undo 対象外）。

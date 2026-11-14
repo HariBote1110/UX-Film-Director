@@ -1,0 +1,92 @@
+
+
+結論から言うと、`updateObject(id, { x: 150 })` は keyframes を持つオブジェクトに対して「x だけ書き換える」のではなく、x の変更量に応じて keyframes も派生的にシフトし、最終オブジェクトを `syncObjectKeyframes` などで正規化したうえで、**実行前のオブジェクトと実行後のオブジェクトの差分**を履歴に記録します。
+
+順序立てて説明すると以下の通りです。
+
+1. **更新対象とフラグの判定**
+   - `normalisedNewProps` には `{ x: 150 }` が含まれる。
+   - したがって:
+     - `hasXUpdate = true`
+     - `hasStartUpdate = false`
+     - `hasExplicitKeyframesUpdate = false`
+   - 入力が keyframes 自体を明示的に指定していないので、明示的 keyframes 更新の分岐には入らない。
+
+2. **keyframes 自体が変化し得る条件**
+   - `currentObject.keyframes && currentObject.keyframes.length > 0` が成立する。
+   - このとき次を計算する:
+     - `nextX = 150`
+     - `deltaTime = 0`
+     - `deltaX = 150 - currentObject.x`
+   - `needsKeyframeShift` は、`|deltaX| > 0.0001` が成り立てば true になる  
+     （実際には `deltaTime`, `deltaY`, duration 変化等も判定対象だが、今回の `x` 単体更新では主に `deltaX` が効く）。
+   - つまり **現在の x と 150 の差がほぼゼロでなければ、keyframes は変化し得る**。
+   - 差が `0.0001` 以下なら、x は変わる可能性はあるが keyframes シフトは起きない。
+
+3. **keyframes に起きる変化の内容**
+   - `needsKeyframeShift` が true の場合:
+     ```ts
+     adjustedNewProps.keyframes = shiftKeyframesForObject(
+       currentObject.keyframes,
+       deltaTime,
+       deltaX,
+       deltaY,
+       nextStartTime,
+       nextDuration,
+       currentObject
+     )
+     ```
+   - 今回の `x: 150` 更新では、時間方向の変更はないので、主に **`deltaX` 分だけ keyframes の x 系値がシフトする**。
+   - これは「オブジェクトの x が動いた分、キーフレーム全体も同じだけ補正して、アニメーションの相対位置関係を崩さない」ための派生変更である。
+   - `subjectCropKeyframes` なども同様のシフト判定がある場合がある。
+
+4. **変更の確定判断**
+   - `changedKeys = Object.keys(adjustedNewProps)`
+   - `hasAnyDiff` は `Object.is` で `currentObject[key]` と `adjustedNewProps[key]` を比較する。
+   - ここでは少なくとも `x` が変わっている場合があり、`keyframes` も新しい配列として変わっている場合がある。
+   - もしすべて同じであれば `return {}` で更新も履歴化もしない。  
+     例: すでに `x === 150` で、シフトもしなければ変更なし。
+
+5. **マージと最終オブジェクト生成**
+   - `mergedObject = { ...currentObject, ...adjustedNewProps }`
+   - その後:
+     ```ts
+     const updatedObject = syncObjectKeyframes( syncLegacyEffectsWithFilters(mergedObject) );
+     ```
+   - この段階で、最終的な更新済みオブジェクトが確定する。
+
+6. **`syncObjectKeyframes` が担う役割**
+   - `syncObjectKeyframes` は、マージ後のオブジェクトが keyframes と整合した正規状態になるよう同期・正規化する。
+   - 特に今回のように:
+     - 直接 x を変更した
+     - keyframes を `shiftKeyframesForObject` で補正した
+     という場合、最終的に keyframes がオブジェクトの状態と不整合にならないようにする。
+   - 加えて、legacy filter や effect 側の同期経路と組み合わせて、**派生変更を最終オブジェクトに反映する**役割を持つ。
+   - つまり履歴に残る「変更」は、ユーザーが入力した `{ x: 150 }` だけではなく、この同期で確定した最終状態を含みます。
+
+7. **履歴（undo）への記録方法**
+   - まず変更前後をキャプチャする:
+     ```ts
+     capturedChange.value = {
+       previous: currentObject,
+       next: updatedObject
+     };
+     ```
+   - `historyMode === 'record'` の場合:
+     - `buildObjectFieldDiffCommands(previous, next)` を実行する。
+     - これは **入力された patch ではなく、実行前オブジェクトと実行後オブジェクトの最終差分** をフィールド単位のコマンド化する。
+   - そのため、以下が自動的に履歴に含まれ得る:
+     - `x: 150` への変更
+     - `keyframes` のシフト
+     - `syncObjectKeyframes` や legacy 同期で起きた派生変更
+   - `diffCommands.length > 0` かつ `isFieldDiffRepresentable(...)` が true のとき、履歴に push（必要なら合体）される。
+   - 差分にスキーマ外フィールドが混ざると、記録そのものを諦める場合がある。
+
+要約すると:
+
+- **keyframes は変化し得る**  
+  `x` が実質的に変わり、かつオブジェクトに keyframes が存在する場合に、`deltaX` 分だけシフトされる。
+- **`syncObjectKeyframes` の役割**  
+  最終オブジェクトの keyframes（および関連する同期対象）を正規状態にし、派生変更を含む最終形を作る。
+- **履歴は「入力」ではなく「前後の最終オブジェクト差分」で記録される**  
+  そのため undo 時には、x 変更だけでなく keyframes シフトや同期による派生変更も復元対象になる。
