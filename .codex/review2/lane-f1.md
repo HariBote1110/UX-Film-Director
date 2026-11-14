@@ -1,0 +1,10 @@
+- 単体 move の absDeltaY/signY 未定義 / TimelineItem.tsx:198,227 / 139-141 の `const absDeltaY` `const signY` は `dragTargets.length > 1` ブロック内。単体 move スコープには存在せず、198 行で参照するため単体ドラッグ時に ReferenceError となる。 / 高
+- 単体 move のレイヤー上限クランプ欠如 / TimelineItem.tsx:201 / `Math.max(0, ...)` のみで `MAX_LAYERS - 1` の上限がない。複数選択では 152 行でクランプしているため非対称。上限超過の layer が `updateObject` され得る。 / 高
+- 単体 move の衝突フォールバック不備 / TimelineItem.tsx:227,239 / `rawNewLayer` を `initialState.layer` に戻す際、`constrainedStartTime` を元レイヤー用に再計算せず、元レイヤー内の衝突も再チェックしていない。重なりを許容する。 / 高
+- 複数選択時のソースロック未考慮 / TimelineItem.tsx:132,158 / 132 行はカレントの `isLayerLocked` のみ。158 行は移動先レイヤーの locked を見るが、`dragTargets` の現在レイヤーが locked かを確認していない。クリック元が unlocked なら locked レイヤー上の選択オブジェクトも移動され得る。 / 中
+- 単体 move の移動先ロック未確認 / TimelineItem.tsx:201 / 複数選択は 158 行で移動先 locked を確認するが、単体は `rawNewLayer` 決定時に `layers[rawNewLayer]?.locked` を見ていない。 / 中
+- mouseup 未発火経路の後始末不足 / TimelineItem.tsx:270 / window の mouseup はウィンドウ外解放・blur・アンマウントで発火しないことがある。cleanup は removeEventListener のみで、ドラッグ状態解除や defer 履歴の確定/破棄を行わない。 / 中
+- objects/object 依存による effect 再登録 / TimelineItem.tsx:129 / `updateObject` で `objects`/`object` が更新されるたびに effect が再実行され、mousemove ごとにリスナが張り替わる。性能劣化。mouseup が再登録前に来ると古い `objects` を捕捉した `handleMouseUp` が履歴差分を計算する stale closure の可能性。 / 中
+- resize の衝突後丸め/下限不整合 / TimelineItem.tsx:251-252,261,266 / `rawNewDuration` は `toFixed(2)` と `Math.max(0.1)` で丸め・下限するが、衝突時は `other.startTime - initialState.startTime` をそのまま `constrainedDuration` に入れる。初期 duration が 0.1 未満なら下限を割り、浮動小数桁も混在する。 / 低
+- layerDiff の閾値と丸めの不連続 / TimelineItem.tsx:144,198 / `absDeltaY > rowHeight * 0.7` で初めて計算し `Math.round` するため、0.7 行で 1 層、1.5 行で 2 層に飛ぶ。層変化の境界が不連続。 / 低
+- 複数選択 move の toFixed による相対間隔ズレ / TimelineItem.tsx:168,178 / 各 `t.startTime + clampedDeltaTime` を個別に `toFixed(2)` して更新するため、開始時刻の小数桁が揃っていないと選択オブジェクト間の相対間隔が丸めで変わり得る。 / 低

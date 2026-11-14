@@ -1,0 +1,10 @@
+コールバック `fn()` が例外を投げても、**その時点までに収集されていた差分は破棄されず、1件のバッチ履歴としてコミットされる**。  
+例外自体は **呼び出し側へ伝播する**。
+
+根拠となるコード構造：
+
+- `try { fn(); } finally { ... }`（1582～1591行）で `catch` 句が存在しないため、例外は捕捉されず `finally` 実行後に呼び出し側へ伝播する。
+- `finally` 内で `objectHistoryBatchDepth -= 1` が必ず実行され、1586行の条件 `objectHistoryBatchDepth === 0 && collectedObjectDiffCommands.length > 0` を満たせば、`buildBatchCommand` でバッチコマンドを生成し `pushHistoryCommand` で履歴へ積む。
+- その後 `collectedObjectDiffCommands = []` と `lastRecordedObjectUpdate = null` でクリアされる。
+
+つまり、このバッチ機構は「ロールバックなしのグループ化」であり、例外発生時にも収集済み差分は確定してしまう。

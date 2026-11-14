@@ -1,0 +1,55 @@
+```ts
+function mergeFieldDiffCommands(earlier: readonly Command[], later: readonly Command[]): Command[] {
+  const merged = new Map<string, { objectId: string; field: string; previous: JsonValue; next: JsonValue }>();
+
+  const process = (cmd: Command): boolean => {
+    if (cmd.kind !== 'setObjectField') {
+      return false;
+    }
+
+    const key = JSON.stringify([cmd.objectId, cmd.field]);
+    const existing = merged.get(key);
+
+    if (existing) {
+      existing.next = cmd.next;
+    } else {
+      merged.set(key, {
+        objectId: cmd.objectId,
+        field: cmd.field,
+        previous: cmd.previous,
+        next: cmd.next,
+      });
+    }
+
+    return true;
+  };
+
+  for (const cmd of earlier) {
+    if (!process(cmd)) {
+      return [...earlier, ...later];
+    }
+  }
+
+  for (const cmd of later) {
+    if (!process(cmd)) {
+      return [...earlier, ...later];
+    }
+  }
+
+  const result: Command[] = [];
+
+  for (const entry of merged.values()) {
+    if (JSON.stringify(entry.previous) !== JSON.stringify(entry.next)) {
+      result.push({
+        kind: 'setObjectField',
+        objectId: entry.objectId,
+        field: entry.field,
+        previous: entry.previous,
+        next: entry.next,
+      });
+    }
+  }
+
+  return result;
+}
+```

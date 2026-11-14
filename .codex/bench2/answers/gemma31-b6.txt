@@ -1,0 +1,33 @@
+```ts
+type JsonValue = unknown;
+type Command =
+  | { kind: 'setObjectField'; objectId: string; field: string; previous: JsonValue; next: JsonValue }
+  | { kind: 'other'; [key: string]: unknown };
+
+function mergeFieldDiffCommands(earlier: readonly Command[], later: readonly Command[]): Command[] {
+  const allCommands = [...earlier, ...later];
+  const isAllSetObjectField = allCommands.every(cmd => cmd.kind === 'setObjectField');
+
+  if (!isAllSetObjectField) {
+    return allCommands;
+  }
+
+  const map = new Map<string, { index: number; cmd: Extract<Command, { kind: 'setObjectField' }> }>();
+  const order: string[] = [];
+
+  for (const cmd of allCommands as Extract<Command, { kind: 'setObjectField' }>[]) {
+    const key = `${cmd.objectId}:${cmd.field}`;
+    if (!map.has(key)) {
+      order.push(key);
+      map.set(key, { index: order.length - 1, cmd: { ...cmd } });
+    } else {
+      const entry = map.get(key)!;
+      entry.cmd.next = cmd.next;
+    }
+  }
+
+  return order
+    .map(key => map.get(key)!.cmd)
+    .filter(cmd => JSON.stringify(cmd.previous) !== JSON.stringify(cmd.next));
+}
+```

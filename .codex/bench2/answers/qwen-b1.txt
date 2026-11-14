@@ -1,0 +1,17 @@
+
+
+- 欠けている処理:  
+  **イージング適用後の `eased` を 0〜1 に clamp していない**点です。  
+  キーフレーム分岐は `eased = clamp(easing(progress), 0, 1)` にしてから lerp していますが、animation 分岐は `eased` をそのまま `object.x → object.endX` / `object.y → object.endY` の補間に使っています。
+
+- 顕在化する入力例:  
+  - `object.enableAnimation === true`
+  - `object.duration > EPSILON`
+  - キーフレーム分岐が値を返さない、例: `object.keyframes` が空/無効
+  - `object.easing` が `easeOutBack` / `easeInBack` など **0〜1 を超えるイージング**
+  - `time` が `startTime`〜`startTime + duration` の区間内、しかも端点ではなく **イージングが 1 より大きく / 0 より小さくなる progress**
+
+- 不具合:  
+  - `easeOutBack` 等: `eased > 1` になり、位置が **`endX/endY` を越えて飛び出した後に戻る** ように見える。
+  - `easeInBack` 等: `eased < 0` になり、位置が **最初から `x/y` より手前・反対側に引き出される** ように見える。
+  - キーフレーム分岐や Rust 側は `eased` を 0〜1 に clamp するため、位置は `x→endX` / `y→endY` の線分内に留まるはずですが、この TypeScript の animation 分岐だけ **同じ入力でも結果がズレる** ことになります。

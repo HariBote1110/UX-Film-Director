@@ -1,0 +1,8 @@
+animation 分岐では、easing 関数を適用した後の `eased` を **0～1にクランプしていない** 点が、キーフレーム分岐と比べて欠けています。
+
+`easeOutBack`（途中で1を超える）や `easeInBack`（途中で0未満になる）のようなイージングが指定されている場合、`eased` が `[0, 1]` の範囲を外れた値になります。
+
+- 見た目上：アニメーション中にオブジェクトが開始位置や終了位置を通り越して表示されます（行き過ぎ／はね返りすぎ）。
+- 他実装との一致：キーフレーム補間側や Rust 実装側では `.clamp(0, 1)` しているため、同じ `easing` を指定しても位置が一致しなくなります。
+
+発生例：`enableAnimation` が true、かつ `easing` が `easeOutBack` などの overshoot/undershoot するイーシングで、`time` が `startTime` から `duration` の範囲内にあるとき。

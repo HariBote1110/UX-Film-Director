@@ -1,0 +1,50 @@
+結論：`updateObject(id, { x: 150 })` を「既に1つ以上のキーフレームを持つオブジェクト」に対して呼ぶと、`x` の変化に伴い既存キーフレームも同じ量だけ平行移動（シフト）され、さらに `syncObjectKeyframes` で派生値が同期された上で、最終的な「変更前オブジェクト全体」と「変更後オブジェクト全体」の差分が履歴に記録されます。
+
+順序立てた内部処理は以下の通りです。
+
+1. **更新の種類を判定する**
+   - `hasExplicitKeyframesUpdate` は `false`（引数に `keyframes` が含まれないため）。
+   - 一方で `hasXUpdate` は `true`、かつ `currentObject.keyframes.length > 0` なので、594行目の `else if` 分岐に入ります。
+
+2. **変化量を計算する**
+   - `deltaTime`：開始時刻の更新がないため `0`。
+   - `deltaX`：`150 - currentObject.x` の値。
+   - `deltaY`：今回の引数では `y` の更新がないため `0`。
+   - `durationChanged`：`duration` の更新がないため変化なし。
+
+3. **キーフレームをシフトする条件と内容**
+   - 604行目の `needsKeyframeShift` は、`deltaX` の絶対値が `0.0001` を超えていれば `true` になります。
+   - 条件が真なら、610行目で
+     ```ts
+     adjustedNewProps = {
+       ...adjustedNewProps,
+       keyframes: shiftKeyframesForObject(
+         currentObject.keyframes,
+         deltaTime,
+         deltaX,
+         deltaY,
+         nextStartTime,
+         nextDuration,
+         currentObject
+       )
+     };
+     ```
+     が実行されます。
+   - 今回は `x` が変わっただけなので、**各キーフレームの `x` 成分が `deltaX` だけ平行移動**されます。`deltaTime` は `0`、`duration` は変わらないため、原則としてキーフレームの時間的位置や `y` 成分は変わりません。
+
+4. **`keyframes` 自体が変化し得る条件のまとめ**
+   - **明示的な更新時**：`normalisedNewProps` に `keyframes` が含まれていれば、その値が `normaliseKeyframesForObject` で正規化・再調整されて上書きされます（585〜587行目）。
+   - **プロパティ連動更新時**：`startTime`・`x`・`y`・`duration` のいずれかが十分な変化量を持ち、かつ既存 `keyframes` があれば、`shiftKeyframesForObject` によって時刻位置・空間位置・duration 比率に応じたシフトが行われます（594〜610行目）。
+
+5. **`syncObjectKeyframes` の役割**
+   - 667〜668行目で `mergedObject = { ...currentObject, ...adjustedNewProps }` を作った後、`syncObjectKeyframes(...)` が適用されます。
+   - これは「オブジェクトの基本プロパティとキーフレーム評価結果、フィルター/レガシーエフェクトの状態など」を整合させるための後処理です。
+   - 例えば、キーフレームの値を反映した現在の座標やエフェクトパラメータの同期を取り、`updatedObject` を完成させます（フィルター/レガシー編集時は同期方向が変わる分岐もあります）。
+
+6. **履歴（undo）への記録**
+   - 689行目以降のコメントにあるように、**個別の patch ではなく「実行前後の最終オブジェクト同士の差分」**を取ります。
+   - 676行目で `capturedChange.value = { previous: currentObject, next: updatedObject }` を確保した上で、692〜695行目で `buildObjectFieldDiffCommands(previous, next)` により差分コマンドを生成します。
+   - この差分には、`x` の変更を起因として `shiftKeyframesForObject` および `syncObjectKeyframes` で生じた**キーフレーム変更やその他の派生変更も自動的に含まれます**。
+   - `isFieldDiffRepresentable(next, diffCommands)` で表現可能と判断され、`historyMode === 'record'` ならばその差分コマンドが履歴に push されます（合体処理も行われます）。差分にスキーマ外フィールドが混ざる場合は履歴記録自体が諦められます。
+
+まとめると、`x: 150` だけを指定した編集でも、既存キーフレームを保つための `shiftKeyframesForObject` によるシフトと `syncObjectKeyframes` による整合性処理が走り、それらを含んだオブジェクト全体の差分が undo 履歴に残ります。

@@ -1,0 +1,14 @@
+結論: `x: 150` が現在値と実質同じで差分がなければ何も起きず、履歴にも残らない。異なる場合は、`x` が 150 に更新されると同時に、キーフレームが `deltaX = 150 - currentObject.x` 分シフトされ、さらに `syncObjectKeyframes` で本体プロパティとキーフレームの整合が取られた最終オブジェクトが作られる。その最終差分が undo 履歴に記録される。
+
+順序:
+
+1. `hasXUpdate = true`、`hasExplicitKeyframesUpdate = false` と判定される。
+2. `currentObject.keyframes && currentObject.keyframes.length > 0` なので、明示的な keyframes 更新ではなく、既存キーフレーム向けの分岐に入る。
+3. `nextX = 150`、`deltaTime = 0`、`deltaX = 150 - currentObject.x` になる。`y` 更新や `duration` 更新がなければ `deltaY = 0`、`durationChanged = false`。
+4. `needsKeyframeShift` は、x のみの更新では実質 `Math.abs(150 - currentObject.x) > 0.0001` のとき true になる。
+5. true の場合、`adjustedNewProps.keyframes = shiftKeyframesForObject(currentObject.keyframes, 0, deltaX, 0, nextStartTime, nextDuration, currentObject)` が設定される。つまりキーフレーム全体が `deltaX` 分だけ x 方向にシフトされ、時間軸はそのまま、アニメーションの相対形状を保ったまま移動する。`subjectCropKeyframes` があれば同様のシフト対象になり得る。
+6. false の場合、この分岐では keyframes は明示的には変更されない。さらに `x` も完全一致なら `hasAnyDiff` が false になり `return {}` で終了し、履歴も残らない。
+7. 差分があれば `mergedObject = { ...currentObject, ...adjustedNewProps }` で `x = 150` と、必要ならシフト済み keyframes を持つオブジェクトが作られる。
+8. その後 `syncLegacyEffectsWithFilters` と `syncObjectKeyframes` を通す。`syncObjectKeyframes` の役割は、keyframes と本体プロパティを矛盾なく同期させる後処理である。キーフレームがある場合、シフト後の keyframes に合わせて現在の x/y や派生フィールドを再計算・正規化することがあり、`mergedObject` の `x = 150` がそのまま最終値になるとは限らない。この同期による派生変更も `updatedObject` に含まれる。
+9. `capturedChange.value = { previous: currentObject, next: updatedObject }` として、実行前後の最終オブジェクト同士が保存される。
+10. `historyMode === 'record'` なら、`buildObjectFieldDiffCommands(previous, next)` で差分コマンドを作る。ここには x の変更だけでなく、`shiftKeyframesForObject` による keyframes のシフトや `syncObjectKeyframes` による派生変更も含まれる。表現可能なら履歴へ push され、合体可能なら合体される。スキーマ外フィールドが混ざるなど表現不能なら履歴記録は諦められる。undo 時はこの差分の逆適用で、x と keyframes などを `previous` の状態に戻す。

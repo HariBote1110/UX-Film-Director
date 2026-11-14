@@ -1,0 +1,16 @@
+例外が投げられても、**その時点までに収集された差分は破棄されず、そのままバッチとして履歴にコミットされる**。そして**例外は呼び出し側へ伝播する**。
+
+根拠となる構造:
+
+1. `fn()` は `try` ブロック内で呼ばれるが、`catch` が無く `finally` だけがある。したがって `fn()` の例外は `finally` 実行後にそのまま上位へ再送出される（`finally` は例外を握りつぶさない）。
+
+2. フラッシュ処理は `finally` 側に書かれている。`finally` は正常終了・例外終了のどちらでも必ず実行されるため、例外発生時でも
+   - `objectHistoryBatchDepth -= 1` が行われ、
+   - その結果 `objectHistoryBatchDepth === 0`（＝最外殻のバッチだった場合）かつ `collectedObjectDiffCommands.length > 0` ならば、
+   - `buildBatchCommand(...)` でバッチ化し、`collectedObjectDiffCommands` を空にし、`lastRecordedObjectUpdate` をリセットし、`pushHistoryCommand(batch)` で履歴へ積む。
+
+   つまり例外で中断しても、それまでに収集された差分はロールバックされず、確定される。
+
+3. ネストしている場合（外側にもバッチがある場合）は、この階層では `depth` が 0 にならないためフラッシュされず、差分は `collectedObjectDiffCommands` に残ったまま外側のバッチへ引き継がれる。例外自体は各階層の `finally` を通り抜けて伝播する。
+
+補足: `batch` が falsy の場合は `pushHistoryCommand` は呼ばれないが、`collectedObjectDiffCommands = []` と `lastRecordedObjectUpdate = null` は実行される（差分は消費済みになる）。

@@ -1,0 +1,7 @@
+欠けている処理は、アニメーション分岐で easing を適用した後の値（eased）を 0〜1 に clamp する処理です。
+
+キーフレーム補間側や Rust 実装では、easing 適用後の値を 0〜1 に制限しているため、easeOutBack や easeInBack のような 1 を超える／0 未満になる easing でも範囲内に収まります。一方、この animation 分岐では clamp していません。
+
+不具合になる入力例は、enableAnimation が true、duration > EPSILON、キーフレーム補間が使われない、easing が easeOutBack または easeInBack、time が開始〜終了の中間にある場合です。
+
+このとき easeOutBack では終点を超えて飛び出し、easeInBack では始点より手前に戻るように見えます。キーフレーム分岐や Rust 実装では clamp されるため、同じ設定でも TS 側だけオーバーシュート／アンダーシュートし、他実装と表示位置が一致しなくなります。

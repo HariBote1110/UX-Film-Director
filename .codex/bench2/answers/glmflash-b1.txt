@@ -1,0 +1,9 @@
+**欠けている処理**: `eased` を 0〜1 にクランプする処理。キーフレーム側は `clamp(easing(progress), 0, 1)` としているのに対し、animation 分岐は `easing(progress)` を生のまま `x/y` の補間に使っている。
+
+**該当する入力**: `enableAnimation: true` かつ `duration > EPSILON` で、`time` がアニメーション途中（0 < progress < 1）であり、かつ easing が `easeOutBack` / `easeInBack` のような途中で範囲外に出る関数の場合。
+
+**不具合の内容**:
+- `easeOutBack`：途中で `eased > 1` になるため、オブジェクトが `endX/endY` を**行き過ぎてから戻る**（ターゲット位置を突き抜けるオーバーシュート）。
+- `easeInBack`：途中で `eased < 0` になるため、開始点 `object.x/object.y` より**後ろへ一旦後退する**。
+
+キーフレーム経路では同じ easing でもクランプにより端点で打ち切られるため、**同一の easing・同一の入力でも経路によって見た目が異なる**。また Rust 実装（`.clamp(0.0, 1.0)`）はクランプ済みなので、TS の animation 分岐のみ位置がズレ、TS↔Rust 間で描画結果・比較テストが一致しない。なお progress の両端（eased = 0 / 1）や linear 等の単調な easing では差は出ない。

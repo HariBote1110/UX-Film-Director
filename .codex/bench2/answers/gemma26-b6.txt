@@ -1,0 +1,51 @@
+```ts
+type JsonValue = unknown;
+type Command =
+  | { kind: 'setObjectField'; objectId: string; field: string; previous: JsonValue; next: JsonValue }
+  | { kind: 'other'; [key: string]: unknown };
+
+function mergeFieldDiffCommands(earlier: readonly Command[], later: readonly Command[]): Command[] {
+  const all = [...earlier, ...later];
+
+  const isSetField = (cmd: Command): cmd is { kind: 'setObjectField'; objectId: string; field: string; previous: JsonValue; next: JsonValue } =>
+    cmd.kind === 'setObjectField';
+
+  if (!all.every(isSetField)) {
+    return all;
+  }
+
+  const map = new Map<string, { objectId: string; field: string; firstPrev: JsonValue; lastNext: JsonValue }>();
+
+  for (const cmd of all) {
+    const c = cmd as { kind: 'setObjectField'; objectId: string; field: string; previous: JsonValue; next: JsonValue };
+    const key = `${c.objectId}\u0000${c.field}`;
+
+    const existing = map.get(key);
+    if (existing) {
+      existing.lastNext = c.next;
+    } else {
+      map.set(key, {
+        objectId: c.objectId,
+        field: c.field,
+        firstPrev: c.previous,
+        lastNext: c.next,
+      });
+    }
+  }
+
+  const result: Command[] = [];
+  for (const entry of map.values()) {
+    if (JSON.stringify(entry.firstPrev) !== JSON.stringify(entry.lastNext)) {
+      result.push({
+        kind: 'setObjectField',
+        objectId: entry.objectId,
+        field: entry.field,
+        previous: entry.firstPrev,
+        next: entry.lastNext,
+      });
+    }
+  }
+
+  return result;
+}
+```
