@@ -716,6 +716,53 @@ fn subject_crop(object: &TimelineObject, fps: f32) -> Option<SubjectCropAnimatio
     })
 }
 
+fn format_js_integral(value: f64) -> String {
+    if value == 0.0 {
+        return "0".to_string();
+    }
+
+    if value.abs() >= 1e21 {
+        let raw = format!("{:e}", value);
+        if let Some(e_pos) = raw.find('e') {
+            let (mantissa, exponent) = raw.split_at(e_pos);
+            let exponent = &exponent[1..];
+            if exponent.starts_with('-') {
+                format!("{}e{}", mantissa, exponent)
+            } else {
+                format!("{}e+{}", mantissa, exponent.trim_start_matches('+'))
+            }
+        } else {
+            raw
+        }
+    } else {
+        format!("{}", value)
+    }
+}
+
+fn smart_clipping_mode_factor(mode: f32, seed: f32, object_id: &str) -> f32 {
+    let rounded_mode = (finite(mode, 0.0) as f64 + 0.5).floor().clamp(0.0, 5.0) as i32;
+
+    match rounded_mode {
+        1 => {
+            let seed = finite(seed, 1.0) as f64;
+            let rounded_seed = (seed + 0.5).floor();
+            let key = format!("{}:{}", object_id, format_js_integral(rounded_seed));
+
+            let mut hash: u32 = 2_166_136_261;
+            for unit in key.encode_utf16() {
+                hash = hash.wrapping_mul(31).wrapping_add(unit as u32);
+            }
+
+            1.0 + (hash % 4000) as f32 / 1000.0
+        }
+        2 => 2.0,
+        3 => 1.5,
+        4 => 1.25,
+        5 => 0.75,
+        _ => 1.0,
+    }
+}
+
 fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, f32) {
     let b = base(object);
     let mut effects = Vec::new();
@@ -860,13 +907,37 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
                 right: clamp(params.right, 0.0, f32::MAX),
                 fill: params.fill,
             }),
-            ObjectFilter::SmartClipping { params, .. } => effects.push(Effect::Clipping {
-                top: clamp(params.top, 0.0, f32::MAX),
-                bottom: clamp(params.bottom, 0.0, f32::MAX),
-                left: clamp(params.left, 0.0, f32::MAX),
-                right: clamp(params.right, 0.0, f32::MAX),
-                angle_degrees: 0.0,
-            }),
+            ObjectFilter::SmartClipping { params, .. } => {
+                let mut top = clamp(finite(params.top, 0.0), 0.0, f32::MAX);
+                let mut bottom = clamp(finite(params.bottom, 0.0), 0.0, f32::MAX);
+                let mut left = clamp(finite(params.left, 0.0), 0.0, f32::MAX);
+                let mut right = clamp(finite(params.right, 0.0), 0.0, f32::MAX);
+
+                if params.link_axes {
+                    bottom = top;
+                    right = left;
+                }
+
+                let factor = finite(params.amount, 1.0)
+                    * smart_clipping_mode_factor(params.mode, params.seed, &b.id);
+                top *= factor;
+                bottom *= factor;
+                left *= factor;
+                right *= factor;
+
+                if params.reverse {
+                    std::mem::swap(&mut top, &mut bottom);
+                    std::mem::swap(&mut left, &mut right);
+                }
+
+                effects.push(Effect::Clipping {
+                    top,
+                    bottom,
+                    left,
+                    right,
+                    angle_degrees: 0.0,
+                });
+            },
             ObjectFilter::Gradient { .. }
             | ObjectFilter::Blur { .. } => {}
         }
