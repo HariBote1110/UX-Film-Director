@@ -26,6 +26,13 @@ pub struct EvaluatedClip {
     pub effects: Vec<Effect>,
 }
 
+fn clamp01(value: f32) -> f32 {
+    if !value.is_finite() {
+        return 0.0;
+    }
+    value.clamp(0.0, 1.0)
+}
+
 pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
     let mut clips = Vec::new();
 
@@ -65,7 +72,7 @@ pub fn evaluate_frame(project: &Project, frame_index: u64) -> SceneSnapshot {
                 transform.rotation_degrees += control.transform.rotation_degrees;
                 opacity *= control.opacity;
             }
-            opacity = opacity.clamp(0.0, 1.0);
+            opacity = clamp01(opacity);
 
             let mut effects = clip.effects.clone();
             let mut wipe_animations = clip.wipe_animations.iter().collect::<Vec<_>>();
