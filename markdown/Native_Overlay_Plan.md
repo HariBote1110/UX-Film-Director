@@ -137,10 +137,10 @@ B1 だけで「JS heap 経由」「Chromium GPU process 経由」を消せる。
 - 既存 WebGPU presenter は **parity 比較用に残す**（同一 scene を両経路で描画し pixel diff を取る harness を `04-render-parity.md` に追記）。
 - 24時間ベンチで安定したら既定 ON、`package.json` の PhaseVer を +1、SubVer を `a` にリセット。
 
-### Windows 対応（別フェーズ・未着手）
+### Windows 対応（完了）
 
-- 候補: HWND child window + DirectComposition による透過合成、または DXGI swap chain への直接描画。
-- 別 ADR（ADR-012 想定）を起こして決定する。本計画には含めない。
+- Windows 対応は `markdown/Windows_Port_Plan.md` に基づいて実装済み。Phase 5（Windows オーバーレイ実装）と Phase 7（デフォルト切り替え）は 2026-08-23 に完了している。
+- Windows はデフォルト有効（`WINDOWS_DEFAULT_ENABLED = true`）。関連する決定は ADR-012 に記載されている。
 
 ## 4. 既存設計との整合
 
