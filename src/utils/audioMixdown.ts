@@ -148,14 +148,14 @@ export const buildExportAudioMixWav = async (
 
   if (decodedItems.length === 0) return null;
 
-  const totalDuration = Math.max(
+  const totalDuration = Math.min(
     exportDuration,
-    ...decodedItems.map(({ media, buffer }) => {
+    Math.max(...decodedItems.map(({ media, buffer }) => {
       const offset = Math.max(0, media.offset || 0);
       const available = Math.max(0, buffer.duration - offset);
       const playback = Math.max(0, Math.min(media.duration, available));
       return media.startTime + playback;
-    })
+    }))
   );
   const length = Math.ceil(totalDuration * sampleRate);
   const offline = createOfflineAudioContext(2, length, sampleRate);
