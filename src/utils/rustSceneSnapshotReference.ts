@@ -405,16 +405,16 @@ const buildConnectedComponents = (members: string[], boundsById: Map<string, Obj
 
 /** `#rrggbb` を 0..1 の RGB へ変換する（sRGB→リニア変換は行わず、既存の
  * DropShadow/Outline 等の Rust 側定数色と同じ規約で 0..1 の直接値とする）。 */
-const parseHexColourToUnitRgb = (value: string): [number, number, number] => {
+const parseHexColourToUnitRgbInternal = (value: string): [number, number, number] => {
   const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
-  if (!match) return [1, 1, 1];
+  if (!match) return [0, 0, 0];
   const raw = match[1];
-  return [
-    parseInt(raw.slice(0, 2), 16) / 255,
-    parseInt(raw.slice(2, 4), 16) / 255,
-    parseInt(raw.slice(4, 6), 16) / 255,
-  ];
+  return [parseInt(raw.slice(0, 2), 16) / 255, parseInt(raw.slice(2, 4), 16) / 255, parseInt(raw.slice(4, 6), 16) / 255];
 };
+
+// sRGB→リニア変換は行わず 0..1 直接値として扱う。
+const parseHexColourToUnitRgb = (value: string): [number, number, number] =>
+  parseHexColourToUnitRgbInternal(value);
 
 /** 旧 Pixi `normaliseGradientForGroupFilter` の移植。複数色/複数stopは
  * 先頭2色のみ使用する（Pixi 版も GroupGradientFilter へは2色までしか
@@ -779,16 +779,9 @@ const smartClippingModeFactor = (mode: number, seed: number, objectId: string): 
   return 1;
 };
 
-const parseHexColourToLinearTriplet = (value: string): [number, number, number] => {
-  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
-  if (!match) return [0, 0, 0];
-  const raw = match[1];
-  return [
-    parseInt(raw.slice(0, 2), 16) / 255,
-    parseInt(raw.slice(2, 4), 16) / 255,
-    parseInt(raw.slice(4, 6), 16) / 255,
-  ];
-};
+// sRGB→リニア変換は行わず 0..1 直接値として扱う。
+const parseHexColourToLinearTriplet = (value: string): [number, number, number] =>
+  parseHexColourToUnitRgbInternal(value);
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';

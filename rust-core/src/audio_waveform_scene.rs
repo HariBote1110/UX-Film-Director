@@ -141,13 +141,11 @@ pub fn build_audio_waveform_line_strip(
 
 fn parse_hex_colour(raw: &str) -> [f32; 4] {
     let value = raw.trim().strip_prefix('#').unwrap_or(raw.trim());
-    if value.len() != 6 {
-        return [0.0, 1.0, 0.0, 1.0];
+    if value.len() != 6 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return [0.0, 0.0, 0.0, 1.0];
     }
-
     let parse = |range: std::ops::Range<usize>| -> f32 {
         u8::from_str_radix(&value[range], 16).unwrap_or(0) as f32 / 255.0
     };
-
     [parse(0..2), parse(2..4), parse(4..6), 1.0]
 }
