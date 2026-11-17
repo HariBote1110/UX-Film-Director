@@ -10,6 +10,18 @@ const clamp = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
 };
 
+export const compareKeyframeIds = (a: string, b: string): number => {
+  const ca = Array.from(a);
+  const cb = Array.from(b);
+  const len = Math.min(ca.length, cb.length);
+  for (let i = 0; i < len; i++) {
+    const ac = ca[i].codePointAt(0)!;
+    const bc = cb[i].codePointAt(0)!;
+    if (ac !== bc) return ac - bc;
+  }
+  return ca.length - cb.length;
+};
+
 export const normaliseKeyframesForObject = (
   object: Pick<TimelineObject, 'startTime' | 'duration' | 'easing'>,
   keyframes: PositionKeyframe[] | undefined
@@ -33,7 +45,7 @@ export const normaliseKeyframesForObject = (
 
   normalised.sort((a, b) => {
     if (Math.abs(a.time - b.time) > EPSILON) return a.time - b.time;
-    return a.id.localeCompare(b.id);
+    return compareKeyframeIds(a.id, b.id);
   });
 
   return normalised;

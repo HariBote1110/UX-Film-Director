@@ -1,3 +1,4 @@
+import { compareKeyframeIds } from './keyframes';
 import type { SubjectCropNormKeyframe, VideoObject } from '../types';
 import { visionNormBoundingBoxToPixiNormRect } from './visionTrackingGeometry';
 import type { VisionTrackSample } from './visionTrackingKeyframes';
@@ -44,7 +45,7 @@ export const normaliseSubjectCropKeyframesForVideo = (
 
   normalised.sort((a, b) => {
     if (Math.abs(a.time - b.time) > EPSILON) return a.time - b.time;
-    return a.id.localeCompare(b.id);
+    return compareKeyframeIds(a.id, b.id);
   });
 
   return normalised;

@@ -7,7 +7,7 @@ import type {
   TimelineObject,
   VideoObject,
 } from '../types';
-import { normaliseKeyframesForObject } from './keyframes';
+import { compareKeyframeIds, normaliseKeyframesForObject } from './keyframes';
 import type { EasingType } from './easings';
 import { easingFunctions } from './easingEvaluationReference';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
@@ -26,7 +26,7 @@ const areKeyframesSortedByTime = (keyframes: PositionKeyframe[]): boolean => {
 const sortKeyframesByTimeStable = (keyframes: PositionKeyframe[]): PositionKeyframe[] => (
   keyframes.slice().sort((a, b) => {
     if (Math.abs(a.time - b.time) > EPSILON) return a.time - b.time;
-    return a.id.localeCompare(b.id);
+    return compareKeyframeIds(a.id, b.id);
   })
 );
 
