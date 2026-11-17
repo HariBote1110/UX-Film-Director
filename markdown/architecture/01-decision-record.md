@@ -178,6 +178,28 @@ Windows_Port_Plan W7 の最終設計（`progress/windows-w7-async-attach.md` sta
 - `sharedRendererWebGpuPresenter.ts` の全面削除は行わない。動画クリップシーンの interim 表示に必要な最小限（背景合成＋動画テクスチャ描画）へ縮小するにとどめる。詳細は `markdown/Rust_Source_Of_Truth_Plan.md` の R6 節（2026-08-23 改訂版）を参照。
 - 完全削除を再検討する条件（シェーダ再構成による attach 時間の大幅短縮など）が満たされた場合は、R6 節を再評価したうえで本 ADR も再改訂する。
 
+## ADR-012: Windows の native overlay を DirectComposition child window として実装する
+
+**状態**: 確定・実装完了（Windows_Port_Plan Phase 5 / Phase 7 完了、2026-08-23）
+
+### 決定
+Windows では、Electron の HWND をオーナーとする `WS_POPUP` + `WS_EX_NOREDIRECTIONBITMAP` ウィンドウに DirectComposition visual を張り、wgpu の composition swapchain（`alpha_mode: PreMultiplied`）へ描画する。クリック透過は `WM_NCHITTEST` → `HTTRANSPARENT` で行う。
+
+### 理由
+ADR-013（macOS の child NSWindow）と構造が 1:1 で対応し、`shared-renderer` / WGSL / `from_surface` 以降の経路を完全に共有できる。実機で合成・クリック透過・実物 Chromium との共存を確認済み。
+
+### 却下案 (A)
+素の HWND に `CreateSwapChainForHwnd`。DX12 は `WndHandle` target に対して `[Opaque]` しか広告しないため透過できない（wgpu 30 でも同じ）。
+
+### 却下案 (B)
+`wgpu-hal` の dx12 backend にパッチを当てる。wgpu 25 以降で upstream が修正済みのため不要。フォークの保守コストだけが残る。
+
+### 却下案 (C)
+Windows では overlay を諦め WebGPU presenter のままにする。「15fps の壁」が Windows だけ残り、macOS と別の性能特性のアプリになる。
+
+### 前提条件
+wgpu 25 以上（Phase 4）。
+
 ## ADR-013: Native Overlay を child NSWindow として実装する
 
 **状態**: 確定（2026-07-03）
