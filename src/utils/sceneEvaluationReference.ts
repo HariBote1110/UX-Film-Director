@@ -16,21 +16,21 @@ const EPSILON = 0.0001;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
-const areKeyframesSortedByTime = (keyframes: PositionKeyframe[]): boolean => {
+const areKeyframesSortedByTime = <T extends { id: string; time: number }>(keyframes: T[]): boolean => {
   for (let i = 1; i < keyframes.length; i += 1) {
     if (keyframes[i - 1].time > keyframes[i].time + EPSILON) return false;
   }
   return true;
 };
 
-const sortKeyframesByTimeStable = (keyframes: PositionKeyframe[]): PositionKeyframe[] => (
+const sortKeyframesByTimeStable = <T extends { id: string; time: number }>(keyframes: T[]): T[] => (
   keyframes.slice().sort((a, b) => {
     if (Math.abs(a.time - b.time) > EPSILON) return a.time - b.time;
     return compareKeyframeIds(a.id, b.id);
   })
 );
 
-const resolveSortedKeyframesForEvaluation = (keyframes: PositionKeyframe[]): PositionKeyframe[] => (
+const resolveSortedKeyframesForEvaluation = <T extends { id: string; time: number }>(keyframes: T[]): T[] => (
   areKeyframesSortedByTime(keyframes) ? keyframes : sortKeyframesByTimeStable(keyframes)
 );
 
@@ -122,8 +122,8 @@ export const evaluateSubjectCropNormRectAtTime = (
   video: Pick<VideoObject, 'startTime' | 'duration' | 'subjectCropKeyframes'>,
   timelineTime: number
 ): { x: number; y: number; width: number; height: number } | null => {
-  const sorted = video.subjectCropKeyframes;
-  if (!Array.isArray(sorted) || sorted.length === 0) return null;
+  if (!Array.isArray(video.subjectCropKeyframes) || video.subjectCropKeyframes.length === 0) return null;
+  const sorted = resolveSortedKeyframesForEvaluation(video.subjectCropKeyframes);
 
   const start = video.startTime;
   const end = video.startTime + video.duration;
