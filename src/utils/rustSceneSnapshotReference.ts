@@ -104,19 +104,23 @@ export const buildRustSceneSnapshotForTimeline = ({
     const position = evaluateObjectPositionAtTime(object, time);
     const vibration = getVibrationOffset(object, time);
     const group = getGroupTransforms(object, time, objects);
+    const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
+    const psdScale = psdUniformScaleForObject(object);
     worldBoundsByObjectId.set(
       object.id,
       computeObjectWorldBounds(
         {
           ...object,
-          scaleX: object.scaleX * group.scaleX,
-          scaleY: object.scaleY * group.scaleY,
+          scaleX: object.scaleX * group.scaleX * transformScale.x * psdScale,
+          scaleY: object.scaleY * group.scaleY * transformScale.y * psdScale,
+          rotation: normaliseRotationDegrees(object.rotation + group.rotation),
         },
         position.x + vibration.x + group.x,
         position.y + vibration.y + group.y,
       )
     );
   });
+
   const groupGradientEffectByObjectId = computeGroupGradientEffects(supportedObjects, worldBoundsByObjectId);
 
   const clips = supportedObjects.map((object, zIndex): RustEvaluatedClip => {
