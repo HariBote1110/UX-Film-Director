@@ -791,7 +791,7 @@ fn static_effects(object: &TimelineObject) -> (Vec<Effect>, Vec<WipeAnimation>, 
                     strength: 1.0,
                 })
             }
-            ObjectFilter::Fade { params, .. } => fade = clamp(params.opacity, 0.0, 1.0),
+            ObjectFilter::Fade { params, .. } => fade *= clamp(params.opacity, 0.0, 1.0),
             ObjectFilter::Wipe { params, .. } => {
                 let index = effects.len() as u32;
                 wipes.push(WipeAnimation {
