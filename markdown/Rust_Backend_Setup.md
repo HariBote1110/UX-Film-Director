@@ -28,13 +28,13 @@ await window.rustBackend.health()
 
 ## 書き出しパイプライン確認 (第2段階)
 1. Electron アプリから通常どおり書き出し操作を実行する。
-2. 内部では `start-export` / `write-frame` / `end-export` が Rust バックエンドへ転送される。
+2. 内部では `encode.start` / `encode.writeFrame` / `encode.writeNativeFrame` / `encode.writeResidentSceneFrame` / `encode.transcodeVideo` / `encode.finish` / `encode.abort` が Rust バックエンドへ転送される。
 3. 書き出し完了時に MP4 が生成されていれば、移管は成功。
 
 ## メタデータ解析確認 (第3段階)
 1. Electron アプリで動画または音声ファイルを追加する。
 2. 内部では Renderer から `probe-media` が呼ばれ、Rust 側 `media.probe` が `ffprobe` を実行する。
-3. `UXFD_FFPROBE_BIN` が未設定でも、`/opt/homebrew/bin/ffprobe` / `/usr/local/bin/ffprobe` / `ffprobe` の順で探索される。
+3. `UXFD_FFPROBE_BIN` が未設定でも、Electron 側の `resolveFfprobePathFromDeps`（src/utils/ffmpegResolve.ts）が `/opt/homebrew/bin/ffprobe` / `/usr/local/bin/ffprobe` / `ffprobe` の順で探索し、解決されたパスがバックエンドで使用される。
 4. `ffprobe` 失敗時は自動で `HTMLMediaElement` の既存方式へフォールバックする。
 
 ## バイナリ探索順
