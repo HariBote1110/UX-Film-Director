@@ -659,7 +659,7 @@ rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フ�
   `fixture:evaluation-parity`（447 フレーム、`KNOWN_DIFFERENCES.json` は
   `[]`）、`test:psd-import:e2e` green。詳細は
   `progress/rust-source-of-truth-r5-psd-unification.md` の R5-7 節。
-  **R6（描画の単一実装化）は引き続き Windows W7 完了が前提条件で未着手。**
+  **R6（描画の単一実装化）は、前提条件である Windows W7 の完了後に完了済みであり（本ファイルの R6 節および全体の完了記録参照）、「未着手」という記述は現在は該当しない。**
   R5-7 で判明した「native-overlay の内容を CI で目視確認する手段が無い」
   という制約は R6 のスコープにも引き継がれる。
 

@@ -328,11 +328,10 @@ frame-accuracy 未検証の入力は fail-loud で Pixi fallback に留める。
 
 - 滑らかなリアルタイム再生
 - 音声再生・音声ミックス
-- HEVC / HDR / 10bit
+- HEVC
+- HDR
+- 10bit
 - VFR
-- PSD 統合
-- 3D stage 統合
-- 複数エフェクトスタック
 - トランジション
 - GPU texture zero-copy
 - Windows の厳密 golden-frame

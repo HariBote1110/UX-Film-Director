@@ -31,7 +31,7 @@ Windows は初期段階では厳密な性能・画質 parity の対象にしな�
 
 ## 層構成
 
-`Rust_Source_Of_Truth_Plan.md` の R0-R6（★2026-08-23 全完了）を経た現状の層構成は以下のとおり。
+`Rust_Source_Of_Truth_Plan.md` の R0-R7（★2026-08-23 全完了）を経た現状の層構成は以下のとおり。
 各層の詳細な設計判断は [01-decision-record.md](./01-decision-record.md) の ADR-011/013/014/015/016 を参照。
 
 ```text
@@ -55,7 +55,7 @@ rust-backend  ★RPC サーフェス（project.*/command.*/agent.*/psd.parseMeta
 
 native-wgpu-renderer / native overlay  ★プレビュー描画の既定経路（両プラットフォーム既定 ON）
   macOS: napi-rs addon から CAMetalLayer へ直接描画（ADR-011）
-  Windows: child window 経由の native overlay（ADR-013 系）
+  Windows: child window 経由の native overlay（ADR-012 系）
   wgpu + WGSL の合成・エフェクト・色変換はここに一本化
 
 sharedRendererWebGpuPresenter.ts（TS 内蔵 WGSL、interim presenter として縮小維持）
@@ -68,7 +68,7 @@ bridge
   大きいデータプレーン: 共有メモリまたは mmap
 ```
 
-上記は R0-R6 が実測で確定させた**現状**であり、以下の「基本方針」との差分（TS 側に残る
+上記は R0-R7 が実測で確定させた**現状**であり、以下の「基本方針」との差分（TS 側に残る
 UI 以外のロジック）は `Rust_Source_Of_Truth_Plan.md` の「思想上の残り（責務台帳）」に
 台帳化されている。
 
