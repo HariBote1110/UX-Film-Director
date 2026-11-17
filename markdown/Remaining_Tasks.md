@@ -55,6 +55,8 @@
 
 ### 1-1. 外部ビデオ経路のシーク後の色崩れ（優先度: 高）
 
+> **ステータス:** 診断および契約違反2件の修正（ffmpeg フォールバックの in_color_matrix 明示、importExternalTexture の colorSpace 'srgb' 固定）は完了。残作業は再現素材による仮説 H1 の検証（progress/external-video-colour-mismatch.md 参照）。
+
 - 出典: [Bug_ExternalVideoPausedFrameZero.md](./Bug_ExternalVideoPausedFrameZero.md) §5
 - 症状: シーク後、外部ビデオ経路（`importExternalTexture` + `externalVideoFrameShaderCode`）の
   出力色が Rust デコード RGBA 経路と食い違う。
@@ -72,6 +74,8 @@
   素材が bt709 タグ付きなら transfer 微差説（H2）へ移行する。
 
 ### 1-2. テキストの縁取り・影がプレーン境界でクリップされる（優先度: 中〜高）
+
+> **ステータス:** 2026-10-16 に完了（本ファイル冒頭の完了事項表を参照）。本項は履歴として残しています。
 
 - 出典: [text-stroke-shadow-clipping.md](../progress/text-stroke-shadow-clipping.md)
 - 症状: `textStroke.width` / `textShadow.offset` / `textShadow.blur` で本体グリフより外側へ
