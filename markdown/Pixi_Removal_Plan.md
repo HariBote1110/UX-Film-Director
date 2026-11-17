@@ -7,6 +7,9 @@
 
 ## 1. 現状の依存マップ（2026-07-03 調査）
 
+（注記: 本節は 2026-07-03 時点の調査スナップショットです。
+記載されている Pixi 関連ファイルは計画完了時に削除済みで、現在は境界テスト pixiRemovalBoundary.test.ts のみが残っています。）
+
 ### 直接 import は4ファイルのみ（テスト除く）
 
 | ファイル | 規模 | 役割 |
@@ -30,6 +33,7 @@
 ### Pixi にしか無いもの（= 移行の本体）
 
 1. **テキスト描画**: rust-core schema に Text 系の Kind が存在せず、native-wgpu-renderer にグリフ描画機構が無い。最大のギャップ。
+（2026-07-03 注記: 現在は rust-core のスキーマに TimelineObject::Text と ClipKind::TextPlane が存在し、テキストのラスタライズは rust-backend/src/generated/text.rs で cosmic-text により実装されています。）
 2. **インタラクション**: `usePixiInteraction` のヒットテスト・ドラッグは Pixi のシーングラフに依存。
 3. **一部エフェクトのランタイム適用**: `applyObjectEffects` / `getLipSyncViseme` / `getVibrationOffset` / `applyGroupGradientEffect` は Pixi コンテナ前提（幾何計算部分は純粋関数として分離可能。`visionTrackingKeyframes.ts` が `getGroupTransforms` を既に純関数として利用中）。
 4. **fallback presenter**: 動画アップロード不能時等の `pixi-passthrough` 経路と、`parallelCompare`（Pixi/Rust 並行比較）計画モード。
@@ -109,6 +113,9 @@
 - **Transform（平行移動・回転・バイリニアサンプリング）**: parity テストあり（`native_reference_parity.rs:700-838`）。
 - **GeneratedAudioWaveform / GeneratedAudioSphere**: `native-wgpu-renderer/src/lib.rs` に専用ラスタライズ関数（`rasterise_audio_waveform_input:899`, `rasterise_audio_sphere_input:944`）があり、`native_reference_parity.rs:596-698` でレンダリング結果を検証。**35種中この2種のみ実描画テストあり**。
 - **その他 Generated 33種（Particle / Barcode / PuzzlePiece / ColourWheel / Gourd / Gear / TrackBar / PieChart / Histogram / ToneCurve / GetColorDots / HksyCheckerGrid / RegionFrame / SimpleTube / SphereDots / SphericalField / Sunburst / CircularArrow / TriangleBracket / TartanCheck / Houndstooth / Yagasuri / PaperAirplane / AsanohaPattern / FocusLinesPlus / RandomLineEx / ContourTrace / DisplacementPoly / PlainEffectorLine / Hologram / Protractor / ShakingPolygon / ShatteredSphere）**: **重大な欠落**。`native-wgpu-renderer/src/lib.rs` は `MediaKind` を一切参照せず、合成対象を常に事前ラスタライズ済み `RgbaFrame`（`HashMap<String, RgbaFrame>`）として受け取るだけ（`render_native_wgpu_frame` 系関数のシグネチャ、`lib.rs:214,258,399...`）。つまり **native-wgpu-renderer 自身はこれら33種の絵作りロジックを持たない**。`rust-core` / `rust-core-wasm` にも該当するラスタライズ関数は見つからず（`grep -rl "GeneratedParticle" rust-core rust-core-wasm` は `schema.rs` と契約テストのみヒット）。`src/utils/sharedRendererNativeMediaSupport.ts` の `isSharedRendererNativeGenerated*SourceSupported` はソース JSON のスキーマ妥当性チェックに過ぎず、実描画の有無を保証しない。→ **これら33種が `sharedRenderer` 所有に切り替わった際、実際にどこで RGBA にラスタライズされているのか（TS側で事前ラスタライズしてアップロードしているのか、未実装なのか）を Phase 1 着手前に追跡する必要がある。本監査ではラスタライズ元を特定できなかった。**
+
+（2026-07-03 注記: その後、ラスタライザは Rust 側で実装済みです。
+rust-backend/src/generated/ 配下の 23 モジュールおよび native-wgpu-renderer 側の実装により、「どこでラスタライズするか」は解決済みです。）
 - **Image / Psd のソース合成**: `native_reference_parity.rs` の sources は単色 `RgbaFrame::from_rgba8` のみで、実画像ファイル・PSD レイヤ合成を入力にした parity テストは見当たらない。ソーステクスチャの読み込み・アップロード経路自体（decode → shm/GPU upload）は別途 `shm_decoded_frame_render.rs` 等でカバーされている可能性があるが、Image/Psd 固有の parity（Pixi の `renderPsdTree` 等との一致）は未確認。
 - **`overlay_surface_matches_export_readback_for_phase3a_reference_scenes`**（`native-wgpu-renderer/tests/overlay_surface_parity.rs:11`）: overlay 提示結果と export readback の一致を見るテストで、preview/export 間の parity。Pixi との比較ではない。
 - **vitest 側**（`pixiSolidColourCutover.test.ts` 等の `pixi*Cutover.test.ts` 群、`sharedRenderer*Ownership.test.ts`）: いずれも所有権判定ロジックの**単体テスト**（入力条件→`owner`値の期待値検証）であり、実際の画素比較・parity テストではない。`nativeOverlayParityBoundary.test.ts` は「overlay/WebGPU preview/export readback の parity ゲートを CI コマンドとして持つこと」自体を境界テストとして固定するもので、parity の実体は上記 Rust 側テスト。
