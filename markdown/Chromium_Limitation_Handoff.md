@@ -84,7 +84,10 @@ SSOT（`isSupportedSceneObject`）からの素直な導出にした（`28bcd15b`
 
 **着手前の想定（フォント再現性の検証が必須）は誤りだった。** 調査の結果:
 
-- **PixiJS撤去済みのため、Chromium側はテキストのグリフを一切描いていない。**
+- **PixiJSは撤去済みで、テキストのグリフ描画はRust側（cosmic-text）が担う。**
+  Chromium側の描画がすべてなくなったわけではなく、TS中間プレゼンター
+  （`src/utils/sharedRendererWebGpuPresenter.ts`、組み込みWGSL）は表示用途として残っており、
+  ADR-016でWindowsのnv12アタッチウィンドウの中間表示に必要な恒久的コンポーネントとされている。
   `textBoxMeasurement.ts` の `measureText` はボックス寸法を測るだけで、実描画は
   `rust-backend/src/generated/text.rs`（cosmic-text）が担う。
 - 2D exportの「legacy canvas」は `getExportCanvas` が返す shared renderer の
