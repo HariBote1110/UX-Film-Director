@@ -3,7 +3,7 @@
 ## 2026-06-20 現在の実装方針
 
 現在のexport高速化は、PixiJS/WebCodecs中心ではなく **Rust backend + native WGPU renderer + ffmpeg rawvideo encode** を主経路にする。
-この文書の下部に残るWebCodecs/PixiJS計画は、初期検討として保持するが、実装上のSingle Source of TruthはRed/Green済みのRust native exportテストと `markdown/progress.md` の実測記録に置く。
+この文書の下部に残るWebCodecs/PixiJS計画は、初期検討として保持するが、実装上のSingle Source of TruthはRed/Green済みのRust native exportテストとリポジトリルートの `progress.md` の実測記録に置く。`markdown/progress.md` は2026-06-27までの履歴記録として扱う。
 
 ### 達成済み
 
