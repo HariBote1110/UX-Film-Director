@@ -146,13 +146,15 @@ fn diff(path: &str, expected: &Value, actual: &Value, out: &mut Vec<Difference>)
                 left.as_f64().unwrap_or(f64::NAN),
                 right.as_f64().unwrap_or(f64::NAN),
             );
-            if !is_within_tolerance(left, right) {
+            if left != right {
+                let rounding =
+                    is_within_tolerance(left, right) && !left.is_nan() && !right.is_nan();
                 out.push(Difference {
                     path: path.to_string(),
                     expected: left.to_string(),
                     actual: right.to_string(),
                     numeric_delta: Some((left - right).abs()),
-                    rounding: false,
+                    rounding,
                 });
             }
         }
