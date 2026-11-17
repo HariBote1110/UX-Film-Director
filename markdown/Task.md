@@ -10,7 +10,7 @@
 - iCloud Drive配下の `AviUtlPackV4` を棚卸しし、UX Film Directorへ標準搭載するAviUtl系エフェクト・スクリプト候補を明文化する。
 - 第三者スクリプト本体はコピーせず、UX FDネイティブの互換再実装として扱う。
 - 直近は、ボイロ動画で効果が大きいイージング、登場退場、ランダム/反復モーション、輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形を優先する。
-- Packカタログをテスト可能な `src/utils/aviutlPackFeatureCatalog.ts` として追加し、今後のUI・Rust/WebGPU実装の参照点にする。
+- Packカタログをテスト可能な `src/utils/aviutl/aviutlPackFeatureCatalog.ts` として追加し、今後のUI・Rust/WebGPU実装の参照点にする。
 
 ## 追加タスク（2026-06-22）
 - 現在の開発ゴールを、`AviUtlPackV4` の標準搭載候補を広く移植する方針から、まず `GetColor`、`hksy`、`93` ディレクトリの使用頻度が高い効果を優先的にRust/WebGPUネイティブ実装へ載せる方針へ更新する。
