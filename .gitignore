@@ -1,2 +1,26 @@
 /node_modules
+windows/dxc/x64/*.dll
+**/target/
 .DS_Store
+.codex/
+
+# Heavy MP4 fixtures for perf harness (optional; also see perf/heavy-media/.gitignore)
+/20000kbps_60fps.mp4
+/10000kbps_60fps.mp4
+dist/
+dist-electron/
+perf-agent-output.json
+.codex/video-export-e2e/
+
+# SwiftPM build artefacts
+macos-coreml-tracker/.build/
+葵ちゃん.psd
+
+# export 調査用の逐次ログ（再生成される成果物）
+perf/export-test-results.log
+perf/export-test-results.json
+perf/source-decode-probe.log
+perf/hevc-diagnosis.log
+perf/playback-probe.log
+perf/memory-probe.log
+remote-deck-ui/dist

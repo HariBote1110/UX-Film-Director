@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlainEffectorLineObjectFields",
+  "description": "`plain_effector_line` kind (`src/types.ts` の `PlainEffectorLineObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & PlainEffectorLineObjectFields & { type: 'plain_effector_line' }`\nとして組み立てる。\n\n`width`/`height` は `plainEffectorLineObjectFactory.ts` の\n`buildAviUtlPlainEffectorLineObject` の固定リテラル (800x450) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "colourAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "invert": {
+      "type": "boolean"
+    },
+    "lineCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "number",
+      "format": "float"
+    },
+    "randomness": {
+      "type": "number",
+      "format": "float"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "strength": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    },
+    "zoom": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "radius",
+    "strength",
+    "randomness",
+    "zoom",
+    "invert",
+    "lineCount",
+    "lineWidth",
+    "colour",
+    "colourAmount",
+    "seed"
+  ]
+}

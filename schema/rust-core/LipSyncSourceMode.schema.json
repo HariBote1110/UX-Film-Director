@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LipSyncSourceMode",
+  "description": "`src/types.ts` の `LipSyncSetting.sourceMode: 'layer' | 'object'` と同形。",
+  "type": "string",
+  "enum": [
+    "layer",
+    "object"
+  ]
+}

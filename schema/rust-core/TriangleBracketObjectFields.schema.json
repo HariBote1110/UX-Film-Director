@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TriangleBracketObjectFields",
+  "description": "`triangle_bracket` kind (`src/types.ts` の `TriangleBracketObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & TriangleBracketObjectFields & { type: 'triangle_bracket' }`\nとして組み立てる。\n\n`width`/`height` は `triangleBracketObjectFactory.ts` の\n`buildAviUtlTriangleBracketObject` の固定リテラル (160x100) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "angleDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "armLength": {
+      "type": "number",
+      "format": "float"
+    },
+    "bracketColour": {
+      "type": "string"
+    },
+    "bracketWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "offsetDistance": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "bracketWidth",
+    "angleDegrees",
+    "armLength",
+    "offsetDistance",
+    "bracketColour"
+  ]
+}

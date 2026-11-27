@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContourTraceObjectFields",
+  "description": "`contour_trace` kind (`src/types.ts` の `ContourTraceObject`) の kind\n固有フィールド。編集モデル型は\n`BaseObject & ContourTraceObjectFields & { type: 'contour_trace' }`\nとして組み立てる。\n\n`width`/`height` は `contourTraceObjectFactory.ts` の\n`buildAviUtlContourTraceObject` の固定リテラル (800x450) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "backgroundOpacity": {
+      "type": "number",
+      "format": "float"
+    },
+    "contourCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "jitterAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "traceColour": {
+      "type": "string"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "lineWidth",
+    "contourCount",
+    "jitterAmount",
+    "traceColour",
+    "backgroundOpacity",
+    "seed"
+  ]
+}

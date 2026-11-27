@@ -1,0 +1,33 @@
+diff --git a/native-overlay/src/win32_overlay.rs b/native-overlay/src/win32_overlay.rs
+index 05521bcb..b3215787 100644
+--- a/native-overlay/src/win32_overlay.rs
++++ b/native-overlay/src/win32_overlay.rs
+@@ -192,20 +192,28 @@ pub fn attach_overlay_window(
+             None,
+         )
+         .map_err(|error| format!("Native overlay CreateWindowExW failed: {error:?}"))?;
++        eprintln!("[w5-hang] stage=window_created hwnd={:?}", overlay.0);
+ 
+         let _ = ShowWindow(overlay, SW_SHOWNOACTIVATE);
++        eprintln!("[w5-hang] stage=window_shown");
+ 
++        eprintln!("[w5-hang] stage=dcomp_device_begin");
+         let dcomp_device: IDCompositionDevice = DCompositionCreateDevice(None)
+             .map_err(|error| format!("Native overlay DCompositionCreateDevice failed: {error:?}"))?;
++        eprintln!("[w5-hang] stage=dcomp_device_end");
++        eprintln!("[w5-hang] stage=create_target_begin");
+         let target = dcomp_device
+             .CreateTargetForHwnd(overlay, true)
+             .map_err(|error| format!("Native overlay CreateTargetForHwnd failed: {error:?}"))?;
++        eprintln!("[w5-hang] stage=create_target_end");
+         let visual = dcomp_device
+             .CreateVisual()
+             .map_err(|error| format!("Native overlay CreateVisual failed: {error:?}"))?;
++        eprintln!("[w5-hang] stage=visual_created");
+         target
+             .SetRoot(&visual)
+             .map_err(|error| format!("Native overlay SetRoot failed: {error:?}"))?;
++        eprintln!("[w5-hang] stage=set_root_done");
+ 
+         let overlay_hwnd = overlay.0 as usize;
+         let resources = OverlayWindowResources {

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PuzzlePieceObjectFields",
+  "description": "`PuzzlePieceObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、puzzle_piece 固有部分。TS 側は\n`BaseObject & PuzzlePieceObjectFields & { type: 'puzzle_piece' }` として\n組み立てる。\n\n`width`/`height`/`size` は `puzzlePieceObjectFactory.ts` の\n`buildAviUtlPuzzlePieceObject` がプロジェクトサイズから都度計算するため\n固定既定値が無く、ニュートラルな `0.0` にする。`shapeVariant`/\n`connectorMode`/`fillColour` は同ファイルの固定リテラル\n（shapeVariant: 1, connectorMode: 'convex', fillColour: '#ffffff'）を\nそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "connectorMode": {
+      "$ref": "#/$defs/PuzzleConnectorMode"
+    },
+    "fillColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "shapeVariant": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "size": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "size",
+    "shapeVariant",
+    "connectorMode",
+    "fillColour"
+  ],
+  "$defs": {
+    "PuzzleConnectorMode": {
+      "type": "string",
+      "enum": [
+        "convex",
+        "concave"
+      ]
+    }
+  }
+}

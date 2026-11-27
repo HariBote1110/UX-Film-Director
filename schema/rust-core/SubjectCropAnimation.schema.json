@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SubjectCropAnimation",
+  "type": "object",
+  "properties": {
+    "keyframes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SubjectCropKeyframe"
+      }
+    },
+    "source_height": {
+      "type": "number",
+      "format": "float"
+    },
+    "source_width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "source_width",
+    "source_height",
+    "keyframes"
+  ],
+  "$defs": {
+    "SubjectCropKeyframe": {
+      "type": "object",
+      "properties": {
+        "frame_offset": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "height": {
+          "type": "number",
+          "format": "float"
+        },
+        "width": {
+          "type": "number",
+          "format": "float"
+        },
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "frame_offset",
+        "x",
+        "y",
+        "width",
+        "height"
+      ]
+    }
+  }
+}

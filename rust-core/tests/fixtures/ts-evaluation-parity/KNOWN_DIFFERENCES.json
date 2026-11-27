@@ -1,0 +1,4 @@
+{
+  "description": "TS 評価(rustSceneSnapshot.ts)と rust-core 評価(evaluate_frame)の既知の差分。Rust_Source_Of_Truth_Plan.md の R2 でゼロにする。件数は増やしてはならず、減らしたらこのファイルを更新する（ラチェット）。R2 完了時点（2026-08-22）でゼロに到達した。",
+  "differences": []
+}

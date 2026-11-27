@@ -1,0 +1,82 @@
+# P2d: preview/export の Rust evaluation 接続と残存経路
+
+最終更新: 2026-10-18
+
+## 現在地
+
+- P2c のexport用 `scene.replace` / revision確認は完了済み。preview/exportともraw editable graphを置換時に一度送り、以後の各frameではRust resident sceneを評価する。毎frame graphを転送しない。
+- graph-only `scene.replace` が既定経路。`VITE_UXFD_RUST_SCENE_RAW_GRAPH_ONLY` と `VITE_UXFD_RUST_TIMELINE_SCENE_RPC` を設定しない通常構成で、親担当のmixed exportが60/60 frame成功、H.264 probe一致、runtime errorなし、`residentScene` を確認した（証跡: `/tmp/uxfd-verified-default-export-result.json`）。backendは存在確認済みのrelease binaryを明示指定して実行した。
+- exportは `exportOriginal`、previewは `previewProxy` をRust builderへ渡す。legacy TypeScript export sessionにも `exportOriginal` の回帰があり、proxy/file pathが異なるfixtureで原本sourceを固定している。
+- graph builderがunsupportedを返す場合、またはRust評価providerが無い場合は `unsupportedScene` / `residentEvaluationUnavailable` でblockedにする。RPC、clone、acknowledgement、scene/revision/frame不一致などの異常もエラーで停止し、TS snapshotへfallbackしない。async評価中にframe sourceがcloseされた場合も、await後にpresenterを開始しない。
+- `RAW_GRAPH_ONLY=0` はTS builderへの切り戻しではなくRust resident経路を無効化してblockedにする。RPC無効も同期TS評価へのfallbackを持たない。従来のdual-run / builder-cutover flag名はgraph-only経路の互換aliasであり、旧serializerを復活させない。
+
+## P2のcoverageと残存guard
+
+`sharedRendererSceneObjectSupport.ts` は40種類のvisual object kindを列挙する。42種類のcanonical media coverageは別のfixture契約であり、この40種類のsupported-object集合や各graphのresident eligibilityと同一視しない。resident eligibilityはRust builderのgraph-level diagnosticsで判定し、未対応機能を有効に含むgraphは明示的にblockedにする。
+
+builderの診断guardは現在も必要である。代表例はmask、reverse video、unsupported dynamic gradient/filter組み合わせ、GetColorの未対応sample source、unsupported group conditionである。これらは正常なclipに見せかけたり、objectを無言で落としたりしない。従来TS経路も扱えない条件を含むため、production TS fallbackを残さずRust diagnosticsを維持する。全組み合わせのnative coverageは未完了として記録し、個別guardの解除はRust側の実装・parity・実機確認を伴う。
+
+P2d cutoverはdefault graph-onlyで完了したが、P2全体を「全featureがresident対応済み」とは扱わない。40 visual object kind / vibrationを含むRust builder coverage、42 media serialization coverage、graph-level eligibilityとunsupported guardは別々の受入契約である。Windows interim presenterはRust評価済みsessionを消費する配線だが、この報告のdefault export E2Eはnative overlayを無効にした構成であり、Windows attach/interim実機E2Eは独立確認として残る。
+
+## production import台帳とP3現在地
+
+- `sharedRendererPreviewBridge.ts` は評価済みRust snapshotのplan生成と型契約を持ち、`rustSceneSnapshotReference.ts` のserializerをimportしない。
+- preview/exportのproduction session facadeは型だけを提供する。旧同期builderは `sharedRendererPreviewSessionReference.ts`、`sharedRendererExportSessionReference.ts`、`sharedRendererPreviewPlanReference.ts` に隔離し、値importはtest/E2E reference側だけにする。production export frame sourceに `buildExportSessionForTest` やTS builder injectionは残さない。
+- `sharedRendererExportFrameSource.ts` はRust評価session constructorを使い、resident providerが無い時はblockedにする。legacy `buildSharedRendererExportSession` / `buildSharedRendererPreviewSession` の呼び出しはproduction sourceにはない。
+- `rustSceneSnapshotReference.ts` / `editableRustSceneReference.ts` はparity、fixture生成、旧挙動比較用のreference実装としてソースに残る。`sceneEvaluationReference.ts` / `easingEvaluationReference.ts` は旧評価比較用の値helperを持つ。これらはproduction runtimeのserializer/evaluator callerとして残さず、型/wire契約、surface boundary validator、frame rate helper、object eligibility、text geometryは独立moduleに分離済み。
+- `main.tsx` のserializer依存E2E harnessは `import.meta.env.DEV` のdynamic importに限定。production Vite buildでserializer symbolと該当E2E entry chunkが含まれないことを確認した（無関係な`exportTestHarness` chunkは別途存在する）。
+- 旧migration flagはTS serializer復活用rollbackに使わない。rollbackは既知のP2 graph-only契約をrevertするrelease rollbackで行う。RPC OFF/provider不在はblockedであり、TS snapshotを生成しない。
+
+P3のproduction経路撤去は完了。reference serializerをテストから除去する作業ではなく、production import graphから隔離する作業として完了した。`*Reference.ts` のtest/fixture利用はparity基準を保持するため継続する。旧評価関数も専用Reference module内に保持し、production値importを持たせない。
+
+## P4との境界
+
+`scene.query_object_positions` は `sceneId` / `revision` と任意時刻queryを使うRust編集用APIで、`scene.evaluate` のframe量子化結果から逆算しない。PropertyPanelのkey追加、Vision tracking、split位置はRust query必須になった。選択枠とhit-testは `Viewport` の評価済みsnapshotに含まれるframe/revisionのgeometryへ接続された。query `timeSeconds` のf64 echoはRust側のJSON round-trip serialization修正で解消し、fractional query timeの契約テストで固定した。text評価plane原点のtransformとUI geometryを二重補正しない契約も維持する。
+
+## P3/P4 Reference隔離更新（2026-10-18）
+
+- 旧評価関数を `sceneEvaluationReference.ts` / `easingEvaluationReference.ts` に集約し、`keyframes.ts` と `subjectCropKeyframes.ts` は編集用helper、`easings.ts` は型・表示名だけを残す。`sceneTransforms.ts` / `objectVisibility.ts` は削除し、値評価の比較はReference moduleから行う。
+- 旧snapshot/builderの実装は `rustSceneSnapshotReference.ts` / `editableRustSceneReference.ts` へ改名した。parity、境界、fixture生成テストはReferenceを引き続き使う。production runtimeはこのmodule群を値importしない。
+- Reference移設後のfocused Vitestは12 files / 240 tests成功。fixture drift 3 files / 9 testsも成功し、`npx tsc --noEmit`成功。
+- 評価reference隔離は旧TS経路をproductionへ戻す変更ではない。R2の最終完了は実UI/native/performance検証が残るため未確定。
+
+## 検証
+
+- 親担当default export E2E: raw graph/RPC flag未設定、mixed scene、60/60 frame、H.264 probe一致、runtime errorsなし、`residentScene`（`/tmp/uxfd-verified-default-export-result.json`）。
+- 旧builder/evaluator Reference分離後のfocused Vitest: 12ファイル / 240件成功。fixture drift も3ファイル / 9件成功。
+- `npx tsc --noEmit`: 成功。
+- `npm run codegen:types:check`: 成功、生成差分なし。
+- `cargo test --manifest-path rust-core/Cargo.toml --test ts_evaluation_parity`: 447フレームのTS/Rust比較に成功し、差分0件。
+- 全Vitest: 277ファイル中276成功、1986件中1985件成功。唯一の失敗は `src/e2e/allReadableMedia.e2e.test.ts` が要求するgitignore対象 `perf/heavy-media` fixtureの欠落によるファイル存在確認。隔離worktreeには `.gitignore` のみで素材が存在しない。fixture生成や期待値のskipは行っていない。
+- production Vite build: `/tmp/uxfd-reference-isolation-build-20261018` へのbuild成功。bundle内に`rustSceneSnapshotReference` / `editableRustSceneReference` / evaluator Reference名はなく、旧serializer/evaluatorがproduction bundleへ到達しない。test buildは`dist`へ出力せず、tracked build artifactsの変更もない。
+
+## Export close競合の追加修正（2026-10-18）
+
+- native render source準備中、およびviewport presenter開始中にframe sourceがcloseされる競合を回帰テストで再現した。close後に非同期処理が完了するとnative renderが呼ばれたりbitmapが返ったりする状態を確認してから修正した。
+- close後に戻ったnative sourceはabort releaseし、新規decode jobを停止する。遅れて返ったpresenter controlもdisposeし、decode jobを停止する。停止済みjobの重複停止を避け、close後のframe/payload返却を拒否する。
+- resident evaluation、native source準備、audio waveform準備、native render、presenter開始、bitmap作成、presented shared-frame受け渡しの各await後にclose状態を確認する。native renderがclose後に完了した場合は出力frameをreleaseしてからキャンセルエラーにする。
+- 回帰テストはRED→GREENで確認。`sharedRendererExportFrameSource` / native source / native uploadの3 suiteで93 tests成功、`npx tsc --noEmit`成功。
+- `buildFrameSession`内部の評価await後guardだけでは、session promiseの完了からpresenter/native準備側の再開までの間にcloseが割り込めることをmicrotaskテストで確認した。`presentFrame` と native encode側のawait直後にもguardを置き、close後に次工程を開始しない。
+- native sourceのabort releaseが失敗する場合も、遅着decode job停止を先に必ず試みてからrelease failureを報告する。回帰テストはRED→GREENで固定した。
+
+## 統合後の再検証（2026-10-18）
+
+- Reference隔離を統合した`feature-proxy`で全Vitest 277ファイル / 1,986件成功。親checkoutの実素材を使用し、隔離worktreeで欠落していた素材テストも成功した。型チェック・生成型整合性チェックも成功。
+- production buildを`/tmp/uxfd-reference-production-build-20261018`へ出力して成功。
+- f64 round-trip修正を含む検証済みbackendで、raw graph/RPC flagを未設定のまま混在MP4を60/60フレーム出力した。動画・画像・音声・PSD・生成エフェクト・groupを含み、生成エフェクト画素検査とH.264 probeが成功、runtime errorsは空（`/tmp/uxfd-reference-default-export-result.json`）。native overlayは無効、native direct encodeは無効の構成。
+- Rust backend releaseテストは203件成功、2件ignored（`/tmp/uxfd-final-backend-tests.log`）。
+- レビューで見つかったexport close中のnative/presenter非同期準備、session返却直後のclose割り込み、abort release失敗時のdecode job停止漏れは回帰修正済み。個別テストと型チェックはgreen、最新統合後の全体検証を親側で継続する。
+
+- native direct encode有効でも、同じ混在構成を60/60フレーム出力した。`residentScene`、`iosurfaceVideoToolboxAudioMux`、H.264 probe一致、runtime errors空。waveform 1,203画素・audio sphere 12,680画素を既存検査で検出した（`/tmp/uxfd-native-direct-final-export-result.json`）。書き出し時間12,445msは当該短fixtureの観測値であり、一般性能の保証値ではない。
+
+## 最終コード統合の検証（2026-10-18）
+
+- native再生の選択枠同時提示、所有者付きPause、スクラブ時の再生位置切り替え、3D H.264互換経路を統合後、全Vitest 277ファイル / 2,016件と`npx tsc --noEmit`が成功。
+- production buildは`/tmp/uxfd-final-production-build-20261018`へ出力して成功。ログは`/tmp/uxfd-final-integrated-vitest.log`、`/tmp/uxfd-final-integrated-tsc.log`、`/tmp/uxfd-final-production-build.log`。
+- P4の遅延比較は以前の基準値との比較証跡がなく、機能確認のみでR2全体を完了扱いにしない。
+
+## 直接編集の受入追補（2026-10-18、Beta-525b）
+
+- 停止scrub後の図形/Textクリック・ドラッグと図形resizeを実Electronで検証した。resizeの絶対pointer座標にpreview原点が混入する不具合を修正し、同じ実UI条件で期待倍率とRust transform追従を確認。詳細は`native-playback-session-rebase-ui-check.md`。
+- 最終コードの全Vitestは277ファイル / 2,018件成功、型チェック・production buildも成功。ログは`/tmp/uxfd-resize-final-vitest.log`、`/tmp/uxfd-resize-final-tsc.log`、`/tmp/uxfd-resize-final-build.log`。build出力は`/tmp/uxfd-resize-final-build-20261018`。
+- P4/R2の残条件は以前の基準値に対する遅延比較と対象外実機の確認であり、直接編集が未実装という意味ではない。

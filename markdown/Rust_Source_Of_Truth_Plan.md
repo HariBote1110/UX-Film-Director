@@ -1,0 +1,926 @@
+# Rust 正本集中 実装計画
+
+最終更新: 2026-08-22
+
+## 位置づけ
+
+`architecture/00-overview.md` の基本方針 1・2・8 —
+
+> 1. 編集状態と時間評価の正本は Rust に置く。
+> 2. React/Zustand は UI 状態を持つが、編集モデルの正本にはしない。
+> 8. JavaScript が独自に WGSL や scene logic を持つ構成にはしない。
+
+— は R0-R7 完了時点（2026-08-23）で **満たされている**（提案時点は満たされていなかった。
+本計画はその差分を埋めるまでの道筋を定めたものであり、全フェーズ完了により当初ゴールへ
+到達した）。ただし「思想上の残り（責務台帳）」に記載の 4 項目は TS 側に意図的に残る
+既知の残存であり、これらは基本方針の逸脱ではなく別フェーズ扱いの将来課題として
+台帳化されている。
+
+> **訂正（2026-09-13）**: 本書および R7 総括の「R0-R7 全フェーズ完了」は実態より進んだ表現だった。
+> R2 は評価差 3 クラスの解消（447 frame parity 一致）までで、R2 節の削除対象
+> （`keyframes.ts`/`easings.ts`/`objectVisibility.ts`/`sceneTransforms.ts`/`subjectCropKeyframes.ts`
+> と `rustSceneSnapshot.ts` 内の TS 評価経路）は残っており、基本方針 1・8 は評価と snapshot 構築の
+> 部分で未達である。残作業は `Scene_Build_In_Rust_Plan.md`（§7 に対応表）で扱う。
+
+`Windows_Port_Plan.md` と同時期に走る計画であり、両者の順序関係は §3 で定める。
+
+Single Source of Truth: 本ファイル。設計判断は確定し次第
+`architecture/01-decision-record.md` へ ADR-014 以降として転記する。
+
+本計画の「現在地」はすべてリポジトリ実物の読解に基づく。推測は「未確認」と明記する。
+
+## 0. ゴールと非ゴール
+
+### ゴール
+
+- 編集モデル・保存形式・時間評価の正本を `rust-core` に一本化する。
+- TypeScript の型を Rust からの **生成物** にし、手動ミラーを廃止する。
+- 描画実装（WGSL 含む）を Rust 側の 1 本にし、TS 内蔵 WGSL を削除する。
+- PSD 解析を自前 Rust 実装の 1 本にし、`ag-psd` 依存を落とす。
+- 上記のすべてを、既存の見た目と export 結果を壊さずに行う。
+
+### 非ゴール
+
+- UI を Rust 化すること。React / Electron は UI シェルとして残す（ADR-002 を維持）。
+- Zustand を廃止すること。選択状態・パネル開閉・ズーム・ドラッグ中の一時値といった
+  **UI 状態**は TS が持ち続ける。移すのは編集モデルと評価だけ。
+- 3D ステージ（`oxidise-engine`）の再設計。既に別リポジトリの Rust 実装であり、本計画の対象外。
+- 機能追加。本計画は純粋に正本の移動であり、新しい object kind やエフェクトは足さない。
+
+## 1. 現在地（実測で確定していること）
+
+### 1.1 正本マップ（As-Is）
+
+| 事実 | 現在の実質正本 | Rust 側の状態 | 二重か |
+|---|---|---|---|
+| 編集モデル（40+ object kind） | `src/types.ts` (1,109行) | `rust-core/src/schema.rs` (430行) に手動ミラー | 二重 |
+| 保存形式 `.uxfd` | `src/utils/projectFile.ts` (1,021行) | 無し | TS 単独 |
+| イージング関数 | `src/utils/easings.ts` (136行) | `rust-core/src/keyframe.rs::evaluate_easing` | **二重（同一関数群）** |
+| キーフレーム評価 | `src/utils/keyframes.ts` (174行) | `rust-core/src/keyframe.rs` + `timeline.rs::evaluate_frame` | **二重** |
+| 可視性判定 | `src/utils/objectVisibility.ts` (25行) | `timeline.rs` 内 | 二重 |
+| グループ変換・振動 | `src/utils/sceneTransforms.ts` (69行) | `timeline.rs` の `GroupControl` | 二重 |
+| フィルタスタック | `src/utils/filterStack.ts` (1,008行) | `schema.rs::Effect` enum のみ（評価は無し） | 部分二重 |
+| scene snapshot 構築 | `src/utils/rustSceneSnapshot.ts` (2,722行) | 受け取るだけ | TS 単独 |
+| preview 描画 | `src/utils/sharedRendererWebGpuPresenter.ts` (1,484行・**WGSL 内蔵**) と native overlay | `native-wgpu-renderer` (11,748行) | **二重** |
+| PSD 解析 | `ag-psd`（Worker + main thread fallback） | `rust-backend/src/psd_fast.rs` (3,191行) | **二重** |
+| 音声ミックス | `src/utils/audioMixdown.ts` (243行) | 無し | TS 単独 |
+| エージェント用レシピ | `src/agentProject/agentProject.ts` (566行) | 無し | TS 単独 |
+| コマンド / undo | `src/store/slices/historySlice.ts` | `rust-core/src/command.rs` (54行, MVP のみ) | 実質 TS 単独 |
+
+規模: TypeScript 約 116,000 行（うちテスト 250 ファイル）に対し Rust 約 62,000 行。
+
+### 1.2 決定的な事実: 評価経路が 2 本走っている
+
+現在、同じ「フレーム t の評価済みシーン」を作る経路が 2 本ある。
+
+```text
+経路A（Rust 評価）
+  Zustand → editableRustScene.ts → EditableRustProject
+    → scene.replace(project) → rust-core::evaluate_frame → scene.evaluate(frame)
+
+経路B（TS 評価）
+  Zustand → rustSceneSnapshot.ts（keyframes/easings/visibility/sceneTransforms/filterStack を
+            TS 側で評価）→ 評価済み SceneSnapshot → Rust へ渡す
+```
+
+`rust-core::timeline.rs` の `evaluate_frame` と、`rustSceneSnapshot.ts` が
+`evaluateObjectPositionAtTime` などを呼んで作る結果は、**同じものを別実装で計算している**。
+イージング関数に至っては `easings.ts` と `keyframe.rs::evaluate_easing` に
+同じ 30 種以上が並んでいる。
+
+本計画の中核は「経路 B を消して経路 A に一本化する」ことである。
+
+### 1.3 副次的に判明したこと
+
+- **`psd-wasm` クレートは R5-2 で削除済み。** 削除前の時点で `src/wasm/psd/` の
+  成果物を含め TS からの import が 1 箇所も無いデッドコードだったため
+  （§8 設計判断 5 = 削除で確定）、crate 本体と付随するビルド成果物・
+  ベンチスクリプトを削除した。名前が紛らわしいが `src/utils/psdWasm.ts` は
+  ag-psd を Web Worker で回す実装であり、Rust とは無関係（この worker は R5-3 で対応）。
+- **native overlay は既定 ON。** `Viewport.tsx:731` は
+  `VITE_UXFD_NATIVE_OVERLAY !== '0'` の opt-out 判定で、
+  `Windows_Port_Plan.md` Phase 7 の「`VITE_UXFD_NATIVE_OVERLAY=1` で opt-in」という記述は古い。
+  Windows 側の記述を修正する必要がある。
+- `rust-core-wasm` が公開しているのは 5 関数だけで、
+  solid colour / video plane の頂点生成と decode request 生成に限られる。
+  wasm 経路は正本移管の受け皿としてはほぼ空。
+- `scene.evaluate` の実測コストは 0.4〜4ms（`src/e2e/realisticHeavyEditSecondPlaybackStart.ts`）。
+  評価を Rust に寄せても RPC 往復が支配的にはならない見込みだが、
+  UI ハンドルの 60fps 追従に耐えるかは未確認（§7 の設計判断 4）。
+
+## 2. 目標状態（To-Be）
+
+```text
+Electron / React
+  UI 状態のみ（選択、パネル、ズーム、ドラッグ中の一時値）
+  編集モデルの型は rust-core からの生成物を import するだけ
+
+rust-core  ★唯一の正本
+  project model（全 object kind）
+  保存形式 .uxfd の読み書き
+  timeline / keyframe / easing / visibility / group transform / filter stack の評価
+  command / undo / validation
+  ts-rs による TS 型 + JSON Schema 生成
+
+native-wgpu-renderer / shared-renderer  ★唯一の描画実装
+  WGSL はここにしか存在しない
+
+rust-backend
+  PSD 解析、decode / encode / mux、音声
+```
+
+判定基準: 以下がすべて成立したら完了とする。
+
+- `src/` 配下に `@vertex` / `@fragment` を含む文字列が存在しない。
+- `src/` 配下に easing 関数・キーフレーム補間・可視性判定の実装が存在しない。
+- `package.json` の依存から `ag-psd` が消えている。
+- `src/types.ts` の編集モデル型が生成ファイルの re-export になっている。
+- 既存の golden-frame parity と E2E export が全て緑のまま。
+
+## 3. Windows 移植計画との関係と全体順序
+
+両計画の唯一の強い結合は **wgpu のバージョン**である。それ以外は軸が違う。
+
+- Windows 移植は「プラットフォーム / GPU / ウィンドウ合成」の軸。
+- 本計画は「モデル / 評価 / 型」の軸で、大半は GPU に触れない。
+
+したがって、wgpu 昇格を片付けたあとは並行して進められる。
+
+```text
+W0  連続描画の実機検証（1日）                     ┐ 先行。ここで破綻したら W5 の設計を見直す
+R0  二重評価の差分ハーネス（1-2日）               ┘ GPU 非依存。W4 の回帰検出にも使うので前倒しする
+                    │
+                    ▼
+W4  wgpu 0.20 → 25（5-10日）★単独レーン  上げ先は 25 で確定済み
+    macOS の golden-frame parity が合格条件。ここは他の作業を止める。
+    並行作業があると parity 崩壊時の切り分けができなくなる。
+                    │
+        ┌───────────┴────────────┐
+        ▼                        ▼
+  Windows レーン            Rust 正本レーン
+  W1 → W2 → W3              R1 → R2 → R3 → R4 → R5
+  → W5 → W6 → W7                                │
+        │                                       │
+        └───────────┬───────────────────────────┘
+                    ▼
+              R6（presenter 削除）→ R7
+              W7 完了が前提。両プラットフォームで native overlay が
+              既定になるまで TS presenter は消せない。
+```
+
+**★2026-08-23 時点、上記の R0-R7・W0-W7 は全フェーズ完了している。** R6 は当初案の
+「presenter 全面削除」ではなく「interim 専用への縮小」へ改訂の上で完了し（Windows W7
+の nv12 attach 窓という設計上の制約による）、R7（本節）でその実装結果をドキュメント
+正本へ反映した。
+
+**R0 を W4 の前に置く理由**: R0 が作る差分ハーネスは「同じ project・同じ frame index に対する
+評価結果の一致」を見るもので、GPU に依存しない。これは W4 の wgpu 昇格で
+scene 構築側に回帰が入っていないことの確認にも使える。1-2 日の投資でレーンをまたいで効く。
+
+**R6 が Windows レーンに人質を取られる点**: R5 までで本計画の価値は大半確定する
+（型の二重管理・評価の二重実装・PSD の二重実装がすべて解消する）。
+R6 だけは W7 を待つので、そこで一度区切りを入れる。
+
+## 4. フェーズ計画
+
+### R0: 二重評価の差分ハーネス（推定 1-2日）★他フェーズの合格条件 ─ 完了 2026-08-22
+
+移管を始める前に「経路 A と経路 B が今どれだけ違うか」を測る。
+これが無いと R2 以降はすべて手探りになる。
+
+- 代表シーン（`src/e2e/realisticHeavyEditScenario.ts` と GetColor/hksy/93 混在シーン）を固定入力にする。
+- 同一 project から経路 A（`scene.replace` → `scene.evaluate`）と
+  経路 B（`buildRustSceneSnapshotForTimeline`）の両方を回し、
+  全フレームで評価済み clip 列を JSON 比較する。
+- 差分を「許容できる丸め差」「TS 側にしか無い暗黙仕様」「バグ」に分類して記録する。
+  `rustSceneSnapshot.ts` の 2,722 行には UI 都合の暗黙仕様が埋まっている可能性が高く、
+  それを洗い出すのがこのフェーズの実質的な目的。
+- CI に常設する。以降のフェーズはすべて「このハーネスが緑」を合格条件にする。
+
+成果物: [rust-source-of-truth-evaluation-diff.md](../progress/rust-source-of-truth-evaluation-diff.md)。
+ハーネスは `rust-core/tests/ts_evaluation_parity.rs`（比較本体）と
+`src/utils/rustSceneEvaluationParityFixtureDrift.test.ts`（fixture の陳腐化検出）の 2 本立て。
+再生成は `npm run fixture:evaluation-parity`。
+
+**測定結果: 447 フレームで差分 5,099 件。丸め差は 0 件で、全部が実装差だった。**
+
+| 分類 | フィールド | 件数 | 最大差 |
+|---|---|---|---|
+| `convention` | `clips[].source_frame` | 4,074 | 1435 frame |
+| `keyframe-clamp` | `clips[].transform.translation_x` / `_y` | 各 170 | 19.20px / 9.60px |
+| `ts-only-animation` | `clips[].effects.length` | 137 | （構造差） |
+| `ts-only-animation` | `clips[].effects[].Clipping.{left,right,top,bottom}` | 各 137 | 最大 51.12px |
+
+- `source_frame`: TS は静止メディアに 0 を返し、rust-core は全 clip に経過フレームを返す。規約差。
+- `translation_x/y`: keyframe 時刻の clamp 規約差（当初「振動が原因」としたのは誤り。2026-08-22 訂正）。
+  **今日のアプリに実在する不具合**で、native overlay と他経路が同じクリップを最大 19.2px ずれて描いている。
+- `Clipping`: TS はフレームごとに値を変えるが rust-core は静的値を返す。
+
+既知の差分は `rust-core/tests/fixtures/ts-evaluation-parity/KNOWN_DIFFERENCES.json` で
+**ラチェット管理**する。件数が増えたら失敗し、減ったらベースライン更新を促す。R2 でゼロにする。
+
+経路 A が受け付けなかった object は 0 件、経路 B が組めなかった frame も 0 件で、
+比較対象の縮退は起きていない。
+
+### R1: 型の codegen 化（推定 3-4日）★完了 2026-08-22
+
+**結果: 完了。** 詳細は [rust-type-codegen.md](../progress/rust-type-codegen.md)。
+`ts-rs` で TS 型 22 件、`schemars` で JSON Schema 22 件を生成し、手書きミラーを全廃した。
+wire format は不変で R0 の fixture は byte 一致。`npm run codegen:types:check` で drift 検出。
+
+以降のフェーズで型が増えるたびに手動ミラーを書き足すのを止める。**先に入れる。**
+
+- `rust-core` に `ts-rs` を導入し、`schema.rs` の型に `#[derive(TS)]` を付ける。
+- 生成先は `src/generated/rustCore/`。`npm run codegen:types` で再生成。
+- 既存の手動ミラー — `src/utils/editableRustScene.ts` の
+  `EditableRustProject` / `EditableRustClip` 等と、
+  `src/utils/rustSceneSnapshot.ts` の `RustSceneSnapshot` / `RustEffect` 等 —
+  を生成型に置き換える。この時点ではまだ**値の流れは変えない**。型の出どころを変えるだけ。
+- CI に drift 検出を足す（`npm run codegen:types && git diff --exit-code`）。
+- JSON Schema も同時に出す（`schemars`）。`schema/agent-project.schema.json` は R4 で生成物に置換する。
+
+**合格条件**: `npx tsc --noEmit` が現状と同じ、R0 ハーネスが緑。
+
+### R2: 評価ロジックの一本化（推定 8-12日）
+
+> **状態（2026-09-13 確認）: 部分完了。** 評価差 3 クラスの解消（下記 1〜3、447 frame parity 一致）は完了。
+> 経路 B の削除（下記「削除対象」）は未実施で、`Scene_Build_In_Rust_Plan.md` §7 へ引き継いだ。
+
+経路 B を消す。本計画で最も行数が動くフェーズ。
+
+- 削除対象（評価部分のみ）:
+  - `src/utils/easings.ts` の `easingFunctions`
+  - `src/utils/keyframes.ts` の `evaluateObjectPositionAtTime` 等
+  - `src/utils/objectVisibility.ts`
+  - `src/utils/sceneTransforms.ts` の `getGroupTransforms` / `getVibrationOffset`
+  - `src/utils/subjectCropKeyframes.ts`
+  - `src/utils/filterStack.ts` の `getEnabledObjectFiltersInOrder` /
+    `getFadeOpacityMultiplier` / `getPrimaryWipeFilter`（**編集操作は R4 まで残す**）
+- R0 が特定した 3 クラスを潰す。これが R2 の合格条件そのもの:
+  1. `source_frame` の規約を **Rust 側（全 clip に経過フレーム）へ揃える**。
+     着手前の確認（renderer が静止メディアの `source_frame` を本当に無視しているか）は
+     2026-08-22 に完了し、**寄せてよいと確定した**。静止系は生成関数の引数に
+     `source_frame` が無く、キャッシュキーにも入らない
+     （[rust-source-of-truth-evaluation-diff.md](../progress/rust-source-of-truth-evaluation-diff.md)）。
+     ただし `src/utils/rustSceneSnapshot.test.ts` が静止系ほぼ全種で `source_frame: 0` を
+     ピン留めしているので、その更新が実作業の大半になる。
+  2. keyframe 時刻の clamp 規約を揃える。path A は `[startTime, startTime+duration]` へ
+     clamp し、path B は生の時刻を使う。**振動フィルタは無関係だった**（2026-08-22 訂正）。
+     振動の `rust-core` 実装は依然として計画上の宿題だが、現在どの fixture でも
+     行使されていないため、先に振動付きオブジェクトを代表シーンへ足す必要がある。
+  3. Clipping のアニメーションを `rust-core` へ移す（`effects` の件数差もここで解消する）。
+- `rust-core` 側に不足があれば足す。R0 の差分分類で「TS にしか無い暗黙仕様」と判定したものは、
+  Rust 側にテスト付きで移送する。**TS のテストを消すだけにしない。**
+  評価系の TS テストは Rust のテストとして書き直す（Red を Rust 側で立て直す）。
+- `rustSceneSnapshot.ts` は「Zustand の状態から `Project` を組み立てる」だけに縮み、
+  評価は `scene.evaluate` の結果を使う形になる。2,722 行の大半が消える見込み。
+- UI が評価済み値を必要とする箇所（選択枠の描画、PropertyPanel の現在値表示）は
+  `scene.evaluate` の結果を購読する形に付け替える。ここが性能上の要注意点（§7 の設計判断 4）。
+
+**合格条件**: R0 ハーネスが緑（そもそも経路 B が消えるので、ハーネスは
+「移管前の経路 B の記録済み出力」と「移管後の経路 A」の比較に切り替える）、
+golden-frame parity 維持、既存 E2E export の画素一致。
+
+### R3: 編集モデルの正本移管（推定 10-15日）★完了（2026-08-22）
+
+`src/types.ts` の 40+ object kind を `rust-core/src/schema.rs` へ移す。
+
+- object kind ごとに段階移送する。1 コミット 1 kind を原則にする。
+  順序は依存の少ないものから: `shape` → `text` → `image` → `video` → `audio` →
+  生成系（GetColor / hksy / 93 系）→ `psd` → `group_control` → 3D 系。
+  生成系 kind のうち `audio_visualization`/`audio_sphere`/`particle`/
+  `barcode`/`puzzle_piece`/`colour_wheel` の6 kindは2026-08-22に移送完了
+  （`progress/rust-source-of-truth-r3-generated-batch1.md`）。
+  `audio_visualization`/`audio_sphere` は wire 統一（stage 4）を構造的な
+  複雑さ（クロスオブジェクト参照を含む共有ワイヤー型）のため見送り、
+  型移送のみで完了とした。続けて `gourd`/`gear`/`track_bar`/`pie_chart`/
+  `histogram`/`tone_curve` の6 kindも2026-08-22に wire 統一まで完了
+  （`progress/rust-source-of-truth-r3-generated-batch2.md`）。続けて
+  `getcolor_dot_field`/`hksy_checker_grid`/`region_frame`/`simple_tube`/
+  `sphere_dots`/`spherical_field` の6 kindも2026-08-22に移送した
+  （`progress/rust-source-of-truth-r3-generated-batch3.md`）。
+  `getcolor_dot_field` は `sampleSourceObjectId`/`sampleSourceLayer`
+  経由のクロスオブジェクト参照があり `audio_visualization`/`audio_sphere`
+  と同じ理由で wire 統一を見送り、型移送のみで完了とした。残り5 kindは
+  wire 統一まで完了。続けて `sunburst`/`circular_arrow`/`triangle_bracket`/
+  `tartan_check`/`houndstooth`/`yagasuri` の6 kindも2026-08-22に wire 統一
+  まで完了した（`progress/rust-source-of-truth-r3-generated-batch4.md`）。
+  6 kind ともクロスオブジェクト参照・optional フィールドが無いことを
+  確認済み。続けて `paper_airplane`/`asanoha_pattern`/`focus_lines_plus`/
+  `random_line_ex`/`contour_trace`/`displacement_poly` の6 kindも
+  2026-08-22に wire 統一まで完了した
+  （`progress/rust-source-of-truth-r3-generated-batch5.md`）。6 kind とも
+  クロスオブジェクト参照・optional フィールドが無いことを確認済み。
+  `focus_lines_plus` は `rust-core/src/focus_lines.rs` の
+  `focus_lines_frame_bucket_from_source`（wire 文字列を直接パースする
+  独立ヘルパー）とフィールド名を共有しており、wire 統一時に追随修正が
+  必要だった。続けて `plain_effector_line`/`hologram`/`protractor`/
+  `shaking_polygon`/`shattered_sphere` の5 kindも2026-08-22に wire 統一
+  まで完了した（`progress/rust-source-of-truth-r3-generated-batch6.md`）。
+  5 kind ともクロスオブジェクト参照・optional フィールドが無いことを
+  確認済み。この5 kindの着手前に、batch5完了後の追記で
+  `native-wgpu-renderer`/`native-overlay` が `media.source` を独自
+  `Deserialize` 構造体で直接パースする「第六の消費者」であることが判明して
+  いたため（`hologram`/`shaking_polygon`/`shattered_sphere` の3 kind分）、
+  rust-backend側の wire 統一と同時に `native-wgpu-renderer/src/{hksy,
+  shaking_polygon,shattered_sphere}.rs` のローカル struct・fixture literal
+  も追随させた。`shattered_sphere` は TS 側の `gravityX`/`gravityY`/
+  `gravityZ` の3フィールドに対し rust-backend/native-wgpu-renderer 双方が
+  旧 `gravity: [f32; 3]` 表現を持っていたため、個別フィールドへ分解した。
+  **これでR3の生成系 kind 移送は全件完了した**
+  （`psd`/`group_control`/3D 系は未着手で残っている）。続けて
+  `group_control` kindも2026-08-22に型移送のみで完了した
+  （`progress/rust-source-of-truth-r3-group-control-kind.md`）。
+  `group_control` は `targetLayerCount` を用いて同一 layer 以下の
+  他オブジェクトを走査し評価用 `GroupControl.target_track_ids` や
+  transform 積算へ変換するクロスオブジェクト参照を内包するため、
+  `audio_visualization`/`getcolor_dot_field` と同じ理由で wire 統一
+  （stage 4）は見送った。続けて `psd`/3D 系着手前のバッチAとして
+  自己参照型（`SpikeNode`、使い捨て検証後に削除）で ts-rs/schemars が
+  追加対処なしに自己参照型を生成できることを確認し、3D 共有値型
+  `Vec3`/`StageCamera3D`/`PsdWorldPlacement`/`LipSyncSetting` を
+  2026-08-22に型移送した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
+  oxidise-engine 統合（`OxidiseStageViewport.tsx`）は3D型を wire ではなく
+  TS オブジェクトとして消費していることを確認済み。`EditorMode` は
+  `ProjectSettings` 自体が未移送のため見送った。続けて `PsdLayerNode`
+  （バッチB）も2026-08-22に移送完了した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
+  `PsdLayerStruct` は `buildPsdLayerTree` が `PsdLayerNode` + `activeLayerIds`
+  から都度再構築する表示専用の派生ビューであり独立した永続状態ではないと
+  判断し、二重の正本を避けるため TS 側の手書き型のまま残した。
+  `PsdLayerNode` は再帰構造 `PsdLayerNodeFields`（`children: Vec<Self>`、
+  バッチAのスパイクどおり `Box<>` 不要）として移送し、`textureSource`
+  （GPU 専用・非シリアライズ）は `PsdLayerNodeRuntimeFields` として TS 側
+  だけに残す明示合成型（psd は平坦 intersection パターンの例外）で
+  組み立てた。続けて `PsdObject` 本体（バッチC）も2026-08-22に移送完了
+  した（`progress/rust-source-of-truth-r3-psd-kind.md`）。
+  `PsdObjectFields`（`src`/`filePath`/`width`/`height`/`scale`/
+  `rootLayer`/`activeLayerIds`/`lipSync`/`worldPlacement`）を
+  rust-core/schema.rs へ追加し、`layerTree`（表示専用の派生ビュー）と
+  `file`（ブラウザ `File`、ランタイム専用）は Rust 型に含めず TS 側だけの
+  合成フィールドとして残した。`activeLayerIds` はキー順が決定的な
+  `BTreeMap<String, bool>` を採用（消費側が構造比較のみでキー順に
+  依存しないことを確認済み）。`psd` は `image`/`video` と同じ media kind
+  パターンで専用ワイヤー型が無いため stage 3/4（wire統一）は対象外と確認。
+  **これで R3 の 40+ kind 編集モデル移送は全件完了した。**
+  ただし以下は意図的に未対応のまま次段階へ申し送り: `audio_visualization`/
+  `audio_sphere`/`getcolor_dot_field`/`group_control` の4 kindは
+  クロスオブジェクト参照・共有ワイヤー型の構造的複雑さにより wire統一
+  （stage4）を見送り型移送のみで完了させている。3D系のうち
+  `ProjectSettings` 自体（`EditorMode` を含む）は未移送のまま
+  （`worldPlacement`/`lipSync`/`Vec3`/`StageCamera3D` は移送済み）。
+- 各 kind の移送で、`rustSceneSnapshot.ts` の
+  `mediaReferenceForEditableRustScene`（約 870 行のパラメータ写像）から
+  対応部分が消えることを確認する。ここが消えないなら移送できていない。
+- 編集モデルの型を `rust-core/src/schema.rs` へ移しただけでは、
+  `rustSceneSnapshot.ts` 側のフィールド写像コードは消えない。rust-backend が
+  評価・描画時に読む「ワイヤー」（`SceneMediaReference.source` の JSON 文字列）
+  が別の手書き snake_case 型のままだと、TS 側にその変換ロジックが残り続ける。
+  各 kind の移送では、rust-backend 側のデシリアライズ先も rust-core の
+  編集モデル型（camelCase, serde）に直接向け直し、ワイヤースキーマ自体を
+  統一する必要がある（`shape` kind, 2026-08 で実施。
+  `progress/rust-source-of-truth-r3-shape-kind.md` 参照。`text` kind も
+  同じ 3 コミット構成で完了、`progress/rust-source-of-truth-r3-text-kind.md`
+  参照）。これにより
+  `serialiseXxxSource` は「オブジェクトのフィールドをそのまま JSON 化するだけ」
+  の薄いパススルーになり、正規化・フォールバックの知識は Rust 側だけに残る。
+  ただし、この wire 統一が要るのは `mediaReferenceForObject` に
+  その kind 専用の `serialiseXxxSource`（JSON 化された専用ワイヤー型）が
+  存在する場合に限る。`image` kind のように `source` が生のファイルパス
+  文字列そのもので専用ワイヤー型が最初から存在しない「media kind」では、
+  型移送だけで完結し stage 3 は「専用ワイヤーが無いことの確認」に縮む
+  （`progress/rust-source-of-truth-r3-image-kind.md` 参照）。`video` kind も
+  同じ media kind パターンで完結した
+  （`progress/rust-source-of-truth-r3-video-kind.md` 参照）。
+- `src/types.ts` は最終的に生成ファイルの re-export に縮める。
+- `objectFactories` は「既定値を持つ側」なので、既定値も Rust に移す
+  （`Default` 実装 + 生成型の初期値）。
+
+**合格条件**: R0 ハーネス緑、保存済みプロジェクトの読込互換（R4 で正式化するまでは
+既存の `projectFile.ts` が生成型を読める状態を維持）。
+
+### R4: 保存形式・コマンド・レシピの移管（推定 8-12日）★完了 2026-08-22
+
+- `projectFile.ts` の読み書きを `rust-core` へ。TS 側はファイル選択ダイアログと
+  IPC だけを持つ。バージョン移行（V1→V2 等）のロジックも Rust へ。
+- `historySlice` の undo / redo を `rust-core/src/command.rs` へ。
+  MVP の `SetClipOpacity` しか無いところに、実際に使われている編集操作を移す。
+  `filterStack.ts` の編集操作（`addFilterToObject` 等）もここで command 化する。
+- `agentProject.ts` のレシピ解析を `rust-core` へ。
+  `AGENTS.md` の「実行時の唯一の正は `src/agentProject/agentProject.ts` の
+  `parseAgentProjectSpec`」という記述を Rust 側に書き換える。
+  `schema/agent-project.schema.json` は R1 の `schemars` 生成物に置換する。
+- `npm run agent:validate` は Rust を呼ぶ薄いラッパにする。
+
+**合格条件**: `load → save → load` の round-trip identity（`02-rust-core-spec.md` の既存要件）、
+既存 `.uxfd` ファイルの読込互換、`undo(do(state)) == state`。
+
+**進捗（R4-1a・2026-08-22）**: ファイル形式スキャフォールディングの第一歩として
+`BaseObject`/`TimelineObject`（42 kind 判別共用体）/`SceneData`/`ProjectSettings`/
+`CameraState`/`LayerState` を `rust-core/src/schema.rs` へ追加。詳細は
+`progress/rust-source-of-truth-r4-project-file.md` を参照。`ProjectFile` 型・
+マイグレーション・IPC・`projectFile.ts` の書き換えは未着手（R4-1b 以降）。
+
+**進捗（R4-1b・2026-08-22）**: `ProjectFile`/`ProjectFileV1`/`ProjectFileVersioned`
+（V1/V2 untagged union）を `rust-core/src/schema.rs` へ追加し、
+`From<ProjectFileV1> for ProjectFile` で TS 側 `migrateV1ToV2` を移植。
+`rust-core/src/project_file.rs` の純粋関数 `project_file_from_json`/
+`project_file_to_json_value` と、実プロジェクト fixture によるラウンドトリップ
+テスト（`rust-core/tests/project_file_round_trip.rs`）を追加。IPC・
+`electron/`・`projectFile.ts` の書き換えは引き続き未着手（R4-2 以降）。詳細は
+`progress/rust-source-of-truth-r4-project-file.md` を参照。
+
+**進捗（R4-2・2026-08-22）**: `project_file_from_json` の `format`/`version`
+検証を明示チェックへ変更（TS 側 `parseProjectPayloadV2` と同じエラー
+意味論）、`serde_json::Value` 経由の精度劣化（f32→f64 拡大で `1.03` が
+`1.0299999713897705` 化）を避ける `project_file_to_json_string`/
+`_pretty` を新設し、rust-backend RPC（`project.deserialize`/
+`project.serialize`）と Electron IPC
+（`rust-backend-project-deserialize`/`-serialize`、preload・
+`window.rustBackend` 型込み）に配線した。`src/utils/projectFile.ts` の
+実際の置き換え（renderer 側消費）は未着手のまま R4-3 へ持ち越し。詳細は
+`progress/rust-source-of-truth-r4-project-file.md` を参照。
+
+**進捗（R4-3・2026-08-22）**: `src/utils/projectFile.ts` を上記 IPC 経由の
+薄いオーケストレーション層へ縮小（1021 行 → 318 行）。手書き
+`parseProjectPayloadV2` 本体・`migrateV1ToV2`・約 40 個のバリデータを
+削除し、load/save とも `window.rustBackend.deserializeProjectFile`/
+`serializeProjectFile` に一本化（並行 TS 実装は残していない）。
+**これで「保存形式（`.uxfd.json` の読み書き）の Rust 移管」（stream-1A）
+は完了**。R4 の残り 2 ストリーム（`historySlice` の undo/redo コマンド化、
+`agentProject.ts` のレシピ解析移管）は本バッチのスコープ外で未着手のまま。
+詳細は `progress/rust-source-of-truth-r4-project-file.md` を参照。
+
+**進捗（R4-4/R4-5・2026-08-22、stream-1C 完了）**: `agentProject.ts` の
+`parseAgentProjectSpec`/`buildAgentProjectFile` を `rust-core/src/agent_project.rs`
+（`AgentProjectSpec` 判別共用体・`parse_agent_project_spec`・
+`build_agent_project_file`）へ 1:1 移植。`schema/agent-project.schema.json`
+は `codegen_types` の `schemars` 生成物に置換（手書き版にあった
+`additionalProperties: false` 等の制約は生成物には出ないが、実際の TS/Rust
+パーサーはもともとそこまで厳格ではなかった既知の乖離）。
+`rust-core/src/bin/agent_validate.rs`（新設 CLI）が
+`scripts/validate-agent-project.mts`/`npm run agent:validate` の実体になり、
+`src/agentProject/agentProject.ts` の `AGENTS.md` の記述どおり「実行時の
+唯一の正は `parseAgentProjectSpec`」は Rust 側（`agent_project.rs`）に
+書き換えた。renderer（`src/main.tsx`）は実行時に `buildAgentProjectFile` を
+呼ぶため、`project.deserialize`/`serialize` と同じ IPC パターンで
+`agent.buildProjectFile` RPC を rust-backend に新設し、
+`src/agentProject/agentProject.ts` はその薄い非同期デリゲーションのみに
+縮小（566 行 → 79 行）。詳細は
+`progress/rust-source-of-truth-r4-agent-project.md` を参照。
+
+**進捗（R4-6・2026-08-22、stream-1B の第一歩）**: `rust-core/src/command.rs`
+を MVP（`SetClipOpacity` のみ、R0 由来の `Project`/`Clip` モデル対象）から
+二層構成へ拡張。`historySlice.ts` が実際にスナップショットする状態
+（`objects`/`layers`/`camera`/`stageCamera3D`、すなわち `SceneData`）を
+対象に、42 kind 共通の汎用フィールド編集
+`Command::SetObjectField { object_id, field, next, previous }` を実装。
+`SetClipOpacity` は外部からの参照がないことを確認の上、
+`SetObjectField` へ fold して廃止した。構造コマンド（AddObject/
+RemoveObject/ReorderLayer/Filter 系/SetCamera/SetStageCamera3D）は
+R4-7 で追加する。`undo(do(state)) == state` を実フィクスチャ由来の
+`SceneData` と実在する (object, field) ペアの網羅で proptest 検証。
+`Command` を `codegen_types` に登録し TS 型をロック（IPC 配線・
+`historySlice.ts` の書き換えは R4-8 で行う）。詳細は
+`progress/rust-source-of-truth-r4-commands.md` を参照。
+
+**進捗（R4-7・2026-08-22、stream-1B の第二歩）**: `Command` 第二層
+（構造コマンド）を実装。`AddObject`/`RemoveObject`（index 保持で
+invert 対称性を厳密に固定）、`SetLayerState`/`ReorderLayers`
+（`layerSlice.ts` のトグル系は `LayerState` 丸ごと swap、
+swap/insert/delete track 系は `layerTrackOps.ts` の複雑な object.layer
+リマップを TS 側に残したまま `SceneData` 全体を差し替える設計）、
+`AddFilter`/`RemoveFilter`/`ToggleFilterEnabled`/`MoveFilter`/
+`UpdateFilterParams`（`filterStack.ts` の 5 編集操作に 1:1 対応、
+`MoveFilter` は direction ではなく from/to index 基準で「端での
+クランプ無操作」を invert 対称に保つ）、`SetCamera`/
+`SetStageCamera3D`（丸ごと swap）を追加。`CommandError` に
+`DuplicateObjectId`/`IndexOutOfRange`/`IndexMismatch`/`FilterNotFound`/
+`InvalidFilterPatch` を追加。単体 19 件 + proptest 3 件で全 28 テスト
+green。`Command` の TS 型を再生成しロック。tsc/フル cargo test/
+codegen:types:check/fixture parity（差分ゼロ）/vitest 253 ファイル
+1832 件、全て合格。IPC 配線・`historySlice.ts`/`layerSlice.ts`/
+`filterStack.ts`/`useStore.ts` の書き換えは R4-8/R4-9 で行う。詳細は
+`progress/rust-source-of-truth-r4-commands.md` を参照。
+
+**進捗（R4-7b・2026-08-22）**: R4-8 のブロッカー記録（複数オブジェクトへ
+同時作用する 11 の UI 操作は単一 `Command` で表現できない）を受けて、
+`Command` enum へ `Batch { commands: Vec<Command> }` を追加。apply は
+all-or-nothing（途中失敗で元 scene は無変更）、invert は逆順 + 各要素
+invert、入れ子 Batch と空 Batch はいずれも `CommandError` で拒否。
+単体 2 件 + proptest 1 件を追加（rust-core 全 33 テスト green）。TS 側
+`invertCommand.ts` にも `batch` ケースを追加し、専用テストファイル
+（3 件）を新設。tsc/フル cargo test/codegen:types:check/fixture parity
+（差分ゼロ）/vitest 255 ファイル 1841 件、全て合格。詳細は
+`progress/rust-source-of-truth-r4-7b-command-batch.md` を参照。R4-8
+group c 以降で該当 11 箇所を `Batch` へ配線する作業が残る。
+
+**進捗（R4-8・2026-08-22、stream-1B 完了）**: `historySlice.ts` を
+スナップショット方式（`pastStates`/`futureStates`/`pushHistory`/`undo`/
+`redo`）から command stack 方式（`pastCommands`/`futureCommands`/
+`pushHistoryCommand`/`undoCommand`/`redoCommand`）へ全面移行した。
+group b でまず dual-API（新旧併存）として追加し、group c〜e で
+`useStore.ts`(17)/`layerSlice.ts`(3)/`TimelineItem.tsx`(1)/
+`OxidiseStageViewport.tsx`(1)/`PropertyPanel.tsx`(7)/
+`useSceneInteraction.ts`(3) の計 34 呼び出し箇所を段階的に
+`pushHistoryCommand` へ移行し、group f で旧 API を削除した
+（ドラッグ/リサイズ系は「開始時に前値を捕捉→終了時に diff して 1 回だけ
+push」パターンに統一し、per-frame emitter 化を回避）。undo/redo は
+`command.apply` IPC 往復の非同期処理（bridge 不在 no-op、ignore-while-
+pending、apply 失敗時は状態変更なし）。tsc/フル cargo test
+(rust-core・rust-backend)/codegen:types:check/fixture parity（差分ゼロ、
+`KNOWN_DIFFERENCES.json` は `[]` 維持）/vitest 257 ファイル 1854 件、
+全て合格。詳細は `progress/rust-source-of-truth-r4-8-command-ipc.md`
+（group a〜f 全記録）を参照。
+**stream-1B（`historySlice` の command 化）はこれで完了と判定する**。
+ただし `filterStack.ts` 本体（`addFilterToObject`/
+`toggleFilterEnabledInObject`/`moveFilterInObject`/
+`removeFilterFromObject`/`updateFilterParamsInObject` の実装、および
+Rust 側フィルタコマンドとの厳密な legacy フィールド同期）は今回の
+スコープ外のまま **R4-9 として独立に残っている**（R4-8 は「filter 系
+Command との配線」のみを行い、`filterStack.ts` の実装移送そのものは
+一切行っていない）。R4 全体の完了判定は R4-9 の着地を待つ。
+
+**進捗（R4-9・2026-08-22、R4 完了）**: R4-8 が残していた「フィルタ系
+Command は `filters` 配列のみ同期し legacy ミラーフィールド
+（`colorCorrection`/`customClipping`/`vibration`/`shadow`/`gradient`）を
+同期しない」忠実性ギャップを解消した。legacy フィールドの廃止予定が
+記録上どこにも見当たらないことを確認した上で、`materialiseSyncedObject`
+（`filterStack.ts`）相当のロジックを Rust 側 `apply_command` へ移植する
+方針（オプション a）を採用し、`rust-core/src/command.rs` に
+`sync_legacy_effects_with_filters` を新設して `AddFilter`/`RemoveFilter`/
+`ToggleFilterEnabled`/`MoveFilter`/`UpdateFilterParams` 全 5 コマンドの
+適用末尾で呼ぶようにした。`filterStack.ts` の 5 編集操作は forward 経路
+（UI からの同期的な state 更新）専用の実装として現状必要最小限のため
+無改修（行数差分ゼロ）。`command_undo.rs` にラウンドトリップ確認込みの
+テスト 3 件を追加し全 36 件 green。tsc/フル cargo test（rust-core・
+rust-backend）/codegen:types:check（差分ゼロ）/fixture parity（447 フレーム、
+`KNOWN_DIFFERENCES.json` `[]` 維持）/vitest 257 ファイル 1854 件（TS 側
+無改修のため R4-8 group f と同数）、全て合格。詳細は
+`progress/rust-source-of-truth-r4-filter-stack.md` を参照。
+**これで R4 の合格条件（load→save→load round-trip identity、`.uxfd`
+読込互換、`undo(do(state))==state`）を全て満たし、R4 全体（stream-1A/
+1B/1C）を完了と判定する。** 副次的に判明した既知のギャップ
+（`updateObjectFilterParams` アクションが `pushHistoryCommand` を
+一切呼んでおらず、フィルタパラメータのスライダー編集が undo/redo 対象外
+になっている可能性）は本バッチでは対応せず記録のみに留めた
+（次バッチ候補）。
+
+### R5: PSD 単一実装化（推定 5-8日）★完了 2026-08-22
+
+- **R5-1（完了）**: `rust-backend/src/psd_fast.rs` の meta-only 解析経路に
+  16-bit/32-bit depth の明示拒否ガードを追加した。`PsdFastResult` に
+  `depth` フィールドを露出し、`parse_psd_meta_only` が depth != 8 を拒否する。
+  実デコード対応はスコープ外（ag-psd 経路も `depth: 8` を決め打ちしているため
+  既存動作からの後退ではない）。
+- **R5-2（完了）**: `psd-wasm` クレートの扱いを決定した（§8 設計判断 5 =
+  **削除で確定**）。**現在デッドコード**だったため、クレート本体・
+  `src/wasm/psd/` のビルド成果物・`perf/wasm-node/`・`perf/bench-psd.mjs`
+  を削除した。`perf/bench-psd.mjs` は `vm_tuning_research/tools/bench-wasm.mjs`
+  と同じ計測（wasm-node package 前提）を重複して持っていたベンチであり、
+  wasm 成果物が無いと動かない点も同じだったため、移送ではなく削除とした。
+- **R5-3（完了）**: `src/utils/psdParser.ts` の `parsePsdAsObject`（import 経路）を
+  `parsePsdViaRustMeta`（`psd.parseMeta` RPC、meta-only）1 本に畳んだ。
+  `?psdRustImport=1` フラグゲート・`parsePsdViaWasm`・`parsePsdViaRust` は削除。
+  `parsePsdArrayBufferAsObject` は `projectFile.ts` の復元経路（R5-5 まで）用に
+  関数のみ残置（移行中コメント付き）。RPC 失敗時は日本語エラーを投げ、
+  フォールバックしない設計に変更。R5-7 用パリティベースラインを
+  `rust-backend/tests/fixtures/psd-parity/aoi-chan-agpsd-baseline.json` に追加。
+  詳細は `progress/rust-source-of-truth-r5-psd-unification.md` の R5-3 節。
+- **R5-5（完了）**: `src/utils/projectFile.ts` の `restorePsdObjectFromFile`
+  （保存済みプロジェクトの PSD 復元経路、R5-3 完了時点で唯一残っていた
+  `parsePsdArrayBufferAsObject` 呼び出し元）を `psd.parseMeta` RPC
+  （`psdParser.ts` 新規 export `parsePsdMetaFromPath`）へ移行。TS 側で
+  PSD 全バイトを読んでいた `readFileBytes` は不要になり削除（Rust が
+  `fs::read` を自前で行うため）。失敗時 UX（ファイル欠落等で保存済み
+  静的ツリーを保持したまま `file` だけ外すフォールバック）は変更なし。
+  `parsePsdArrayBufferAsObject` はプロダクション呼び出し元が 0 件になり、
+  R5-4 で削除する方針にコメント更新。詳細は
+  `progress/rust-source-of-truth-r5-psd-unification.md` の R5-5 節。
+  `psdWasm.ts`/`psdAgPsdWorker.ts`/`parsePsdArrayBufferAsObject` のファイル・
+  関数削除（R5-4）、`package.json` の `ag-psd` 除去（R5-6）は未着手。
+  R5-4 は着手条件が揃った状態（本バッチで `parsePsdArrayBufferAsObject`
+  のプロダクション呼び出し元がゼロになった）。
+- **R5-4/R5-6（完了）**: レガシー PSD 経路を削除し ag-psd を撤去、CI 用
+  PSD インポート e2e ゲートを新設した。`psdWasm.ts`/`psdAgPsdWorker.ts`、
+  `psdParser.ts` の `parsePsdArrayBufferAsObject`（および ag-psd/wasm 専用の
+  内部ヘルパー群）、対応テスト2本（`psdParserArrayBufferWasm.test.ts`/
+  `psdParser.perf.test.ts`）を削除。`electron/main.ts` の `'parse-psd'`
+  IPC ハンドラ（psd.parse + 二段階 blob 待ち）を削除、`'parse-psd-meta'`/
+  `'render-psd-composite'` は無改修。`rust-backend` は `handle_psd_parse`
+  （media.rs）と `psd.parse` dispatch entry を削除、`psd_blob_result`/
+  `psd.await_blob` は `psd.renderComposite` と共有状態のため維持
+  （cargo test フルで renderComposite 系が green のまま）。`package.json`
+  から `ag-psd` を除去し `npm install` でロックファイル更新。
+  `remoteDeckPsdLayers.e2e.test.ts`（実 PSD 全数検証、parsing 以外に
+  CommandBus→property.set→activeLayerIds の全数検証というカバレッジを
+  持っていた）は削除ではなくリワークを選択: R5-3 パリティベースライン
+  （`aoi-chan-agpsd-baseline.json`）を `psd.parseMeta` RPC 応答形式へ変換し
+  `parsePsdMetaFromPath` の注入 `bridge` 経由で流し込む形にし、
+  ag-psd 依存とテスト内の Node canvas/DOM モックを排除しつつ本番と同じ
+  ツリー構築コード（`parsePsdMetaViaRust`）を通すよう変更（6テスト全て
+  green、実行時間はミリ秒オーダーに短縮）。
+  CI e2e ゲート: `src/e2e/psdImportParityHarness.ts`
+  （`?psdImportParityE2e=1` で有効化、`window.__UXFD_PSD_IMPORT_PARITY_E2E__`、
+  `initVisibility` と同一アルゴリズムを再計算して `activeLayerIds` を
+  厳密比較）と `scripts/run-psd-import-e2e-parity.mjs`
+  （`npm run test:psd-import:e2e`）を新設。実 Electron + 実 rust-backend で
+  葵ちゃん.psd を実際にインポートし、レイヤーツリー構造（ノード数・名前・
+  入れ子・isGroup/isRadio）を R5-3 ベースラインと機械 diff、
+  `activeLayerIds` 初期値を再計算値と突合。タイミング計測はしない
+  （計測は引き続き研究用の `scripts/run-psd-import-e2e.mjs` が担当）。
+  このマシンで実行し green（exit 0）を確認済み。詳細は
+  `progress/rust-source-of-truth-r5-psd-unification.md` の R5-4/R5-6 節。
+
+**合格条件**: `npm run test:psd-import:e2e` 相当が緑、代表 PSD の目視一致。
+（R5-4/R5-6 で `npm run test:psd-import:e2e` を実装し、このマシンで green
+達成——上記参照）
+
+- **R5-7（完了、★2026-08-22 R5 全体完了と判定）**: 最終検証と完了判定。
+  display 経路（`build_psd_source_frame`／`source_frames.rs`／
+  `decode_control_plane.rs`／`native-overlay/`／`native-wgpu-renderer/`）が
+  R5 全体を通じて無改修であることを `git diff` で確認した上で、実 Electron
+  で葵ちゃん.psd を import して CDP スクリーンショットを撮る経験的確認を
+  実施（`scripts/run-psd-visual-parity-capture.mjs`、一回限りの検証
+  スクリプト）。**結果**: import・タイムライン・レイヤーパネル表示は
+  正常だったが、プレビュー領域は native-overlay が Chromium ページ
+  サーフェスとは別の OS 合成レイヤーで描画しているため CDP screenshot には
+  写らず黒一色になった。このため pre-R5 との pixel diff（worktree 比較）は
+  「両方とも黒一色で無情報」と判明した時点で実施を見送り、代わりに
+  display 経路無改修の事実 + `cargo test` の renderComposite/PSD 表示系
+  green + VM 研究（`vm_tuning_research/notes/tachie-corpus-parity.md`、
+  **33/33 ファイル完全一致**）を根拠に判定した。厳密な意味での目視一致
+  （実際にピクセルを見て確認）は達成できていない点を正直にギャップとして
+  記録。計画突き合わせ（R5-1〜R5-6 の各節・ADR-015 前提条件）は齟齬なし、
+  コードベース内の削除済みモジュールへの壊れた参照（`rg
+  psdWasm|psdAgPsdWorker|ag-psd|parsePsdArrayBufferAsObject`）もゼロだった
+  （修正不要）。全ゲート再実行で green を再確認: `tsc --noEmit` clean、
+  `cargo test`（rust-backend フル・rust-core フル・`ts_evaluation_parity`）
+  全 green、`vitest run` 255 files/1850 tests 全 green（無変化）、
+  `fixture:evaluation-parity`（447 フレーム、`KNOWN_DIFFERENCES.json` は
+  `[]`）、`test:psd-import:e2e` green。詳細は
+  `progress/rust-source-of-truth-r5-psd-unification.md` の R5-7 節。
+  **R6（描画の単一実装化）は引き続き Windows W7 完了が前提条件で未着手。**
+  R5-7 で判明した「native-overlay の内容を CI で目視確認する手段が無い」
+  という制約は R6 のスコープにも引き継がれる。
+
+**R5 全体（R5-1〜R5-7）を★完了と判定する（2026-08-22）。**
+
+### R6: 描画実装の整理（presenterのinterim専用縮小、推定 6-9日）★Windows W7完了（stage7まで）が前提
+
+- **前提の修正（2026-08-23、W7最終設計により判明）**: W7の最終設計
+  （`progress/windows-w7-async-attach.md` stage3以降）では、Windowsの動画クリップを
+  含むシーンはnv12パイプライン完成まで（essential attach解決後さらに中央値約13秒、
+  launch起点で中央値約43秒、cold cache時は最大約58秒の可能性を含む——mainpc実機3回
+  計測）WebGPU presenterでの表示を継続する設計が恒久的に採用されている
+  （`src/utils/nativeOverlayNv12Gate.ts`の`shouldRouteFrameToNativeOverlay`）。
+  これはfallbackではなく設計上必須のコンポーネントであり、原R6の前提
+  「両プラットフォームでfallback不要」は成立しない。presenterの全面削除は行わない。
+- `sharedRendererWebGpuPresenter.ts` (1,484行) を、動画クリップシーンのinterim表示に
+  必要な最小限（背景合成＋動画テクスチャ描画）へ縮小する。非video-sceneの表示分岐、
+  複雑エフェクトスタックの重複実装は削除する（native overlayが既にessential ready
+  の時点でそれらを担っているため）。
+- `sharedRendererPreviewPresenterController.ts` (1,214行) /
+  `sharedRendererViewportPresenterOrchestration.ts` (426行) はpresenter⇔overlay
+  切替ロジック（`nativeOverlayLifecycleState`と`shouldRouteFrameToNativeOverlay`
+  ゲートに整合する部分）のみ残し、それ以外のpresenter専用分岐を畳む。
+- `sharedRendererExportFrameSource.ts` / `projectExportFrameCanvas.ts` /
+  `viewportRustExportFrameSource.ts` がpresenterから型のみ
+  （`SharedRendererPresentedFrameSharedFrameTaker`）を再利用している依存を、
+  独立の型定義ファイルへ切り出して解消する（export経路のpresenter本体への実行時
+  依存はそもそも無い）。
+- `Viewport.tsx` の`nativeOverlayLifecycleState`（`'presenter'|'attaching'|'overlay'`）
+  状態機械はそのまま維持する（W7 stage3で正式化済みの恒久設計）。
+- ADR-011「presenterをparity比較用に残す」を、縮小後presenterの位置づけ
+  （Windows interim専用＋縮小規模のparity用途）に合わせて改訂する。
+
+**合格条件（改訂）**:
+- Windowsのnv12 attach窓中、動画クリップを含むシーンで黒フレーム・クラッシュ・
+  パニックが発生しない（既存の`nativeOverlayNv12Gate.test.ts` 6件＋実機smoke検証
+  を維持）。
+- `src/` 配下のWGSL文字列は縮小後の`sharedRendererWebGpuPresenter.ts` 1ファイル
+  のみに限定する（0件ではない。理由は上記前提修正を参照）。
+- macOSでは`nativeOverlayLifecycleState`が実質即時`'overlay'`へ遷移し、presenter
+  が表示上使われる窓が実質ゼロであることを維持する。
+- **（2026-08-23 バッチ3で再改訂）** 当初の「原ファイルの概ね1/3〜1/2以下」は
+  「presenterに非video分岐・重複effect stackが大量に残っている」という誤った
+  前提に基づく目標値だった。バッチ2の監査で判明した通り、`sharedRendererWebGpuPresenter.ts`
+  は元から「背景合成＋動画テクスチャ描画＋export用readback/handoff」のみの薄い
+  構成であり、削るべき重複ロジックの絶対量が前提より少ない。バッチ3で
+  `sharedRendererPreviewPresenterController.ts` /
+  `sharedRendererViewportPresenterOrchestration.ts` も同じ厳格さで監査した結果、
+  いずれも公開exportに未使用（死コード）が無く、ロジックはRust側
+  （`loadSharedRendererRust*Builder`系）へ処理を委譲する薄いオーケストレーション
+  ／ライフサイクル管理であることを確認した。よって行数比率での合格条件は撤回し、
+  以下へ差し替える:
+  **presenterスタック（`sharedRendererWebGpuPresenter.ts` /
+  `sharedRendererPreviewPresenterController.ts` /
+  `sharedRendererViewportPresenterOrchestration.ts`）は監査済みで、死コード・
+  Rust重複ゼロ、実装は表示専用の薄層のみであること（実測行数を記録する。
+  バッチ3時点: 1,351行 / 1,211行 / 426行、計2,988行）。**
+  安全に立証可能な重複（同一WGSL文字列の複数`createShaderModule`呼び出し、
+  クリアのみのレンダーパスの重複実装）はテストで挙動をpinした上で統合し、
+  立証できない統合（レンダーパイプラインの実体そのものの統合など、
+  bind group layout解決がテストモック側でラベル文字列に強く結合しており
+  安全な等価性証明ができないもの）は統合せず理由を記録する
+  （`progress/rust-source-of-truth-r6-presenter-shrink.md` バッチ3参照）。
+
+**次善策として記録する未採用案**: 完全削除＋静的プレースホルダinterim
+（Windowsで動画を含むプロジェクトを開くたび最大約1分、動画プレビューが見えなくなる
+UX後退のため不採用）。シェーダ再構成によるattach<5秒化後の完全削除（nv12コンパイル
+時間短縮の見込み未確立のため着手不可。将来短縮されたら本節を再評価し原R6案へ回帰
+する余地を残す）。加えてpresenterは現状CI/CDPで視覚検証できる唯一の描画経路である
+（native overlayは別OS合成レイヤーのためCDPでは黒画面——R5-7の記録参照）ことも
+縮小維持の理由に含む。
+
+**R6完了判定（2026-08-23、バッチ3）**:
+
+改訂後の合格条件に対する充足状況:
+
+| 合格条件 | 状態 |
+|---|---|
+| nv12 attach窓中の黒フレーム・クラッシュ・パニック無し（`nativeOverlayNv12Gate.test.ts`等） | 満たす（バッチ1〜3で変更なし、`npx vitest run`全green） |
+| WGSL文字列は`sharedRendererWebGpuPresenter.ts` 1ファイルのみ | 満たす（`rg "wgsl|createShaderModule" src --type ts -l`で本体1件＋test 2件のみ確認、ストラグラー無し） |
+| macOSで`nativeOverlayLifecycleState`が実質即時`'overlay'`（presenter表示窓が実質ゼロ） | 満たす（W7時点の実装から変更なし） |
+| presenterスタック監査済み・死コード/Rust重複ゼロ・表示専用の薄層のみ | 満たす（バッチ2・3の監査。3ファイルとも公開exportに未参照ゼロ、ロジックはRust builderへの委譲とライフサイクル管理のみ） |
+
+4条件すべて満たすため、**R6 ★完了（2026-08-23）**と判定する。
+
+`npx tsc --noEmit`エラーなし、`npx vitest run` 258 files / 1868 tests 全green
+（バッチ1・2と同数、退行なし）。Rust側の変更は本バッチでは無いため`cargo test`
+は対象外（`submitClearOnlyPass`統合はTS側のみのリファクタ）。
+
+PhaseVerは「既存挙動を変えないリファクタ＋ドキュメント改訂」のため、
+`package.json`のSubVerを1つ進める（該当ファイルがあれば）。新機能・重大バグ修正
+ではないためPhaseVerの繰り上げは行わない。
+
+### 思想上の残り（責務台帳）
+
+R6完了時点でも、「TSはUIに徹しRustが描画・状態を単一実装する」という本計画の
+思想に対して、TS側に**UI以外のロジック**が残っている箇所が4つある。いずれも
+即時解消の対象ではなく、将来課題として台帳化しておく。
+
+1. **クロスオブジェクト配線マッピング**（`editableRustScene.ts` /
+   `rustSceneSnapshot.ts`内、`audio_visualization` / `audio_sphere` /
+   `getcolor_dot_field` / `group_control`のオブジェクト間参照解決）:
+   Rustスナップショットと編集UIの間でオブジェクトIDの相互参照を組み替える
+   ロジックがTS側に残る。Rust側スナップショット形式が配線情報を直接持てば
+   解消できるが、スナップショットスキーマ変更を伴うため本計画の別フェーズ
+   （R7以降のドキュメント更新では対応しない設計変更）で扱う。
+   **→ 調査済み・保留（2026-09-13）**: Rust到達時点で解決入力が失われているため、
+   関数単位の移管は不可と判断。「編集用object graphをRustへ渡し評価用Project/mediaを
+   Rustで構築する」再設計が前提（`progress/cross-object-wiring-to-rust.md`）。
+2. **`filterStack.ts`の編集関数群のforward path**: フィルタスタックの
+   追加・削除・並べ替え操作をTS側で計算してからRustへ送る往路ロジックが
+   残る。Rust側に同等の編集APIを実装すればTSは呼び出しのみになるが、
+   フィルタ編集APIの新設はR6のスコープ外。
+   **→ 解消（2026-09-13）**: 5つのフィルタ編集コマンドのapplyをrust-coreの単一実装とし、
+   TS往路関数を削除した（`progress/filter-stack-forward-path-to-rust.md`）。
+3. **`layerTrackOps.ts`のreorder計算**: レイヤー/トラックの並べ替え時の
+   インデックス再計算をTS側で行っている。Rustスナップショットの
+   並べ替えAPIが無いための暫定実装。
+   **→ 解消（2026-09-13）**: swap/insert/delete をrust-coreのCommandとして実装し、
+   `layerTrackOps.ts`と`ReorderLayers`を削除した（`progress/layer-track-reorder-to-rust.md`）。
+4. **interim presenterの最小実装（プラットフォーム強制）**:
+   本R6節で扱った`sharedRendererWebGpuPresenter.ts`本体。Windowsのnv12
+   attach窓という設計上の制約により恒久的にTS側描画コードが残る
+   （上記「前提の修正」参照）。将来nv12コンパイル時間が大幅短縮されれば
+   再評価の余地があるが、現時点では解消不能な既知の残存。
+
+### R7: ドキュメント正本の更新（推定 1-2日）★完了 2026-08-23
+
+- `architecture/00-overview.md` の層構成を実態に合わせる。
+- ADR-014 / 015 / 016（§5）を `01-decision-record.md` へ転記。
+- `AGENTS.md` のレシピ正本の記述を Rust 側へ。
+- `02-rust-core-spec.md` を「MVP 仕様」から「実装済み全体仕様」へ更新。
+
+**進捗（R7・2026-08-23、完了）**: `architecture/00-overview.md` の層構成を、
+rust-core を編集モデル/評価/保存形式/コマンド/レシピの正本、rust-backend を
+`project.*`/`command.*`/`agent.*`/`psd.parseMeta` を含む RPC サーフェス、
+native overlay を両プラットフォーム既定 ON の描画経路、TS 層を UI・ダイアログ・
+IPC オーケストレーション・（Windows nv12 窓限定の）interim presenter へ縮小、
+という実態に更新した。ADR-014/015/016 を `01-decision-record.md` へ提案文そのまま
+ではなく「決定」「理由」に加えて「実装結果」「実装からの逸脱」を追記する形で転記し、
+ADR-011 の 2026-08-23 改訂（presenter を interim 専用へ位置づけ変更）と整合させた。
+`AGENTS.md` のレシピ正本記述は R4-5 で既に更新済みであることを確認し、修正不要と
+判定した。`02-rust-core-spec.md` は「MVP 仕様」の節を歴史的記述として明示しつつ、
+「モデル概要」「Timeline Evaluation（実装）」「Command / Undo（実装、二層構成）」
+「Project File API（実装）」「Agent Project API（実装）」「PSD Meta Parsing（実装）」
+の各節を新設し、42 kind schema・二層 Command + Batch・`project_file.rs`・
+`agent_project.rs`・`psd_fast.rs` の実装済み範囲を仕様レベルで記述した（網羅的な
+API ダンプは避け、ソースへのポインタに留めた）。`rg` によるスイープで
+`ag-psd`/`psd-wasm`/`parse-psd` IPC/`parseAgentProjectSpec`/`pushHistory` スナップショット
+undo への現在形の言及が生きた設計文書に残っていないことを確認した（`Implementation_Plan.md`/
+`Walk_Through.md`/`PSD_WASM_Challenge.md`/`Task.md`/`progress.md` にある言及はすべて
+日付付き変更履歴または削除済みモジュールの記録として妥当な歴史的記述であり、
+修正対象ではないと判定）。`Windows_Port_Plan.md` の `Rust_Source_Of_Truth_Plan.md` への
+相互参照、および Windows native overlay 既定 ON 化（Phase 7 STAGE 群）の記述は
+現状と整合していることを確認した（修正不要）。ゲート: 変更対象がすべて markdown の
+ため `npx tsc --noEmit` はコード非依存だが実行して既存 clean を確認、コード変更が
+無いため `npx vitest run` の対象範囲は無し（AGENTS.md はコードではないため対象外と判断）。
+これで **R0-R7 の全フェーズが完了**し、`Rust_Source_Of_Truth_Plan.md` の当初ゴール
+（`00-overview.md` 基本方針 1・2・8 の充足）を実装とドキュメントの両面で達成した。
+
+## 5. 提案 ADR
+
+ADR-012 は `Windows_Port_Plan.md` が予約済みのため、014 から採番する。
+
+### 提案 ADR-014: `rust-core` を編集モデル・保存形式・評価の唯一の正本とし、TS 型を生成物にする
+
+- **決定**: project model、`.uxfd` 保存形式、timeline / keyframe / easing / visibility /
+  group transform / filter stack の評価、command / undo、validation の正本を `rust-core` に置く。
+  TypeScript の対応する型は `ts-rs` による生成物とし、手書きしない。
+- **理由**: 現在 easing とキーフレーム評価は TS と Rust に同じものが 2 実装あり、
+  評価経路も 2 本走っている。preview と export の差異は動画編集アプリで最も避けるべき不具合であり
+  （ADR-003 の理由と同じ）、評価が二重にある限り構造的に防げない。
+- **却下案 (A)**: TS を正本にして Rust を従属させる。
+  export / native overlay / sidecar のすべてが Rust 側にあり、
+  正本を TS に置くと毎フレーム TS の評価結果を Rust へ送り続けることになる。現状がそれ。
+- **却下案 (B)**: 手動ミラーのまま境界テストで担保する。
+  object kind が 40 を超えた時点でテストの網羅コストが実装コストを上回っている。
+
+### 提案 ADR-015: PSD 解析を自前 Rust 実装に一本化し `ag-psd` を落とす
+
+- **決定**: PSD 解析は `rust-backend/src/psd_fast.rs` を唯一の実装とし、
+  `ag-psd` 依存と `psdWasm.ts` の Worker 実装を削除する。
+- **理由**: 解析実装が 3 つ（ag-psd / デッドコードの `psd-wasm` / `psd_fast.rs`）あり、
+  レイヤー名の文字化けのような互換性バグを直すたびに複数箇所を触る必要がある。
+- **前提条件**: 借用 VM の PSD parser 研究で ag-psd 同等以上が確認できていること。
+  出ていなければ本 ADR は保留する。
+- **却下案**: ag-psd を残し Rust をエクスポート専用にする。
+  preview と export で PSD の解釈が割れる余地が残る。
+
+### 提案 ADR-016: preview 描画を native overlay 単一経路にし TS WebGPU presenter を廃止する
+
+- **決定**: `sharedRendererWebGpuPresenter.ts` の内蔵 WGSL と描画経路を削除し、
+  preview 描画を native overlay（ADR-011 / ADR-013 / ADR-012）のみにする。
+- **理由**: `architecture/00-overview.md` 基本方針 8 の実装。
+  現状 WGSL が TS 側と `native-wgpu-renderer` の 2 箇所にある。
+- **前提条件**: macOS / Windows の両方で native overlay が既定 ON（Windows_Port_Plan W7）。
+- **却下案**: presenter を parity 比較用に残す。
+  比較用に残すなら「使われない経路を保守し続ける」ことになり、
+  実際には parity 検証は golden-frame harness が担っている。
+
+## 6. リスクと退避
+
+| リスク | 影響 | 退避 |
+|---|---|---|
+| **R2 で `rustSceneSnapshot.ts` に埋もれた暗黙仕様を落とす** | 高 | R0 の差分ハーネスで先に洗い出す。分類できない差分が残る間は R2 に入らない |
+| 評価系の TS テストを消して退行検出力が落ちる | 高 | 削除ではなく移送する。Rust 側で Red を立て直してから TS を消す規律を各コミットで守る |
+| `scene.evaluate` の RPC 往復が UI 追従に間に合わない | 中 | 実測 0.4-4ms。間に合わなければ napi addon 直呼びへ切替（§7 の設計判断 4）。R2 の早期に測る |
+| R3 の 40+ kind 移送が長期化し他の開発を止める | 中 | 1 コミット 1 kind。途中で止めても TS と Rust が混在した状態で動くように設計する |
+| `ag-psd` 廃止で PSD 互換性が落ちる | 中 | 借用 VM の研究結果を合格条件にする。出ていなければ ADR-015 を保留し R5 を飛ばす |
+| R6 が Windows W7 待ちで無期限に延びる | 中 | R5 で一度区切り、本計画の価値を確定させる。R6 は独立した後続扱いにする |
+| codegen 生成物のコミット運用が崩れる | 低 | CI で drift 検出（`git diff --exit-code`）。生成物はコミットする（§7 の設計判断 2） |
+| W4 の wgpu 昇格と R レーンが同時進行して切り分け不能になる | 中 | W4 は単独レーンにする。§3 の順序を守る |
+
+## 7. 工数感
+
+| Phase | 内容 | 推定 |
+|---|---|---|
+| R0 | 二重評価の差分ハーネス | 1-2日 |
+| R1 | 型の codegen 化 | 3-4日 |
+| R2 | **評価ロジックの一本化** | **8-12日** |
+| R3 | **編集モデルの正本移管** | **10-15日** |
+| R4 | 保存形式・コマンド・レシピの移管 | 8-12日 |
+| R5 | PSD 単一実装化 | 5-8日 |
+| R6 | 描画の単一実装化（W7 前提） | 5-8日 |
+| R7 | ドキュメント正本の更新 | 1-2日 |
+
+**本計画のみで 41-63 営業日。** R2 / R3 が支配的。
+
+`Windows_Port_Plan.md` の 17-27 日と合わせると、両計画の合計は **58-90 営業日**。
+ただし §3 のとおり W4 以降は並行できるため、直列合計にはならない。
+R5 までで区切る場合（R6 / R7 を後続扱い）は本計画 35-53 日。
+
+**★2026-08-23、R0-R7 全フェーズ完了。** 実際の所要は本文書の各フェーズ節・
+`progress/rust-source-of-truth-*.md` の記録を参照。
+
+## 8. 着手前に確定したい設計判断
+
+1. **`ts-rs` か `schemars` + quicktype か。**
+   `ts-rs` は Rust の型から直接 TS を出す。`schemars` は JSON Schema を経由するため
+   レシピ用スキーマと共通化しやすい。両方入れる案もある（`ts-rs` で TS 型、`schemars` で Schema）。
+2. **生成物を git にコミットするか、ビルド時生成にするか。**
+   コミットする案を推す（差分がレビューに乗る、Rust ツールチェーン無しで `npm install` が通る）。
+3. **R2-R4 の間の「二重運転期間」をどこまで許すか。**
+   object kind ごとに片方ずつ移す以上、混在期間は必ず発生する。
+   混在中に R0 ハーネスをどう扱うか（kind 単位で allowlist を持つか）を決める。
+4. **`rust-core` の評価をどの経路で呼ぶか。**
+   現状の `scene.evaluate` RPC（実測 0.4-4ms）／napi addon 直呼び／wasm の 3 択。
+   UI ハンドルの 60fps 追従が要件に入るかで答えが変わる。R2 の最初に実測して決める。
+5. **`psd-wasm` クレートを削除するか再生するか。** → **削除で確定（R5-2 で実施）**。
+   デッドコードで TS からの import が 0 件だった。ブラウザ側で PSD を解析する
+   要件は `psd.parse` / `psd.parseMeta` RPC（rust-backend 常駐プロセス経由）に
+   置き換える方針であり、wasm 版を再生する理由が無い。
+6. **`.uxfd` の後方互換をどこまで保証するか。**
+   R4 で保存形式の正本が移るときに、既存ファイルの読込互換をどのバージョンまで保つか。
+
+## 9. 関連文書
+
+- `Windows_Port_Plan.md` — 並行して走る計画。順序関係は本文書 §3 が正本
+- `architecture/00-overview.md` — 層構成と基本方針（R7 で更新する）
+- `architecture/01-decision-record.md` — ADR-014/015/016 の転記先
+- `architecture/02-rust-core-spec.md` — `rust-core` の振る舞い仕様（R7 で MVP 記述を更新する）
+- `architecture/04-render-parity.md` — 全フェーズの合格条件
+- `AGENTS.md` — レシピ正本の記述（R4 で更新する）
+- `progress/INDEX.md` — 決定ログ

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShatteredSphereObjectFields",
+  "description": "`shattered_sphere` kind (`src/types.ts` の `ShatteredSphereObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & ShatteredSphereObjectFields & { type: 'shattered_sphere' }`\nとして組み立てる。\n\n`width`/`height` は `shatteredSphereObjectFactory.ts` の\n`buildAviUtlShatteredSphereObject` の固定リテラル (360x360) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。重力は TS 側が\n`gravityX`/`gravityY`/`gravityZ` の3フィールドで持つため、rust-backend\n側の旧 `[f32; 3]` 配列表現はやめ、フィールドをそのままミラーする。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "delay": {
+      "type": "number",
+      "format": "float"
+    },
+    "directionDiffusion": {
+      "type": "number",
+      "format": "float"
+    },
+    "fractureAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "fragmentSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "gravityX": {
+      "type": "number",
+      "format": "float"
+    },
+    "gravityY": {
+      "type": "number",
+      "format": "float"
+    },
+    "gravityZ": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "impact": {
+      "type": "number",
+      "format": "float"
+    },
+    "limitDistance": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "number",
+      "format": "float"
+    },
+    "randomShape": {
+      "type": "number",
+      "format": "float"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "speed": {
+      "type": "number",
+      "format": "float"
+    },
+    "spin": {
+      "type": "number",
+      "format": "float"
+    },
+    "thickness": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "fractureAmount",
+    "delay",
+    "radius",
+    "limitDistance",
+    "thickness",
+    "fragmentSize",
+    "randomShape",
+    "speed",
+    "impact",
+    "gravityX",
+    "gravityY",
+    "gravityZ",
+    "spin",
+    "directionDiffusion",
+    "colour",
+    "seed"
+  ]
+}

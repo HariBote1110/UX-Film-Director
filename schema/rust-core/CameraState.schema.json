@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CameraState",
+  "description": "`src/types.ts` の `CameraState` と同形。",
+  "type": "object",
+  "properties": {
+    "centreOffsetX": {
+      "type": "number",
+      "format": "float"
+    },
+    "centreOffsetY": {
+      "type": "number",
+      "format": "float"
+    },
+    "rotationDeg": {
+      "type": "number",
+      "format": "float"
+    },
+    "zoom": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "centreOffsetX",
+    "centreOffsetY",
+    "zoom",
+    "rotationDeg"
+  ]
+}

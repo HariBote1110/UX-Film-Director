@@ -1,8 +1,8 @@
-export interface LabPhoneme {
-  startTime: number; // 秒
-  endTime: number;   // 秒
-  phoneme: string;   // 音素
-}
+import type { AudioLabPhoneme } from '../generated/rustCore';
+
+// 型の正本は rust-core の AudioLabPhoneme（src/generated/rustCore）。
+// audio kind 専用データのためここでは名前だけ据え置いて re-export する。
+export type LabPhoneme = AudioLabPhoneme;
 
 // Labファイルを解析して音素データの配列を返す
 export const parseLabFile = async (file: File): Promise<LabPhoneme[]> => {

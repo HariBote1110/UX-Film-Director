@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectSettings",
+  "description": "`src/types.ts` の `ProjectSettings` と同形。",
+  "type": "object",
+  "properties": {
+    "editorMode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EditorMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fps": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "sampleRate": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "fps",
+    "sampleRate"
+  ],
+  "$defs": {
+    "EditorMode": {
+      "description": "`src/types.ts` の `EditorMode`（`'2d' | '3d_stage'`）と同形。",
+      "type": "string",
+      "enum": [
+        "2d",
+        "3d_stage"
+      ]
+    }
+  }
+}

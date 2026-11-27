@@ -1,3 +1,5 @@
+import { loadExternalVideoSourceMetadata } from './sharedRendererExternalVideoSource';
+
 type ElectronFileWithPath = File & { path?: string };
 
 type RustMediaProbeResult = {
@@ -22,6 +24,18 @@ type ProbeMediaFailureResponse = {
 
 type ProbeMediaResponse = ProbeMediaSuccessResponse | ProbeMediaFailureResponse;
 
+type MaterialiseMediaFileSuccessResponse = {
+  success: true;
+  filePath: string;
+};
+
+type MaterialiseMediaFileFailureResponse = {
+  success: false;
+  error?: string;
+};
+
+type MaterialiseMediaFileResponse = MaterialiseMediaFileSuccessResponse | MaterialiseMediaFileFailureResponse;
+
 export type VideoMetadata = {
   duration: number;
   width: number;
@@ -30,6 +44,11 @@ export type VideoMetadata = {
 
 export type AudioMetadata = {
   duration: number;
+};
+
+export type VideoImportSource = {
+  filePath: string | null;
+  metadata: VideoMetadata;
 };
 
 const DEFAULT_DURATION_SECONDS = 10;
@@ -46,6 +65,12 @@ const hasIpcRenderer = (): boolean => {
 };
 
 export const getElectronFilePath = (file: File): string | null => {
+  const maybeWindow = typeof window !== 'undefined' ? window : undefined;
+  const bridgedFilePath = maybeWindow?.electronFile?.getPathForFile?.(file);
+  if (typeof bridgedFilePath === 'string' && bridgedFilePath.trim().length > 0) {
+    return bridgedFilePath.trim();
+  }
+
   const filePath = (file as ElectronFileWithPath).path;
   if (typeof filePath !== 'string') {
     return null;
@@ -55,8 +80,21 @@ export const getElectronFilePath = (file: File): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResult | null> => {
-  const filePath = getElectronFilePath(file);
+export const toFileProtocolUrl = (filePath: string): string => {
+  const trimmed = filePath.trim();
+  if (!trimmed) return '';
+
+  const normalised = trimmed.replace(/\\/g, '/');
+  if (/^[A-Za-z]:\//.test(normalised)) {
+    return encodeURI(`file:///${normalised}`);
+  }
+  if (normalised.startsWith('/')) {
+    return encodeURI(`file://${normalised}`);
+  }
+  return encodeURI(`file://${normalised}`);
+};
+
+const probeMediaPathWithRust = async (filePath: string): Promise<RustMediaProbeResult | null> => {
   if (!filePath || !hasIpcRenderer()) {
     return null;
   }
@@ -72,20 +110,85 @@ export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResu
   }
 };
 
-const loadVideoElementMetadata = (url: string): Promise<VideoMetadata> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      resolve({
-        duration: isPositiveNumber(video.duration) ? video.duration : DEFAULT_DURATION_SECONDS,
-        width: isPositiveNumber(video.videoWidth) ? video.videoWidth : DEFAULT_VIDEO_WIDTH,
-        height: isPositiveNumber(video.videoHeight) ? video.videoHeight : DEFAULT_VIDEO_HEIGHT,
-      });
-    };
-    video.onerror = () => reject(new Error('Failed to load video metadata.'));
-    video.src = url;
-  });
+const materialiseMediaFileForRust = async (file: File): Promise<string | null> => {
+  if (!hasIpcRenderer()) {
+    return null;
+  }
+
+  try {
+    const response = await window.ipcRenderer.invoke('materialise-media-file', {
+      fileName: file.name,
+      data: await file.arrayBuffer(),
+    }) as MaterialiseMediaFileResponse;
+    if (!response || response.success !== true || typeof response.filePath !== 'string') {
+      return null;
+    }
+    const trimmed = response.filePath.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  }
+};
+
+export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResult | null> => {
+  const filePath = getElectronFilePath(file);
+  return filePath ? probeMediaPathWithRust(filePath) : null;
+};
+
+export const mergeResolvedVideoMetadata = (
+  probed: RustMediaProbeResult | null
+): VideoMetadata => {
+  if (!probed || !probed.hasVideo) {
+    throw new Error('Failed to load video metadata.');
+  }
+
+  return {
+    duration: isPositiveNumber(probed.duration)
+      ? probed.duration
+      : DEFAULT_DURATION_SECONDS,
+    width: isPositiveNumber(probed.width)
+      ? probed.width
+      : DEFAULT_VIDEO_WIDTH,
+    height: isPositiveNumber(probed.height)
+      ? probed.height
+      : DEFAULT_VIDEO_HEIGHT,
+  };
+};
+
+export const resolveVideoMetadataForFilePath = async (
+  filePath: string
+): Promise<VideoMetadata | null> => {
+  const probed = await probeMediaPathWithRust(filePath);
+  return probed && probed.hasVideo ? mergeResolvedVideoMetadata(probed) : null;
+};
+
+export const resolveVideoImportSource = async (file: File, url: string): Promise<VideoImportSource> => {
+  const directFilePath = getElectronFilePath(file);
+  if (directFilePath) {
+    const probed = await probeMediaPathWithRust(directFilePath);
+    if (probed && probed.hasVideo) {
+      return {
+        filePath: directFilePath,
+        metadata: mergeResolvedVideoMetadata(probed),
+      };
+    }
+  }
+
+  const materialisedFilePath = await materialiseMediaFileForRust(file);
+  if (materialisedFilePath) {
+    const probed = await probeMediaPathWithRust(materialisedFilePath);
+    if (probed && probed.hasVideo) {
+      return {
+        filePath: materialisedFilePath,
+        metadata: mergeResolvedVideoMetadata(probed),
+      };
+    }
+  }
+
+  return {
+    filePath: directFilePath,
+    metadata: await loadExternalVideoSourceMetadata(url),
+  };
 };
 
 const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
@@ -103,25 +206,7 @@ const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
 };
 
 export const resolveVideoMetadata = async (file: File, url: string): Promise<VideoMetadata> => {
-  const probed = await probeMediaWithRust(file);
-  if (!probed || !probed.hasVideo) {
-    return loadVideoElementMetadata(url);
-  }
-
-  const needsFallback = !isPositiveNumber(probed.width) || !isPositiveNumber(probed.height);
-  const fallback = needsFallback ? await loadVideoElementMetadata(url) : null;
-
-  return {
-    duration: isPositiveNumber(probed.duration)
-      ? probed.duration
-      : fallback?.duration ?? DEFAULT_DURATION_SECONDS,
-    width: isPositiveNumber(probed.width)
-      ? probed.width
-      : fallback?.width ?? DEFAULT_VIDEO_WIDTH,
-    height: isPositiveNumber(probed.height)
-      ? probed.height
-      : fallback?.height ?? DEFAULT_VIDEO_HEIGHT,
-  };
+  return (await resolveVideoImportSource(file, url)).metadata;
 };
 
 export const resolveAudioMetadata = async (file: File, url: string): Promise<AudioMetadata> => {

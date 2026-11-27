@@ -1,0 +1,177 @@
+[psd-import-e2e] Vite 起動: port=5303
+[psd-import-e2e] [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+[psd-import-e2e] vite v5.4.21 building for development...
+[psd-import-e2e] watching for file changes...
+[psd-import-e2e] vite v5.4.21 building for development...
+[psd-import-e2e] watching for file changes...
+[psd-import-e2e] build started...
+[psd-import-e2e] build started...
+[psd-import-e2e] VITE v5.4.21  ready in 217 ms
+[psd-import-e2e] ➜  Local:   http://localhost:5303/
+[psd-import-e2e] ➜  Network: use --host to expose
+[psd-import-e2e] transforming...
+[psd-import-e2e] transforming...
+[psd-import-e2e] ✓ 4 modules transformed.
+[psd-import-e2e] rendering chunks...
+[psd-import-e2e] computing gzip size...
+[psd-import-e2e] dist-electron/preload.js  10.53 kB │ gzip: 2.58 kB
+[psd-import-e2e] built in 82ms.
+[psd-import-e2e] ✓ 57 modules transformed.
+[psd-import-e2e] rendering chunks...
+[psd-import-e2e] computing gzip size...
+[psd-import-e2e] Electron 起動: remote-debugging-port=9335 mode=pathB url=http://localhost:5303/?psdImportTrace=1&psdRustImport=1
+[psd-import-e2e] dist-electron/main.js  245.31 kB │ gzip: 46.82 kB
+[psd-import-e2e] built in 622ms.
+[psd-import-e2e] DevTools listening on ws://127.0.0.1:9335/devtools/browser/bf2d0e43-9d3b-462b-9e7d-3dcde0ef8ea1
+[psd-import-e2e] [NativeOverlay] attach {"success":true,"attached":true}
+[psd-import-e2e] [NativeOverlay] attach {"success":true,"attached":true}
+[psd-import-e2e] [NativeOverlay] attach {"success":true,"attached":true}
+[psd-import-e2e] 1回目のPSDインポートを実行
+[psd-import-e2e] 1回目 完了: {"enabled":true,"marks":{"evaluateReady":632.3050000071526,"input":313.2150000035763,"parsed":573.1050000190735,"objectAdded":574.1800000071526}}
+[psd-import-e2e] 2回目のPSDインポートを実行(同一ファイルをもう一枚追加)
+[psd-import-e2e] 2回目 完了: {"enabled":true,"marks":{"input":0,"parsed":407.2950000166893,"objectAdded":408.19000002741814,"evaluateReady":432.35000002384186}}
+[psd-import-e2e] {
+  "passed": true,
+  "mode": "pathB",
+  "psdPath": "/Users/yuki/GitHub/UX-Film-Director/葵ちゃん.psd",
+  "firstImport": {
+    "ok": true,
+    "importIndex": 1,
+    "wallMsToNativePresent": 30032,
+    "timelineResult": {
+      "ok": true,
+      "items": [
+        "葵ちゃん.psd   "
+      ],
+      "matchingCount": 1
+    },
+    "nativePresentResult": {
+      "ok": false,
+      "reason": "timeout",
+      "dataset": {
+        "uxfdRustTimelineSceneRpcStatus": "ready",
+        "uxfdRustTimelineSceneRpcProjectId": "c04ae1c5-f9f9-4562-9b8a-e2e2ab7926ae",
+        "uxfdSharedRendererPlanMode": "sharedRenderer",
+        "uxfdSharedRendererSurfaceGate": "ok",
+        "uxfdSharedRendererCanvasColourSpace": "srgb",
+        "uxfdSharedRendererCanvasAlphaMode": "premultiplied",
+        "uxfdSharedRendererVideoReadyCount": "0",
+        "uxfdSharedRendererVideoPendingCount": "0",
+        "uxfdSharedRendererVideoMissingCount": "0",
+        "uxfdSharedRendererVideoRustRequiredCount": "0",
+        "uxfdSharedRendererPresenterStartCount": "2",
+        "uxfdSharedRendererPresenterStatus": "ready",
+        "uxfdRustTimelineSceneRpcRequested": "3",
+        "uxfdRustTimelineSceneRpcResolved": "3",
+        "uxfdRustTimelineSceneRpcStale": "1",
+        "uxfdRustTimelineSceneRpcCoalesced": "0",
+        "uxfdRustTimelineSceneRpcFailed": "0",
+        "uxfdSharedRendererPresenterNativeOverlayAttempt": "ok",
+        "uxfdSharedRendererPresenterFormat": "bgra8unorm",
+        "uxfdSharedRendererPresenterSwatch": "no-presentation",
+        "uxfdSharedRendererPresenterPsdOwner": "pixi",
+        "uxfdSharedRendererPresenterPsdCutoverReason": "nativeRenderFrameUnavailable",
+        "uxfdSharedRendererPresenterSharedPsdObjectCount": "0"
+      },
+      "elapsedMs": 20194
+    },
+    "trace": {
+      "enabled": true,
+      "marks": {
+        "evaluateReady": 632.3050000071526,
+        "input": 313.2150000035763,
+        "parsed": 573.1050000190735,
+        "objectAdded": 574.1800000071526
+      }
+    },
+    "dialogs": []
+  },
+  "secondImport": {
+    "ok": true,
+    "importIndex": 2,
+    "wallMsToNativePresent": 29996,
+    "timelineResult": {
+      "ok": true,
+      "items": [
+        "葵ちゃん.psd   ",
+        "葵ちゃん.psd   "
+      ],
+      "matchingCount": 2
+    },
+    "nativePresentResult": {
+      "ok": false,
+      "reason": "timeout",
+      "dataset": {
+        "uxfdRustTimelineSceneRpcStatus": "ready",
+        "uxfdRustTimelineSceneRpcProjectId": "c04ae1c5-f9f9-4562-9b8a-e2e2ab7926ae",
+        "uxfdSharedRendererPlanMode": "sharedRenderer",
+        "uxfdSharedRendererSurfaceGate": "ok",
+        "uxfdSharedRendererCanvasColourSpace": "srgb",
+        "uxfdSharedRendererCanvasAlphaMode": "premultiplied",
+        "uxfdSharedRendererVideoReadyCount": "0",
+        "uxfdSharedRendererVideoPendingCount": "0",
+        "uxfdSharedRendererVideoMissingCount": "0",
+        "uxfdSharedRendererVideoRustRequiredCount": "0",
+        "uxfdSharedRendererPresenterStartCount": "3",
+        "uxfdSharedRendererPresenterStatus": "ready",
+        "uxfdSharedRendererPresenterNativeOverlayAttempt": "ok",
+        "uxfdRustTimelineSceneRpcRequested": "5",
+        "uxfdRustTimelineSceneRpcResolved": "5",
+        "uxfdRustTimelineSceneRpcStale": "2",
+        "uxfdRustTimelineSceneRpcCoalesced": "0",
+        "uxfdRustTimelineSceneRpcFailed": "0",
+        "uxfdSharedRendererPresenterFormat": "bgra8unorm",
+        "uxfdSharedRendererPresenterSwatch": "no-presentation",
+        "uxfdSharedRendererPresenterPsdOwner": "pixi",
+        "uxfdSharedRendererPresenterPsdCutoverReason": "nativeRenderFrameUnavailable",
+        "uxfdSharedRendererPresenterSharedPsdObjectCount": "0"
+      },
+      "elapsedMs": 20776
+    },
+    "trace": {
+      "enabled": true,
+      "marks": {
+        "input": 0,
+        "parsed": 407.2950000166893,
+        "objectAdded": 408.19000002741814,
+        "evaluateReady": 432.35000002384186
+      }
+    },
+    "dialogs": []
+  },
+  "runtimeErrors": [],
+  "processLines": [
+    "[psd-import-e2e] Vite 起動: port=5303",
+    "[psd-import-e2e] \u001b[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.\u001b[39m",
+    "[psd-import-e2e] vite v5.4.21 building for development...",
+    "[psd-import-e2e] watching for file changes...",
+    "[psd-import-e2e] vite v5.4.21 building for development...",
+    "[psd-import-e2e] watching for file changes...",
+    "[psd-import-e2e] build started...",
+    "[psd-import-e2e] build started...",
+    "[psd-import-e2e] VITE v5.4.21  ready in 217 ms",
+    "[psd-import-e2e] ➜  Local:   http://localhost:5303/",
+    "[psd-import-e2e] ➜  Network: use --host to expose",
+    "[psd-import-e2e] transforming...",
+    "[psd-import-e2e] transforming...",
+    "[psd-import-e2e] ✓ 4 modules transformed.",
+    "[psd-import-e2e] rendering chunks...",
+    "[psd-import-e2e] computing gzip size...",
+    "[psd-import-e2e] dist-electron/preload.js  10.53 kB │ gzip: 2.58 kB",
+    "[psd-import-e2e] built in 82ms.",
+    "[psd-import-e2e] ✓ 57 modules transformed.",
+    "[psd-import-e2e] rendering chunks...",
+    "[psd-import-e2e] computing gzip size...",
+    "[psd-import-e2e] Electron 起動: remote-debugging-port=9335 mode=pathB url=http://localhost:5303/?psdImportTrace=1&psdRustImport=1",
+    "[psd-import-e2e] dist-electron/main.js  245.31 kB │ gzip: 46.82 kB",
+    "[psd-import-e2e] built in 622ms.",
+    "[psd-import-e2e] DevTools listening on ws://127.0.0.1:9335/devtools/browser/bf2d0e43-9d3b-462b-9e7d-3dcde0ef8ea1",
+    "[psd-import-e2e] [NativeOverlay] attach {\"success\":true,\"attached\":true}",
+    "[psd-import-e2e] [NativeOverlay] attach {\"success\":true,\"attached\":true}",
+    "[psd-import-e2e] [NativeOverlay] attach {\"success\":true,\"attached\":true}",
+    "[psd-import-e2e] 1回目のPSDインポートを実行",
+    "[psd-import-e2e] 1回目 完了: {\"enabled\":true,\"marks\":{\"evaluateReady\":632.3050000071526,\"input\":313.2150000035763,\"parsed\":573.1050000190735,\"objectAdded\":574.1800000071526}}",
+    "[psd-import-e2e] 2回目のPSDインポートを実行(同一ファイルをもう一枚追加)",
+    "[psd-import-e2e] 2回目 完了: {\"enabled\":true,\"marks\":{\"input\":0,\"parsed\":407.2950000166893,\"objectAdded\":408.19000002741814,\"evaluateReady\":432.35000002384186}}"
+  ]
+}

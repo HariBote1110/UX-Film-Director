@@ -1,0 +1,35 @@
+[workspace]
+# Intentionally empty: this crate must stand alone, independent of the
+# repository's other Cargo workspaces (native-wgpu-renderer etc.), so that
+# its wgpu = "25" dependency tree never collides with the production
+# wgpu = "0.20" pin.
+
+[package]
+name = "nv12-wgpu25-spike"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "nv12_wgpu25_spike"
+path = "src/lib.rs"
+
+[dependencies]
+wgpu = "25"
+pollster = "0.3"
+bytemuck = { version = "1.16", features = ["derive"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Pinned to match wgpu-hal 25.0.2's own resolved versions exactly (checked
+# via `cargo tree -i metal` / `-i objc`), to avoid duplicate-crate builds.
+metal = "=0.31.0"
+objc = "=0.2.7"
+core-foundation = "0.9"
+
+[[bin]]
+name = "h1_import_spike"
+path = "src/bin/h1_import_spike.rs"
+
+[[bin]]
+name = "h2_nv12_format_probe"
+path = "src/bin/h2_nv12_format_probe.rs"

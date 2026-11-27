@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Transform",
+  "type": "object",
+  "properties": {
+    "rotation_degrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "sampling": {
+      "$ref": "#/$defs/SamplingMode",
+      "default": "nearest"
+    },
+    "scale_x": {
+      "type": "number",
+      "format": "float"
+    },
+    "scale_y": {
+      "type": "number",
+      "format": "float"
+    },
+    "translation_x": {
+      "type": "number",
+      "format": "float"
+    },
+    "translation_y": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "translation_x",
+    "translation_y",
+    "scale_x",
+    "scale_y",
+    "rotation_degrees"
+  ],
+  "$defs": {
+    "SamplingMode": {
+      "type": "string",
+      "enum": [
+        "nearest",
+        "bilinear"
+      ]
+    }
+  }
+}

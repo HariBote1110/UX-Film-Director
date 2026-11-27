@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AudioSphereObjectFields",
+  "description": "`AudioSphereObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、audio_sphere 固有部分。TS 側は\n`BaseObject & AudioSphereObjectFields & { type: 'audio_sphere' }` として組み立てる。\n\n`width`/`height` は `audioSphereObjectFactory.ts` の\n`buildAviUtlAudioSphereObject` がプロジェクトサイズから都度計算するため\n固定既定値が無く、ニュートラルな `0.0` にする。他の数値フィールドは\n同ファイルの固定リテラル（columns: 16, rows: 12, baseRadius: 170,\naudioInfluence: 0.6, pointSize: 5, polygonSize: 0.35, randomAmount: 0.05,\ncolour: '#36c2ff', sampleWindowSeconds: 0.1, seed: 93）をそのまま採用する。\n`targetAudioId`/`targetLayer` は audio_visualization と同じ規約\n（前者は常にキーが存在し null 許容、後者は省略可能）。",
+  "type": "object",
+  "properties": {
+    "audioInfluence": {
+      "type": "number",
+      "format": "float"
+    },
+    "baseRadius": {
+      "type": "number",
+      "format": "float"
+    },
+    "colour": {
+      "type": "string"
+    },
+    "columns": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "pointSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "polygonSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "randomAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "rows": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sampleWindowSeconds": {
+      "type": "number",
+      "format": "float"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "targetAudioId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetLayer": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int32"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "columns",
+    "rows",
+    "baseRadius",
+    "audioInfluence",
+    "pointSize",
+    "polygonSize",
+    "randomAmount",
+    "colour",
+    "sampleWindowSeconds",
+    "seed"
+  ]
+}

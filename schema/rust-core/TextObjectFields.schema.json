@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TextObjectFields",
+  "description": "`TextObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、text 固有部分。TS 側は `BaseObject & TextObjectFields & { type: 'text' }`\nとして組み立てる。\n\n`measured_width` / `measured_height` は PixiJS 側の実測値で、UI がテキストを\n描画・編集するたびに更新する。値そのものは UI 都合の測定結果だが、\nフィールドの所在（編集モデルの一部として保存・往復する）は他の text 固有\nフィールドと同じなのでここに置く。実際の描画領域の決定ロジック\n（未測定時のヒューリスティック fallback）は `rustSceneSnapshot.ts` の\n`textMediaBox` に残す（UI 実測に依存するため Rust 側へは移さない）。",
+  "type": "object",
+  "properties": {
+    "fill": {
+      "type": "string"
+    },
+    "fontFamily": {
+      "type": "string"
+    },
+    "fontSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "letterSpacing": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "measuredHeight": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "measuredWidth": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "text": {
+      "type": "string"
+    },
+    "textAlignment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextAlignment"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "textShadow": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextShadow"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "textStroke": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextStroke"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "text",
+    "fontSize",
+    "fontFamily",
+    "fill"
+  ],
+  "$defs": {
+    "TextAlignment": {
+      "type": "string",
+      "enum": [
+        "left",
+        "centre",
+        "right"
+      ]
+    },
+    "TextShadow": {
+      "description": "`src/types.ts` の手書き `TextShadow` と構造的に同じ形にした編集モデル用型。",
+      "type": "object",
+      "properties": {
+        "blur": {
+          "type": "number",
+          "format": "float"
+        },
+        "colour": {
+          "type": "string"
+        },
+        "offsetX": {
+          "type": "number",
+          "format": "float"
+        },
+        "offsetY": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "colour",
+        "offsetX",
+        "offsetY",
+        "blur"
+      ]
+    },
+    "TextStroke": {
+      "description": "`src/types.ts` の手書き `TextStroke` と構造的に同じ形にした編集モデル用型。",
+      "type": "object",
+      "properties": {
+        "colour": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "colour",
+        "width"
+      ]
+    }
+  }
+}

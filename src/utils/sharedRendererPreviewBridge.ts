@@ -1,0 +1,40 @@
+import type { RustBackendSceneEvaluation } from './rustBackendSceneControl';
+import type {
+  RustSceneMediaReference,
+  RustSceneSnapshot,
+  RustSceneSnapshotBuildIssue,
+} from './rustSceneContract';
+
+/**
+ * PixiJS 排除計画 Phase 4: preview プランは shared renderer（Rust）を唯一の
+ * presenter とする。旧 `parallelCompare`（Pixi 併走比較）と `pixiFallback`
+ * （Pixi への退避）は撤去し、表現不能なシーンは `blocked` として issues を
+ * 保持したまま診断に流す（Pixi へ退避する経路は存在しない）。
+ */
+export type SharedRendererPreviewPlan =
+  | {
+      mode: 'disabled';
+      reason: 'disabled';
+    }
+  | {
+      mode: 'sharedRenderer';
+      snapshot: RustSceneSnapshot;
+      media: RustSceneMediaReference[];
+    }
+  | {
+      mode: 'blocked';
+      reason: 'unsupportedScene';
+      issues: RustSceneSnapshotBuildIssue[];
+    };
+
+/**
+ * Rust の常駐 scene.evaluate 結果を共通 preview plan に包む。
+ * 評価済み値は再シリアライズせず、後続の surface gate で境界検証する。
+ */
+export const buildSharedRendererPreviewPlanFromEvaluation = (
+  evaluation: Pick<RustBackendSceneEvaluation, 'snapshot' | 'media'>
+): SharedRendererPreviewPlan => ({
+  mode: 'sharedRenderer',
+  snapshot: evaluation.snapshot as RustSceneSnapshot,
+  media: evaluation.media as RustSceneMediaReference[],
+});

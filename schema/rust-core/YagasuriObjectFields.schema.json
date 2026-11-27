@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "YagasuriObjectFields",
+  "description": "`yagasuri` kind (`src/types.ts` の `YagasuriObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & YagasuriObjectFields & { type: 'yagasuri' }` として組み立てる。\n\n`width`/`height` は `yagasuriObjectFactory.ts` の\n`buildAviUtlYagasuriObject` の固定リテラル (800x450) をそのまま採用する\n（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "arrowHeight": {
+      "type": "number",
+      "format": "float"
+    },
+    "arrowWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "backgroundColour": {
+      "type": "string"
+    },
+    "foregroundColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "staggered": {
+      "type": "boolean"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "arrowWidth",
+    "arrowHeight",
+    "lineWidth",
+    "staggered",
+    "foregroundColour",
+    "backgroundColour"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ColourPipeline",
+  "type": "object",
+  "properties": {
+    "alpha": {
+      "type": "string"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "working_space": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile",
+    "working_space",
+    "alpha"
+  ]
+}

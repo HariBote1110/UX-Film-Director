@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PieChartSortMode",
+  "description": "`PieChartObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、pie_chart 固有部分。TS 側は\n`BaseObject & PieChartObjectFields & { type: 'pie_chart' }` として組み立てる。\n\n`width`/`height` は `pieChartObjectFactory.ts` の `buildAviUtlPieChartObject`\nがプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな\n`0.0` にする。他のフィールドは同ファイルの固定リテラル（values:\n[10,20,30,40], sortMode: 'descending', normaliseToHundred: true,\nlabelMode: 'percentage', progressPercent: 100, strokeWidth: 20,\nsliceColours: ['#389ba6','#f2e2c4','#f29422','#f27830','#f24b0f']）を\nそのまま採用する。",
+  "type": "string",
+  "enum": [
+    "none",
+    "descending",
+    "ascending"
+  ]
+}

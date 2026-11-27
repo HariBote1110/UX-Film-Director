@@ -1,168 +1,525 @@
-import { create } from 'zustand';
-import { TimelineObject, ProjectSettings } from '../types';
+import { create, type StoreApi } from 'zustand';
+import {
+  TimelineObject,
+  VideoObject,
+  SubjectCropNormKeyframe,
+  ProjectSettings,
+  CameraState,
+  SceneData,
+  StageCamera3D,
+} from '../types';
+import {
+  createDefaultCamera,
+  createDefaultLayers,
+  createDefaultStageCamera3D,
+  flushActiveIntoScenes,
+  sanitiseCamera,
+  sanitiseStageCamera3D
+} from '../utils/sceneState';
+import {
+  createDefaultFilter,
+  getObjectFiltersInOrder,
+  syncFiltersFromLegacyValues,
+  syncLegacyEffectsWithFilters,
+} from '../utils/filterStack';
+import {
+  normaliseKeyframesForObject,
+  shiftKeyframesForObject
+} from '../utils/keyframes';
+import {
+  normaliseSubjectCropKeyframesForVideo,
+  shiftSubjectCropKeyframesForObject
+} from '../utils/subjectCropKeyframes';
+import { buildAviUtlObjectCopyExtClones } from '../utils/aviutl/aviutlObjectCopyExt';
+import {
+  buildAviUtlCoordinateRecallPatches,
+  captureAviUtlCoordinateStoreSnapshot
+} from '../utils/aviutl/aviutlCoordinateStore';
+import type { AppState } from './storeTypes';
+import {
+  buildClipboardState,
+  calculateAutoDuration,
+  clampLayerIndex,
+  computeRippledObjects,
+  cloneTimelineObject,
+  getSelectedObjects,
+  isLayerLocked,
+  KEYFRAME_TIME_EPSILON,
+  needsDurationRecalculation,
+  normaliseLayers,
+  normaliseSceneObjectList,
+  syncObjectKeyframes,
+} from './storeHelpers';
+import { createExportSlice } from './slices/exportSlice';
+import { createPlaybackSlice } from './slices/playbackSlice';
+import { createSelectionSlice } from './slices/selectionSlice';
+import { createWorkspaceSlice } from './slices/workspaceSlice';
+import { createHistorySlice } from './slices/historySlice';
+import { createLayerSlice } from './slices/layerSlice';
+import type { Command } from '../generated/rustCore/Command';
+import {
+  buildAddFilterCommand,
+  buildAddObjectCommand,
+  buildBatchCommand,
+  buildMoveFilterCommand,
+  buildObjectFieldDiffCommands,
+  buildRemoveFilterCommand,
+  buildRemoveObjectCommand,
+  buildToggleFilterEnabledCommand,
+  buildUpdateFilterParamsCommand,
+} from './commandBuilders';
+import type { FilterCommand } from './commandBuilders';
+import { getCommandBridge } from '../utils/rustBackendCommandBridge';
+import { queryRustBackendSceneObjectPositions } from '../utils/rustBackendSceneControl';
+import {
+  isRustScenePositionQueryCancelled,
+  isRustScenePositionQueryActionCurrent,
+  waitForRustScenePositionQueryRevision,
+  type RustScenePositionQueryTarget,
+} from '../utils/rustScenePositionQueryRevision';
 
-interface AppState {
-  // Project State
-  isProjectLoaded: boolean;
-  projectSettings: ProjectSettings;
-  
-  // Export State
-  isExporting: boolean;
-  
-  // Snapshot State
-  isSnapshotRequested: boolean;
+export type {
+  ExportDiagnostics,
+  ExportPhase,
+  ExportProgress,
+  VisionDetectionOverlayState,
+} from './storeTypes';
 
-  // Editor State
-  currentTime: number;
-  duration: number;
-  isPlaying: boolean;
-  objects: TimelineObject[];
-  selectedId: string | null;
-  
-  // History State for Undo/Redo
-  pastStates: TimelineObject[][];
-  futureStates: TimelineObject[][];
+const filterCommandQueues = new Map<string, Promise<void>>();
+const filterParamRequestTokens = new Map<string, number>();
+const FILTER_MIRROR_KEYS = ['colorCorrection', 'customClipping', 'vibration', 'shadow', 'gradient'] as const;
+type FilterParamEditSession = {
+  id: number;
+  sceneId: string;
+  objectId: string;
+  filterId: string;
+  previous: Record<string, unknown>;
+  expected: Record<string, unknown>;
+  ending: boolean;
+};
+const filterParamEditSessions = new Map<string, FilterParamEditSession>();
+const filterParamEditCommitPromises = new Map<number, Promise<void>>();
+let nextFilterParamEditSessionId = 1;
 
-  // Actions
-  initializeProject: (settings: ProjectSettings) => void;
-  setTime: (time: number) => void;
-  setDuration: (duration: number) => void;
-  advanceTime: (deltaTime: number) => void;
-  togglePlay: () => void;
-  setIsPlaying: (isPlaying: boolean) => void;
-  setExporting: (isExporting: boolean) => void;
-  
-  // Snapshot Actions
-  requestSnapshot: () => void;
-  finishSnapshot: () => void;
-  
-  // History Actions
-  pushHistory: () => void;
-  undo: () => void;
-  redo: () => void;
+const filterParamEditKey = (objectId: string, filterId: string) => `${objectId}:${filterId}`;
+const cloneFilterParams = (params: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(JSON.stringify(params)) as Record<string, unknown>;
+const filterParamsEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
-  addObject: (obj: TimelineObject) => void;
-  updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
-  deleteObject: (id: string) => void;
-  splitObject: () => void;
-  selectObject: (id: string | null) => void;
-}
-
-// 期間計算ヘルパー
-const calculateAutoDuration = (objects: TimelineObject[]) => {
-  if (objects.length === 0) return 30;
-  const maxEndTime = Math.max(...objects.map(o => o.startTime + o.duration));
-  return Math.max(maxEndTime, 10);
+const mergeFilterCommandObject = (currentObject: TimelineObject, appliedObject: TimelineObject): TimelineObject => {
+  const merged = { ...currentObject, filters: appliedObject.filters } as TimelineObject;
+  const mergedRecord = merged as unknown as Record<string, unknown>;
+  const appliedRecord = appliedObject as unknown as Record<string, unknown>;
+  for (const key of FILTER_MIRROR_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(appliedRecord, key)) {
+      mergedRecord[key] = appliedRecord[key];
+    } else {
+      delete mergedRecord[key];
+    }
+  }
+  return merged;
 };
 
-const needsDurationRecalculation = (newProps: Partial<TimelineObject>) => {
-  return Object.prototype.hasOwnProperty.call(newProps, 'startTime')
-    || Object.prototype.hasOwnProperty.call(newProps, 'duration');
+const filterStateKey = (object: TimelineObject): string => {
+  const record = object as unknown as Record<string, unknown>;
+  return JSON.stringify({
+    filters: record.filters ?? null,
+    ...Object.fromEntries(FILTER_MIRROR_KEYS.map((key) => [key, record[key] ?? null])),
+  });
+};
+
+const applyFilterCommandNow = async (
+  set: StoreApi<AppState>['setState'],
+  get: StoreApi<AppState>['getState'],
+  command: FilterCommand,
+  recordHistory: boolean,
+  paramRequestToken?: number,
+): Promise<void> => {
+  const bridge = getCommandBridge();
+  if (!bridge) return;
+
+  const state = get();
+  const objectId = command.objectId;
+  const targetObject = state.objects.find((object) => object.id === objectId);
+  if (!targetObject || isLayerLocked(state.layers, clampLayerIndex(targetObject.layer))) return;
+  const paramTokenKey = command.kind === 'updateFilterParams'
+    ? `${objectId}:${command.filterId}`
+    : null;
+  if (paramRequestToken !== undefined
+    && paramTokenKey !== null
+    && filterParamRequestTokens.get(paramTokenKey) !== paramRequestToken) return;
+
+  const activeScene = state.scenes.find((scene) => scene.id === state.activeSceneId);
+  if (!activeScene) return;
+
+  const filterStateAtRequest = filterStateKey(targetObject);
+  try {
+    const response = await bridge.applyCommand({
+      // Filter commands only inspect the target object. Keeping the existing
+      // SceneData envelope while sending a one-object scene makes slider edits
+      // independent of the size of the rest of the project.
+      scene: {
+        id: activeScene.id,
+        name: activeScene.name,
+        objects: [targetObject] as unknown as import('../generated/rustCore/SceneData').SceneData['objects'],
+        layers: [],
+        duration: state.duration,
+        camera: state.camera,
+        stageCamera3D: state.stageCamera3D,
+      },
+      command,
+    });
+    if (!response.success || !response.result) {
+      console.error('filter command.apply failed', response.error, response.errorCode);
+      return;
+    }
+
+    const appliedObject = response.result.scene.objects.find((object) => object.id === objectId);
+    if (!appliedObject) return;
+
+    let merged = false;
+    set((current) => {
+      const currentObject = current.objects.find((object) => object.id === objectId);
+      if (!currentObject || isLayerLocked(current.layers, clampLayerIndex(currentObject.layer))) return {};
+      // A concurrent history operation may have changed this object's filters
+      // (for example, undo). Do not replay the stale response over that state.
+      // Changes to another object or another property do not fail this check.
+      if (filterStateKey(currentObject) !== filterStateAtRequest) return {};
+
+      merged = true;
+      return {
+        objects: current.objects.map((object) => object.id === objectId
+          ? mergeFilterCommandObject(currentObject, appliedObject as unknown as TimelineObject)
+          : object),
+      };
+    });
+    if (merged && recordHistory) get().pushHistoryCommand(command);
+  } catch (error) {
+    console.error('filter command.apply failed', error);
+  }
+};
+
+const applyFilterCommand = (
+  set: StoreApi<AppState>['setState'],
+  get: StoreApi<AppState>['getState'],
+  command: FilterCommand,
+  recordHistory: boolean,
+): Promise<void> => {
+  const objectId = command.objectId;
+  const previous = filterCommandQueues.get(objectId);
+  let paramRequestToken: number | undefined;
+  if (command.kind === 'updateFilterParams') {
+    const key = `${objectId}:${command.filterId}`;
+    paramRequestToken = (filterParamRequestTokens.get(key) ?? 0) + 1;
+    filterParamRequestTokens.set(key, paramRequestToken);
+  }
+
+  const task = previous
+    ? previous.catch(() => undefined)
+      .then(() => applyFilterCommandNow(set, get, command, recordHistory, paramRequestToken))
+    : applyFilterCommandNow(set, get, command, recordHistory, paramRequestToken);
+  const tracked = task.catch(() => undefined);
+  filterCommandQueues.set(objectId, tracked);
+  void tracked.then(() => {
+    if (filterCommandQueues.get(objectId) === tracked) filterCommandQueues.delete(objectId);
+  });
+  return task;
 };
 
 export const useStore = create<AppState>((set, get) => ({
+  ...createWorkspaceSlice(set),
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
-  isExporting: false,
-  isSnapshotRequested: false,
+  ...createExportSlice(set),
 
-  currentTime: 0,
-  duration: 30,
-  isPlaying: false,
+  ...createPlaybackSlice(set, get),
+  ...createLayerSlice(set, get),
   objects: [],
-  selectedId: null,
+  camera: createDefaultCamera(),
+  stageCamera3D: createDefaultStageCamera3D(),
+  scenes: [],
+  activeSceneId: '',
+  ...createSelectionSlice(set),
+  clipboard: null,
+  aviUtlCoordinateStoreSnapshot: null,
 
-  pastStates: [],
-  futureStates: [],
+  ...createHistorySlice(set, get),
 
-  initializeProject: (settings) => set({ 
-    projectSettings: settings,
-    isProjectLoaded: true,
-    currentTime: 0,
-    isPlaying: false
-  }),
-
-  setTime: (time) => set((state) => {
-    const nextTime = Math.max(0, time);
-    if (Math.abs(state.currentTime - nextTime) < 0.0001) return {};
-    return { currentTime: nextTime };
-  }),
-  setDuration: (duration) => set((state) => {
-    const nextDuration = Math.max(1, duration);
-    if (Math.abs(state.duration - nextDuration) < 0.0001) return {};
-    return { duration: nextDuration };
-  }),
-
-  advanceTime: (deltaTime) => {
-    const { currentTime, duration, isPlaying } = get();
-    if (!isPlaying) return;
-    let nextTime = currentTime + deltaTime;
-    if (nextTime >= duration) {
-      nextTime = duration;
-      set({ isPlaying: false });
-    }
-    if (Math.abs(nextTime - currentTime) >= 0.0001) {
-      set({ currentTime: nextTime });
-    }
+  initializeProject: (settings) => {
+    filterParamEditSessions.clear();
+    const sceneId = crypto.randomUUID();
+    const initialLayers = createDefaultLayers();
+    const cam = createDefaultCamera();
+    const stageCam = createDefaultStageCamera3D();
+    const nextSettings: ProjectSettings = {
+      ...settings,
+      editorMode: settings.editorMode ?? '2d'
+    };
+    set({
+      projectSettings: nextSettings,
+      isProjectLoaded: true,
+      currentTime: 0,
+      duration: 30,
+      isPlaying: false,
+      layers: initialLayers,
+      objects: [],
+      camera: { ...cam },
+      stageCamera3D: { ...stageCam, position: { ...stageCam.position }, target: { ...stageCam.target } },
+      scenes: [{
+        id: sceneId,
+        name: 'Scene 1',
+        duration: 30,
+        layers: initialLayers,
+        objects: [],
+        camera: { ...cam },
+        stageCamera3D: { ...stageCam, position: { ...stageCam.position }, target: { ...stageCam.target } }
+      }],
+      activeSceneId: sceneId,
+      selectedId: null,
+      selectedIds: [],
+      clipboard: null,
+      aviUtlCoordinateStoreSnapshot: null,
+      pastCommands: [],
+      futureCommands: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
+      visionDetectionOverlay: null
+    });
   },
 
-  togglePlay: () => set((state) => {
-    if (!state.isPlaying && state.currentTime >= state.duration) {
-      return { isPlaying: true, currentTime: 0 };
+  loadProject: (settings, scenesInput, activeSceneId) => {
+    if (!Array.isArray(scenesInput) || scenesInput.length === 0) {
+      return;
     }
-    return { isPlaying: !state.isPlaying };
-  }),
+    filterParamEditSessions.clear();
+    const normalisedScenes: SceneData[] = scenesInput.map((scene) => ({
+      ...scene,
+      layers: normaliseLayers(scene.layers),
+      camera: sanitiseCamera(scene.camera),
+      stageCamera3D: sanitiseStageCamera3D(scene.stageCamera3D),
+      objects: normaliseSceneObjectList(scene.objects)
+    }));
+    const active = normalisedScenes.find((s) => s.id === activeSceneId) ?? normalisedScenes[0];
+    const loadedSettings: ProjectSettings = {
+      ...settings,
+      editorMode: settings.editorMode ?? '2d'
+    };
+    set({
+      projectSettings: loadedSettings,
+      isProjectLoaded: true,
+      currentTime: 0,
+      duration: Math.max(1, active.duration),
+      isPlaying: false,
+      layers: active.layers.map((layer) => ({ ...layer })),
+      objects: active.objects,
+      camera: { ...active.camera },
+      stageCamera3D: sanitiseStageCamera3D(active.stageCamera3D),
+      scenes: normalisedScenes,
+      activeSceneId: active.id,
+      selectedId: null,
+      selectedIds: [],
+      clipboard: null,
+      aviUtlCoordinateStoreSnapshot: null,
+      pastCommands: [],
+      futureCommands: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
+      visionDetectionOverlay: null
+    });
+  },
 
-  setIsPlaying: (isPlaying) => set({ isPlaying }),
-  setExporting: (isExporting) => set({ isExporting }),
-  
-  requestSnapshot: () => set({ isSnapshotRequested: true }),
-  finishSnapshot: () => set({ isSnapshotRequested: false }),
-  
-  // 変更前の状態を履歴に保存する
-  pushHistory: () => set((state) => ({
-    pastStates: [...state.pastStates, state.objects],
-    futureStates: [] // 新しい操作をしたらRedoスタックはクリア
+  setCamera: (patch) => set((state) => ({
+    camera: sanitiseCamera({ ...state.camera, ...patch })
   })),
 
-  undo: () => set((state) => {
-    if (state.pastStates.length === 0) return {};
-    const previous = state.pastStates[state.pastStates.length - 1];
-    const newPast = state.pastStates.slice(0, -1);
-    return {
-      objects: previous,
-      pastStates: newPast,
-      futureStates: [state.objects, ...state.futureStates],
-      duration: calculateAutoDuration(previous)
-    };
+  setStageCamera3D: (patch) => set((state) => {
+    const current = state.stageCamera3D;
+    const nextPosition = patch.position
+      ? { ...current.position, ...patch.position }
+      : { ...current.position };
+    const nextTarget = patch.target
+      ? { ...current.target, ...patch.target }
+      : { ...current.target };
+    const merged: StageCamera3D = sanitiseStageCamera3D({
+      position: nextPosition,
+      target: nextTarget
+    });
+    return { stageCamera3D: merged };
   }),
 
-  redo: () => set((state) => {
-    if (state.futureStates.length === 0) return {};
-    const next = state.futureStates[0];
-    const newFuture = state.futureStates.slice(1);
-    return {
-      objects: next,
-      pastStates: [...state.pastStates, state.objects],
-      futureStates: newFuture,
-      duration: calculateAutoDuration(next)
+  setEditorMode: (mode) => set((state) => ({
+    projectSettings: { ...state.projectSettings, editorMode: mode }
+  })),
+
+  switchScene: (sceneId) => {
+    const state = get();
+    if (sceneId === state.activeSceneId) return;
+    const targetScene = state.scenes.find((scene) => scene.id === sceneId);
+    if (!targetScene) return;
+
+    const flushed = flushActiveIntoScenes(
+      state.scenes,
+      state.activeSceneId,
+      state.objects,
+      state.layers,
+      state.duration,
+      state.camera,
+      state.stageCamera3D
+    );
+    const target = flushed.find((scene) => scene.id === sceneId);
+    if (!target) return;
+    filterParamEditSessions.clear();
+
+    const nextObjects = normaliseSceneObjectList(target.objects);
+    const nextLayers = target.layers.map((layer) => ({ ...layer }));
+
+    set({
+      scenes: flushed.map((scene) => (
+        scene.id === sceneId
+          ? { ...scene, objects: nextObjects, layers: nextLayers.map((l) => ({ ...l })) }
+          : scene
+      )),
+      activeSceneId: sceneId,
+      objects: nextObjects,
+      layers: nextLayers,
+      duration: Math.max(1, target.duration),
+      camera: { ...target.camera },
+      stageCamera3D: sanitiseStageCamera3D(target.stageCamera3D),
+      currentTime: 0,
+      isPlaying: false,
+      selectedId: null,
+      selectedIds: [],
+      pastCommands: [],
+      futureCommands: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
+      visionDetectionOverlay: null
+    });
+  },
+
+  addScene: () => {
+    const state = get();
+    filterParamEditSessions.clear();
+    const flushed = flushActiveIntoScenes(
+      state.scenes,
+      state.activeSceneId,
+      state.objects,
+      state.layers,
+      state.duration,
+      state.camera,
+      state.stageCamera3D
+    );
+    const newId = crypto.randomUUID();
+    const freshLayers = createDefaultLayers();
+    const freshCam = createDefaultCamera();
+    const freshStageCam = createDefaultStageCamera3D();
+    const newScene: SceneData = {
+      id: newId,
+      name: `Scene ${flushed.length + 1}`,
+      duration: 30,
+      layers: freshLayers,
+      objects: [],
+      camera: freshCam,
+      stageCamera3D: { ...freshStageCam, position: { ...freshStageCam.position }, target: { ...freshStageCam.target } }
     };
-  }),
+    set({
+      scenes: [...flushed, newScene],
+      activeSceneId: newId,
+      objects: [],
+      layers: freshLayers,
+      duration: 30,
+      camera: { ...freshCam },
+      stageCamera3D: { ...freshStageCam, position: { ...freshStageCam.position }, target: { ...freshStageCam.target } },
+      currentTime: 0,
+      isPlaying: false,
+      selectedId: null,
+      selectedIds: [],
+      pastCommands: [],
+      futureCommands: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
+      visionDetectionOverlay: null
+    });
+  },
+
+  deleteScene: (sceneId) => {
+    const state = get();
+    if (state.scenes.length <= 1) return;
+    const flushed = flushActiveIntoScenes(
+      state.scenes,
+      state.activeSceneId,
+      state.objects,
+      state.layers,
+      state.duration,
+      state.camera,
+      state.stageCamera3D
+    );
+    const nextScenes = flushed.filter((scene) => scene.id !== sceneId);
+    if (nextScenes.length === 0) return;
+
+    if (state.activeSceneId !== sceneId) {
+      set({ scenes: nextScenes });
+      return;
+    }
+
+    const fallback = nextScenes[0];
+    const nextObjects = normaliseSceneObjectList(fallback.objects);
+    const nextLayers = fallback.layers.map((layer) => ({ ...layer }));
+    set({
+      scenes: nextScenes.map((scene) => (
+        scene.id === fallback.id
+          ? { ...scene, objects: nextObjects, layers: nextLayers.map((l) => ({ ...l })) }
+          : scene
+      )),
+      activeSceneId: fallback.id,
+      objects: nextObjects,
+      layers: nextLayers,
+      duration: Math.max(1, fallback.duration),
+      camera: { ...fallback.camera },
+      stageCamera3D: sanitiseStageCamera3D(fallback.stageCamera3D),
+      currentTime: 0,
+      isPlaying: false,
+      selectedId: null,
+      selectedIds: [],
+      pastCommands: [],
+      futureCommands: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
+      visionDetectionOverlay: null
+    });
+  },
+
+  renameScene: (sceneId, name) => set((state) => ({
+    scenes: state.scenes.map((scene) => (
+      scene.id === sceneId
+        ? { ...scene, name: name.trim() === '' ? scene.name : name.trim() }
+        : scene
+    ))
+  })),
 
   addObject: (obj) => {
-    get().pushHistory();
+    const targetLayer = clampLayerIndex(obj.layer);
+    const state = get();
+    if (isLayerLocked(state.layers, targetLayer)) return;
+
+    const objectWithDefaults = {
+      ...obj,
+      layer: targetLayer,
+      enableAnimation: obj.enableAnimation ?? false,
+      endX: obj.endX ?? obj.x,
+      endY: obj.endY ?? obj.y,
+      easing: obj.easing ?? 'linear',
+      offset: obj.offset ?? 0
+    } as TimelineObject;
+    const syncedObject = syncObjectKeyframes(syncLegacyEffectsWithFilters(objectWithDefaults));
+
+    get().pushHistoryCommand(buildAddObjectCommand(syncedObject, state.objects.length));
     set((state) => {
-      const newObjects = [...state.objects, { 
-        ...obj, 
-        enableAnimation: obj.enableAnimation ?? false,
-        endX: obj.endX ?? obj.x,
-        endY: obj.endY ?? obj.y,
-        easing: obj.easing ?? 'linear',
-        offset: obj.offset ?? 0
-      }];
+      const newObjects = [...state.objects, syncedObject];
       return { 
         objects: newObjects,
-        selectedId: obj.id,
+        selectedId: syncedObject.id,
+        selectedIds: [syncedObject.id],
         duration: calculateAutoDuration(newObjects)
       };
     });
@@ -173,18 +530,130 @@ export const useStore = create<AppState>((set, get) => ({
     if (targetIndex < 0) return {};
 
     const currentObject = state.objects[targetIndex];
-    const changedKeys = Object.keys(newProps) as (keyof TimelineObject)[];
+    const currentLayer = clampLayerIndex(currentObject.layer);
+    if (isLayerLocked(state.layers, currentLayer)) return {};
+
+    const hasLayerUpdate = Object.prototype.hasOwnProperty.call(newProps, 'layer');
+    const parsedLayer = Number(newProps.layer);
+    const nextLayer = hasLayerUpdate && Number.isFinite(parsedLayer)
+      ? clampLayerIndex(parsedLayer)
+      : currentLayer;
+    if (isLayerLocked(state.layers, nextLayer)) return {};
+
+    const normalisedNewProps = hasLayerUpdate
+      ? { ...newProps, layer: nextLayer } as Partial<TimelineObject>
+      : newProps;
+
+    const hasStartUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'startTime');
+    const hasDurationUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'duration');
+    const hasXUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'x');
+    const hasYUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'y');
+    const hasExplicitKeyframesUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'keyframes');
+    const hasExplicitSubjectCropKeyframesUpdate = Object.prototype.hasOwnProperty.call(
+      normalisedNewProps,
+      'subjectCropKeyframes'
+    );
+
+    let adjustedNewProps = normalisedNewProps;
+    const nextStartTime = hasStartUpdate && typeof normalisedNewProps.startTime === 'number' && Number.isFinite(normalisedNewProps.startTime)
+      ? Math.max(0, normalisedNewProps.startTime)
+      : currentObject.startTime;
+    const nextDuration = hasDurationUpdate && typeof normalisedNewProps.duration === 'number' && Number.isFinite(normalisedNewProps.duration)
+      ? Math.max(0.1, normalisedNewProps.duration)
+      : currentObject.duration;
+
+    if (hasExplicitKeyframesUpdate) {
+      const keyframesRaw = Array.isArray(normalisedNewProps.keyframes) ? normalisedNewProps.keyframes : [];
+      adjustedNewProps = {
+        ...adjustedNewProps,
+        keyframes: normaliseKeyframesForObject(
+          { ...currentObject, ...adjustedNewProps, startTime: nextStartTime, duration: nextDuration },
+          keyframesRaw
+        )
+      };
+    } else if (currentObject.keyframes && currentObject.keyframes.length > 0) {
+      const nextX = hasXUpdate && typeof normalisedNewProps.x === 'number' && Number.isFinite(normalisedNewProps.x)
+        ? normalisedNewProps.x
+        : currentObject.x;
+      const nextY = hasYUpdate && typeof normalisedNewProps.y === 'number' && Number.isFinite(normalisedNewProps.y)
+        ? normalisedNewProps.y
+        : currentObject.y;
+      const deltaTime = hasStartUpdate ? nextStartTime - currentObject.startTime : 0;
+      const deltaX = hasXUpdate ? nextX - currentObject.x : 0;
+      const deltaY = hasYUpdate ? nextY - currentObject.y : 0;
+      const needsKeyframeShift = Math.abs(deltaTime) > 0.0001
+        || Math.abs(deltaX) > 0.0001
+        || Math.abs(deltaY) > 0.0001
+        || hasDurationUpdate;
+      if (needsKeyframeShift) {
+        const shiftedKeyframes = shiftKeyframesForObject(
+          { ...currentObject, startTime: nextStartTime, duration: nextDuration },
+          currentObject.keyframes,
+          deltaTime,
+          deltaX,
+          deltaY
+        );
+        adjustedNewProps = {
+          ...adjustedNewProps,
+          keyframes: shiftedKeyframes
+        };
+      }
+    }
+
+    if (currentObject.type === 'video' && hasExplicitSubjectCropKeyframesUpdate) {
+      const videoPatch = normalisedNewProps as Partial<VideoObject>;
+      const raw = Array.isArray(videoPatch.subjectCropKeyframes) ? videoPatch.subjectCropKeyframes : [];
+      adjustedNewProps = {
+        ...adjustedNewProps,
+        subjectCropKeyframes: normaliseSubjectCropKeyframesForVideo(
+          { ...currentObject, ...adjustedNewProps, startTime: nextStartTime, duration: nextDuration },
+          raw as SubjectCropNormKeyframe[]
+        )
+      };
+    } else if (
+      currentObject.type === 'video'
+      && currentObject.subjectCropKeyframes
+      && currentObject.subjectCropKeyframes.length > 0
+    ) {
+      const deltaTime = hasStartUpdate ? nextStartTime - currentObject.startTime : 0;
+      const needsSubjectCropShift = Math.abs(deltaTime) > KEYFRAME_TIME_EPSILON || hasDurationUpdate;
+      if (needsSubjectCropShift) {
+        adjustedNewProps = {
+          ...adjustedNewProps,
+          subjectCropKeyframes: shiftSubjectCropKeyframesForObject(
+            currentObject.subjectCropKeyframes,
+            deltaTime,
+            nextStartTime,
+            nextDuration
+          )
+        };
+      }
+    }
+
+    const changedKeys = Object.keys(adjustedNewProps) as (keyof TimelineObject)[];
     const hasAnyDiff = changedKeys.some((key) => {
-      return !Object.is(currentObject[key], newProps[key]);
+      return !Object.is(currentObject[key], adjustedNewProps[key]);
     });
 
     if (!hasAnyDiff) return {};
 
-    const updatedObject = { ...currentObject, ...newProps } as TimelineObject;
+    const hasFilterUpdate = Object.prototype.hasOwnProperty.call(adjustedNewProps, 'filters');
+    const hasLegacyEffectUpdate = Object.prototype.hasOwnProperty.call(adjustedNewProps, 'colorCorrection')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'customClipping')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'vibration')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'shadow')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'gradient');
+
+    const mergedObject = { ...currentObject, ...adjustedNewProps } as TimelineObject;
+    const updatedObject = syncObjectKeyframes(hasFilterUpdate
+      ? syncLegacyEffectsWithFilters(mergedObject)
+      : (hasLegacyEffectUpdate
+        ? syncFiltersFromLegacyValues(mergedObject)
+        : syncLegacyEffectsWithFilters(mergedObject)));
     const newObjects = state.objects.slice();
     newObjects[targetIndex] = updatedObject;
 
-    if (!needsDurationRecalculation(newProps)) {
+    if (!needsDurationRecalculation(adjustedNewProps)) {
       return { objects: newObjects };
     }
 
@@ -194,52 +663,774 @@ export const useStore = create<AppState>((set, get) => ({
     };
   }),
 
+  addObjectFilter: async (objectId, filterType) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    const index = getObjectFiltersInOrder(targetObject).length;
+    const command = buildAddFilterCommand(objectId, createDefaultFilter(filterType), index);
+    await applyFilterCommand(set, get, command, true);
+  },
+
+  beginObjectFilterParamsEdit: (objectId, filterId) => {
+    const state = get();
+    const object = state.objects.find((entry) => entry.id === objectId);
+    if (!object || isLayerLocked(state.layers, clampLayerIndex(object.layer))) return null;
+    const filter = getObjectFiltersInOrder(object).find((entry) => entry.id === filterId);
+    if (!filter) return null;
+
+    const key = filterParamEditKey(objectId, filterId);
+    const existing = filterParamEditSessions.get(key);
+    if (existing && !existing.ending) return existing.id;
+    const baseline = existing?.expected ?? cloneFilterParams(filter.params as unknown as Record<string, unknown>);
+    const session: FilterParamEditSession = {
+      id: nextFilterParamEditSessionId++,
+      sceneId: state.activeSceneId,
+      objectId,
+      filterId,
+      previous: cloneFilterParams(baseline),
+      expected: cloneFilterParams(baseline),
+      ending: false,
+    };
+    filterParamEditSessions.set(key, session);
+    return session.id;
+  },
+
+  commitObjectFilterParamsEdit: (objectId, filterId, sessionId) => {
+    const key = filterParamEditKey(objectId, filterId);
+    const session = filterParamEditSessions.get(key);
+    if (!session || (sessionId !== undefined && session.id !== sessionId)) return Promise.resolve();
+    if (session.ending) return filterParamEditCommitPromises.get(session.id) ?? Promise.resolve();
+    session.ending = true;
+
+    const commit = (async () => {
+      // Capture only work queued at this input boundary. A later gesture can
+      // continue while this Rust request is resolving and receives its own step.
+      await filterCommandQueues.get(objectId)?.catch(() => undefined);
+
+      if (filterParamEditSessions.get(key) === session) filterParamEditSessions.delete(key);
+      const state = get();
+      if (state.activeSceneId !== session.sceneId) return;
+      const object = state.objects.find((entry) => entry.id === objectId);
+      if (!object || isLayerLocked(state.layers, clampLayerIndex(object.layer))) return;
+      const filter = getObjectFiltersInOrder(object).find((entry) => entry.id === filterId);
+      if (!filter) return;
+      const appliedParams = filter.params as unknown as Record<string, unknown>;
+      const changedKeys = Object.keys({ ...session.previous, ...session.expected })
+        .filter((paramKey) => !filterParamsEqual(session.previous[paramKey], session.expected[paramKey]));
+      if (changedKeys.length === 0) return;
+      // An undo/redo or competing filter action can invalidate the visible edit
+      // while its IPC response is pending. Only record values Rust actually applied.
+      if (changedKeys.some((paramKey) => !filterParamsEqual(appliedParams[paramKey], session.expected[paramKey]))) return;
+
+      const previous = Object.fromEntries(changedKeys.map((paramKey) => [paramKey, session.previous[paramKey]]));
+      const next = Object.fromEntries(changedKeys.map((paramKey) => [paramKey, appliedParams[paramKey]]));
+      get().pushHistoryCommand(buildUpdateFilterParamsCommand(objectId, filterId, next, previous));
+    })();
+    filterParamEditCommitPromises.set(session.id, commit);
+    void commit.then(
+      () => { if (filterParamEditCommitPromises.get(session.id) === commit) filterParamEditCommitPromises.delete(session.id); },
+      () => { if (filterParamEditCommitPromises.get(session.id) === commit) filterParamEditCommitPromises.delete(session.id); },
+    );
+    return commit;
+  },
+
+  flushObjectFilterParamEdits: async () => {
+    const sessions = [...filterParamEditSessions.values()];
+    await Promise.all(sessions.map((session) => get().commitObjectFilterParamsEdit(
+      session.objectId,
+      session.filterId,
+      session.id,
+    )));
+    await Promise.all([...filterParamEditCommitPromises.values()]);
+  },
+
+  hasPendingObjectFilterParamEdits: () =>
+    filterParamEditSessions.size > 0 || filterParamEditCommitPromises.size > 0,
+
+  toggleObjectFilter: async (objectId, filterId) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    const filterExists = getObjectFiltersInOrder(targetObject).some((filter) => filter.id === filterId);
+    if (!filterExists) return;
+    await applyFilterCommand(set, get, buildToggleFilterEnabledCommand(objectId, filterId), true);
+  },
+
+  moveObjectFilter: async (objectId, filterId, direction) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    const currentFilters = getObjectFiltersInOrder(targetObject);
+    const fromIndex = currentFilters.findIndex((filter) => filter.id === filterId);
+    if (fromIndex >= 0) {
+      const rawTargetIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+      // Rust 側と同じクランプ規約(rust-source-of-truth-r4-commands.md):
+      // 端で無操作になる場合は fromIndex===toIndex を明示的に渡す。
+      const toIndex = rawTargetIndex < 0 || rawTargetIndex >= currentFilters.length
+        ? fromIndex
+        : rawTargetIndex;
+      await applyFilterCommand(
+        set,
+        get,
+        buildMoveFilterCommand(objectId, filterId, fromIndex, toIndex),
+        true,
+      );
+    }
+  },
+
+  removeObjectFilter: async (objectId, filterId) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    const currentFilters = getObjectFiltersInOrder(targetObject);
+    const removeIndex = currentFilters.findIndex((filter) => filter.id === filterId);
+    if (removeIndex < 0) return;
+    await applyFilterCommand(
+      set,
+      get,
+      buildRemoveFilterCommand(objectId, currentFilters[removeIndex], removeIndex),
+      true,
+    );
+  },
+
+  updateObjectFilterParams: async (objectId, filterId, params) => {
+    const state = get();
+    const targetObject = state.objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(state.layers, clampLayerIndex(targetObject.layer))) return;
+
+    const filter = getObjectFiltersInOrder(targetObject).find((entry) => entry.id === filterId);
+    if (!filter) return;
+    const editSession = filterParamEditSessions.get(filterParamEditKey(objectId, filterId));
+    if (editSession) editSession.expected = { ...editSession.expected, ...params };
+    const filterParams = filter.params as unknown as Record<string, unknown>;
+    const previous = Object.fromEntries(
+      Object.keys(params).map((key) => [key, filterParams[key] ?? null]),
+    );
+    const command = buildUpdateFilterParamsCommand(objectId, filterId, params, previous);
+    // パラメータ変更は従来どおり履歴へ積まない（スライダーの各入力を
+    // 1 undo step にしない）。適用結果だけは Rust から受け取る。
+    await applyFilterCommand(set, get, command, false);
+  },
+
   deleteObject: (id) => {
-    get().pushHistory();
+    const currentObject = get().objects.find((obj) => obj.id === id);
+    if (!currentObject) return;
+
+    const layer = clampLayerIndex(currentObject.layer);
+    if (isLayerLocked(get().layers, layer)) return;
+
+    const currentIndex = get().objects.findIndex((obj) => obj.id === id);
+    get().pushHistoryCommand(buildRemoveObjectCommand(currentObject, currentIndex));
     set((state) => {
       const newObjects = state.objects.filter(obj => obj.id !== id);
+      const nextSelectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
+      const lastSelectedId = nextSelectedIds.length > 0 ? nextSelectedIds[nextSelectedIds.length - 1] : null;
       return {
         objects: newObjects,
-        selectedId: state.selectedId === id ? null : state.selectedId,
+        selectedId: state.selectedId === id ? lastSelectedId : state.selectedId,
+        selectedIds: nextSelectedIds,
         duration: calculateAutoDuration(newObjects)
       };
     });
   },
 
-  splitObject: () => {
-    const { objects, selectedId, currentTime } = get();
+  deleteSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const deletableIds = selectedObjects
+      .filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)))
+      .map((obj) => obj.id);
+    if (deletableIds.length === 0) return;
+
+    const deletableSet = new Set(deletableIds);
+    // 降順 index で RemoveObject を並べる(rust-source-of-truth-r4-7b-command-batch.md
+    // の batch_apply_and_undo_round_trip_removes_multiple_objects と同じ規約:
+    // Batch は逐次 apply されるため、後ろの index から消していけば手前の
+    // index が途中でずれない)。
+    const removeCommands = deletableIds
+      .map((objId) => ({ objId, index: state.objects.findIndex((obj) => obj.id === objId) }))
+      .sort((a, b) => b.index - a.index)
+      .map(({ objId, index }) => buildRemoveObjectCommand(
+        state.objects.find((obj) => obj.id === objId)!,
+        index
+      ));
+    const batch = buildBatchCommand(removeCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set((currentState) => {
+      const newObjects = currentState.objects.filter((obj) => !deletableSet.has(obj.id));
+      return {
+        objects: newObjects,
+        selectedId: null,
+        selectedIds: [],
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  rippleDeleteObject: (id) => {
+    const currentObject = get().objects.find((obj) => obj.id === id);
+    if (!currentObject) return;
+
+    const layer = clampLayerIndex(currentObject.layer);
+    if (isLayerLocked(get().layers, layer)) return;
+
+    const state = get();
+    const currentIndex = state.objects.findIndex((obj) => obj.id === id);
+    const rippledObjects = computeRippledObjects(state.objects, new Set([id]));
+    // RemoveObject + リップルで startTime がずれたオブジェクトの
+    // SetObjectField を1つの Batch にまとめる(1回の undo で両方戻す)。
+    const shiftCommands = rippledObjects.flatMap((nextObject) => {
+      const previousObject = state.objects.find((obj) => obj.id === nextObject.id);
+      if (!previousObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand([
+      buildRemoveObjectCommand(currentObject, currentIndex),
+      ...shiftCommands,
+    ]);
+    if (batch) get().pushHistoryCommand(batch);
+    set((state) => {
+      const deletedSet = new Set([id]);
+      const newObjects = computeRippledObjects(state.objects, deletedSet);
+      const nextSelectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
+      const lastSelectedId = nextSelectedIds.length > 0 ? nextSelectedIds[nextSelectedIds.length - 1] : null;
+      return {
+        objects: newObjects,
+        selectedId: state.selectedId === id ? lastSelectedId : state.selectedId,
+        selectedIds: nextSelectedIds,
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  rippleDeleteSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const deletableIds = selectedObjects
+      .filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)))
+      .map((obj) => obj.id);
+    if (deletableIds.length === 0) return;
+
+    const deletableSet = new Set(deletableIds);
+    const removeCommands = deletableIds
+      .map((objId) => ({ objId, index: state.objects.findIndex((obj) => obj.id === objId) }))
+      .sort((a, b) => b.index - a.index)
+      .map(({ objId, index }) => buildRemoveObjectCommand(
+        state.objects.find((obj) => obj.id === objId)!,
+        index
+      ));
+    const rippledObjects = computeRippledObjects(state.objects, deletableSet);
+    const shiftCommands = rippledObjects.flatMap((nextObject) => {
+      const previousObject = state.objects.find((obj) => obj.id === nextObject.id);
+      if (!previousObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand([...removeCommands, ...shiftCommands]);
+    if (batch) get().pushHistoryCommand(batch);
+    set((currentState) => {
+      const newObjects = computeRippledObjects(currentState.objects, deletableSet);
+      return {
+        objects: newObjects,
+        selectedId: null,
+        selectedIds: [],
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  splitObject: async () => {
+    const captured = get();
+    const { objects, selectedId, currentTime, layers } = captured;
     const target = objects.find(o => o.id === selectedId);
 
     if (!target || currentTime <= target.startTime || currentTime >= target.startTime + target.duration) {
         return;
     }
 
-    get().pushHistory();
+    if (isLayerLocked(layers, clampLayerIndex(target.layer))) {
+        return;
+    }
+
+    const capturedGraph = {
+      projectSettings: captured.projectSettings,
+      layers: captured.layers,
+      objects: captured.objects,
+    };
+    const capturedAction = {
+      activeSceneId: captured.activeSceneId,
+      selectedObjectId: target.id,
+      timeSeconds: currentTime,
+      ...capturedGraph,
+    };
+    const capturedSelection = captured.selectedIds.slice();
+    const isActionCurrent = () => {
+      const latest = get();
+      return isRustScenePositionQueryActionCurrent(capturedAction, {
+        activeSceneId: latest.activeSceneId,
+        selectedObjectId: latest.selectedId ?? '',
+        timeSeconds: latest.currentTime,
+        projectSettings: latest.projectSettings,
+        layers: latest.layers,
+        objects: latest.objects,
+      })
+        && latest.selectedIds.length === capturedSelection.length
+        && latest.selectedIds.every((id, index) => id === capturedSelection[index])
+        && latest.objects.find((object) => object.id === target.id) === target
+        && !isLayerLocked(latest.layers, clampLayerIndex(target.layer));
+    };
+
+    const queryTarget: RustScenePositionQueryTarget = {
+      sceneId: 'viewport-rust-timeline',
+      revision: 0,
+      ...capturedGraph,
+    };
+    let splitPosition: { x: number; y: number };
+    try {
+      const revision = await waitForRustScenePositionQueryRevision(queryTarget);
+      if (!isActionCurrent()) return;
+      const requestId = crypto.randomUUID();
+      const queried = await queryRustBackendSceneObjectPositions({
+        sceneId: queryTarget.sceneId,
+        revision,
+        queries: [{ requestId, objectId: target.id, timeSeconds: currentTime }],
+      });
+      if (!queried.ok) throw new Error(queried.detail);
+      if (queried.value.sceneId !== queryTarget.sceneId || queried.value.revision !== revision) {
+        throw new Error('Rust position query returned a stale scene revision.');
+      }
+      const response = queried.value.positions.find((position) => position.requestId === requestId);
+      if (!response) throw new Error('Rust position query omitted the split object.');
+      if (!isActionCurrent()) return;
+      splitPosition = response.localPosition;
+    } catch (error) {
+      if (isRustScenePositionQueryCancelled(error) || !isActionCurrent()) return;
+      console.warn('[useStore] Rust split position query failed:', error);
+      if (typeof window !== 'undefined') {
+        window.alert(get().language === 'en'
+          ? 'Could not evaluate the split position in the Rust scene.'
+          : 'Rustシーンから分割位置を取得できませんでした。');
+      }
+      return;
+    }
+
+    if (!isActionCurrent()) return;
+
+    const targetIndex = objects.findIndex((o) => o.id === target.id);
 
     const splitPoint = currentTime - target.startTime;
+    const splitTime = currentTime;
 
-    const firstPart = {
+    const firstPart: TimelineObject = {
         ...target,
-        duration: splitPoint
+        duration: splitPoint,
+        endX: splitPosition.x,
+        endY: splitPosition.y
     };
 
     const secondPart: TimelineObject = {
         ...target,
         id: crypto.randomUUID(),
-        startTime: currentTime,
+        startTime: splitTime,
         duration: target.duration - splitPoint,
         offset: (target.offset || 0) + splitPoint,
+        x: splitPosition.x,
+        y: splitPosition.y,
     };
+
+    if (target.keyframes && target.keyframes.length > 0) {
+        const normalisedKeyframes = normaliseKeyframesForObject(target, target.keyframes);
+        const firstKeyframes = normalisedKeyframes.filter((keyframe) => keyframe.time <= splitTime + KEYFRAME_TIME_EPSILON);
+        const secondKeyframes = normalisedKeyframes.filter((keyframe) => keyframe.time >= splitTime - KEYFRAME_TIME_EPSILON);
+        const hasBoundaryKeyframe = normalisedKeyframes.some((keyframe) => (
+          Math.abs(keyframe.time - splitTime) <= KEYFRAME_TIME_EPSILON
+        ));
+
+        if (!hasBoundaryKeyframe) {
+          const leftKeyframe = normalisedKeyframes
+            .slice()
+            .reverse()
+            .find((keyframe) => keyframe.time < splitTime);
+          const boundaryKeyframe = {
+            id: crypto.randomUUID(),
+            time: splitTime,
+            x: splitPosition.x,
+            y: splitPosition.y,
+            easing: leftKeyframe?.easing ?? target.easing
+          };
+          firstKeyframes.push(boundaryKeyframe);
+          secondKeyframes.unshift(boundaryKeyframe);
+        }
+
+        firstPart.keyframes = firstKeyframes;
+        secondPart.keyframes = secondKeyframes
+          .map((keyframe) => ({ ...keyframe, id: crypto.randomUUID() }));
+    }
 
     const newObjects = objects.map(o => o.id === target.id ? firstPart : o);
     newObjects.push(secondPart);
 
+    const syncedObjects = newObjects.map(syncObjectKeyframes);
+    // set() 後の実データ(syncObjectKeyframes 適用済み)から Command を組み立てる
+    // — firstPart/secondPart の pre-sync 値ではなく実際に state へ入る値を
+    // 使うことで Rust 側の undo 結果と乖離しないようにする。
+    const syncedFirstPart = syncedObjects.find((o) => o.id === firstPart.id)!;
+    const syncedSecondPart = syncedObjects.find((o) => o.id === secondPart.id)!;
+    const batch = buildBatchCommand([
+      buildRemoveObjectCommand(target, targetIndex),
+      buildAddObjectCommand(syncedFirstPart, targetIndex),
+      buildAddObjectCommand(syncedSecondPart, objects.length),
+    ]);
+    if (batch) get().pushHistoryCommand(batch);
+
     set({
-        objects: newObjects,
+        objects: syncedObjects,
         selectedId: secondPart.id,
-        duration: calculateAutoDuration(newObjects)
+        selectedIds: [secondPart.id],
+        duration: calculateAutoDuration(syncedObjects)
     });
   },
 
-  selectObject: (id) => set({ selectedId: id }),
+  copySelectedObjects: () => set((state) => {
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return {};
+
+    return {
+      clipboard: buildClipboardState(selectedObjects)
+    };
+  }),
+
+  cutSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const cutObjects = selectedObjects.filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)));
+    if (cutObjects.length === 0) return;
+
+    const cutObjectIdSet = new Set(cutObjects.map((obj) => obj.id));
+    const clipboard = buildClipboardState(cutObjects);
+
+    const removeCommands = cutObjects
+      .map((obj) => ({ obj, index: state.objects.findIndex((o) => o.id === obj.id) }))
+      .sort((a, b) => b.index - a.index)
+      .map(({ obj, index }) => buildRemoveObjectCommand(obj, index));
+    const batch = buildBatchCommand(removeCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set((currentState) => {
+      const newObjects = currentState.objects.filter((obj) => !cutObjectIdSet.has(obj.id));
+      return {
+        clipboard,
+        objects: newObjects,
+        selectedId: null,
+        selectedIds: [],
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  pasteClipboardObjects: () => {
+    const state = get();
+    const clipboard = state.clipboard;
+    if (!clipboard || clipboard.objects.length === 0) return;
+
+    const groupIdMap = new Map<string, string>();
+    const pastedObjects: TimelineObject[] = [];
+
+    clipboard.objects.forEach((template) => {
+      const targetLayer = clampLayerIndex(template.layer);
+      if (isLayerLocked(state.layers, targetLayer)) return;
+
+      const cloned = cloneTimelineObject(template);
+      const xOffset = template.x - clipboard.anchorX;
+      const yOffset = template.y - clipboard.anchorY;
+
+      cloned.id = crypto.randomUUID();
+      cloned.startTime = Math.max(0, state.currentTime + (template.startTime - clipboard.anchorStartTime));
+      const startTimeDelta = cloned.startTime - template.startTime;
+      cloned.layer = targetLayer;
+      cloned.x = clipboard.anchorX + xOffset + 16;
+      cloned.y = clipboard.anchorY + yOffset + 16;
+      cloned.endX = cloned.endX + 16;
+      cloned.endY = cloned.endY + 16;
+      if (cloned.motionPath) {
+        cloned.motionPath = cloned.motionPath.map((point) => ({
+          ...point,
+          x: point.x + 16,
+          y: point.y + 16
+        }));
+      }
+      if (cloned.keyframes) {
+        cloned.keyframes = cloned.keyframes.map((keyframe) => ({
+          ...keyframe,
+          id: crypto.randomUUID(),
+          time: keyframe.time + startTimeDelta,
+          x: keyframe.x + 16,
+          y: keyframe.y + 16
+        }));
+      }
+
+      if (cloned.groupId) {
+        if (!groupIdMap.has(cloned.groupId)) {
+          groupIdMap.set(cloned.groupId, crypto.randomUUID());
+        }
+        cloned.groupId = groupIdMap.get(cloned.groupId);
+      }
+
+      pastedObjects.push(syncObjectKeyframes(syncLegacyEffectsWithFilters(cloned)));
+    });
+
+    if (pastedObjects.length === 0) return;
+
+    const baseIndex = state.objects.length;
+    const batch = buildBatchCommand(
+      pastedObjects.map((obj, i) => buildAddObjectCommand(obj, baseIndex + i))
+    );
+    if (batch) get().pushHistoryCommand(batch);
+    set((currentState) => {
+      const newObjects = [...currentState.objects, ...pastedObjects];
+      return {
+        objects: newObjects,
+        selectedId: pastedObjects[pastedObjects.length - 1].id,
+        selectedIds: pastedObjects.map((obj) => obj.id),
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  duplicateSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const sorted = selectedObjects
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime || a.layer - b.layer);
+    const groupIdMap = new Map<string, string>();
+    const duplicatedObjects: TimelineObject[] = [];
+
+    sorted.forEach((template) => {
+      const targetLayer = clampLayerIndex(template.layer + 1);
+      if (isLayerLocked(state.layers, targetLayer)) return;
+
+      const cloned = cloneTimelineObject(template);
+      cloned.id = crypto.randomUUID();
+      cloned.startTime = template.startTime + 0.2;
+      const startTimeDelta = cloned.startTime - template.startTime;
+      cloned.layer = targetLayer;
+      cloned.x = template.x + 20;
+      cloned.y = template.y + 20;
+      cloned.endX = cloned.endX + 20;
+      cloned.endY = cloned.endY + 20;
+      if (cloned.motionPath) {
+        cloned.motionPath = cloned.motionPath.map((point) => ({
+          ...point,
+          x: point.x + 20,
+          y: point.y + 20
+        }));
+      }
+      if (cloned.keyframes) {
+        cloned.keyframes = cloned.keyframes.map((keyframe) => ({
+          ...keyframe,
+          id: crypto.randomUUID(),
+          time: keyframe.time + startTimeDelta,
+          x: keyframe.x + 20,
+          y: keyframe.y + 20
+        }));
+      }
+
+      if (cloned.groupId) {
+        if (!groupIdMap.has(cloned.groupId)) {
+          groupIdMap.set(cloned.groupId, crypto.randomUUID());
+        }
+        cloned.groupId = groupIdMap.get(cloned.groupId);
+      }
+
+      duplicatedObjects.push(syncObjectKeyframes(syncLegacyEffectsWithFilters(cloned)));
+    });
+
+    if (duplicatedObjects.length === 0) return;
+
+    const baseIndex = state.objects.length;
+    const batch = buildBatchCommand(
+      duplicatedObjects.map((obj, i) => buildAddObjectCommand(obj, baseIndex + i))
+    );
+    if (batch) get().pushHistoryCommand(batch);
+    set((currentState) => {
+      const newObjects = [...currentState.objects, ...duplicatedObjects];
+      return {
+        objects: newObjects,
+        selectedId: duplicatedObjects[duplicatedObjects.length - 1].id,
+        selectedIds: duplicatedObjects.map((obj) => obj.id),
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  duplicateSelectedObjectsWithObjectCopyExt: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const editableObjects = selectedObjects.filter((object) => !isLayerLocked(state.layers, clampLayerIndex(object.layer)));
+    if (editableObjects.length === 0) return;
+
+    const duplicatedObjects = buildAviUtlObjectCopyExtClones(editableObjects, {
+      copies: 3,
+      offsetX: 16,
+      offsetY: 16,
+      timeOffsetSeconds: 0.1,
+      layerOffset: 1,
+      maxLayer: state.layers.length - 1,
+      idFactory: () => crypto.randomUUID()
+    }).filter((object) => !isLayerLocked(state.layers, clampLayerIndex(object.layer)));
+
+    if (duplicatedObjects.length === 0) return;
+
+    const syncedObjects = duplicatedObjects.map((object) => syncObjectKeyframes(syncLegacyEffectsWithFilters(object)));
+    const baseIndex = state.objects.length;
+    const batch = buildBatchCommand(
+      syncedObjects.map((obj, i) => buildAddObjectCommand(obj, baseIndex + i))
+    );
+    if (batch) get().pushHistoryCommand(batch);
+    set((currentState) => {
+      const newObjects = [...currentState.objects, ...syncedObjects];
+      return {
+        objects: newObjects,
+        selectedId: syncedObjects[syncedObjects.length - 1].id,
+        selectedIds: syncedObjects.map((object) => object.id),
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  captureSelectedCoordinatesWithAviUtlStore: (name = 'default') => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    set({
+      aviUtlCoordinateStoreSnapshot: captureAviUtlCoordinateStoreSnapshot(selectedObjects, { name })
+    });
+  },
+
+  applyAviUtlStoredCoordinatesToSelection: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    const patches = buildAviUtlCoordinateRecallPatches(selectedObjects, state.aviUtlCoordinateStoreSnapshot);
+    if (patches.length === 0) return;
+
+    const patchById = new Map(patches.map((entry) => [entry.id, entry.patch]));
+    const nextObjects = state.objects.map((object) => {
+      const patch = patchById.get(object.id);
+      if (!patch) return object;
+      if (isLayerLocked(state.layers, clampLayerIndex(object.layer))) return object;
+      return syncObjectKeyframes(syncLegacyEffectsWithFilters({ ...object, ...patch } as TimelineObject));
+    });
+    const diffCommands = nextObjects.flatMap((nextObject, i) => {
+      const previousObject = state.objects[i];
+      if (previousObject === nextObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set({ objects: nextObjects });
+  },
+
+  groupSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length < 2) return;
+
+    const editableIds = selectedObjects
+      .filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)))
+      .map((obj) => obj.id);
+    if (editableIds.length < 2) return;
+
+    const editableSet = new Set(editableIds);
+    const newGroupId = crypto.randomUUID();
+    const newObjects = state.objects.map((obj) => {
+      if (!editableSet.has(obj.id)) return obj;
+      return { ...obj, groupId: newGroupId, groupGradient: undefined };
+    });
+    const diffCommands = newObjects.flatMap((nextObject, i) => {
+      const previousObject = state.objects[i];
+      if (previousObject === nextObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set({ objects: newObjects });
+  },
+
+  ungroupSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const groupIds = new Set(
+      selectedObjects
+        .map((obj) => obj.groupId)
+        .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '')
+    );
+    if (groupIds.size === 0) return;
+
+    const newObjects = state.objects.map((obj) => {
+      if (!obj.groupId || !groupIds.has(obj.groupId)) return obj;
+      if (isLayerLocked(state.layers, clampLayerIndex(obj.layer))) return obj;
+      return { ...obj, groupId: undefined, groupGradient: undefined };
+    });
+    const diffCommands = newObjects.flatMap((nextObject, i) => {
+      const previousObject = state.objects[i];
+      if (previousObject === nextObject) return [];
+      return buildObjectFieldDiffCommands(previousObject, nextObject);
+    });
+    const batch = buildBatchCommand(diffCommands);
+    if (batch) get().pushHistoryCommand(batch);
+    set({
+      objects: newObjects
+    });
+  },
+
+  setGroupGradient: (groupId, gradient) => {
+    if (!groupId || groupId.trim() === '') return;
+    const clonedGradient = gradient
+      ? {
+        ...gradient,
+        colours: Array.isArray(gradient.colours) ? gradient.colours.slice() : [],
+        stops: Array.isArray(gradient.stops) ? gradient.stops.slice() : []
+      }
+      : undefined;
+
+    set((state) => {
+      let changed = false;
+      const newObjects = state.objects.map((obj) => {
+        if (obj.groupId !== groupId) return obj;
+        if (isLayerLocked(state.layers, clampLayerIndex(obj.layer))) return obj;
+        changed = true;
+        return {
+          ...obj,
+          groupGradient: clonedGradient
+            ? {
+              ...clonedGradient,
+              colours: clonedGradient.colours.slice(),
+              stops: clonedGradient.stops.slice()
+            }
+            : undefined
+        };
+      });
+      if (!changed) return {};
+      return { objects: newObjects };
+    });
+  },
+
 }));

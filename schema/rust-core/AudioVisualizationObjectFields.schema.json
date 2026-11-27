@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AudioVisualizationObjectFields",
+  "description": "`AudioVisualizationObject`（`src/types.ts`）の `type` / `BaseObject`\n由来フィールドを除いた、audio_visualization 固有部分。TS 側は\n`BaseObject & AudioVisualizationObjectFields & { type: 'audio_visualization' }`\nとして組み立てる。\n\n`width`/`height` は `TimelineContextMenu.tsx` の `handleAddWaveform` が\nプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな\n`0.0` にする。`targetAudioId` は `string | null`（常にキーとして存在し\nnull を許容）なので `Option<String>` のまま `skip_serializing_if` を\n付けない。`targetLayer` は `number` 型の省略可能フィールド\n(`targetLayer?: number`) なので `skip_serializing_if` を付ける。\n`color`（American spelling）は TS 側の既存フィールド名をそのまま踏襲する。",
+  "type": "object",
+  "properties": {
+    "amplitude": {
+      "type": "number",
+      "format": "float"
+    },
+    "color": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "targetAudioId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetLayer": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int32"
+    },
+    "thickness": {
+      "type": "number",
+      "format": "float"
+    },
+    "visualizationType": {
+      "$ref": "#/$defs/AudioVisualizationType",
+      "default": "waveform"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "color",
+    "thickness",
+    "width",
+    "height",
+    "amplitude"
+  ],
+  "$defs": {
+    "AudioVisualizationType": {
+      "description": "`AudioVisualizationObject`（`src/types.ts`）専用の可視化種別。\n現状 `'waveform'` の単一バリアントのみ存在する。",
+      "type": "string",
+      "enum": [
+        "waveform"
+      ]
+    }
+  }
+}

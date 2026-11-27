@@ -1,32 +1,156 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-1n",
+  "version": "0.1.1-Beta-525b",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "dev": "node scripts/dev-native-overlay.mjs",
+    "dev:rust-video": "node scripts/dev-rust-video.mjs",
+    "dev:native-overlay": "node scripts/dev-native-overlay.mjs",
+    "bench:native-overlay": "node scripts/run-native-overlay-long-bench.mjs",
+    "perf": "VITE_PERF_AUTORUN=1 vite",
+    "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
+    "test": "vitest run",
+    "test:export": "VITE_EXPORT_TEST=1 vite",
+    "test:export:ci": "node scripts/run-export-test.mjs",
+    "test:export:fast": "EXPORT_FAST=1 node scripts/run-export-test.mjs",
+    "test:video-load:e2e": "node scripts/run-video-load-e2e.mjs",
+    "test:shattered-sphere-preview:e2e": "node scripts/run-shattered-sphere-preview-e2e.mjs",
+    "test:native-overlay-live-readback:e2e": "UXFD_SHATTERED_SPHERE_LIVE_READBACK_E2E=1 node scripts/run-shattered-sphere-preview-e2e.mjs",
+    "test:video-export:e2e": "node scripts/run-video-export-e2e.mjs",
+    "test:video-export:quality": "node scripts/compare-video-export-quality.mjs",
+    "agent:validate": "VITEST=true vite-node scripts/validate-agent-project.mts",
+    "fixture:evaluation-parity": "VITEST=true vite-node scripts/generate-evaluation-parity-fixture.mts",
+    "fixture:editable-scene-builder": "VITEST=true vite-node scripts/generate-editable-scene-builder-fixture.mts",
+    "fixture:editable-scene-builder:coverage": "VITEST=true vite-node scripts/generate-editable-scene-builder-coverage-fixture.mts",
+    "codegen:types": "cargo run --manifest-path rust-core/Cargo.toml --bin codegen_types",
+    "codegen:types:check": "npm run codegen:types && git diff --exit-code -- src/generated/rustCore schema/rust-core",
+    "agent:video": "node scripts/run-agent-video.mjs",
+    "test:realistic-heavy-edit:e2e": "node scripts/run-realistic-heavy-edit-e2e.mjs",
+    "test:realistic-heavy-edit:e2e:cpu-throttle": "UXFD_REALISTIC_HEAVY_EDIT_CPU_THROTTLE=4 node scripts/run-realistic-heavy-edit-e2e.mjs",
+    "dxc:prepare": "node scripts/prepareDxc.mjs --prepare",
+    "build:win": "npm run dxc:prepare && npm run build -- --win --x64",
+    "test:psd-import:e2e": "node scripts/run-psd-import-e2e-parity.mjs",
+    "test:native-overlay-parity": "cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity",
+    "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",
+    "build": "tsc && vite build && npm run remote-deck:build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
+    "remote-deck:build": "vite build --config remote-deck-ui/vite.config.ts",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
-    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml"
+    "bridge:node:build": "node scripts/build-shared-video-frame-node-addon.mjs",
+    "test:bridge-node": "npm run bridge:node:build && node scripts/test-shared-video-frame-node-addon.mjs",
+    "native-overlay:node:build": "node scripts/build-native-overlay-addon.mjs",
+    "test:native-overlay-node": "npm run native-overlay:node:build && node scripts/test-native-overlay-addon.mjs",
+    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
+    "wasm:build:rust-core": "wasm-pack build rust-core-wasm --target web --out-dir ../src/wasm/rust-core --out-name uxfd_rust_core_wasm",
+    "wasm:build:oxidise": "wasm-pack build ../oxidise-engine/crates/oxidise-wasm --target web --out-dir ../../../UX-Film-Director/src/wasm/oxidise --out-name oxidise_wasm",
+    "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
+  },
+  "build": {
+    "appId": "com.uxfd.film-director",
+    "productName": "UX Film Director",
+    "beforePack": "./scripts/prepareDxc.mjs",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "remote-deck-ui/dist",
+        "to": "remote-deck-ui"
+      },
+      {
+        "from": "rust-backend/target/release/",
+        "to": "rust-backend",
+        "filter": [
+          "uxfd-rust-backend"
+        ]
+      },
+      {
+        "from": "macos-coreml-tracker/.build/release/",
+        "to": "macos-coreml-tracker",
+        "filter": [
+          "uxfd-coreml-tracker"
+        ]
+      },
+      {
+        "from": "shared-video-frame-bridge-node/",
+        "to": "shared-video-frame-bridge",
+        "filter": [
+          "shared-video-frame-bridge.node"
+        ]
+      },
+      {
+        "from": "native-overlay/",
+        "to": "native-overlay",
+        "filter": [
+          "native-overlay.node"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.video"
+    },
+    "win": {
+      "extraFiles": [
+        {
+          "from": "windows/dxc/x64",
+          "to": ".",
+          "filter": [
+            "dxcompiler.dll",
+            "dxil.dll",
+            "LICENSE-LLVM.txt",
+            "LICENSE-MS.txt",
+            "LICENCE-MIT.txt"
+          ]
+        }
+      ],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
-    "ag-psd": "^29.0.0",
-    "pixi.js": "^8.1.0",
+    "lucide-react": "^1.8.0",
+    "mp4-muxer": "^5.2.2",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "ws": "^8.21.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.2.1",
+    "@webgpu/types": "^0.1.71",
+    "cross-env": "^7.0.3",
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3",
+    "extract-zip": "^2.0.1",
+    "mp4box": "^2.4.0",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
     "vite-plugin-electron": "^0.28.4",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^2.1.9"
   }
 }

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SimpleTubeObjectFields",
+  "description": "`simple_tube` kind (`src/types.ts` の `SimpleTubeObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & SimpleTubeObjectFields & { type: 'simple_tube' }` として\n組み立てる。\n\n`width`/`height` は `simpleTubeObjectFactory.ts` の\n`buildAviUtlSimpleTubeObject` がプロジェクトサイズから都度計算するため\nニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラルを\nそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "colourPattern": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "depth": {
+      "type": "number",
+      "format": "float"
+    },
+    "fogColour": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "fogStrength": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "number",
+      "format": "float"
+    },
+    "randomAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "rings": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "secondaryColour": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "segments": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "strokeWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "torus": {
+      "type": "boolean"
+    },
+    "twistDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "radius",
+    "depth",
+    "segments",
+    "rings",
+    "twistDegrees",
+    "randomAmount",
+    "strokeWidth",
+    "colour",
+    "secondaryColour",
+    "seed",
+    "torus"
+  ]
+}

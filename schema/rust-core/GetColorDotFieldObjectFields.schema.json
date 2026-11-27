@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GetColorDotFieldObjectFields",
+  "description": "`getcolor_dot_field` kind (`src/types.ts` の `GetColorDotFieldObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & GetColorDotFieldObjectFields & { type: 'getcolor_dot_field' }`\nとして組み立てる。\n\n**wire 統一（stage 4）は見送る**: `serialiseGeneratedGetColorDotsSource`\n（rustSceneSnapshot.ts）は `sampleSourcePath` が空の場合に他オブジェクト\n（image/psd）を `sampleSourceObjectId`/`sampleSourceLayer` で解決する\nクロスオブジェクト参照を行い、解決結果を wire に含める。これは\n`audio_visualization`/`audio_sphere` と同じ「構造的に想定より複雑」な\nケースのため、型移送のみで打ち切る。\n\n`width`/`height` は `getColorDotFieldObjectFactory.ts` の\n`buildGetColorDotFieldObject` がプロジェクトサイズから都度計算するため\nニュートラルな `0.0` にする。他のフィールドは同関数の固定リテラルを\nそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "alternateRows": {
+      "type": "boolean"
+    },
+    "backgroundColour": {
+      "type": "string"
+    },
+    "columns": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "dotShape": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dotSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "foregroundColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "hueShiftDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "luminanceInfluence": {
+      "type": "number",
+      "format": "float"
+    },
+    "rows": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sampleHueShiftDegrees": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "sampleSourceLayer": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "sampleSourceObjectId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sampleSourcePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sampleStrength": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "secondaryColour": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sizeInfluence": {
+      "type": "number",
+      "format": "float"
+    },
+    "strokeWidth": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "columns",
+    "rows",
+    "dotSize",
+    "sizeInfluence",
+    "luminanceInfluence",
+    "hueShiftDegrees",
+    "alternateRows",
+    "foregroundColour",
+    "secondaryColour",
+    "backgroundColour",
+    "seed"
+  ]
+}

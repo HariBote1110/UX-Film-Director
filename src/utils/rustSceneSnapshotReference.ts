@@ -1,0 +1,2082 @@
+import type {
+  AudioObject,
+  AudioSphereObject,
+  AudioVisualizationObject,
+  AsanohaPatternObject,
+  BarcodeObject,
+  CircularArrowObject,
+  ColourWheelObject,
+  ContourTraceObject,
+  DisplacementPolyObject,
+  FocusLinesPlusObject,
+  GearObject,
+  GetColorDotFieldObject,
+  GourdObject,
+  HistogramObject,
+  HologramObject,
+  HoundstoothObject,
+  HksyCheckerGridObject,
+  GradientFill,
+  ImageObject,
+  LayerState,
+  PaperAirplaneObject,
+  ParticleObject,
+  PieChartObject,
+  PlainEffectorLineObject,
+  ProjectSettings,
+  ProtractorObject,
+  PsdObject,
+  PuzzlePieceObject,
+  RandomLineExObject,
+  RegionFrameObject,
+  ShakingPolygonObject,
+  ShatteredSphereObject,
+  ShapeObject,
+  SimpleTubeObject,
+  SphereDotsObject,
+  SphericalFieldObject,
+  SunburstObject,
+  TartanCheckObject,
+  TextObject,
+  TimelineObject,
+  ToneCurveObject,
+  TrackBarObject,
+  TriangleBracketObject,
+  VideoObject,
+  YagasuriObject,
+} from '../types';
+import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
+import {
+  evaluateObjectPositionAtTime,
+  evaluateSubjectCropNormRectAtTime,
+  getGroupTransforms,
+  getVibrationOffset,
+  isObjectVisibleAtTime,
+} from './sceneEvaluationReference';
+import {
+  isSupportedMediaObject,
+  isSupportedSceneObject,
+  type SupportedMediaObject,
+  type SupportedSceneObject,
+} from './sharedRendererSceneObjectSupport';
+import {
+  rustColourPipeline,
+  type RustEffect,
+  type RustEvaluatedClip,
+  type RustSceneMediaReference,
+  type RustSceneSnapshot,
+  type RustSceneSnapshotBuildInput,
+  type RustSceneSnapshotBuildIssue,
+  type RustSceneSnapshotBuildResult,
+  type RustSceneVideoSourceMode,
+} from './rustSceneContract';
+import { fpsToFrameRate, secondsToFrameIndex } from './rustSceneFrameRate';
+import { compensateTextOriginForExpandedPlane } from './textDecorationBounds';
+import { textMediaBox, textMediaContentBox, textMediaInsets } from './textMediaGeometry';
+
+export const buildRustSceneSnapshotForTimeline = ({
+  projectSettings,
+  layers,
+  objects,
+  time,
+  videoSourceMode = 'previewProxy',
+}: RustSceneSnapshotBuildInput): RustSceneSnapshotBuildResult => {
+  const frameIndex = secondsToFrameIndex(time, projectSettings.fps);
+  const visibleObjects = collectVisibleObjects(objects, layers, time);
+  const visualObjects = visibleObjects.filter(isVisualSceneObject);
+  const issues = collectBuildIssues(visualObjects, time, videoSourceMode);
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  const supportedObjects = visualObjects
+    .filter(isSupportedSceneObject)
+    .map((object, index) => ({ object, index }))
+    .sort((left, right) => {
+      if (left.object.layer !== right.object.layer) return left.object.layer - right.object.layer;
+      return left.index - right.index;
+    })
+    .map(({ object }) => object);
+
+  const worldBoundsByObjectId = new Map<string, ObjectWorldBounds>();
+  supportedObjects.forEach((object) => {
+    const position = evaluateObjectPositionAtTime(object, time);
+    const vibration = getVibrationOffset(object, time);
+    const group = getGroupTransforms(object, time, objects);
+    worldBoundsByObjectId.set(
+      object.id,
+      computeObjectWorldBounds(
+        {
+          ...object,
+          scaleX: object.scaleX * group.scaleX,
+          scaleY: object.scaleY * group.scaleY,
+        },
+        position.x + vibration.x + group.x,
+        position.y + vibration.y + group.y,
+      )
+    );
+  });
+  const groupGradientEffectByObjectId = computeGroupGradientEffects(supportedObjects, worldBoundsByObjectId);
+
+  const clips = supportedObjects.map((object, zIndex): RustEvaluatedClip => {
+    const position = evaluateObjectPositionAtTime(object, time);
+    // 振動フィルタは rust-core の Effect に対応物が無いが、純粋な位置
+    // オフセットのため TS 側（sceneTransforms.getVibrationOffset）で計算し
+    // translation に畳み込む（PixiJS 排除計画 Phase 4/5 の最小移植）。
+    const vibration = getVibrationOffset(object, time);
+    const group = getGroupTransforms(object, time, objects);
+    const opacity = clamp01(
+      (object.opacity ?? 1)
+      * getFadeOpacityMultiplier(object)
+      * group.alpha,
+    );
+    const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
+    const textInsets = object.type === 'text' ? textMediaInsets(object) : null;
+    const textOriginCorrection = textInsets
+      ? compensateTextOriginForExpandedPlane(
+        textInsets,
+        object.scaleX * group.scaleX,
+        object.scaleY * group.scaleY,
+        object.rotation + group.rotation,
+      )
+      : { x: 0, y: 0 };
+    const effects = rustEffectsForObject(object, time);
+    const groupGradientEffect = groupGradientEffectByObjectId.get(object.id);
+    if (groupGradientEffect) effects.push(groupGradientEffect);
+    return {
+      clip_id: object.id,
+      track_id: `layer-${object.layer}`,
+      media_id: object.id,
+      source_frame: sourceFrameForObject(object, time, projectSettings.fps),
+      z_index: zIndex,
+      transform: {
+        translation_x: position.x + vibration.x + group.x + textOriginCorrection.x,
+        translation_y: position.y + vibration.y + group.y + textOriginCorrection.y,
+        scale_x: object.scaleX * group.scaleX * transformScale.x * psdUniformScaleForObject(object),
+        scale_y: object.scaleY * group.scaleY * transformScale.y * psdUniformScaleForObject(object),
+        rotation_degrees: normaliseRotationDegrees(object.rotation + group.rotation),
+        sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
+      },
+      opacity,
+      effects,
+    };
+  });
+
+  return {
+    ok: true,
+    snapshot: {
+      frame_index: frameIndex,
+      colour: rustColourPipeline(),
+      clips,
+    },
+    media: supportedObjects.map((object) => mediaReferenceForObject(object, projectSettings.fps, videoSourceMode, objects, time)),
+  };
+};
+
+const collectVisibleObjects = (
+  objects: TimelineObject[],
+  layers: LayerState[],
+  time: number
+): TimelineObject[] =>
+  objects.filter((object) => isObjectVisibleAtTime(object, time, layers));
+
+const collectBuildIssues = (
+  objects: TimelineObject[],
+  time: number,
+  videoSourceMode: RustSceneVideoSourceMode
+): RustSceneSnapshotBuildIssue[] => {
+  const issues: RustSceneSnapshotBuildIssue[] = [];
+
+  objects.forEach((object) => {
+    if (object.type === 'group_control') {
+      const position = evaluateObjectPositionAtTime(object, time);
+      if (
+        !Number.isFinite(position.x)
+        || !Number.isFinite(position.y)
+        || !Number.isFinite(object.rotation)
+        || !Number.isFinite(object.scaleX)
+        || !Number.isFinite(object.scaleY)
+        || object.scaleX <= 0
+        || object.scaleY <= 0
+      ) {
+        issues.push({
+          code: 'unsupportedTransform',
+          objectId: object.id,
+          detail: 'Group control transform must contain finite positive scales and finite position/rotation.',
+        });
+      }
+      return;
+    }
+    if (!isSupportedSceneObject(object)) {
+      issues.push({
+        code: 'unsupportedObjectType',
+        objectId: object.id,
+        detail: `Object type '${object.type}' is not representable by the shared renderer yet.`,
+      });
+      return;
+    }
+
+    if (isSupportedMediaObject(object) && !mediaSourceForObject(object, videoSourceMode)) {
+      issues.push({
+        code: 'missingMediaSource',
+        objectId: object.id,
+        detail: 'Image/video object has neither filePath nor src.',
+      });
+    }
+
+    if (object.clipping) {
+      issues.push({
+        code: 'unsupportedMask',
+        objectId: object.id,
+        detail: 'Layer clipping masks are not enabled in the shared renderer bridge yet.',
+      });
+    }
+
+    const position = evaluateObjectPositionAtTime(object, time);
+    if (hasUnsupportedSharedRendererTransform(object, position)) {
+      issues.push({
+        code: 'unsupportedTransform',
+        objectId: object.id,
+        detail: 'Phase5 bridge currently allows finite translation, positive finite scale, and finite rotation.',
+      });
+    }
+
+    if (object.type === 'video' && object.reversed) {
+      // 逆再生は decode.rs のストリーミングデコーダが逐次読み進みのみを
+      // 前提としており、逆順フレーム要求は毎フレーム backwardSeek（ffmpeg
+      // プロセス再起動、150-400ms/フレーム、コメント実測値）を誘発する。
+      // 30-60fpsのプレビュー/再生には桁違いに不足するため、シークなしの
+      // 復路が用意できるまで拒否を維持する（subjectCrop とは異なり、旧
+      // Pixi実装でも実際のフレーム反転描画は一度も存在しなかった死機能）。
+      issues.push({
+        code: 'unsupportedVideoMode',
+        objectId: object.id,
+        detail: 'Reversed video playback has no seek-free decode path in the shared renderer bridge yet.',
+      });
+    }
+
+    const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => (
+      filter.type !== 'fade'
+      && filter.type !== 'color_correction'
+      && filter.type !== 'blur'
+      && filter.type !== 'shadow'
+      && filter.type !== 'colour_aberration'
+      && filter.type !== 'outline'
+      && filter.type !== 'wipe'
+      && filter.type !== 'clipping'
+      && filter.type !== 'spot_light'
+      && filter.type !== 'displacement_map'
+      && filter.type !== 'fake_dof'
+      && filter.type !== 'auto_blur'
+      && filter.type !== 'stretch'
+      && filter.type !== 'multi_slicer'
+      && filter.type !== 'oct_transform'
+      && filter.type !== 'area_expand'
+      && filter.type !== 'smart_clipping'
+      // 振動は Effect ではなく transform（translation）への畳み込みで表現する
+      && filter.type !== 'vibration'
+      && !(object.type === 'shape' && filter.type === 'gradient')
+    ));
+    if (unsupportedFilter) {
+      issues.push({
+        code: 'unsupportedFilter',
+        objectId: object.id,
+        detail: `Filter '${unsupportedFilter.type}' is not representable by rust-core effects yet.`,
+      });
+    }
+  });
+
+  return issues;
+};
+
+/** オブジェクトのワールド座標系での AABB（回転を考慮した4隅の外接矩形）。 */
+interface ObjectWorldBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * 旧 Pixi `GroupGradientFilter` 相当のグループグラデーションを rust-core
+ * の `Effect::GradientOverlay` へ畳み込むための、オブジェクトのワールド
+ * 座標系 AABB を計算する。回転軸はオブジェクト原点（左上、pivot 補正
+ * なし）で、`sample_source`（native wgpu shader の座標系）と同じ規約。
+ */
+const computeObjectWorldBounds = (
+  object: SupportedSceneObject,
+  translationX: number,
+  translationY: number
+): ObjectWorldBounds => {
+  const textInsets = object.type === 'text' ? textMediaInsets(object) : null;
+  const textSize = object.type === 'text' ? textMediaBox(object) : null;
+  const width = (object as { width?: unknown }).width;
+  const height = (object as { height?: unknown }).height;
+  const w = textSize?.width ?? (typeof width === 'number' && Number.isFinite(width) ? width : 0);
+  const h = textSize?.height ?? (typeof height === 'number' && Number.isFinite(height) ? height : 0);
+  const left = textInsets?.left ?? 0;
+  const top = textInsets?.top ?? 0;
+  const scaleX = Number.isFinite(object.scaleX) ? object.scaleX : 1;
+  const scaleY = Number.isFinite(object.scaleY) ? object.scaleY : 1;
+  const rotationRad = (Number.isFinite(object.rotation) ? object.rotation : 0) * (Math.PI / 180);
+  const cos = Math.cos(rotationRad);
+  const sin = Math.sin(rotationRad);
+
+  const localCorners: Array<[number, number]> = [
+    [-left, -top],
+    [w - left, -top],
+    [-left, h - top],
+    [w - left, h - top],
+  ];
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  localCorners.forEach(([localX, localY]) => {
+    const scaledX = localX * scaleX;
+    const scaledY = localY * scaleY;
+    const worldX = translationX + scaledX * cos - scaledY * sin;
+    const worldY = translationY + scaledX * sin + scaledY * cos;
+    minX = Math.min(minX, worldX);
+    minY = Math.min(minY, worldY);
+    maxX = Math.max(maxX, worldX);
+    maxY = Math.max(maxY, worldY);
+  });
+
+  return { minX, minY, maxX, maxY };
+};
+
+const boundsIntersect = (a: ObjectWorldBounds, b: ObjectWorldBounds): boolean => (
+  a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY
+);
+
+const unionBounds = (bounds: ObjectWorldBounds[]): ObjectWorldBounds => bounds.reduce((acc, current) => ({
+  minX: Math.min(acc.minX, current.minX),
+  minY: Math.min(acc.minY, current.minY),
+  maxX: Math.max(acc.maxX, current.maxX),
+  maxY: Math.max(acc.maxY, current.maxY),
+}));
+
+/**
+ * bounds が交差するメンバー同士を連結成分としてまとめる（旧 Pixi
+ * `buildConnectedComponents` の移植）。`groupGradient.scope === 'group'`
+ * のときは呼び出し元でグループ全体を1連結成分として扱うため、この関数は
+ * 使われない。
+ */
+const buildConnectedComponents = (members: string[], boundsById: Map<string, ObjectWorldBounds>): string[][] => {
+  if (members.length <= 1) return members.length === 1 ? [[members[0]]] : [];
+
+  const visited = new Set<string>();
+  const components: string[][] = [];
+
+  members.forEach((startId) => {
+    if (visited.has(startId)) return;
+
+    const queue = [startId];
+    visited.add(startId);
+    const component: string[] = [];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      component.push(currentId);
+      const currentBounds = boundsById.get(currentId)!;
+
+      members.forEach((candidateId) => {
+        if (visited.has(candidateId)) return;
+        const candidateBounds = boundsById.get(candidateId)!;
+        if (!boundsIntersect(currentBounds, candidateBounds)) return;
+        visited.add(candidateId);
+        queue.push(candidateId);
+      });
+    }
+
+    components.push(component);
+  });
+
+  return components;
+};
+
+/** `#rrggbb` を 0..1 の RGB へ変換する（sRGB→リニア変換は行わず、既存の
+ * DropShadow/Outline 等の Rust 側定数色と同じ規約で 0..1 の直接値とする）。 */
+const parseHexColourToUnitRgb = (value: string): [number, number, number] => {
+  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (!match) return [1, 1, 1];
+  const raw = match[1];
+  return [
+    parseInt(raw.slice(0, 2), 16) / 255,
+    parseInt(raw.slice(2, 4), 16) / 255,
+    parseInt(raw.slice(4, 6), 16) / 255,
+  ];
+};
+
+/** 旧 Pixi `normaliseGradientForGroupFilter` の移植。複数色/複数stopは
+ * 先頭2色のみ使用する（Pixi 版も GroupGradientFilter へは2色までしか
+ * 渡していなかった）。 */
+const normaliseGroupGradientColours = (
+  gradient: GradientFill
+): { colourA: [number, number, number, number]; colourB: [number, number, number, number]; stopA: number; stopB: number } => {
+  const rawColours = Array.isArray(gradient.colours)
+    ? gradient.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+    : [];
+  let colours = rawColours.length > 0 ? rawColours : ['#ffffff', '#000000'];
+  if (colours.length === 1) colours = [colours[0], colours[0]];
+
+  const rawStops = Array.isArray(gradient.stops)
+    ? gradient.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+    : [];
+  const stops = colours.map((_, index) => {
+    const fallback = colours.length === 1 ? 0 : index / (colours.length - 1);
+    const value = rawStops[index];
+    return Math.max(0, Math.min(1, typeof value === 'number' ? value : fallback));
+  });
+
+  const [rA, gA, bA] = parseHexColourToUnitRgb(colours[0]);
+  const [rB, gB, bB] = parseHexColourToUnitRgb(colours[1]);
+
+  return {
+    colourA: [rA, gA, bA, 1],
+    colourB: [rB, gB, bB, 1],
+    stopA: stops[0] ?? 0,
+    stopB: stops[1] ?? 1,
+  };
+};
+
+/**
+ * `groupId` を持つオブジェクトについて、グループごとに `groupGradient`
+ * （メンバー内で最初に見つかった enabled なもの）を Rust 側
+ * `Effect::GradientOverlay` として畳み込み、オブジェクト ID をキーに
+ * したマップを返す。`scope === 'group'` はグループ全体を1つの bounds、
+ * それ以外（デフォルト `'connected'`）は bounds が交差する連結成分ごとに
+ * 分割する（旧 Pixi `85c298fb` の「分離した図形が矩形化する」修正の移植）。
+ */
+const computeGroupGradientEffects = (
+  supportedObjects: SupportedSceneObject[],
+  worldBoundsByObjectId: Map<string, ObjectWorldBounds>
+): Map<string, RustEffect> => {
+  const result = new Map<string, RustEffect>();
+
+  const membersByGroupId = new Map<string, SupportedSceneObject[]>();
+  supportedObjects.forEach((object) => {
+    const groupId = object.groupId;
+    if (typeof groupId !== 'string' || groupId.trim() === '') return;
+    const members = membersByGroupId.get(groupId) ?? [];
+    members.push(object);
+    membersByGroupId.set(groupId, members);
+  });
+
+  membersByGroupId.forEach((members) => {
+    const gradient = members
+      .map((member) => member.groupGradient)
+      .find((candidate): candidate is GradientFill => candidate?.enabled === true);
+    if (!gradient) return;
+
+    const { colourA, colourB, stopA, stopB } = normaliseGroupGradientColours(gradient);
+    const memberIds = members.map((member) => member.id);
+    const componentIdGroups = gradient.scope === 'group'
+      ? [memberIds]
+      : buildConnectedComponents(memberIds, worldBoundsByObjectId);
+
+    componentIdGroups.forEach((componentIds) => {
+      const componentBounds = unionBounds(componentIds.map((id) => worldBoundsByObjectId.get(id)!));
+      const boundsWidth = Math.max(1e-3, componentBounds.maxX - componentBounds.minX);
+      const boundsHeight = Math.max(1e-3, componentBounds.maxY - componentBounds.minY);
+      const effect: RustEffect = {
+        GradientOverlay: {
+          direction_degrees: Number.isFinite(gradient.direction) ? gradient.direction : 0,
+          stop_a: stopA,
+          stop_b: stopB,
+          is_radial: gradient.type === 'radial',
+          colour_a: colourA,
+          colour_b: colourB,
+          bounds_x: componentBounds.minX,
+          bounds_y: componentBounds.minY,
+          bounds_width: boundsWidth,
+          bounds_height: boundsHeight,
+        },
+      };
+      componentIds.forEach((id) => result.set(id, effect));
+    });
+  });
+
+  return result;
+};
+
+export interface RustEffectsForObjectOptions {
+  /**
+   * subject crop 由来の Effect::Clipping を含めるか。
+   *
+   * 既定 (true) は直接評価経路（`rustSceneSnapshot.ts` 自身が per-frame `time` で
+   * 呼ぶ経路）向け。rust-core 常駐 Project 用の静的 effects を組む
+   * `editableRustScene.ts` 側は、subject crop を専用の `subject_crop` フィールドで
+   * 別送りし rust-core に毎フレーム再評価させるため、ここでは false を渡して除外する。
+   * true のまま焼き込むと、`object.startTime` 時点の値で固定された Clipping が
+   * rust-core が append する動的な Clipping と重複してしまう。
+   */
+  includeSubjectCrop?: boolean;
+  /** Carry an unevaluated vibration only inside a resident Project. */
+  includeVibrationTransport?: boolean;
+}
+
+export const rustEffectsForObject = (
+  object: TimelineObject,
+  time: number,
+  options?: RustEffectsForObjectOptions
+): RustEffect[] => {
+  const includeSubjectCrop = options?.includeSubjectCrop ?? true;
+  const effects: RustEffect[] = [];
+  getEnabledObjectFiltersInOrder(object).forEach((filter) => {
+    if (filter.type === 'vibration' && options?.includeVibrationTransport === true) {
+      effects.push({
+        Vibration: {
+          strength: finiteNumberOr(filter.params.strength, 0),
+          speed: finiteNumberOr(filter.params.speed, 1),
+        },
+      });
+    }
+    if (filter.type === 'color_correction') {
+      // 旧 PIXI.ColorMatrixFilter の hue→saturate→contrast→brightness
+      // multiply 合成に対応する Rust 側 Effect。恒等値のフォールバックは
+      // PIXI の no-op 値（brightness 1 / contrast 0 / saturation 0 / hue 0）。
+      effects.push({
+        ColourCorrection: {
+          brightness: Math.max(0, finiteNumberOr(filter.params.brightness, 1)),
+          contrast: finiteNumberOr(filter.params.contrast, 0),
+          saturation: finiteNumberOr(filter.params.saturation, 0),
+          hue_degrees: finiteNumberOr(filter.params.hue, 0),
+        },
+      });
+    }
+    if (filter.type === 'blur') {
+      // 旧 Pixi 実装は strength <= 0.05 のとき BlurFilter を生成しなかった
+      // （可視閾値）。radius は UI の strength(px) をそのまま使い、quality
+      // （反復回数）は 3x3 ガウシアン近似では意味を持たないため落とす。
+      const strength = Math.max(0, finiteNumberOr(filter.params.strength, 0));
+      if (strength > 0.05) {
+        effects.push({
+          Blur: {
+            radius: strength,
+            strength: 1,
+          },
+        });
+      }
+    }
+    if (filter.type === 'shadow') {
+      // 旧 Pixi 実装には shadow の描画配線が無かった（UI のみの死機能）ため、
+      // Rust 側 DropShadow が初めての実描画。blur パラメータは最小実装
+      // （単色シルエット）では搬送しない。
+      effects.push({
+        DropShadow: {
+          colour: parseHexColourToLinearTriplet(filter.params.colour),
+          offset_x: finiteNumberOr(filter.params.offsetX, 0),
+          offset_y: finiteNumberOr(filter.params.offsetY, 0),
+          opacity: Math.max(0, Math.min(1, finiteNumberOr(filter.params.opacity, 0.5))),
+        },
+      });
+    }
+    if (filter.type === 'colour_aberration') {
+      effects.push({
+        ColourAberration: {
+          offset_x: Math.max(0, finiteNumberOr(filter.params.offsetX, 0)),
+          offset_y: Math.max(0, finiteNumberOr(filter.params.offsetY, 0)),
+        },
+      });
+    }
+    if (filter.type === 'outline') {
+      effects.push({
+        Outline: {
+          colour: parseHexColourToLinearTriplet(filter.params.colour),
+          thickness: Math.max(0, finiteNumberOr(filter.params.thickness, 0)),
+          opacity: Math.max(0, Math.min(1, finiteNumberOr(filter.params.opacity, 1))),
+        },
+      });
+    }
+    if (filter.type === 'wipe') {
+      let progress = Math.max(0, Math.min(1, (time - object.startTime) / object.duration));
+      if (filter.params.reverse) progress = 1 - progress;
+      effects.push({
+        Wipe: {
+          edge: filter.params.edge,
+          progress,
+        },
+      });
+    }
+    if (filter.type === 'clipping') {
+      effects.push({
+        Clipping: {
+          top: Math.max(0, finiteNumberOr(filter.params.top, 0)),
+          bottom: Math.max(0, finiteNumberOr(filter.params.bottom, 0)),
+          left: Math.max(0, finiteNumberOr(filter.params.left, 0)),
+          right: Math.max(0, finiteNumberOr(filter.params.right, 0)),
+          angle_degrees: finiteNumberOr(filter.params.angle, 0),
+        },
+      });
+    }
+    if (filter.type === 'smart_clipping') {
+      const amount = Math.max(0, finiteNumberOr(filter.params.amount, 1));
+      const modeFactor = smartClippingModeFactor(filter.params.mode, filter.params.seed, object.id);
+      const factor = amount * modeFactor;
+      let top = Math.max(0, finiteNumberOr(filter.params.top, 0));
+      let bottom = Math.max(0, finiteNumberOr(filter.params.bottom, 0));
+      let left = Math.max(0, finiteNumberOr(filter.params.left, 0));
+      let right = Math.max(0, finiteNumberOr(filter.params.right, 0));
+      if (filter.params.linkAxes) {
+        bottom = top;
+        right = left;
+      }
+      top *= factor;
+      bottom *= factor;
+      left *= factor;
+      right *= factor;
+      if (filter.params.reverse) {
+        [top, bottom] = [bottom, top];
+        [left, right] = [right, left];
+      }
+      effects.push({
+        Clipping: {
+          top,
+          bottom,
+          left,
+          right,
+          angle_degrees: 0,
+        },
+      });
+    }
+    if (filter.type === 'spot_light') {
+      effects.push({
+        SpotLight: {
+          centre_x: Math.max(0, Math.min(1, finiteNumberOr(filter.params.centreX, 0.5))),
+          centre_y: Math.max(0, Math.min(1, finiteNumberOr(filter.params.centreY, 0.5))),
+          radius: Math.max(0, finiteNumberOr(filter.params.radius, 0.65)),
+          intensity: Math.max(0, finiteNumberOr(filter.params.intensity, 0.75)),
+          colour: parseHexColourToLinearTriplet(filter.params.colour),
+        },
+      });
+    }
+    if (filter.type === 'displacement_map') {
+      effects.push({
+        DisplacementMap: {
+          amount_x: Math.max(0, finiteNumberOr(filter.params.amountX, 24)),
+          amount_y: Math.max(0, finiteNumberOr(filter.params.amountY, 12)),
+          size: Math.max(1, finiteNumberOr(filter.params.size, 128)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'fake_dof') {
+      effects.push({
+        FakeDof: {
+          focus_x: Math.max(0, Math.min(1, finiteNumberOr(filter.params.focusX, 0.5))),
+          focus_y: Math.max(0, Math.min(1, finiteNumberOr(filter.params.focusY, 0.5))),
+          focus_radius: Math.max(0.01, Math.min(1, finiteNumberOr(filter.params.focusRadius, 0.25))),
+          blur: Math.max(0, finiteNumberOr(filter.params.blur, 8)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'auto_blur') {
+      const movementX = finiteNumberOr(object.endX, object.x) - finiteNumberOr(object.x, 0);
+      const movementY = finiteNumberOr(object.endY, object.y) - finiteNumberOr(object.y, 0);
+      const duration = Math.max(1 / 60, finiteNumberOr(object.duration, 1));
+      const pixelsPerFrame = Math.hypot(movementX, movementY) / Math.max(1, duration * 60);
+      const blur = Math.max(0, finiteNumberOr(filter.params.blur, 10));
+      const speed = Math.max(0, finiteNumberOr(filter.params.speed, 1));
+      const radius = Math.min(blur * 2, pixelsPerFrame * speed * blur * 0.1);
+      effects.push({
+        AutoBlur: {
+          angle_degrees: Math.atan2(movementY, movementX) * 180 / Math.PI,
+          radius,
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+          colour_shift: Math.max(0, Math.min(1, finiteNumberOr(filter.params.colourShift, 0))),
+        },
+      });
+    }
+    if (filter.type === 'stretch') {
+      effects.push({
+        Stretch: {
+          angle_degrees: finiteNumberOr(filter.params.angle, 0),
+          amount: Math.max(0, finiteNumberOr(filter.params.amount, 1)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'multi_slicer') {
+      effects.push({
+        MultiSlicer: {
+          angle_degrees: finiteNumberOr(filter.params.angle, 45),
+          offset: Math.max(0, finiteNumberOr(filter.params.offset, 16)),
+          slices: Math.max(2, Math.round(finiteNumberOr(filter.params.slices, 18))),
+          expansion: Math.max(0, finiteNumberOr(filter.params.expansion, 0)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'oct_transform') {
+      effects.push({
+        OctTransform: {
+          scale: Math.max(0.01, finiteNumberOr(filter.params.scale, 1)),
+          rotation_degrees: finiteNumberOr(filter.params.rotation, 0),
+          vertex_count: Math.max(3, Math.round(finiteNumberOr(filter.params.vertexCount, 8))),
+          warp: Math.max(0, finiteNumberOr(filter.params.warp, 0.2)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'area_expand') {
+      effects.push({
+        AreaExpand: {
+          top: Math.max(0, finiteNumberOr(filter.params.top, 0)),
+          bottom: Math.max(0, finiteNumberOr(filter.params.bottom, 0)),
+          left: Math.max(0, finiteNumberOr(filter.params.left, 0)),
+          right: Math.max(0, finiteNumberOr(filter.params.right, 0)),
+          fill: filter.params.fill,
+        },
+      });
+    }
+  });
+
+  if (includeSubjectCrop && object.type === 'video' && object.subjectCropEnabled) {
+    // 旧 Pixi 実装（applyVideoSubjectCropMask）は subjectCropKeyframes を
+    // 正規化矩形（0..1）として補間し、その矩形の外側をスプライトの矩形
+    // マスクで隠していた。Rust 側には同じ「矩形の外側を隠す」意味論を
+    // 持つ Effect::Clipping（AviUtl互換、px単位の四辺クリッピング）が
+    // 既にあるため、正規化矩形を動画の width/height で px 化して変換する。
+    const crop = evaluateSubjectCropNormRectAtTime(object, time);
+    if (crop && crop.width > 1e-6 && crop.height > 1e-6) {
+      effects.push({
+        Clipping: {
+          top: crop.y * object.height,
+          bottom: (1 - crop.y - crop.height) * object.height,
+          left: crop.x * object.width,
+          right: (1 - crop.x - crop.width) * object.width,
+          angle_degrees: 0,
+        },
+      });
+    }
+  }
+
+  return effects;
+};
+
+const smartClippingModeFactor = (mode: number, seed: number, objectId: string): number => {
+  const cleanMode = Math.max(0, Math.min(5, Math.round(finiteNumberOr(mode, 0))));
+  if (cleanMode === 1) {
+    const hash = `${objectId}:${Math.round(finiteNumberOr(seed, 1))}`.split('').reduce((acc, char) => {
+      return (acc * 31 + char.charCodeAt(0)) >>> 0;
+    }, 2166136261);
+    return 1 + (hash % 4000) / 1000;
+  }
+  if (cleanMode === 2) return 2;
+  if (cleanMode === 3) return 1.5;
+  if (cleanMode === 4) return 1.25;
+  if (cleanMode === 5) return 0.75;
+  return 1;
+};
+
+const parseHexColourToLinearTriplet = (value: string): [number, number, number] => {
+  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (!match) return [0, 0, 0];
+  const raw = match[1];
+  return [
+    parseInt(raw.slice(0, 2), 16) / 255,
+    parseInt(raw.slice(2, 4), 16) / 255,
+    parseInt(raw.slice(4, 6), 16) / 255,
+  ];
+};
+
+const isVisualSceneObject = (object: TimelineObject): boolean =>
+  object.type !== 'audio';
+
+const hasUnsupportedSharedRendererTransform = (
+  object: SupportedSceneObject,
+  position: { x: number; y: number }
+): boolean => {
+  if (!Number.isFinite(object.scaleX) || !Number.isFinite(object.scaleY)) return true;
+  if (object.scaleX <= 0 || object.scaleY <= 0) return true;
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return true;
+  if (!Number.isFinite(object.rotation)) return true;
+  return false;
+};
+
+const mediaReferenceForObject = (
+  object: SupportedSceneObject,
+  projectFps: number,
+  videoSourceMode: RustSceneVideoSourceMode,
+  objects: TimelineObject[],
+  time: number
+): RustSceneMediaReference => {
+  if (object.type === 'shape') {
+    if (object.shapeType !== 'rect') {
+      return {
+        id: object.id,
+        kind: 'GeneratedShape',
+        source: serialiseGeneratedShapeSource(object),
+        width: object.width,
+        height: object.height,
+      };
+    }
+
+    if (object.gradient?.enabled === true) {
+      return {
+        id: object.id,
+        kind: 'GeneratedGradient',
+        source: serialiseGeneratedGradientSource(object.gradient),
+        width: object.width,
+        height: object.height,
+      };
+    }
+
+    return {
+      id: object.id,
+      kind: 'SolidColour',
+      source: object.fill,
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'text') {
+    const box = textMediaBox(object);
+    return {
+      id: object.id,
+      kind: 'Text',
+      source: serialiseTextSource(object),
+      width: box.width,
+      height: box.height,
+    };
+  }
+
+  if (object.type === 'audio_visualization') {
+    return {
+      id: object.id,
+      kind: 'GeneratedAudioWaveform',
+      source: serialiseGeneratedAudioWaveformSource(object, objects, time),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'audio_sphere') {
+    return {
+      id: object.id,
+      kind: 'GeneratedAudioSphere',
+      source: serialiseGeneratedAudioSphereSource(object, objects, time),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'particle') {
+    return {
+      id: object.id,
+      kind: 'GeneratedParticle',
+      source: serialiseGeneratedParticleSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'barcode') {
+    return {
+      id: object.id,
+      kind: 'GeneratedBarcode',
+      source: serialiseGeneratedBarcodeSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'puzzle_piece') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPuzzlePiece',
+      source: serialiseGeneratedPuzzlePieceSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'colour_wheel') {
+    return {
+      id: object.id,
+      kind: 'GeneratedColourWheel',
+      source: serialiseGeneratedColourWheelSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'gourd') {
+    return {
+      id: object.id,
+      kind: 'GeneratedGourd',
+      source: serialiseGeneratedGourdSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'gear') {
+    return {
+      id: object.id,
+      kind: 'GeneratedGear',
+      source: serialiseGeneratedGearSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'track_bar') {
+    return {
+      id: object.id,
+      kind: 'GeneratedTrackBar',
+      source: serialiseGeneratedTrackBarSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'pie_chart') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPieChart',
+      source: serialiseGeneratedPieChartSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'histogram') {
+    return {
+      id: object.id,
+      kind: 'GeneratedHistogram',
+      source: serialiseGeneratedHistogramSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'hksy_checker_grid') {
+    return {
+      id: object.id,
+      kind: 'GeneratedHksyCheckerGrid',
+      source: serialiseGeneratedHksyCheckerGridSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'region_frame') {
+    return {
+      id: object.id,
+      kind: 'GeneratedRegionFrame',
+      source: serialiseGeneratedRegionFrameSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'simple_tube') {
+    return {
+      id: object.id,
+      kind: 'GeneratedSimpleTube',
+      source: serialiseGeneratedSimpleTubeSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'sphere_dots') {
+    return {
+      id: object.id,
+      kind: 'GeneratedSphereDots',
+      source: serialiseGeneratedSphereDotsSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'spherical_field') {
+    return {
+      id: object.id,
+      kind: 'GeneratedSphericalField',
+      source: serialiseGeneratedSphericalFieldSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'getcolor_dot_field') {
+    return {
+      id: object.id,
+      kind: 'GeneratedGetColorDots',
+      source: serialiseGeneratedGetColorDotsSource(object, objects, time),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'sunburst') {
+    return {
+      id: object.id,
+      kind: 'GeneratedSunburst',
+      source: serialiseGeneratedSunburstSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'circular_arrow') {
+    return {
+      id: object.id,
+      kind: 'GeneratedCircularArrow',
+      source: serialiseGeneratedCircularArrowSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'triangle_bracket') {
+    return {
+      id: object.id,
+      kind: 'GeneratedTriangleBracket',
+      source: serialiseGeneratedTriangleBracketSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'tartan_check') {
+    return {
+      id: object.id,
+      kind: 'GeneratedTartanCheck',
+      source: serialiseGeneratedTartanCheckSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'houndstooth') {
+    return {
+      id: object.id,
+      kind: 'GeneratedHoundstooth',
+      source: serialiseGeneratedHoundstoothSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'yagasuri') {
+    return {
+      id: object.id,
+      kind: 'GeneratedYagasuri',
+      source: serialiseGeneratedYagasuriSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'paper_airplane') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPaperAirplane',
+      source: serialiseGeneratedPaperAirplaneSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'asanoha_pattern') {
+    return {
+      id: object.id,
+      kind: 'GeneratedAsanohaPattern',
+      source: serialiseGeneratedAsanohaPatternSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'focus_lines_plus') {
+    return {
+      id: object.id,
+      kind: 'GeneratedFocusLinesPlus',
+      source: serialiseGeneratedFocusLinesPlusSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'random_line_ex') {
+    return {
+      id: object.id,
+      kind: 'GeneratedRandomLineEx',
+      source: serialiseGeneratedRandomLineExSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'contour_trace') {
+    return {
+      id: object.id,
+      kind: 'GeneratedContourTrace',
+      source: serialiseGeneratedContourTraceSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'displacement_poly') {
+    return {
+      id: object.id,
+      kind: 'GeneratedDisplacementPoly',
+      source: serialiseGeneratedDisplacementPolySource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'plain_effector_line') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPlainEffectorLine',
+      source: serialiseGeneratedPlainEffectorLineSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'hologram') {
+    return {
+      id: object.id,
+      kind: 'GeneratedHologram',
+      source: serialiseGeneratedHologramSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'protractor') {
+    return {
+      id: object.id,
+      kind: 'GeneratedProtractor',
+      source: serialiseGeneratedProtractorSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'shaking_polygon') {
+    return {
+      id: object.id,
+      kind: 'GeneratedShakingPolygon',
+      source: serialiseGeneratedShakingPolygonSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'shattered_sphere') {
+    return {
+      id: object.id,
+      kind: 'GeneratedShatteredSphere',
+      source: serialiseGeneratedShatteredSphereSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'tone_curve') {
+    return {
+      id: object.id,
+      kind: 'GeneratedToneCurve',
+      source: serialiseGeneratedToneCurveSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  const dimensions = mediaDimensionsForObject(object, videoSourceMode);
+  const reference: RustSceneMediaReference = {
+    id: object.id,
+    kind: mediaKindForObject(object),
+    source: mediaSourceForObject(object, videoSourceMode),
+    width: dimensions.width,
+    height: dimensions.height,
+    ...(object.type === 'video' ? { source_rate: fpsToFrameRate(projectFps) } : {}),
+  };
+  if (object.type === 'psd') {
+    reference.active_layer_ids = activeLayerIdsForPsd(object);
+  }
+  return reference;
+};
+
+/**
+ * 編集可能な Rust Project へ変換する際に、snapshot と同一の media
+ * serializer を使うための狭い公開入口。常駐Projectが対応済みの生成media
+ * だけを含め、それ以外は型境界で拒否する。
+ */
+export const mediaReferenceForEditableRustScene = (
+  object: SupportedSceneObject,
+  projectFps: number,
+  objects: TimelineObject[] = [object],
+  videoSourceMode: RustSceneVideoSourceMode = 'previewProxy'
+): RustSceneMediaReference => (
+  mediaReferenceForObject(object, projectFps, videoSourceMode, objects, object.startTime)
+);
+
+const activeLayerIdsForPsd = (object: PsdObject): string[] =>
+  Object.entries(object.activeLayerIds ?? {})
+    .filter(([, active]) => active)
+    .map(([layerId]) => layerId)
+    .sort((left, right) => left.localeCompare(right));
+
+/**
+ * `text` kind の編集モデル（`TextObjectFields`、正本は rust-core/src/schema.rs）を
+ * そのまま JSON 化するだけの薄いワイヤーソース。R3 のワイヤースキーマ統一により、
+ * フィールド名の読み替え・既定値フォールバックの知識は rust-backend
+ * （`generated/text.rs`）側だけに残る。
+ */
+const serialiseTextSource = (object: TextObject): string => {
+  const insets = textMediaInsets(object);
+  const hasDecorationInsets = insets.left > 0 || insets.top > 0 || insets.right > 0 || insets.bottom > 0;
+  const content = hasDecorationInsets ? textMediaContentBox(object) : null;
+  return JSON.stringify({
+    text: object.text,
+    fontSize: object.fontSize,
+    fontFamily: object.fontFamily,
+    fill: object.fill,
+    measuredWidth: object.measuredWidth,
+    measuredHeight: object.measuredHeight,
+    textAlignment: object.textAlignment,
+    letterSpacing: object.letterSpacing,
+    textStroke: object.textStroke,
+    textShadow: object.textShadow,
+    ...(content
+      ? {
+        __renderOffsetX: insets.left,
+        __renderOffsetY: insets.top,
+        __contentWidth: content.width,
+        __contentHeight: content.height,
+      }
+      : {}),
+  });
+};
+
+/**
+ * `shape` kind の編集モデル（`ShapeObjectFields`、正本は rust-core/src/schema.rs）を
+ * そのまま JSON 化するだけの薄いワイヤーソース。R3 のワイヤースキーマ統一により、
+ * rust-backend 側が `ShapeObjectFields` を直接デシリアライズするため、
+ * フィールド名の読み替えやフォールバック処理はもう Rust 側にしか存在しない。
+ */
+const serialiseGeneratedShapeSource = (object: ShapeObject): string =>
+  JSON.stringify({
+    shapeType: object.shapeType,
+    width: object.width,
+    height: object.height,
+    fill: object.fill,
+    gradient: object.gradient,
+    cornerRadius: object.cornerRadius,
+  });
+
+const serialiseGeneratedGradientSource = (
+  gradient: Pick<GradientFill, 'type' | 'colours' | 'stops' | 'direction'>
+): string =>
+  JSON.stringify({
+    type: gradient.type === 'radial' ? 'radial' : 'linear',
+    colours: Array.isArray(gradient.colours) && gradient.colours.length > 0
+      ? gradient.colours
+      : ['#ffffff', '#000000'],
+    stops: Array.isArray(gradient.stops) ? gradient.stops : [],
+    direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
+  });
+
+const serialiseGeneratedAudioWaveformSource = (
+  object: AudioVisualizationObject,
+  objects: TimelineObject[],
+  time: number
+): string => {
+  const targetAudio = findTargetAudioForGeneratedAudio(object, objects, time);
+  return JSON.stringify({
+    generator: 'audio-waveform-r',
+    target_audio_id: targetAudio?.id ?? '',
+    target_source: targetAudio ? mediaSourceForObject(targetAudio) : '',
+    sample_window_seconds: 0.05,
+    colour: object.color || '#00ff00',
+    thickness: Math.max(1, finiteNumberOr(object.thickness, 2)),
+    amplitude: Math.max(0, finiteNumberOr(object.amplitude, 1)),
+  });
+};
+
+const serialiseGeneratedAudioSphereSource = (
+  object: AudioSphereObject,
+  objects: TimelineObject[],
+  time: number
+): string => {
+  const targetAudio = findTargetAudioForGeneratedAudio(object, objects, time);
+  return JSON.stringify({
+    generator: 'audio-sphere-93',
+    target_audio_id: targetAudio?.id ?? '',
+    target_source: targetAudio ? mediaSourceForObject(targetAudio) : '',
+    sample_window_seconds: Math.min(10, Math.max(0.001, finiteNumberOr(object.sampleWindowSeconds, 0.1))),
+    columns: Math.min(64, Math.max(2, Math.trunc(finiteNumberOr(object.columns, 16)))),
+    rows: Math.min(64, Math.max(2, Math.trunc(finiteNumberOr(object.rows, 12)))),
+    base_radius: Math.min(2000, Math.max(1, finiteNumberOr(object.baseRadius, 170))),
+    audio_influence: Math.min(4, Math.max(0, finiteNumberOr(object.audioInfluence, 0.6))),
+    point_size: Math.min(200, Math.max(0, finiteNumberOr(object.pointSize, 5))),
+    polygon_size: Math.min(4, Math.max(0, finiteNumberOr(object.polygonSize, 0.35))),
+    random_amount: Math.min(4, Math.max(0, finiteNumberOr(object.randomAmount, 0.05))),
+    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#36c2ff',
+    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+  });
+};
+
+// `particle` kind のワイヤーソースは rust-core の `ParticleObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// `generated_particle.rs::parse_generated_particle_source` 側で行う。
+const serialiseGeneratedParticleSource = (object: ParticleObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    particleCount: object.particleCount,
+    seed: object.seed,
+    spread: object.spread,
+    speed: object.speed,
+    size: object.size,
+    colour: object.colour,
+    lifetimeSeconds: object.lifetimeSeconds,
+  });
+
+// `barcode` kind のワイヤーソースは rust-core の `BarcodeObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の `validate_generated_barcode_source` 側で行う。
+const serialiseGeneratedBarcodeSource = (object: BarcodeObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    data: object.data,
+    minimumBarWidth: object.minimumBarWidth,
+    horizontalMargin: object.horizontalMargin,
+    verticalMargin: object.verticalMargin,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+// `puzzle_piece` kind のワイヤーソースは rust-core の `PuzzlePieceObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の `validate_generated_puzzle_piece_source` 側で行う。
+const serialiseGeneratedPuzzlePieceSource = (object: PuzzlePieceObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    size: object.size,
+    shapeVariant: object.shapeVariant,
+    connectorMode: object.connectorMode,
+    fillColour: object.fillColour,
+  });
+
+// `colour_wheel` kind のワイヤーソースは rust-core の
+// `ColourWheelObjectFields`（正本）を camelCase のまま直接デシリアライズする。
+// フォールバック/クランプは rust-backend の
+// `validate_generated_colour_wheel_source` 側で行う。
+const serialiseGeneratedColourWheelSource = (object: ColourWheelObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    saturation: object.saturation,
+    brightness: object.brightness,
+    ringWidthPercent: object.ringWidthPercent,
+    segmentCount: object.segmentCount,
+  });
+
+// `gourd` kind のワイヤーソースは rust-core の `GourdObjectFields`（正本）を
+// camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedGourdSource = (object: GourdObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    bodyRadius: object.bodyRadius,
+    bodyWidth: object.bodyWidth,
+    waistRadius: object.waistRadius,
+    squashPercent: object.squashPercent,
+    repeatCount: object.repeatCount,
+    fillColour: object.fillColour,
+  });
+
+// `gear` kind のワイヤーソースは rust-core の `GearObjectFields`（正本）を
+// camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedGearSource = (object: GearObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    outerRadius: object.outerRadius,
+    innerRadiusPercent: object.innerRadiusPercent,
+    toothCount: object.toothCount,
+    toothDepthPercent: object.toothDepthPercent,
+    toothSkewPercent: object.toothSkewPercent,
+    fillColour: object.fillColour,
+  });
+
+// `track_bar` kind のワイヤーソースは rust-core の `TrackBarObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedTrackBarSource = (object: TrackBarObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    trackValues: object.trackValues,
+    trackRanges: object.trackRanges,
+    labels: object.labels,
+    barColour: object.barColour,
+    backgroundOpacity: object.backgroundOpacity,
+  });
+
+// `pie_chart` kind のワイヤーソースは rust-core の `PieChartObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedPieChartSource = (object: PieChartObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    values: object.values,
+    sortMode: object.sortMode,
+    normaliseToHundred: object.normaliseToHundred,
+    labelMode: object.labelMode,
+    progressPercent: object.progressPercent,
+    strokeWidth: object.strokeWidth,
+    sliceColours: object.sliceColours,
+  });
+
+// `histogram` kind のワイヤーソースは rust-core の `HistogramObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedHistogramSource = (object: HistogramObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    binValues: object.binValues,
+    heightScalePercent: object.heightScalePercent,
+    lineWidth: object.lineWidth,
+    showLuminance: object.showLuminance,
+    showRed: object.showRed,
+    showGreen: object.showGreen,
+    showBlue: object.showBlue,
+    channelColours: object.channelColours,
+    backgroundColour: object.backgroundColour,
+  });
+
+const serialiseGeneratedSunburstSource = (object: SunburstObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    rayCount: object.rayCount,
+    rayCoveragePercent: object.rayCoveragePercent,
+    rotationOffsetDegrees: object.rotationOffsetDegrees,
+    centreXPercent: object.centreXPercent,
+    centreYPercent: object.centreYPercent,
+    motifSize: object.motifSize,
+    motifShape: object.motifShape,
+    rayColour: object.rayColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+const serialiseGeneratedCircularArrowSource = (object: CircularArrowObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    lineWidth: object.lineWidth,
+    headSize: object.headSize,
+    angleDegrees: object.angleDegrees,
+    centreAngleDegrees: object.centreAngleDegrees,
+    headShape: object.headShape,
+    showTailHead: object.showTailHead,
+    flipVertical: object.flipVertical,
+    flipHorizontal: object.flipHorizontal,
+    arrowColour: object.arrowColour,
+  });
+
+const serialiseGeneratedTriangleBracketSource = (object: TriangleBracketObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    bracketWidth: object.bracketWidth,
+    angleDegrees: object.angleDegrees,
+    armLength: object.armLength,
+    offsetDistance: object.offsetDistance,
+    bracketColour: object.bracketColour,
+  });
+
+const serialiseGeneratedTartanCheckSource = (object: TartanCheckObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    tileSize: object.tileSize,
+    blurRadius: object.blurRadius,
+    baseColour: object.baseColour,
+    stripeColourA: object.stripeColourA,
+    stripeColourB: object.stripeColourB,
+    lineColour: object.lineColour,
+  });
+
+const serialiseGeneratedHoundstoothSource = (object: HoundstoothObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    patternSize: object.patternSize,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+const serialiseGeneratedYagasuriSource = (object: YagasuriObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    arrowWidth: object.arrowWidth,
+    arrowHeight: object.arrowHeight,
+    lineWidth: object.lineWidth,
+    staggered: object.staggered,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+const serialiseGeneratedPaperAirplaneSource = (object: PaperAirplaneObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    bodyLength: object.bodyLength,
+    wingWidth: object.wingWidth,
+    foldHeight: object.foldHeight,
+    gap: object.gap,
+    followMotionDirection: object.followMotionDirection,
+    axisMode: object.axisMode,
+    fillColour: object.fillColour,
+  });
+
+const serialiseGeneratedAsanohaPatternSource = (object: AsanohaPatternObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    patternSize: object.patternSize,
+    lineWidth: object.lineWidth,
+    foregroundColour: object.foregroundColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+const serialiseGeneratedFocusLinesPlusSource = (object: FocusLinesPlusObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    rayWidth: object.rayWidth,
+    gap: object.gap,
+    centreRadius: object.centreRadius,
+    rotationDegrees: object.rotationDegrees,
+    centreX: object.centreX,
+    centreY: object.centreY,
+    centreJitterPercent: object.centreJitterPercent,
+    seed: object.seed,
+    keyframeInterval: object.keyframeInterval,
+    lineColour: object.lineColour,
+  });
+
+const serialiseGeneratedRandomLineExSource = (object: RandomLineExObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    lineCount: object.lineCount,
+    lineWidth: object.lineWidth,
+    threshold: object.threshold,
+    noiseCellSize: object.noiseCellSize,
+    widthVariance: object.widthVariance,
+    seed: object.seed,
+    lineColour: object.lineColour,
+  });
+
+const serialiseGeneratedContourTraceSource = (object: ContourTraceObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    lineWidth: object.lineWidth,
+    contourCount: object.contourCount,
+    jitterAmount: object.jitterAmount,
+    traceColour: object.traceColour,
+    backgroundOpacity: object.backgroundOpacity,
+    seed: object.seed,
+  });
+
+const serialiseGeneratedDisplacementPolySource = (object: DisplacementPolyObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    columns: object.columns,
+    rows: object.rows,
+    displacementScale: object.displacementScale,
+    depthScale: object.depthScale,
+    meshOpacity: object.meshOpacity,
+    fillOpacity: object.fillOpacity,
+    lineColour: object.lineColour,
+    fillColour: object.fillColour,
+    seed: object.seed,
+  });
+
+const serialiseGeneratedPlainEffectorLineSource = (object: PlainEffectorLineObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: Math.min(2000, Math.max(1, finiteNumberOr(object.radius, 100))),
+    strength: Math.min(10, Math.max(-10, finiteNumberOr(object.strength, 1))),
+    randomness: Math.min(1000, Math.max(-1000, finiteNumberOr(object.randomness, 0))),
+    zoom: Math.min(5, Math.max(-2, finiteNumberOr(object.zoom, 1))),
+    invert: object.invert === true,
+    lineCount: Math.min(128, Math.max(1, Math.trunc(finiteNumberOr(object.lineCount, 24)))),
+    lineWidth: Math.min(200, Math.max(0.25, finiteNumberOr(object.lineWidth, 2))),
+    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#f74d52',
+    colourAmount: Math.min(1, Math.max(0, finiteNumberOr(object.colourAmount, 1))),
+    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+  });
+
+const serialiseGeneratedHologramSource = (object: HologramObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    tileSize: Math.min(1000, Math.max(10, Math.trunc(finiteNumberOr(object.tileSize, 80)))),
+    rotationDegrees: Math.min(720, Math.max(-720, finiteNumberOr(object.rotationDegrees, 0))),
+    gradientAngleDegrees: Math.min(720, Math.max(-720, finiteNumberOr(object.gradientAngleDegrees, -60))),
+    colourMode: Math.min(2, Math.max(0, Math.trunc(finiteNumberOr(object.colourMode, 1)))),
+    tintColour: /^#[0-9a-f]{6}$/i.test(object.tintColour) ? object.tintColour : '#ffffff',
+  });
+
+const serialiseGeneratedProtractorSource = (object: ProtractorObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: Math.min(2000, Math.max(1, Math.trunc(finiteNumberOr(object.radius, 180)))),
+    measuredAngleDegrees: Math.min(180, Math.max(0, finiteNumberOr(object.measuredAngleDegrees, 90))),
+    tickStepDegrees: Math.min(90, Math.max(1, Math.trunc(finiteNumberOr(object.tickStepDegrees, 10)))),
+    majorTickStepDegrees: Math.min(180, Math.max(1, Math.trunc(finiteNumberOr(object.majorTickStepDegrees, 30)))),
+    decimalPlaces: Math.min(5, Math.max(0, Math.trunc(finiteNumberOr(object.decimalPlaces, 1)))),
+    lineColour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+    textColour: /^#[0-9a-f]{6}$/i.test(object.textColour) ? object.textColour : '#ffffff',
+    shadowColour: /^#[0-9a-f]{6}$/i.test(object.shadowColour) ? object.shadowColour : '#000000',
+  });
+
+const serialiseGeneratedShakingPolygonSource = (object: ShakingPolygonObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    lineWidth: Math.min(100, Math.max(1, Math.trunc(finiteNumberOr(object.lineWidth, 20)))),
+    vertexCount: Math.min(16, Math.max(2, Math.trunc(finiteNumberOr(object.vertexCount, 3)))),
+    fixedDiameter: Math.min(2000, Math.max(0, Math.trunc(finiteNumberOr(object.fixedDiameter, 260)))),
+    verticalDistortionPercent: Math.min(100, Math.max(-100, finiteNumberOr(object.verticalDistortionPercent, 0))),
+    repeatCount: Math.min(100, Math.max(1, Math.trunc(finiteNumberOr(object.repeatCount, 1)))),
+    repeatFrequency: Math.max(1, Math.trunc(finiteNumberOr(object.repeatFrequency, 1))),
+    fill: object.fill === true,
+    jitterRange: Math.min(2000, Math.max(0, finiteNumberOr(object.jitterRange, 20))),
+    jitterInterval: Math.max(1, Math.trunc(finiteNumberOr(object.jitterInterval, 10))),
+    stepped: object.stepped === true,
+    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#ffffff',
+    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
+  });
+
+const serialiseGeneratedShatteredSphereSource = (object: ShatteredSphereObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    fractureAmount: Math.min(5000, Math.max(0, finiteNumberOr(object.fractureAmount, 100))),
+    delay: Math.min(1000, Math.max(0, finiteNumberOr(object.delay, 100))),
+    radius: Math.min(10000, Math.max(1, finiteNumberOr(object.radius, 160))),
+    limitDistance: Math.min(10000, Math.max(0, finiteNumberOr(object.limitDistance, 150))),
+    thickness: Math.min(1000, Math.max(0, finiteNumberOr(object.thickness, 20))),
+    fragmentSize: Math.min(1000, Math.max(1, finiteNumberOr(object.fragmentSize, 40))),
+    randomShape: Math.min(100, Math.max(0, finiteNumberOr(object.randomShape, 100))),
+    speed: Math.min(1000, Math.max(0, finiteNumberOr(object.speed, 100))),
+    impact: Math.min(1000, Math.max(0, finiteNumberOr(object.impact, 100))),
+    gravityX: Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityX, 0))),
+    gravityY: Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityY, 100))),
+    gravityZ: Math.min(1000, Math.max(-1000, finiteNumberOr(object.gravityZ, 0))),
+    spin: Math.min(1000, Math.max(0, finiteNumberOr(object.spin, 100))),
+    directionDiffusion: Math.min(1000, Math.max(0, finiteNumberOr(object.directionDiffusion, 100))),
+    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#ffffff',
+    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+  });
+
+// `tone_curve` kind のワイヤーソースは rust-core の `ToneCurveObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedToneCurveSource = (object: ToneCurveObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    gridDivisions: object.gridDivisions,
+    lineWidth: object.lineWidth,
+    curvePoints: object.curvePoints,
+    curveColour: object.curveColour,
+    gridColour: object.gridColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+// `hksy_checker_grid` kind のワイヤーソースは rust-core の
+// `HksyCheckerGridObjectFields`（正本）を camelCase のまま直接デシリアライズ
+// する。フォールバック/クランプは rust-backend の validator/frame builder
+// 側に移した。
+const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    pattern: object.pattern,
+    cellSize: object.cellSize,
+    lineWidth: object.lineWidth,
+    checkerEnabled: object.checkerEnabled,
+    gridEnabled: object.gridEnabled,
+    foregroundColour: object.foregroundColour,
+    secondaryColour: object.secondaryColour,
+    backgroundColour: object.backgroundColour,
+    paletteColours: object.paletteColours,
+    separateInterval: object.separateInterval,
+    separateLineWidth: object.separateLineWidth,
+    anchorPoints: object.anchorPoints,
+    roundCaps: object.roundCaps,
+    maxJoinDistance: object.maxJoinDistance,
+  });
+
+const serialiseGeneratedGetColorDotsSource = (
+  object: GetColorDotFieldObject,
+  objects: TimelineObject[] = [],
+  time = object.startTime
+): string => {
+  const sampleSource = resolveGetColorSampleSource(object, objects, time);
+  return JSON.stringify({
+    generator: 'getcolor-v2r-dot-field',
+    columns: Math.min(512, Math.max(1, Math.trunc(finiteNumberOr(object.columns, 32)))),
+    rows: Math.min(512, Math.max(1, Math.trunc(finiteNumberOr(object.rows, 18)))),
+    dot_size: Math.min(2000, Math.max(0, finiteNumberOr(object.dotSize, 14))),
+    size_influence: Math.min(4, Math.max(0, finiteNumberOr(object.sizeInfluence, 0.65))),
+    luminance_influence: Math.min(4, Math.max(0, finiteNumberOr(object.luminanceInfluence, 0.7))),
+    hue_shift_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.hueShiftDegrees, 0))),
+    alternate_rows: object.alternateRows === true,
+    foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#ffffff',
+    secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#36c2ff',
+    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
+    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+    ...(object.dotShape === 'circle' || object.dotShape === 'square' || object.dotShape === 'diamond' ? {
+      dot_shape: object.dotShape,
+      stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 0))),
+    } : {}),
+    ...(sampleSource ? {
+      source_image: sampleSource.source,
+      ...(sampleSource.activeLayerIds ? { source_active_layer_ids: sampleSource.activeLayerIds } : {}),
+      sample_strength: Math.min(1, Math.max(0, finiteNumberOr(object.sampleStrength, 1))),
+      sample_hue_shift_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.sampleHueShiftDegrees, 0))),
+    } : {}),
+  });
+};
+
+const resolveGetColorSampleSource = (
+  object: GetColorDotFieldObject,
+  objects: TimelineObject[],
+  time: number
+): { source: string; activeLayerIds?: string[] } | undefined => {
+  if (typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0) {
+    return { source: object.sampleSourcePath };
+  }
+
+  const candidates = objects
+    .filter(isGetColorSampleSourceObject)
+    .filter((candidate) => time >= candidate.startTime && time < candidate.startTime + candidate.duration);
+
+  if (typeof object.sampleSourceObjectId === 'string' && object.sampleSourceObjectId.length > 0) {
+    const matched = candidates.find((candidate) => candidate.id === object.sampleSourceObjectId);
+    return getColorSampleSourceForObject(matched);
+  }
+
+  if (typeof object.sampleSourceLayer === 'number' && Number.isFinite(object.sampleSourceLayer)) {
+    const matched = candidates.find((candidate) => candidate.layer === object.sampleSourceLayer);
+    return getColorSampleSourceForObject(matched);
+  }
+
+  return undefined;
+};
+
+const isGetColorSampleSourceObject = (object: TimelineObject): object is ImageObject | PsdObject =>
+  object.type === 'image' || object.type === 'psd';
+
+const getColorSampleSourceForObject = (
+  object: ImageObject | PsdObject | undefined
+): { source: string; activeLayerIds?: string[] } | undefined => {
+  if (!object) return undefined;
+  const source = mediaSourceForObject(object);
+  if (!source) return undefined;
+  if (object.type === 'psd') {
+    return {
+      source,
+      activeLayerIds: activeLayerIdsForPsd(object),
+    };
+  }
+  return { source };
+};
+
+// `region_frame` kind のワイヤーソースは rust-core の `RegionFrameObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    lineWidth: object.lineWidth,
+    shape: object.shape,
+    cornerCut: object.cornerCut,
+    extraWidth: object.extraWidth,
+    extraHeight: object.extraHeight,
+    backgroundOpacity: object.backgroundOpacity,
+    frameColour: object.frameColour,
+    backgroundColour: object.backgroundColour,
+  });
+
+// `simple_tube` kind のワイヤーソースは rust-core の `SimpleTubeObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedSimpleTubeSource = (object: SimpleTubeObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    depth: object.depth,
+    segments: object.segments,
+    rings: object.rings,
+    twistDegrees: object.twistDegrees,
+    randomAmount: object.randomAmount,
+    strokeWidth: object.strokeWidth,
+    colour: object.colour,
+    secondaryColour: object.secondaryColour,
+    colourPattern: object.colourPattern,
+    fogStrength: object.fogStrength,
+    fogColour: object.fogColour,
+    seed: object.seed,
+    torus: object.torus,
+  });
+
+// `sphere_dots` kind のワイヤーソースは rust-core の `SphereDotsObjectFields`
+// （正本）を camelCase のまま直接デシリアライズする。フォールバック/クランプは
+// rust-backend の validator/frame builder 側に移した。
+const serialiseGeneratedSphereDotsSource = (object: SphereDotsObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    columns: object.columns,
+    rows: object.rows,
+    rotationDegrees: object.rotationDegrees,
+    offsetDegrees: object.offsetDegrees,
+    luminanceInfluence: object.luminanceInfluence,
+    pointSize: object.pointSize,
+    latitudeLineWidth: object.latitudeLineWidth,
+    colour: object.colour,
+    secondaryColour: object.secondaryColour,
+    seed: object.seed,
+    planeMode: object.planeMode,
+  });
+
+// `spherical_field` kind のワイヤーソースは rust-core の
+// `SphericalFieldObjectFields`（正本）を camelCase のまま直接デシリアライズ
+// する。フォールバック/クランプは rust-backend の validator/frame builder
+// 側に移した。
+const serialiseGeneratedSphericalFieldSource = (object: SphericalFieldObject): string =>
+  JSON.stringify({
+    width: object.width,
+    height: object.height,
+    radius: object.radius,
+    strength: object.strength,
+    colourAmount: object.colourAmount,
+    alphaAmount: object.alphaAmount,
+    lineWidth: object.lineWidth,
+    ringCount: object.ringCount,
+    vectorCount: object.vectorCount,
+    fieldColour: object.fieldColour,
+    secondaryColour: object.secondaryColour,
+    backgroundOpacity: object.backgroundOpacity,
+    container: object.container,
+    seed: object.seed,
+  });
+
+const findTargetAudioForGeneratedAudio = (
+  object: Pick<AudioVisualizationObject | AudioSphereObject, 'targetAudioId' | 'targetLayer'>,
+  objects: TimelineObject[],
+  time: number
+): AudioObject | null => {
+  if (object.targetAudioId) {
+    const direct = objects.find((candidate): candidate is AudioObject => (
+      candidate.type === 'audio' && candidate.id === object.targetAudioId
+    ));
+    if (direct) return direct;
+  }
+  if (typeof object.targetLayer === 'number' && object.targetLayer >= 0) {
+    const layerTarget = objects.find((candidate): candidate is AudioObject => (
+      candidate.type === 'audio'
+      && candidate.layer === object.targetLayer
+      && time >= candidate.startTime
+      && time < candidate.startTime + candidate.duration
+    ));
+    if (layerTarget) return layerTarget;
+  }
+  return null;
+};
+
+const mediaSourceForObject = (
+  object: SupportedMediaObject | AudioObject,
+  videoSourceMode: RustSceneVideoSourceMode = 'previewProxy'
+): string => {
+  if (object.type === 'video' && videoSourceMode === 'previewProxy' && object.proxyFilePath) {
+    return object.proxyFilePath;
+  }
+  return object.filePath || object.src || '';
+};
+
+const mediaDimensionsForObject = (
+  object: SupportedSceneObject,
+  videoSourceMode: RustSceneVideoSourceMode
+): { width: number; height: number } => {
+  if (object.type === 'video' && videoSourceMode === 'exportOriginal') {
+    return {
+      width: positiveNumberOrFallback(object.width, 1),
+      height: positiveNumberOrFallback(object.height, 1),
+    };
+  }
+  if (object.type === 'text') {
+    return textMediaBox(object);
+  }
+  return {
+    width: object.width,
+    height: object.height,
+  };
+};
+
+/**
+ * PSD 固有の一様スケール（PropertyPanel の PSD Transform）。Pixi 時代は
+ * psdContent.scale.set(obj.scale) で反映していたが、Pixi 廃止後に脱落して
+ * いたため clip transform へ乗算合成する。非有限・非正値は 1 として無視。
+ */
+const psdUniformScaleForObject = (object: SupportedSceneObject): number => {
+  if (object.type !== 'psd') return 1;
+  const scale = object.scale;
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
+};
+
+const mediaSourceScaleForObject = (
+  object: SupportedSceneObject,
+  videoSourceMode: RustSceneVideoSourceMode
+): { x: number; y: number } => {
+  if (object.type !== 'video' || videoSourceMode !== 'exportOriginal') {
+    return { x: 1, y: 1 };
+  }
+  const dimensions = mediaDimensionsForObject(object, videoSourceMode);
+  return {
+    x: safeScaleRatio(object.width, dimensions.width),
+    y: safeScaleRatio(object.height, dimensions.height),
+  };
+};
+
+const positiveNumberOrFallback = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+
+const finiteNumberOr = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+const safeScaleRatio = (displaySize: number, sourceSize: number): number => {
+  if (!Number.isFinite(displaySize) || !Number.isFinite(sourceSize) || sourceSize <= 0) {
+    return 1;
+  }
+  return displaySize / sourceSize;
+};
+
+const mediaKindForObject = (object: SupportedMediaObject): RustSceneMediaReference['kind'] => {
+  if (object.type === 'video') return 'Video';
+  if (object.type === 'psd') return 'Psd';
+  return 'Image';
+};
+
+/**
+ * clip 開始からの経過フレーム数。`rust_core::timeline::evaluate_frame` の
+ * `frame_offset = frame_index - clip.start_frame` と同じ規約（R2で全 kind に統一）。
+ * `source_frame_offset` は video のみ非ゼロ（`editableRustScene.ts` 参照）で、
+ * それ以外の kind では常に 0 なので、ここでは経過フレームのみを返す。
+ */
+const elapsedFrameForObject = (
+  object: SupportedSceneObject,
+  time: number,
+  fps: number
+): number => secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+
+const sourceFrameForObject = (
+  object: SupportedSceneObject,
+  time: number,
+  fps: number
+): number => {
+  if (object.type === 'shape') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'image') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'psd') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'audio_visualization') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'audio_sphere') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'particle') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'barcode') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'puzzle_piece') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'colour_wheel') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'gourd') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'gear') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'track_bar') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'pie_chart') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'histogram') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'sunburst') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'circular_arrow') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'triangle_bracket') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'tartan_check') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'houndstooth') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'yagasuri') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'paper_airplane') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'asanoha_pattern') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'focus_lines_plus') {
+    const interval = Math.max(0, Math.trunc(finiteNumberOr(object.keyframeInterval, 0)));
+    if (interval === 0) return 0;
+    const localFrame = secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+    return Math.floor(localFrame / interval) * interval;
+  }
+  if (object.type === 'random_line_ex') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'contour_trace') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'displacement_poly') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'plain_effector_line') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'hologram') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'protractor') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'shaking_polygon') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'shattered_sphere') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'tone_curve') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'getcolor_dot_field') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'hksy_checker_grid') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'region_frame') return elapsedFrameForObject(object, time, fps);
+  if (object.type === 'simple_tube') return elapsedFrameForObject(object, time, fps);
+  const localTime = Math.max(0, time - object.startTime);
+  const offset = object.offset ?? 0;
+  const mediaTime = localTime + offset;
+  const frameIndex = secondsToFrameIndex(mediaTime, fps);
+  // クリップ在圏判定（collectVisibleObjects）は非量子化の半開区間
+  // `time < startTime + duration` だが、frame_index は Math.round で
+  // 四捨五入されるため、projectFps が 60 の約数でない場合などクリップ
+  // 終端付近で round がクリップ自身のローカル再生範囲（offset..offset+
+  // duration）を超えることがある。クリップ自身の最終有効フレームへ
+  // クランプし、範囲外フレームの要求を防ぐ。
+  const offsetFrame = secondsToFrameIndex(offset, fps);
+  const durationFrameCount = Math.max(1, secondsToFrameIndex(object.duration, fps));
+  const maxFrame = offsetFrame + durationFrameCount - 1;
+  return Math.min(frameIndex, maxFrame);
+};
+
+const clamp01 = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+};
+
+const normaliseRotationDegrees = (value: number): number =>
+  Number.isFinite(value) ? value : 0;

@@ -1,0 +1,1211 @@
+import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import type { SharedRendererNativeRenderDiagnostics } from './sharedRendererViewportNativeRenderUpload';
+import type { SharedRendererSolidColourVertexSceneBuilder } from './sharedRendererSolidColourScene';
+import {
+  buildSharedRendererVideoPlaneVertexScene,
+  type SharedRendererVideoPlaneVertexSceneBuilder,
+} from './sharedRendererVideoPlaneScene';
+import {
+  buildSharedRendererVideoFrameDecodeRequests,
+  type SharedRendererVideoFrameDecodeRequestBuilder,
+  type SharedRendererVideoFrameDecodeRequestResult,
+} from './sharedRendererVideoDecodeRequest';
+import {
+  createSharedRendererWebGpuPresenter,
+  type SharedRendererPresentedFrameSharedFrameInput,
+  type SharedRendererPresentedFrameSharedFrameTaker,
+  type SharedRendererSolidSrgbSwatch,
+  type SharedRendererVideoFrameScenePresentationResult,
+  type SharedRendererVideoFrameTextureUploadInput,
+  type SharedRendererWebGpuLike,
+} from './sharedRendererWebGpuPresenter';
+import { loadSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRendererRustSolidColourScene';
+import { loadSharedRendererRustVideoFrameDecodeRequestBuilder } from './sharedRendererRustVideoDecodeRequest';
+import { loadSharedRendererRustVideoPlaneVertexSceneBuilder } from './sharedRendererRustVideoPlaneScene';
+import {
+  recordSharedRendererPresenterTransientSkip,
+  writeSharedRendererPresenterDiagnostics,
+  type SharedRendererPresenterDiagnosticState,
+} from './sharedRendererPresenterDiagnostics';
+import {
+  buildSharedRendererVideoOwnership,
+  type SharedRendererVideoOwnership,
+} from './sharedRendererVideoOwnership';
+import { buildSharedRendererVideoCutoverStackSafety } from './sharedRendererVideoCutoverStack';
+import {
+  buildSharedRendererSolidColourOwnership,
+  buildSharedRendererSolidColourStackSafety,
+  type SharedRendererSolidColourOwnership,
+} from './sharedRendererSolidColourOwnership';
+import {
+  buildSharedRendererImageOwnership,
+  type SharedRendererImageOwnership,
+} from './sharedRendererImageOwnership';
+import {
+  buildSharedRendererPsdOwnership,
+  type SharedRendererPsdOwnership,
+} from './sharedRendererPsdOwnership';
+import {
+  buildSharedRendererTextOwnership,
+  type SharedRendererTextOwnership,
+} from './sharedRendererTextOwnership';
+import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
+
+export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
+  red: 0.25,
+  green: 0.5,
+  blue: 0.75,
+  alpha: 1,
+};
+
+export const getSharedRendererSolidSwatchCssColour = (): string => {
+  const red = Math.round(SHARED_RENDERER_SOLID_SWATCH.red * 255);
+  const green = Math.round(SHARED_RENDERER_SOLID_SWATCH.green * 255);
+  const blue = Math.round(SHARED_RENDERER_SOLID_SWATCH.blue * 255);
+  return `rgb(${red}, ${green}, ${blue})`;
+};
+
+type PresenterDataset = Record<string, string | undefined>;
+
+// A mid-seek external video element may momentarily hold no presentable
+// frame, so the presenter reports videoTextureViewUnavailable. During
+// playback this is transient: keep the current presenter and skip the frame
+// instead of tearing it down, which would restart the presenter every frame
+// and lose the GPU device. Classified here (the diagnostics write site) so
+// the transient/persistent distinction is made exactly once, rather than
+// re-derived on the display side.
+export const isTransientExternalVideoPresentationFailure = (
+  presentation: SharedRendererVideoFrameScenePresentationResult | undefined | null,
+): boolean => Boolean(
+  presentation
+  && !presentation.ok
+  && presentation.reason === 'videoTextureViewUnavailable',
+);
+
+// After this many consecutive transient external-video presentation skips
+// with no successful present in between, the condition is no longer a normal
+// one-tick skip — escalate it to a persistent, visible failure so a genuinely
+// stuck video source is not hidden from diagnostics forever.
+export const EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD = 120;
+
+export type SharedRendererPreparedNativeRenderFramePresentationResult =
+  | { ok: true }
+  | { ok: false; reason: string; detail: string };
+
+export interface SharedRendererExternalVideoFrameRepaintInput {
+  session: SharedRendererPreviewSession;
+  sourcesByClipId?: ReadonlyMap<string, unknown>;
+}
+
+export interface SharedRendererPresentPreparedNativeRenderFrameOptions {
+  // The session for the frame being re-presented. The rust-only playback
+  // reuse path keeps a single presenter alive across many playback ticks
+  // (avoiding a full restart per frame), so without this the presenter
+  // diagnostics dataset would stay frozen at whatever session was current
+  // when the presenter started — e.g. VideoPresentedFrameIndex would never
+  // advance past frame 0 even though every subsequent frame renders fine.
+  // Passing the current tick's session lets diagnostics be republished with
+  // the frame that is actually now on screen.
+  session?: SharedRendererPreviewSession;
+  nativeRenderDiagnostics?: SharedRendererNativeRenderDiagnostics;
+}
+
+export type SharedRendererPreviewPresenterControl =
+  | {
+      ok: true;
+      format: string;
+      solidColourOwnership: SharedRendererSolidColourOwnership;
+      videoOwnership: SharedRendererVideoOwnership;
+      imageOwnership: SharedRendererImageOwnership;
+      psdOwnership: SharedRendererPsdOwnership;
+      textOwnership: SharedRendererTextOwnership;
+      generatedEffectObjectIds: string[];
+      takePresentedFrameSharedFrame?: (
+        input: SharedRendererPresentedFrameSharedFrameInput
+      ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
+      presentExternalVideoFrameScene?: (
+        input: SharedRendererExternalVideoFrameRepaintInput
+      ) => SharedRendererVideoFrameScenePresentationResult;
+      presentPreparedNativeRenderFrame?: (
+        upload: SharedRendererDecodedVideoFrameUpload,
+        options?: SharedRendererPresentPreparedNativeRenderFrameOptions
+      ) => Promise<SharedRendererPreparedNativeRenderFramePresentationResult>;
+      dispose: () => void;
+    }
+  | {
+      ok: false;
+      reason: string;
+      dispose: () => void;
+    };
+
+export interface StartSharedRendererPreviewPresenterInput {
+  canvas: HTMLCanvasElement;
+  session: SharedRendererPreviewSession;
+  datasets: PresenterDataset[];
+  gpu?: SharedRendererWebGpuLike;
+  textureUsageRenderAttachment?: number;
+  bufferUsageVertex?: number;
+  bufferUsageCopyDst?: number;
+  diagnosticSwatchEnabled?: boolean;
+  rustSolidColourWasmEnabled?: boolean;
+  rustSolidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
+  rustVideoPlaneWasmEnabled?: boolean;
+  rustVideoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
+  rustVideoFrameDecodeRequestWasmEnabled?: boolean;
+  rustVideoFrameDecodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
+  sharedRendererSolidColourCutoverEnabled?: boolean;
+  sharedRendererVideoCutoverEnabled?: boolean;
+  requireSharedRendererVideo?: boolean;
+  requireRustVideoControlPlane?: boolean;
+  requireSharedRendererOutput?: boolean;
+  sharedRendererVideoFrameUploadReady?: boolean;
+  sharedRendererNativeRenderFrameUpload?: SharedRendererDecodedVideoFrameUpload;
+  sharedRendererNativeRenderDiagnostics?: SharedRendererNativeRenderDiagnostics;
+  sharedRendererNativeRenderFailure?: {
+    reason: string;
+    detail: string;
+  };
+  sharedRendererVideoUploadFailure?: {
+    reason: string;
+    detail: string;
+    clipId?: string;
+    mediaId?: string;
+    missingClipIds?: string;
+  };
+  sharedRendererExternalVideoSourcesByClipId?: ReadonlyMap<string, unknown>;
+  sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
+  sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
+  sharedRendererWriteTextureNoOpEnabled?: boolean;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  isStartCurrent?: () => boolean;
+}
+
+export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVideoFrameTextureUploadInput {
+  ptsFrame: number;
+  releaseAfterGpuUpload?: () => Promise<void>;
+  releaseAfterUploadAbort?: () => Promise<void>;
+}
+
+export interface SharedRendererDecodedVideoFrameUploadForClip extends SharedRendererDecodedVideoFrameUpload {
+  clipId: string;
+  mediaId?: string;
+}
+
+export const startSharedRendererPreviewPresenter = async ({
+  canvas,
+  session,
+  datasets,
+  gpu,
+  textureUsageRenderAttachment,
+  bufferUsageVertex,
+  bufferUsageCopyDst,
+  diagnosticSwatchEnabled = true,
+  rustSolidColourWasmEnabled = defaultRustSolidColourWasmEnabled(),
+  rustSolidColourVertexSceneBuilder,
+  rustVideoPlaneWasmEnabled = defaultRustVideoPlaneWasmEnabled(),
+  rustVideoPlaneVertexSceneBuilder,
+  rustVideoFrameDecodeRequestWasmEnabled = defaultRustVideoFrameDecodeRequestWasmEnabled(),
+  rustVideoFrameDecodeRequestBuilder,
+  sharedRendererSolidColourCutoverEnabled = defaultSharedRendererSolidColourCutoverEnabled(),
+  sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
+  requireSharedRendererVideo = false,
+  requireRustVideoControlPlane = false,
+  requireSharedRendererOutput = false,
+  sharedRendererVideoFrameUploadReady = false,
+  sharedRendererNativeRenderFrameUpload,
+  sharedRendererNativeRenderDiagnostics,
+  sharedRendererNativeRenderFailure,
+  sharedRendererVideoUploadFailure,
+  sharedRendererExternalVideoSourcesByClipId,
+  sharedRendererDecodedVideoFrameUpload,
+  sharedRendererDecodedVideoFrameUploads,
+  sharedRendererWriteTextureNoOpEnabled = false,
+  presentedFrameSharedFrameTaker,
+  isStartCurrent,
+}: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
+  assertPresenterStartCurrent(isStartCurrent);
+
+  const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
+    datasets.forEach((dataset) => {
+      writeSharedRendererPresenterDiagnostics(dataset, state);
+    });
+  };
+  const recordTransientSkip = (reason: string) => {
+    datasets.forEach((dataset) => {
+      recordSharedRendererPresenterTransientSkip(dataset, reason);
+    });
+  };
+  // Consecutive transient external-video presentation skips since the last
+  // successful present. Lives in this closure so it resets naturally on every
+  // presenter restart, and is distinct from the monotonic debug counter above
+  // (which never resets — it is for post-hoc diagnosis, not control flow).
+  let consecutiveExternalVideoTransientSkips = 0;
+
+  if (!session.surfaceGate.ok) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: session.surfaceGate.reason,
+    });
+    return {
+      ok: false,
+      reason: session.surfaceGate.reason,
+      dispose: noop,
+    };
+  }
+
+  const hasSolidColourScene = hasSolidColourClip(session);
+  const resolvedRustSolidColourVertexSceneBuilder = hasSolidColourScene
+    ? rustSolidColourVertexSceneBuilder
+      ?? await loadSharedRendererRustSolidColourVertexSceneBuilder({
+        enabled: rustSolidColourWasmEnabled,
+      })
+    : null;
+  assertPresenterStartCurrent(isStartCurrent);
+  const solidColourGeometrySource = hasSolidColourScene
+    ? resolvedRustSolidColourVertexSceneBuilder
+      ? 'rust-wasm'
+      : 'typescript'
+    : undefined;
+  const hasVideoScene = hasVideoClip(session);
+  const hasImageScene = hasImageClip(session);
+  const hasPsdScene = hasPsdClip(session);
+  const hasTextScene = hasTextClip(session);
+  const resolvedRustVideoPlaneVertexSceneBuilder = hasVideoScene
+    ? rustVideoPlaneVertexSceneBuilder
+      ?? await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
+        enabled: rustVideoPlaneWasmEnabled,
+        fallbackAllowed: !requireRustVideoControlPlane,
+      })
+    : null;
+  assertPresenterStartCurrent(isStartCurrent);
+  const resolvedRustVideoFrameDecodeRequestBuilder = hasVideoScene
+    ? rustVideoFrameDecodeRequestBuilder
+      ?? await loadSharedRendererRustVideoFrameDecodeRequestBuilder({
+        enabled: rustVideoFrameDecodeRequestWasmEnabled,
+        fallbackAllowed: !requireRustVideoControlPlane,
+      })
+    : null;
+  assertPresenterStartCurrent(isStartCurrent);
+  if (
+    hasVideoScene
+    && requireRustVideoControlPlane
+    && (
+      !resolvedRustVideoPlaneVertexSceneBuilder
+      || !resolvedRustVideoFrameDecodeRequestBuilder
+    )
+  ) {
+    writeDiagnostics({
+      status: 'blocked',
+      reason: 'requiredRustVideoControlPlaneUnavailable',
+    });
+    return {
+      ok: false,
+      reason: 'requiredRustVideoControlPlaneUnavailable',
+      dispose: noop,
+    };
+  }
+  if (hasVideoScene) {
+    const videoPlaneVertexSceneBuilder = resolvedRustVideoPlaneVertexSceneBuilder
+      ?? buildSharedRendererVideoPlaneVertexScene;
+    videoPlaneVertexSceneBuilder({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      canvas: session.surfaceGate.canvas,
+    });
+  }
+  const videoGeometrySource = hasVideoScene
+    ? resolvedRustVideoPlaneVertexSceneBuilder
+      ? 'rust-wasm'
+      : 'typescript'
+    : undefined;
+  const videoFrameDecodeRequestBuilder = hasVideoScene
+    ? resolvedRustVideoFrameDecodeRequestBuilder
+      ?? buildSharedRendererVideoFrameDecodeRequests
+    : null;
+  const videoDecodeRequestResult = videoFrameDecodeRequestBuilder
+    ? videoFrameDecodeRequestBuilder({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+    })
+    : null;
+  const videoDecodeRequestSource = hasVideoScene
+    ? resolvedRustVideoFrameDecodeRequestBuilder
+      ? 'rust-wasm'
+      : 'typescript'
+    : undefined;
+  const videoDecodeRequestCount = videoDecodeRequestResult?.ok
+    ? videoDecodeRequestResult.requestCount
+    : undefined;
+  const videoPresentedSourceFrame = videoDecodeRequestResult?.ok
+    ? videoDecodeRequestResult.requests[0]?.sourceFrame
+    : undefined;
+  const videoCutoverStackSafety = videoDecodeRequestResult?.ok
+    ? buildSharedRendererVideoCutoverStackSafety({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      candidateVideoObjectIds: videoDecodeRequestResult.requests.map((request) => request.clipId),
+    })
+    : null;
+  const solidColourObjectIds = hasSolidColourScene
+    ? collectSolidColourObjectIds(session)
+    : [];
+  const imageObjectIds = hasImageScene
+    ? collectObjectIdsByMediaKind(session, 'Image')
+    : [];
+  const psdObjectIds = hasPsdScene
+    ? collectObjectIdsByMediaKind(session, 'Psd')
+    : [];
+  const textObjectIds = hasTextScene
+    ? collectObjectIdsByMediaKind(session, 'Text')
+    : [];
+
+  const presenter = await createSharedRendererWebGpuPresenter({
+    canvas,
+    surfaceGate: session.surfaceGate,
+    presentationContract: session.presentationContract,
+    gpu,
+    textureUsageRenderAttachment,
+    bufferUsageVertex,
+    bufferUsageCopyDst,
+    solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
+    presentedFrameSharedFrameTaker,
+    writeTextureNoOpEnabled: sharedRendererWriteTextureNoOpEnabled,
+    isStartCurrent,
+    onDeviceLost: (event) => {
+      writeDiagnostics({
+        status: 'deviceLost',
+        reason: 'deviceLost',
+        staleSharedFrameAllowed: event.staleSharedFrameAllowed,
+      });
+    },
+  });
+
+  if (!presenter.ok) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: presenter.reason,
+    });
+    return {
+      ok: false,
+      reason: presenter.reason,
+      dispose: noop,
+    };
+  }
+
+  let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
+  let resolvedVideoUploadFailure = sharedRendererVideoUploadFailure;
+  let nativeRenderFrameReady = false;
+  let nativeRenderFailure = sharedRendererNativeRenderFailure;
+  if (sharedRendererNativeRenderFrameUpload) {
+    const uploadResult = presenter.uploadVideoFrameTexture(sharedRendererNativeRenderFrameUpload);
+    if (uploadResult.ok) {
+      const presentation = presenter.presentNativeRenderFrame({
+        texture: uploadResult.texture,
+      });
+      if (!presentation.ok) {
+        const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+          sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort
+        );
+        const fallbackReason = releaseFailureDetail
+          ? 'nativeRenderOutputReleaseFailed'
+          : presentation.reason;
+        writeDiagnostics({
+          status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+          reason: fallbackReason,
+          nativeRenderFailureReason: releaseFailureDetail ? fallbackReason : undefined,
+          nativeRenderFailureDetail: releaseFailureDetail ?? undefined,
+        });
+        return {
+          ok: false,
+          reason: fallbackReason,
+          dispose: presenter.dispose,
+        };
+      }
+      if (sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload) {
+        await presenter.device.queue?.onSubmittedWorkDone?.();
+        const releaseFailureDetail = await releaseDecodedVideoUploadAfterGpuUpload(
+          sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload
+        );
+        if (releaseFailureDetail) {
+          nativeRenderFailure = {
+            reason: 'nativeRenderOutputReleaseFailed',
+            detail: releaseFailureDetail,
+          };
+        }
+      }
+      nativeRenderFrameReady = true;
+    } else {
+      const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+        sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort
+      );
+      nativeRenderFailure = releaseFailureDetail
+        ? {
+            reason: 'nativeRenderOutputReleaseFailed',
+            detail: releaseFailureDetail,
+          }
+        : {
+            reason: uploadResult.reason,
+            detail: uploadResult.detail,
+          };
+    }
+  }
+  let uploadedVideoFrameTexture: unknown | null = null;
+  const uploadedVideoFrameTexturesByClipId = new Map<string, unknown>();
+  const singleVideoUploadScope = resolveSingleVideoUploadScope(session);
+  const scopedSingleVideoFrameUpload = sharedRendererDecodedVideoFrameUpload && singleVideoUploadScope
+    ? {
+      clipId: singleVideoUploadScope.clipId,
+      mediaId: singleVideoUploadScope.mediaId,
+      upload: sharedRendererDecodedVideoFrameUpload,
+    }
+    : null;
+  if (hasVideoScene && sharedRendererDecodedVideoFrameUpload && !scopedSingleVideoFrameUpload && !sharedRendererDecodedVideoFrameUploads) {
+    const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+      sharedRendererDecodedVideoFrameUpload.releaseAfterUploadAbort
+    );
+    if (releaseFailureDetail) {
+      resolvedVideoUploadFailure ??= {
+        reason: 'videoUploadAbortReleaseFailed',
+        detail: releaseFailureDetail,
+      };
+    }
+  }
+  const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads || scopedSingleVideoFrameUpload
+    ? new Set<string>()
+    : undefined;
+  const externalVideoObjectIds = hasVideoScene
+    && sharedRendererExternalVideoSourcesByClipId
+    && videoDecodeRequestResult?.ok
+    ? new Set(videoDecodeRequestResult.requests
+      .map((request) => request.clipId)
+      .filter((clipId) => sharedRendererExternalVideoSourcesByClipId.has(clipId)))
+    : undefined;
+  const decodedVideoFrameUploads = sharedRendererDecodedVideoFrameUploads
+    ? sharedRendererDecodedVideoFrameUploads.map((upload) => ({
+      clipId: upload.clipId,
+      mediaId: upload.mediaId,
+      upload,
+    }))
+    : scopedSingleVideoFrameUpload
+      ? [scopedSingleVideoFrameUpload]
+      : [];
+  for (const decodedVideoFrameUpload of hasVideoScene ? decodedVideoFrameUploads : []) {
+    const uploadResult = presenter.uploadVideoFrameTexture(decodedVideoFrameUpload.upload);
+    if (uploadResult.ok) {
+      uploadedVideoFrameTexture ??= uploadResult.texture;
+      if (decodedVideoFrameUpload.clipId) {
+        uploadedVideoObjectIds?.add(decodedVideoFrameUpload.clipId);
+        uploadedVideoFrameTexturesByClipId.set(decodedVideoFrameUpload.clipId, uploadResult.texture);
+      }
+      if (decodedVideoFrameUpload.upload.releaseAfterGpuUpload) {
+        await presenter.device.queue?.onSubmittedWorkDone?.();
+        const releaseFailureDetail = await releaseDecodedVideoUploadAfterGpuUpload(
+          decodedVideoFrameUpload.upload.releaseAfterGpuUpload
+        );
+        if (releaseFailureDetail) {
+          resolvedVideoUploadFailure ??= {
+            reason: 'videoUploadGpuReleaseFailed',
+            detail: releaseFailureDetail,
+            clipId: decodedVideoFrameUpload.clipId,
+            mediaId: decodedVideoFrameUpload.mediaId,
+          };
+        }
+      }
+      resolvedVideoFrameUploadReady = true;
+    } else {
+      const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+        decodedVideoFrameUpload.upload.releaseAfterUploadAbort
+      );
+      resolvedVideoUploadFailure ??= releaseFailureDetail
+        ? {
+            reason: 'videoUploadAbortReleaseFailed',
+            detail: releaseFailureDetail,
+            clipId: decodedVideoFrameUpload.clipId,
+            mediaId: decodedVideoFrameUpload.mediaId,
+          }
+        : {
+            reason: uploadResult.reason,
+            detail: uploadResult.detail,
+            clipId: decodedVideoFrameUpload.clipId,
+            mediaId: decodedVideoFrameUpload.mediaId,
+          };
+    }
+  }
+
+  const effectiveUploadedVideoObjectIds = mergeVideoObjectIdSets(uploadedVideoObjectIds, externalVideoObjectIds);
+  const effectiveVideoFrameUploadReady = resolvedVideoFrameUploadReady
+    || Boolean(externalVideoObjectIds && externalVideoObjectIds.size > 0);
+
+  let videoOwnership: SharedRendererVideoOwnership = buildSharedRendererVideoOwnership({
+    cutoverEnabled: sharedRendererVideoCutoverEnabled,
+    hasVideoScene,
+    nativeRenderFrameReady,
+    nativeRenderVideoObjectIds: nativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(session, 'Video')
+      : undefined,
+    videoDecodeRequestSource,
+    videoDecodeRequestResult,
+    videoFrameUploadReady: effectiveVideoFrameUploadReady,
+    uploadedVideoObjectIds: effectiveUploadedVideoObjectIds,
+    stackSafeVideoObjectIds: videoCutoverStackSafety
+      ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
+      : undefined,
+  });
+  const missingUploadedVideoObjectIds = resolveMissingUploadedVideoObjectIds(
+    videoDecodeRequestResult,
+    effectiveUploadedVideoObjectIds
+  );
+  if (missingUploadedVideoObjectIds.length > 0) {
+    const missingClipIds = missingUploadedVideoObjectIds.join(',');
+    resolvedVideoUploadFailure ??= {
+      reason: 'videoUploadMissingClip',
+      detail: `Rust decoded upload is missing for video clips: ${missingClipIds}`,
+      missingClipIds,
+    };
+  }
+  const solidColourStackSafety = hasSolidColourScene
+    ? buildSharedRendererSolidColourStackSafety({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      candidateSolidColourObjectIds: solidColourObjectIds,
+      sharedRendererVideoObjectIds: videoOwnership.videoObjectIds,
+    })
+    : null;
+  let solidColourOwnership: SharedRendererSolidColourOwnership = buildSharedRendererSolidColourOwnership({
+    cutoverEnabled: sharedRendererSolidColourCutoverEnabled,
+    hasSolidColourScene,
+    nativeRenderFrameReady,
+    nativeRenderSolidColourObjectIds: nativeRenderFrameReady
+      ? collectGeneratedPaintObjectIds(session)
+      : undefined,
+    geometrySource: solidColourGeometrySource,
+    solidColourObjectIds,
+    stackSafeSolidColourObjectIds: solidColourStackSafety
+      ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
+      : undefined,
+  });
+  const imageOwnership = buildSharedRendererImageOwnership({
+    hasImageScene,
+    nativeRenderFrameReady,
+    imageObjectIds,
+  });
+  const psdOwnership = buildSharedRendererPsdOwnership({
+    hasPsdScene,
+    nativeRenderFrameReady,
+    psdObjectIds,
+  });
+  const textOwnership = buildSharedRendererTextOwnership({
+    hasTextScene,
+    nativeRenderFrameReady,
+    textObjectIds,
+  });
+
+  if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
+    writeDiagnostics({
+      status: 'blocked',
+      reason: 'requiredVideoOwnershipUnavailable',
+      nativeRenderFailureReason: nativeRenderFailure?.reason,
+      nativeRenderFailureDetail: nativeRenderFailure?.detail,
+      videoUploadFailureReason: resolvedVideoUploadFailure?.reason,
+      videoUploadFailureDetail: resolvedVideoUploadFailure?.detail,
+      videoUploadFailureClipId: resolvedVideoUploadFailure?.clipId,
+      videoUploadFailureMediaId: resolvedVideoUploadFailure?.mediaId,
+      videoUploadMissingClipIds: resolvedVideoUploadFailure?.missingClipIds,
+      videoOwner: videoOwnership.owner,
+      videoCutoverReason: videoOwnership.reason,
+      sharedVideoObjectCount: videoOwnership.videoObjectIds.length,
+    });
+    return {
+      ok: false,
+      reason: 'requiredVideoOwnershipUnavailable',
+      dispose: presenter.dispose,
+    };
+  }
+
+  if (
+    requireSharedRendererOutput
+    && (
+      (hasImageScene && imageOwnership.owner !== 'sharedRenderer')
+      || (hasPsdScene && psdOwnership.owner !== 'sharedRenderer')
+    )
+  ) {
+    writeDiagnostics({
+      status: 'blocked',
+      reason: 'sharedRendererOutputUnavailable',
+      nativeRenderFailureReason: nativeRenderFailure?.reason,
+      nativeRenderFailureDetail: nativeRenderFailure?.detail,
+      imageOwner: hasImageScene ? imageOwnership.owner : undefined,
+      imageCutoverReason: hasImageScene ? imageOwnership.reason : undefined,
+      sharedImageObjectCount: hasImageScene ? imageOwnership.imageObjectIds.length : undefined,
+      psdOwner: hasPsdScene ? psdOwnership.owner : undefined,
+      psdCutoverReason: hasPsdScene ? psdOwnership.reason : undefined,
+      sharedPsdObjectCount: hasPsdScene ? psdOwnership.psdObjectIds.length : undefined,
+    });
+    return {
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+      dispose: presenter.dispose,
+    };
+  }
+
+  const shouldPresentUploadedVideoFrame = hasVideoScene
+    && uploadedVideoFrameTexture
+    && videoOwnership.owner === 'sharedRenderer';
+  const shouldPresentExternalVideoFrame = hasVideoScene
+    && sharedRendererExternalVideoSourcesByClipId
+    && effectiveUploadedVideoObjectIds
+    && effectiveUploadedVideoObjectIds.size > 0
+    && videoOwnership.owner === 'sharedRenderer';
+  const hasNoDirectSurfacePresentation = !hasSolidColourScene && !diagnosticSwatchEnabled;
+  if (
+    requireSharedRendererOutput
+    && hasNoDirectSurfacePresentation
+    && !nativeRenderFrameReady
+    && !shouldPresentUploadedVideoFrame
+    && !shouldPresentExternalVideoFrame
+  ) {
+    writeDiagnostics({
+      status: 'blocked',
+      reason: 'sharedRendererOutputUnavailable',
+      swatch: 'no-presentation',
+      nativeRenderFailureReason: nativeRenderFailure?.reason,
+      nativeRenderFailureDetail: nativeRenderFailure?.detail,
+    });
+    return {
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+      dispose: presenter.dispose,
+    };
+  }
+
+  if (nativeRenderFrameReady) {
+    // The native render frame is already the final composited canvas image.
+  } else if (shouldPresentExternalVideoFrame) {
+    const presentation = presenter.presentExternalVideoFrameScene({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      sourcesByClipId: sharedRendererExternalVideoSourcesByClipId,
+      videoObjectIds: new Set(videoOwnership.videoObjectIds),
+    });
+    if (!presentation.ok) {
+      // An external video element recreated right after export finishes may
+      // start up with readyState=0, which is exactly the transient
+      // videoTextureViewUnavailable condition the reuse-tick path already
+      // tolerates below. Unless a genuinely required shared-renderer output
+      // demands strictness here, treat this the same way: keep the presenter
+      // alive, record it as a transient skip using the same counter/threshold
+      // as the reuse path, and let the normal startup flow continue. Recovery
+      // is handled by the resident-scene re-evaluation wiring once the video
+      // element becomes presentable.
+      if (
+        !requireSharedRendererOutput
+        && isTransientExternalVideoPresentationFailure(presentation)
+        && consecutiveExternalVideoTransientSkips < EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD
+      ) {
+        consecutiveExternalVideoTransientSkips += 1;
+        recordTransientSkip(presentation.reason);
+      } else {
+        writeDiagnostics({
+          status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+          reason: presentation.reason,
+        });
+        return {
+          ok: false,
+          reason: presentation.reason,
+          dispose: presenter.dispose,
+        };
+      }
+    } else {
+      consecutiveExternalVideoTransientSkips = 0;
+    }
+  } else if (shouldPresentUploadedVideoFrame) {
+    const presentation = uploadedVideoFrameTexturesByClipId.size > 0
+      ? presenter.presentVideoFrameScene({
+        snapshot: session.surfaceGate.snapshot,
+        media: session.surfaceGate.media,
+        texturesByClipId: uploadedVideoFrameTexturesByClipId,
+        videoObjectIds: new Set(videoOwnership.videoObjectIds),
+      })
+      : presenter.presentVideoFrameScene({
+        snapshot: session.surfaceGate.snapshot,
+        media: session.surfaceGate.media,
+        texture: uploadedVideoFrameTexture,
+      });
+    if (!presentation.ok) {
+      writeDiagnostics({
+        status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+        reason: presentation.reason,
+      });
+      return {
+        ok: false,
+        reason: presentation.reason,
+        dispose: presenter.dispose,
+      };
+    }
+  } else if (hasSolidColourScene || hasNoDirectSurfacePresentation) {
+    const solidColourObjectIdsForPresentation = solidColourGeometrySource === 'rust-wasm'
+      ? new Set(solidColourOwnership.solidColourObjectIds)
+      : undefined;
+    const presentation = presenter.presentSolidColourScene({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      solidColourObjectIds: solidColourObjectIdsForPresentation,
+    });
+    if (!presentation.ok) {
+      writeDiagnostics({
+        status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+        reason: presentation.reason,
+      });
+      return {
+        ok: false,
+        reason: presentation.reason,
+        dispose: presenter.dispose,
+      };
+    }
+  } else {
+    presenter.presentSolidSrgbSwatch(SHARED_RENDERER_SOLID_SWATCH);
+  }
+
+  const shouldSuppressNativeRenderFailureForVideoOnlyReady = hasVideoScene
+    && !hasSolidColourScene
+    && !hasImageScene
+    && !hasPsdScene
+    && videoOwnership.owner === 'sharedRenderer'
+    && videoOwnership.reason === 'rustDecodedFrameUploadReady';
+  const publishedNativeRenderFailure = shouldSuppressNativeRenderFailureForVideoOnlyReady
+    ? undefined
+    : nativeRenderFailure;
+  const videoPresentationSource = hasVideoScene
+    ? nativeRenderFrameReady
+      ? 'native-render-frame'
+      : shouldPresentExternalVideoFrame
+        ? 'external-video-source'
+        : shouldPresentUploadedVideoFrame
+          ? 'rust-decoded-rgba'
+          : undefined
+    : undefined;
+  // A decoded-frame upload failure only reflects a genuine, persistent
+  // problem when the active output actually depends on that upload. When the
+  // external-video-source or native-render-frame path already owns and
+  // presents the clip, the decode-upload attempt (and its failure) is
+  // superseded — surfacing it as part of the 'ready' diagnostics would flash
+  // a non-blocking banner over a preview that is, in fact, presenting
+  // correctly.
+  const videoUploadFailureIsPersistent = hasVideoScene
+    && videoPresentationSource !== 'external-video-source'
+    && videoPresentationSource !== 'native-render-frame';
+  const presentExternalVideoFrameScene = shouldPresentExternalVideoFrame
+    ? ({
+      session: repaintSession,
+      sourcesByClipId,
+    }: SharedRendererExternalVideoFrameRepaintInput): SharedRendererVideoFrameScenePresentationResult => {
+      if (!repaintSession.surfaceGate.ok) {
+        return {
+          ok: false,
+          reason: 'unsupportedVideoScene',
+          detail: `Shared renderer surface gate is blocked: ${repaintSession.surfaceGate.reason}`,
+        };
+      }
+      const presentation = presenter.presentExternalVideoFrameScene({
+        snapshot: repaintSession.surfaceGate.snapshot,
+        media: repaintSession.surfaceGate.media,
+        sourcesByClipId: sourcesByClipId ?? sharedRendererExternalVideoSourcesByClipId,
+        videoObjectIds: new Set(videoOwnership.videoObjectIds),
+      });
+      if (!presentation.ok) {
+        if (
+          isTransientExternalVideoPresentationFailure(presentation)
+          && consecutiveExternalVideoTransientSkips < EXTERNAL_VIDEO_TRANSIENT_SKIP_ESCALATION_THRESHOLD
+        ) {
+          // One-tick skip: keep whatever persistent status is already
+          // published (typically 'ready') and only bump the debug counter —
+          // writing 'fallback'/'blocked' here is exactly what made the
+          // diagnostics banner flash during normal playback/seek.
+          consecutiveExternalVideoTransientSkips += 1;
+          recordTransientSkip(presentation.reason);
+          return presentation;
+        }
+        consecutiveExternalVideoTransientSkips = 0;
+        writeDiagnostics({
+          status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+          reason: presentation.reason,
+        });
+        return presentation;
+      }
+      consecutiveExternalVideoTransientSkips = 0;
+
+      writeDiagnostics({
+        status: 'ready',
+        format: presenter.format,
+        swatch: 'no-presentation',
+        videoGeometrySource,
+        videoDecodeRequestSource,
+        videoDecodeRequestCount: collectObjectIdsByMediaKind(repaintSession, 'Video').length,
+        videoPresentedSourceFrame: resolveFirstPresentedVideoSourceFrame(repaintSession),
+        videoPresentedFrameIndex: repaintSession.surfaceGate.snapshot.frame_index,
+        videoPresentationSource: 'external-video-source',
+        videoFrameUploadReady: true,
+        videoOwner: videoOwnership.owner,
+        videoCutoverReason: videoOwnership.reason,
+        sharedVideoObjectCount: videoOwnership.videoObjectIds.length,
+      });
+
+      return presentation;
+    }
+    : undefined;
+
+  // Builds the "ready" diagnostics payload for a given (session,
+  // nativeRenderFrameReady, videoOwnership) combination. Factored out so the
+  // rust-only native-render reuse path (below) can republish diagnostics for
+  // each freshly re-presented frame using the same field derivations as the
+  // initial publish, instead of the dataset staying frozen at whatever
+  // session was current when the presenter started.
+  const buildReadyDiagnosticsState = (
+    forSession: SharedRendererPreviewSession,
+    forNativeRenderFrameReady: boolean,
+    forVideoOwnership: SharedRendererVideoOwnership,
+    forVideoPresentedSourceFrame: number | undefined = videoPresentedSourceFrame,
+    forNativeRenderDiagnostics: SharedRendererNativeRenderDiagnostics | undefined =
+      sharedRendererNativeRenderDiagnostics,
+  ): SharedRendererPresenterDiagnosticState => ({
+    status: 'ready',
+    format: presenter.format,
+    geometrySource: solidColourGeometrySource,
+    solidColourOwner: hasSolidColourScene ? solidColourOwnership.owner : undefined,
+    solidColourCutoverReason: hasSolidColourScene ? solidColourOwnership.reason : undefined,
+    sharedSolidColourObjectCount: hasSolidColourScene ? solidColourOwnership.solidColourObjectIds.length : undefined,
+    imageOwner: hasImageScene ? imageOwnership.owner : undefined,
+    imageCutoverReason: hasImageScene ? imageOwnership.reason : undefined,
+    sharedImageObjectCount: hasImageScene ? imageOwnership.imageObjectIds.length : undefined,
+    psdOwner: hasPsdScene ? psdOwnership.owner : undefined,
+    psdCutoverReason: hasPsdScene ? psdOwnership.reason : undefined,
+    sharedPsdObjectCount: hasPsdScene ? psdOwnership.psdObjectIds.length : undefined,
+    textOwner: hasTextScene ? textOwnership.owner : undefined,
+    textCutoverReason: hasTextScene ? textOwnership.reason : undefined,
+    sharedTextObjectCount: hasTextScene ? textOwnership.textObjectIds.length : undefined,
+    videoGeometrySource,
+    videoDecodeRequestSource,
+    videoDecodeRequestCount,
+    videoPresentedSourceFrame: forVideoPresentedSourceFrame,
+    videoPresentedFrameIndex: hasVideoScene && forSession.surfaceGate.ok
+      ? forSession.surfaceGate.snapshot.frame_index
+      : undefined,
+    videoPresentationSource,
+    videoFrameUploadReady: hasVideoScene ? effectiveVideoFrameUploadReady : undefined,
+    videoUploadFailureReason: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.reason : undefined,
+    videoUploadFailureDetail: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.detail : undefined,
+    videoUploadFailureClipId: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.clipId : undefined,
+    videoUploadFailureMediaId: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.mediaId : undefined,
+    videoUploadMissingClipIds: videoUploadFailureIsPersistent ? resolvedVideoUploadFailure?.missingClipIds : undefined,
+    videoOwner: hasVideoScene ? forVideoOwnership.owner : undefined,
+    videoCutoverReason: hasVideoScene ? forVideoOwnership.reason : undefined,
+    sharedVideoObjectCount: hasVideoScene ? forVideoOwnership.videoObjectIds.length : undefined,
+    nativeRenderFrameReady: forNativeRenderFrameReady ? true : undefined,
+    nativeRenderMediaCount: forNativeRenderFrameReady && forSession.surfaceGate.ok
+      ? forSession.surfaceGate.media.length
+      : undefined,
+    nativeRenderMediaKinds: forNativeRenderFrameReady && forSession.surfaceGate.ok
+      ? forSession.surfaceGate.media.map((reference) => reference.kind).join(',')
+      : undefined,
+    nativeRenderSourceCount: forNativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(forSession, 'Video').length
+      : undefined,
+    nativeRenderSourceMediaIds: forNativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(forSession, 'Video').join(',')
+      : undefined,
+    nativeRenderDecodePaths: forNativeRenderFrameReady
+      ? forNativeRenderDiagnostics?.decodePaths.join(',')
+      : undefined,
+    nativeRenderPath: forNativeRenderFrameReady
+      ? forNativeRenderDiagnostics?.renderPath
+      : undefined,
+    nativeRenderNv12ZeroCopyMediaIds: forNativeRenderFrameReady
+      ? forNativeRenderDiagnostics?.nv12ZeroCopyMediaIds.join(',')
+      : undefined,
+    nativeRenderFailureReason: publishedNativeRenderFailure?.reason,
+    nativeRenderFailureDetail: publishedNativeRenderFailure?.detail,
+    swatch: hasSolidColourScene
+      ? 'solid-colour-scene'
+      : forNativeRenderFrameReady
+        ? 'native-render-frame'
+        : diagnosticSwatchEnabled
+        ? 'solid-srgb'
+        : 'no-presentation',
+  });
+
+  // Re-present a freshly decoded native frame on this already-initialised
+  // presenter, without tearing down and recreating the WebGPU pipeline. Used by
+  // the rust-only playback reuse path so the preview does not flicker (full
+  // presenter restart per frame) and the streaming decoder stays warm.
+  const presentPreparedNativeRenderFrame = async (
+    upload: SharedRendererDecodedVideoFrameUpload,
+    options?: SharedRendererPresentPreparedNativeRenderFrameOptions
+  ): Promise<SharedRendererPreparedNativeRenderFramePresentationResult> => {
+    const uploadResult = presenter.uploadVideoFrameTexture(upload);
+    if (!uploadResult.ok) {
+      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
+      return { ok: false, reason: uploadResult.reason, detail: uploadResult.detail };
+    }
+    const presentation = presenter.presentNativeRenderFrame({ texture: uploadResult.texture });
+    if (!presentation.ok) {
+      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
+      return presentation;
+    }
+    if (upload.releaseAfterGpuUpload) {
+      await presenter.device.queue?.onSubmittedWorkDone?.();
+      await releaseDecodedVideoUploadAfterGpuUpload(upload.releaseAfterGpuUpload);
+    }
+    if (options?.session) {
+      const reusedVideoOwnership = buildSharedRendererVideoOwnership({
+        cutoverEnabled: sharedRendererVideoCutoverEnabled,
+        hasVideoScene,
+        nativeRenderFrameReady: true,
+        nativeRenderVideoObjectIds: collectObjectIdsByMediaKind(options.session, 'Video'),
+        videoDecodeRequestSource,
+        videoDecodeRequestResult,
+        videoFrameUploadReady: effectiveVideoFrameUploadReady,
+        uploadedVideoObjectIds: effectiveUploadedVideoObjectIds,
+        stackSafeVideoObjectIds: videoCutoverStackSafety
+          ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
+          : undefined,
+      });
+      writeDiagnostics(buildReadyDiagnosticsState(
+        options.session,
+        true,
+        reusedVideoOwnership,
+        upload.ptsFrame,
+        options.nativeRenderDiagnostics,
+      ));
+    }
+    return presentation;
+  };
+
+  if (hasVideoScene && !videoUploadFailureIsPersistent && resolvedVideoUploadFailure) {
+    recordTransientSkip(resolvedVideoUploadFailure.reason);
+  }
+  writeDiagnostics(buildReadyDiagnosticsState(session, nativeRenderFrameReady, videoOwnership));
+
+  return {
+    ok: true,
+    format: presenter.format,
+    solidColourOwnership,
+    videoOwnership,
+    imageOwnership,
+    psdOwnership,
+    textOwnership,
+    generatedEffectObjectIds: nativeRenderFrameReady
+      ? collectGeneratedEffectObjectIds(session)
+      : [],
+    takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
+    presentExternalVideoFrameScene,
+    presentPreparedNativeRenderFrame,
+    dispose: presenter.dispose,
+  };
+};
+
+const noop = () => undefined;
+
+const defaultRustSolidColourWasmEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_SHAPES !== '0';
+
+const defaultRustVideoPlaneWasmEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_VIDEO !== '0';
+
+const defaultRustVideoFrameDecodeRequestWasmEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_VIDEO !== '0';
+
+const defaultSharedRendererSolidColourCutoverEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_SHAPE_CUTOVER !== '0';
+
+const defaultSharedRendererVideoCutoverEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
+
+const isPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): boolean =>
+  isStartCurrent ? isStartCurrent() : true;
+
+const assertPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): void => {
+  if (!isPresenterStartCurrent(isStartCurrent)) {
+    throw new Error('Shared renderer presenter start was cancelled.');
+  }
+};
+
+const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => isGeneratedPaintMediaKind(mediaKindById.get(clip.media_id)));
+};
+
+const collectSolidColourObjectIds = (session: SharedRendererPreviewSession): string[] => {
+  return collectGeneratedPaintObjectIds(session);
+};
+
+const collectGeneratedPaintObjectIds = (session: SharedRendererPreviewSession): string[] => {
+  if (!session.surfaceGate.ok) return [];
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips
+    .filter((clip) => isGeneratedPaintMediaKind(mediaKindById.get(clip.media_id)))
+    .sort((left, right) => left.z_index - right.z_index)
+    .map((clip) => clip.clip_id);
+};
+
+const isGeneratedPaintMediaKind = (
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere' | 'GeneratedShape' | 'Psd' | 'Text' | undefined
+): boolean =>
+  kind === 'SolidColour' || kind === 'GeneratedGradient';
+
+const collectObjectIdsByMediaKind = (
+  session: SharedRendererPreviewSession,
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'Text' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere' | 'GeneratedShape'
+): string[] => {
+  if (!session.surfaceGate.ok) return [];
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === kind)
+    .sort((left, right) => left.z_index - right.z_index)
+    .map((clip) => clip.clip_id);
+};
+
+const collectGeneratedEffectObjectIds = (session: SharedRendererPreviewSession): string[] => [
+  ...collectObjectIdsByMediaKind(session, 'GeneratedAudioWaveform'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedAudioSphere'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedParticle'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedBarcode'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedPuzzlePiece'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedColourWheel'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedGourd'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedGear'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedTrackBar'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedPieChart'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedHistogram'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedToneCurve'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedGetColorDots'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedHksyCheckerGrid'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedRegionFrame'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedSimpleTube'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedSphereDots'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedSphericalField'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedSunburst'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedCircularArrow'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedTriangleBracket'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedTartanCheck'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedHoundstooth'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedYagasuri'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedPaperAirplane'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedAsanohaPattern'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedFocusLinesPlus'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedRandomLineEx'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedContourTrace'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedDisplacementPoly'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedPlainEffectorLine'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedHologram'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedProtractor'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedShakingPolygon'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedShatteredSphere'),
+];
+
+const resolveFirstPresentedVideoSourceFrame = (
+  session: SharedRendererPreviewSession,
+): number | undefined => {
+  if (!session.surfaceGate.ok) return undefined;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === 'Video')
+    .sort((left, right) => left.z_index - right.z_index)[0]?.source_frame;
+};
+
+const resolveSingleVideoUploadScope = (
+  session: SharedRendererPreviewSession,
+): { clipId: string; mediaId: string } | undefined => {
+  if (!session.surfaceGate.ok) return undefined;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  const videoClips = session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === 'Video')
+    .sort((left, right) => left.z_index - right.z_index);
+
+  if (videoClips.length !== 1) return undefined;
+  const [clip] = videoClips;
+  return {
+    clipId: clip.clip_id,
+    mediaId: clip.media_id,
+  };
+};
+
+const mergeVideoObjectIdSets = (
+  left: ReadonlySet<string> | undefined,
+  right: ReadonlySet<string> | undefined,
+): ReadonlySet<string> | undefined => {
+  if (!left && !right) return undefined;
+  return new Set([
+    ...(left ? [...left] : []),
+    ...(right ? [...right] : []),
+  ]);
+};
+
+const resolveMissingUploadedVideoObjectIds = (
+  videoDecodeRequestResult: SharedRendererVideoFrameDecodeRequestResult | null | undefined,
+  uploadedVideoObjectIds: ReadonlySet<string> | undefined,
+): string[] => {
+  if (!uploadedVideoObjectIds || !videoDecodeRequestResult?.ok) return [];
+
+  const requestedVideoObjectIds = [...new Set(videoDecodeRequestResult.requests.map((request) => request.clipId))];
+  return requestedVideoObjectIds.filter((videoObjectId) => !uploadedVideoObjectIds.has(videoObjectId));
+};
+
+const releaseDecodedVideoUploadAfterAbort = async (
+  releaseAfterUploadAbort: (() => Promise<void>) | undefined,
+): Promise<string | null> => {
+  if (!releaseAfterUploadAbort) return null;
+
+  try {
+    await releaseAfterUploadAbort();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+};
+
+const releaseDecodedVideoUploadAfterGpuUpload = async (
+  releaseAfterGpuUpload: (() => Promise<void>) | undefined,
+): Promise<string | null> => {
+  if (!releaseAfterGpuUpload) return null;
+
+  try {
+    await releaseAfterGpuUpload();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+};
+
+const hasVideoClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Video');
+};
+
+const hasImageClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Image');
+};
+
+const hasPsdClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Psd');
+};
+
+const hasTextClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Text');
+};

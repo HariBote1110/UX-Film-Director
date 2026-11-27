@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GearObjectFields",
+  "description": "`GearObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、gear 固有部分。TS 側は\n`BaseObject & GearObjectFields & { type: 'gear' }` として組み立てる。\n\n`width`/`height`/`outerRadius` は `gearObjectFactory.ts` の\n`buildAviUtlGearObject` がプロジェクトサイズから都度計算するため固定既定値が\n無く、ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラル\n（innerRadiusPercent: 45, toothCount: 20, toothDepthPercent: 18,\ntoothSkewPercent: 0, fillColour: '#ffffff'）をそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "fillColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "innerRadiusPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "outerRadius": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "toothCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "toothDepthPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "toothSkewPercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "outerRadius",
+    "innerRadiusPercent",
+    "toothCount",
+    "toothDepthPercent",
+    "toothSkewPercent",
+    "fillColour"
+  ]
+}

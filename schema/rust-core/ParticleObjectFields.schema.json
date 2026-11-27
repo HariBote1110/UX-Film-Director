@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ParticleObjectFields",
+  "description": "`ParticleObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、particle 固有部分。TS 側は\n`BaseObject & ParticleObjectFields & { type: 'particle' }` として組み立てる。\n\n`width`/`height` は `particleObjectFactory.ts` の各 `build*Object` が\nプロジェクトサイズやバリアントごとに都度計算するため固定既定値が無く、\nニュートラルな `0.0` にする。他の数値フィールドは\n`TimelineContextMenu.tsx` の `handleAddParticle` が呼ぶ標準パーティクル\n(`buildDefaultStandardParticleObject`) の固定リテラル\n（particleCount: 96, seed: 93, spread: 160, speed: 90, size: 4,\ncolour: '#ffffff', lifetimeSeconds: 2）を採用する。\nオーラ放出/泡/集中線T/インクTM 等の他バリアントは別の固定値を使うが、\n「既定値」としては標準パーティクルを正とする（他バリアントは編集後に\n都度上書きされる初期値の一種であり、UI 全体の既定値ではない）。",
+  "type": "object",
+  "properties": {
+    "colour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lifetimeSeconds": {
+      "type": "number",
+      "format": "float"
+    },
+    "particleCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "seed": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "size": {
+      "type": "number",
+      "format": "float"
+    },
+    "speed": {
+      "type": "number",
+      "format": "float"
+    },
+    "spread": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "particleCount",
+    "seed",
+    "spread",
+    "speed",
+    "size",
+    "colour",
+    "lifetimeSeconds"
+  ]
+}

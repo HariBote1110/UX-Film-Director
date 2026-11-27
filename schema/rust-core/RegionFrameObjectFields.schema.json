@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RegionFrameObjectFields",
+  "description": "`region_frame` kind (`src/types.ts` の `RegionFrameObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & RegionFrameObjectFields & { type: 'region_frame' }` として\n組み立てる。\n\n`width`/`height` は `regionFrameObjectFactory.ts` の\n`buildAviUtlRegionFrameObject` がプロジェクトサイズから都度計算するため\nニュートラルな `0.0` にする。他のフィールドは同ファイルの固定リテラル\n（lineWidth: 10, extraWidth: 0, extraHeight: 0, backgroundOpacity: 0.2,\nframeColour: '#ffffff', backgroundColour: '#ccccff'）をそのまま採用する。\n`shape`/`cornerCut` はバリアント（rectangle/ellipse/cut_corner）ごとに\n明示されるフィールドで、共通既定値としてはニュートラルな `None` にする。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "backgroundOpacity": {
+      "type": "number",
+      "format": "float"
+    },
+    "cornerCut": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "extraHeight": {
+      "type": "number",
+      "format": "float"
+    },
+    "extraWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "frameColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "shape": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "lineWidth",
+    "extraWidth",
+    "extraHeight",
+    "backgroundOpacity",
+    "frameColour",
+    "backgroundColour"
+  ]
+}

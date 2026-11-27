@@ -1,0 +1,4 @@
+# Large local fixtures for performance harness (not committed).
+*.mp4
+*.mov
+*.mkv

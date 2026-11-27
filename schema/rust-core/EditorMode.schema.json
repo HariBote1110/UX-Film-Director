@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EditorMode",
+  "description": "`src/types.ts` の `EditorMode`（`'2d' | '3d_stage'`）と同形。",
+  "type": "string",
+  "enum": [
+    "2d",
+    "3d_stage"
+  ]
+}

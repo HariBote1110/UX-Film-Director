@@ -1,0 +1,549 @@
+import type {
+  AsanohaPatternObject,
+  BarcodeObject,
+  CircularArrowObject,
+  ContourTraceObject,
+  ColourWheelObject,
+  DisplacementPolyObject,
+  FocusLinesPlusObject,
+  GearObject,
+  GourdObject,
+  HistogramObject,
+  HoundstoothObject,
+  AudioSphereObject,
+  AudioVisualizationObject,
+  GetColorDotFieldObject,
+  GroupControlObject,
+  HologramObject,
+  HksyCheckerGridObject,
+  ImageObject,
+  LayerState,
+  ObjectFilter,
+  PaperAirplaneObject,
+  ParticleObject,
+  PieChartObject,
+  PlainEffectorLineObject,
+  ProjectSettings,
+  PsdObject,
+  ProtractorObject,
+  PuzzlePieceObject,
+  RandomLineExObject,
+  RegionFrameObject,
+  SphericalFieldObject,
+  SphereDotsObject,
+  ShakingPolygonObject,
+  ShatteredSphereObject,
+  ShapeObject,
+  SimpleTubeObject,
+  SunburstObject,
+  TartanCheckObject,
+  TextObject,
+  ToneCurveObject,
+  TrackBarObject,
+  TimelineObject,
+  TriangleBracketObject,
+  VideoObject,
+  YagasuriObject,
+} from '../types';
+import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
+import { normaliseKeyframesForObject } from './keyframes';
+import { normaliseSubjectCropKeyframesForVideo } from './subjectCropKeyframes';
+import type {
+  Clip,
+  GroupControl,
+  PositionKeyframe,
+  Project,
+  SubjectCropAnimation,
+  SubjectCropKeyframe,
+  WipeAnimation,
+} from '../generated/rustCore';
+import {
+  mediaReferenceForEditableRustScene,
+  rustEffectsForObject,
+} from './rustSceneSnapshotReference';
+import {
+  rustColourPipeline,
+  type RustEffect,
+  type RustSceneMediaReference,
+  type RustSceneVideoSourceMode,
+  type RustTransform,
+} from './rustSceneContract';
+import { fpsToFrameRate, secondsToFrameIndex } from './rustSceneFrameRate';
+
+type EditableRustSceneObject = ShapeObject | ImageObject | VideoObject | PsdObject | TextObject | ParticleObject | AudioVisualizationObject | AudioSphereObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | HologramObject | ShakingPolygonObject | ShatteredSphereObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | ProtractorObject;
+
+// rust-core (schema.rs) から ts-rs で生成した型の re-export。R1 より前は
+// ここに手書きミラーがあった。値の組み立てロジック（下の buildEditableRustScene
+// など）はこのファイルのまま変えていない。
+//
+// 配列フィールドは生成された型では Array<T>（可変）だが、手書きミラーでは
+// readonly T[] だった。可変へ緩めると、他ファイルの `as const` リテラル
+// （readonly 配列になる）がこの型に代入できなくなり tsc が新規に落ちるため、
+// 元の readonly のまま維持する（値の組み立てロジックには影響しない）。
+//
+// EditableRustClip はさらに subject_crop を素の Clip 型から差し替えている。
+// 生成された Clip.subject_crop は `SubjectCropAnimation | null`（必須キー）だが、
+// 呼び出し側（下の buildEditableRustScene 内の track.clips.push）は crop が
+// 無いオブジェクトでキー自体を省略するスプレッド構文を使っており、これは
+// serde 側の `#[serde(default)]` と噛み合わせても意味は変わらない
+// （省略済みで動いていた wire format を変えないため、値の組み立てを
+// 変えずに型だけ緩めている）。
+export type EditableRustPositionKeyframe = PositionKeyframe;
+export type EditableRustSubjectCropKeyframe = SubjectCropKeyframe;
+
+export type EditableRustSubjectCropAnimation = Omit<SubjectCropAnimation, 'keyframes'> & {
+  keyframes: readonly EditableRustSubjectCropKeyframe[];
+};
+
+export type EditableRustWipeAnimation = WipeAnimation;
+
+export type EditableRustGroupControl = Omit<GroupControl, 'position_keyframes' | 'target_track_ids'> & {
+  position_keyframes: readonly EditableRustPositionKeyframe[];
+  target_track_ids: readonly string[];
+};
+
+export type EditableRustClip = Omit<
+  Clip,
+  'subject_crop' | 'opacity_keyframes' | 'position_keyframes' | 'wipe_animations' | 'effects'
+> & {
+  opacity_keyframes: readonly [];
+  position_keyframes: readonly EditableRustPositionKeyframe[];
+  subject_crop?: EditableRustSubjectCropAnimation;
+  wipe_animations: readonly EditableRustWipeAnimation[];
+  effects: readonly RustEffect[];
+};
+
+export interface EditableRustTrack {
+  id: string;
+  clips: EditableRustClip[];
+}
+
+// media は生成された Project.media (MediaReference[]) ではなく、
+// width/height/source_rate 等 TS 側だけが持つ RustSceneMediaReference を使う。
+// R1 の置き換え対象に RustSceneMediaReference は含めていない（generated
+// MediaReference に無いフィールドがまだ必要なため）。
+export type EditableRustProject = Omit<Project, 'tracks' | 'media' | 'group_controls'> & {
+  media: RustSceneMediaReference[];
+  tracks: EditableRustTrack[];
+  group_controls: EditableRustGroupControl[];
+};
+
+export type EditableRustSceneIssueCode =
+  | 'unsupportedObjectType'
+  | 'unsupportedGroup'
+  | 'unsupportedVideoMode'
+  | 'unsupportedMask'
+  | 'unsupportedFilter'
+  | 'unsupportedGetColorSampleSource';
+
+export interface EditableRustSceneIssue {
+  objectId: string;
+  code: EditableRustSceneIssueCode;
+  detail: string;
+}
+
+export type EditableRustSceneBuildResult =
+  | { ok: true; project: EditableRustProject; media: RustSceneMediaReference[] }
+  | { ok: false; issues: EditableRustSceneIssue[] };
+
+export interface EditableRustSceneBuildInput {
+  sceneId: string;
+  projectSettings: Pick<ProjectSettings, 'width' | 'height' | 'fps'>;
+  layers: LayerState[];
+  objects: TimelineObject[];
+  mediaPurpose?: RustSceneVideoSourceMode;
+}
+
+const isEditableRustSceneObject = (object: TimelineObject): object is EditableRustSceneObject => (
+  object.type === 'shape'
+  || object.type === 'image'
+  || object.type === 'video'
+  || object.type === 'psd'
+  || object.type === 'text'
+  || object.type === 'particle'
+  || object.type === 'audio_visualization'
+  || object.type === 'audio_sphere'
+  || object.type === 'getcolor_dot_field'
+  || object.type === 'hksy_checker_grid'
+  || object.type === 'region_frame'
+  || object.type === 'simple_tube'
+  || object.type === 'hologram'
+  || object.type === 'shaking_polygon'
+  || object.type === 'shattered_sphere'
+  || object.type === 'barcode'
+  || object.type === 'puzzle_piece'
+  || object.type === 'colour_wheel'
+  || object.type === 'gourd'
+  || object.type === 'gear'
+  || object.type === 'track_bar'
+  || object.type === 'pie_chart'
+  || object.type === 'histogram'
+  || object.type === 'tone_curve'
+  || object.type === 'sphere_dots'
+  || object.type === 'spherical_field'
+  || object.type === 'sunburst'
+  || object.type === 'circular_arrow'
+  || object.type === 'triangle_bracket'
+  || object.type === 'tartan_check'
+  || object.type === 'houndstooth'
+  || object.type === 'yagasuri'
+  || object.type === 'paper_airplane'
+  || object.type === 'asanoha_pattern'
+  || object.type === 'focus_lines_plus'
+  || object.type === 'random_line_ex'
+  || object.type === 'contour_trace'
+  || object.type === 'displacement_poly'
+  || object.type === 'plain_effector_line'
+  || object.type === 'protractor'
+);
+
+const clipKindForObject = (object: EditableRustSceneObject): EditableRustClip['kind'] => {
+  if (object.type === 'video') return 'VideoPlane';
+  if (object.type === 'text') return 'TextPlane';
+  if (object.type === 'particle') return 'GeneratedParticlePlane';
+  if (object.type === 'audio_visualization') return 'GeneratedAudioWaveformPlane';
+  if (object.type === 'audio_sphere') return 'GeneratedAudioSpherePlane';
+  if (object.type === 'getcolor_dot_field') return 'GeneratedGetColorDotsPlane';
+  if (object.type === 'hksy_checker_grid') return 'GeneratedHksyCheckerGridPlane';
+  if (object.type === 'region_frame') return 'GeneratedRegionFramePlane';
+  if (object.type === 'simple_tube') return 'GeneratedSimpleTubePlane';
+  if (object.type === 'hologram') return 'GeneratedHologramPlane';
+  if (object.type === 'shaking_polygon') return 'GeneratedShakingPolygonPlane';
+  if (object.type === 'shattered_sphere') return 'GeneratedShatteredSpherePlane';
+  if (object.type === 'barcode') return 'GeneratedBarcodePlane';
+  if (object.type === 'puzzle_piece') return 'GeneratedPuzzlePiecePlane';
+  if (object.type === 'colour_wheel') return 'GeneratedColourWheelPlane';
+  if (object.type === 'gourd') return 'GeneratedGourdPlane';
+  if (object.type === 'gear') return 'GeneratedGearPlane';
+  if (object.type === 'track_bar') return 'GeneratedTrackBarPlane';
+  if (object.type === 'pie_chart') return 'GeneratedPieChartPlane';
+  if (object.type === 'histogram') return 'GeneratedHistogramPlane';
+  if (object.type === 'tone_curve') return 'GeneratedToneCurvePlane';
+  if (object.type === 'sphere_dots') return 'GeneratedSphereDotsPlane';
+  if (object.type === 'spherical_field') return 'GeneratedSphericalFieldPlane';
+  if (object.type === 'sunburst') return 'GeneratedSunburstPlane';
+  if (object.type === 'circular_arrow') return 'GeneratedCircularArrowPlane';
+  if (object.type === 'triangle_bracket') return 'GeneratedTriangleBracketPlane';
+  if (object.type === 'tartan_check') return 'GeneratedTartanCheckPlane';
+  if (object.type === 'houndstooth') return 'GeneratedHoundstoothPlane';
+  if (object.type === 'yagasuri') return 'GeneratedYagasuriPlane';
+  if (object.type === 'paper_airplane') return 'GeneratedPaperAirplanePlane';
+  if (object.type === 'asanoha_pattern') return 'GeneratedAsanohaPatternPlane';
+  if (object.type === 'focus_lines_plus') return 'GeneratedFocusLinesPlusPlane';
+  if (object.type === 'random_line_ex') return 'GeneratedRandomLineExPlane';
+  if (object.type === 'contour_trace') return 'GeneratedContourTracePlane';
+  if (object.type === 'displacement_poly') return 'GeneratedDisplacementPolyPlane';
+  if (object.type === 'plain_effector_line') return 'GeneratedPlainEffectorLinePlane';
+  if (object.type === 'protractor') return 'GeneratedProtractorPlane';
+  if (object.type === 'shape') {
+    return object.shapeType === 'rect' && object.gradient?.enabled !== true
+      ? 'SolidColourPlane'
+      : 'GeneratedShapePlane';
+  }
+  return 'ImagePlane';
+};
+
+const positionKeyframesForObject = (
+  object: EditableRustSceneObject | GroupControlObject,
+  fps: number,
+): EditableRustPositionKeyframe[] => {
+  const keyframes = normaliseKeyframesForObject(object, object.keyframes);
+  if (keyframes.length >= 2) {
+    return keyframes.map((keyframe) => ({
+      frame_offset: secondsToFrameIndex(keyframe.time - object.startTime, fps),
+      x: keyframe.x,
+      y: keyframe.y,
+      easing: keyframe.easing ?? object.easing,
+    }));
+  }
+
+  if (!object.enableAnimation) return [];
+  return [
+    { frame_offset: 0, x: object.x, y: object.y, easing: object.easing },
+    {
+      frame_offset: secondsToFrameIndex(object.duration, fps),
+      x: object.endX,
+      y: object.endY,
+      easing: 'linear',
+    },
+  ];
+};
+
+const initialPositionForObject = (
+  object: EditableRustSceneObject | GroupControlObject
+): { x: number; y: number } => {
+  const keyframes = normaliseKeyframesForObject(object, object.keyframes);
+  return keyframes.length >= 2 ? { x: keyframes[0].x, y: keyframes[0].y } : { x: object.x, y: object.y };
+};
+
+const subjectCropForObject = (
+  object: EditableRustSceneObject,
+  fps: number
+): EditableRustSubjectCropAnimation | undefined => {
+  if (object.type !== 'video' || object.subjectCropEnabled !== true) return undefined;
+  const keyframes = normaliseSubjectCropKeyframesForVideo(object, object.subjectCropKeyframes);
+  if (keyframes.length === 0) return undefined;
+  return {
+    source_width: object.width,
+    source_height: object.height,
+    keyframes: keyframes.map((keyframe) => ({
+      frame_offset: secondsToFrameIndex(keyframe.time - object.startTime, fps),
+      x: keyframe.x,
+      y: keyframe.y,
+      width: keyframe.width,
+      height: keyframe.height,
+    })),
+  };
+};
+
+const residentEffectsForObject = (
+  object: EditableRustSceneObject
+): { effects: RustEffect[]; wipeAnimations: EditableRustWipeAnimation[] } => {
+  // subject crop は `subjectCropForObject` が `subject_crop` フィールドとして別送りし、
+  // rust-core (timeline.rs) が毎フレーム動的に Effect::Clipping へ評価する。ここで
+  // includeSubjectCrop を渡さない (=true のまま) と `object.startTime` 時点の静的な
+  // Clipping が焼き込まれ、rust-core が append する動的な Clipping と重複する。
+  const allEffects = rustEffectsForObject(object, object.startTime, {
+    includeSubjectCrop: false,
+    includeVibrationTransport: true,
+  });
+  const wipeFilters = getEnabledObjectFiltersInOrder(object)
+    .filter((filter): filter is Extract<ObjectFilter, { type: 'wipe' }> => filter.type === 'wipe');
+  const effects: RustEffect[] = [];
+  const wipeAnimations: EditableRustWipeAnimation[] = [];
+  let wipeFilterIndex = 0;
+
+  allEffects.forEach((effect, effectIndex) => {
+    if ('Wipe' in effect) {
+      const filter = wipeFilters[wipeFilterIndex];
+      wipeFilterIndex += 1;
+      if (filter) {
+        wipeAnimations.push({
+          effect_index: effectIndex,
+          edge: filter.params.edge,
+          reverse: filter.params.reverse,
+        });
+      }
+      return;
+    }
+    effects.push(effect);
+  });
+
+  return { effects, wipeAnimations };
+};
+
+const transformForObject = (object: EditableRustSceneObject): RustTransform => {
+  const position = initialPositionForObject(object);
+  const psdScale = object.type === 'psd' && Number.isFinite(object.scale) && object.scale > 0
+    ? object.scale
+    : 1;
+  return {
+    translation_x: position.x,
+    translation_y: position.y,
+    scale_x: object.scaleX * psdScale,
+    scale_y: object.scaleY * psdScale,
+    rotation_degrees: object.rotation,
+    sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
+  };
+};
+
+const transformForGroupControl = (object: GroupControlObject): RustTransform => {
+  const position = initialPositionForObject(object);
+  return {
+    translation_x: position.x,
+    translation_y: position.y,
+    scale_x: object.scaleX,
+    scale_y: object.scaleY,
+    rotation_degrees: object.rotation,
+    sampling: 'bilinear',
+  };
+};
+
+const hasGetColorSampleReference = (object: GetColorDotFieldObject): boolean => (
+  (typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0)
+  || (typeof object.sampleSourceObjectId === 'string' && object.sampleSourceObjectId.length > 0)
+  || (typeof object.sampleSourceLayer === 'number' && Number.isFinite(object.sampleSourceLayer))
+);
+
+const isNativeReadableGetColorSampleSource = (source: string): boolean => {
+  const withoutQueryOrFragment = source.split(/[?#]/, 1)[0];
+  const isFileUrl = withoutQueryOrFragment.startsWith('file:///')
+    || withoutQueryOrFragment.startsWith('file://localhost/');
+  const hasUnsupportedUrlScheme = /^[a-z][a-z0-9+.-]*:/i.test(withoutQueryOrFragment) && !isFileUrl;
+  if (!withoutQueryOrFragment || hasUnsupportedUrlScheme) return false;
+  return /\.(png|jpe?g|psd)$/i.test(withoutQueryOrFragment);
+};
+
+const getColorSampleIssue = (
+  object: GetColorDotFieldObject,
+  objects: TimelineObject[],
+  fps: number,
+  mediaPurpose: RustSceneVideoSourceMode
+): EditableRustSceneIssue | null => {
+  if (!hasGetColorSampleReference(object)) return null;
+  const reference = mediaReferenceForEditableRustScene(object, fps, objects, mediaPurpose);
+  const sourceImage = JSON.parse(reference.source).source_image;
+  if (typeof sourceImage !== 'string' || !isNativeReadableGetColorSampleSource(sourceImage)) {
+    return {
+      objectId: object.id,
+      code: 'unsupportedGetColorSampleSource',
+      detail: 'GetColorの参照画像/PSDは、表示開始時点で有効なローカルPNG・JPEG・PSDである必要があります',
+    };
+  }
+  return null;
+};
+
+const hasEnabledGroupGradient = (
+  object: TimelineObject,
+  objects: TimelineObject[]
+): boolean => {
+  const groupId = object.groupId?.trim();
+  if (!groupId) return false;
+  return objects.some((candidate) => (
+    candidate.groupId?.trim() === groupId
+    && candidate.groupGradient?.enabled === true
+  ));
+};
+
+const isResidentStaticFilter = (
+  object: EditableRustSceneObject,
+  filterType: ReturnType<typeof getEnabledObjectFiltersInOrder>[number]['type']
+): boolean => (
+  filterType === 'fade'
+  || filterType === 'color_correction'
+  || filterType === 'blur'
+  || filterType === 'shadow'
+  || filterType === 'colour_aberration'
+  || filterType === 'outline'
+  || filterType === 'clipping'
+  || filterType === 'spot_light'
+  || filterType === 'displacement_map'
+  || filterType === 'fake_dof'
+  || filterType === 'auto_blur'
+  || filterType === 'stretch'
+  || filterType === 'multi_slicer'
+  || filterType === 'oct_transform'
+  || filterType === 'area_expand'
+  || filterType === 'smart_clipping'
+  || filterType === 'wipe'
+  || filterType === 'vibration'
+  || (object.type === 'shape' && filterType === 'gradient')
+);
+
+const issueForObject = (
+  object: TimelineObject,
+  objects: TimelineObject[],
+  fps: number,
+  mediaPurpose: RustSceneVideoSourceMode
+): EditableRustSceneIssue | null => {
+  if (object.type === 'audio') return null;
+  if (object.type === 'group_control') return null;
+  if (!isEditableRustSceneObject(object)) {
+    const unsupportedObject = object as { id: string; type: string };
+    return { objectId: unsupportedObject.id, code: 'unsupportedObjectType', detail: `${unsupportedObject.type} はV1対象外です` };
+  }
+  if (hasEnabledGroupGradient(object, objects)) {
+    return { objectId: object.id, code: 'unsupportedGroup', detail: '動的なグループグラデーションはV1対象外です' };
+  }
+  if (object.type === 'video' && object.reversed) {
+    return { objectId: object.id, code: 'unsupportedVideoMode', detail: '逆再生はV1対象外です' };
+  }
+  if (object.clipping) {
+    return { objectId: object.id, code: 'unsupportedMask', detail: 'クリッピングマスクはV1対象外です' };
+  }
+  if (getEnabledObjectFiltersInOrder(object).some((filter) => !isResidentStaticFilter(object, filter.type))) {
+    return { objectId: object.id, code: 'unsupportedFilter', detail: '有効なfilterはV1対象外です' };
+  }
+  if (object.type === 'getcolor_dot_field') {
+    return getColorSampleIssue(object, objects, fps, mediaPurpose);
+  }
+  return null;
+};
+
+export const buildEditableRustScene = ({
+  sceneId,
+  projectSettings,
+  layers,
+  objects,
+  mediaPurpose = 'previewProxy',
+}: EditableRustSceneBuildInput): EditableRustSceneBuildResult => {
+  const visibleObjects = objects.filter((object) => layers[object.layer]?.visible !== false);
+  const issues = visibleObjects
+    .map((object) => issueForObject(object, objects, projectSettings.fps, mediaPurpose))
+    .filter((issue): issue is EditableRustSceneIssue => issue !== null);
+  if (issues.length > 0) return { ok: false, issues };
+
+  const orderedObjects = visibleObjects
+    .filter(isEditableRustSceneObject)
+    .map((object, insertionIndex) => ({ object, insertionIndex }))
+    .sort((left, right) => left.object.layer - right.object.layer || left.insertionIndex - right.insertionIndex);
+
+  const media = orderedObjects.map(({ object }) => mediaReferenceForEditableRustScene(
+    object,
+    projectSettings.fps,
+    objects,
+    mediaPurpose
+  ));
+  const tracksByLayer = new Map<number, EditableRustTrack>();
+  for (const { object } of orderedObjects) {
+    const track = tracksByLayer.get(object.layer) ?? { id: `layer-${object.layer}`, clips: [] };
+    const startFrame = secondsToFrameIndex(object.startTime, projectSettings.fps);
+    const subjectCrop = subjectCropForObject(object, projectSettings.fps);
+    const residentEffects = residentEffectsForObject(object);
+    track.clips.push({
+      id: object.id,
+      media_id: object.id,
+      kind: clipKindForObject(object),
+      start_frame: startFrame,
+      duration_frames: Math.max(1, secondsToFrameIndex(object.duration, projectSettings.fps)),
+      source_frame_offset: object.type === 'video'
+        ? secondsToFrameIndex(object.offset ?? 0, projectSettings.fps)
+        : 0,
+      transform: transformForObject(object),
+      opacity: object.opacity * getFadeOpacityMultiplier(object),
+      opacity_keyframes: [],
+      position_keyframes: positionKeyframesForObject(object, projectSettings.fps),
+      ...(subjectCrop ? { subject_crop: subjectCrop } : {}),
+      wipe_animations: residentEffects.wipeAnimations,
+      effects: residentEffects.effects,
+    });
+    tracksByLayer.set(object.layer, track);
+  }
+
+  const groupControls: EditableRustGroupControl[] = objects
+    .filter((object): object is GroupControlObject => object.type === 'group_control')
+    .map((control) => {
+      const targetTrackIds = [...new Set(
+        orderedObjects
+          .filter(({ object }) => (
+            object.layer > control.layer
+            && (
+              control.targetLayerCount === 0
+              || object.layer <= control.layer + control.targetLayerCount
+            )
+          ))
+          .map(({ object }) => `layer-${object.layer}`)
+      )];
+      return {
+        id: control.id,
+        start_frame: secondsToFrameIndex(control.startTime, projectSettings.fps),
+        duration_frames: Math.max(1, secondsToFrameIndex(control.duration, projectSettings.fps)),
+        transform: transformForGroupControl(control),
+        opacity: control.opacity,
+        position_keyframes: positionKeyframesForObject(control, projectSettings.fps),
+        target_track_ids: targetTrackIds,
+      };
+    });
+
+  const project: EditableRustProject = {
+    id: sceneId,
+    version: 1,
+    size: { width: projectSettings.width, height: projectSettings.height },
+    fps: fpsToFrameRate(projectSettings.fps),
+    colour: rustColourPipeline(),
+    media,
+    tracks: [...tracksByLayer.entries()].sort(([left], [right]) => left - right).map(([, track]) => track),
+    group_controls: groupControls,
+  };
+  return { ok: true, project, media };
+};

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProtractorObjectFields",
+  "description": "`protractor` kind (`src/types.ts` の `ProtractorObject`) の kind 固有\nフィールド。編集モデル型は\n`BaseObject & ProtractorObjectFields & { type: 'protractor' }` として\n組み立てる。\n\n`width`/`height` は `protractorObjectFactory.ts` の\n`buildAviUtlProtractorObject` の固定リテラル (420x240) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "decimalPlaces": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineColour": {
+      "type": "string"
+    },
+    "majorTickStepDegrees": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "measuredAngleDegrees": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "shadowColour": {
+      "type": "string"
+    },
+    "textColour": {
+      "type": "string"
+    },
+    "tickStepDegrees": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "radius",
+    "measuredAngleDegrees",
+    "tickStepDegrees",
+    "majorTickStepDegrees",
+    "decimalPlaces",
+    "lineColour",
+    "textColour",
+    "shadowColour"
+  ]
+}

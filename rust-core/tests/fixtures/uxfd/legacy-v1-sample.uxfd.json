@@ -1,0 +1,746 @@
+{
+  "format": "uxfd-project",
+  "version": 1,
+  "savedAt": "2025-01-01T00:00:00.000Z",
+  "projectSettings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "sampleRate": 48000,
+    "editorMode": "2d"
+  },
+  "duration": 24,
+  "layers": [
+    {
+      "name": "Layer 1",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 2",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 3",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 4",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 5",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 6",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 7",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 8",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 9",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 10",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 11",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 12",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 13",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 14",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 15",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 16",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 17",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 18",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 19",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 20",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 21",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 22",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 23",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 24",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 25",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 26",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 27",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 28",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 29",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 30",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 31",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 32",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 33",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 34",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 35",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 36",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 37",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 38",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 39",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 40",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 41",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 42",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 43",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 44",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 45",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 46",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 47",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 48",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 49",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 50",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 51",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 52",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 53",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 54",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 55",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 56",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 57",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 58",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 59",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 60",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 61",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 62",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 63",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 64",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 65",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 66",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 67",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 68",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 69",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 70",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 71",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 72",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 73",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 74",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 75",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 76",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 77",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 78",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 79",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 80",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 81",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 82",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 83",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 84",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 85",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 86",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 87",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 88",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 89",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 90",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 91",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 92",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 93",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 94",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 95",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 96",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 97",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 98",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 99",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "name": "Layer 100",
+      "visible": true,
+      "locked": false
+    }
+  ],
+  "objects": [
+    {
+      "id": "realistic-main-video-a",
+      "type": "video",
+      "name": "Primary 4K interview",
+      "layer": 0,
+      "startTime": 0,
+      "duration": 23.5,
+      "offset": 0.25,
+      "x": 18,
+      "y": 10,
+      "width": 1920,
+      "height": 1080,
+      "sourceWidth": 3840,
+      "sourceHeight": 2160,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "opacity": 1,
+      "enableAnimation": true,
+      "endX": 18,
+      "endY": 10,
+      "easing": "linear",
+      "src": "file:///Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+      "filePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+      "proxyFilePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+      "volume": 1,
+      "muted": false,
+      "keyframes": [
+        {
+          "id": "realistic-main-video-a-keyframe-0",
+          "time": 0,
+          "x": 18,
+          "y": 10,
+          "easing": "linear"
+        },
+        {
+          "id": "realistic-main-video-a-keyframe-1",
+          "time": 12,
+          "x": 42,
+          "y": -2,
+          "easing": "easeInOutQuad"
+        },
+        {
+          "id": "realistic-main-video-a-keyframe-2",
+          "time": 23.5,
+          "x": 18,
+          "y": 10,
+          "easing": "easeInOutQuad"
+        }
+      ],
+      "filters": [
+        {
+          "id": "realistic-main-video-a-colour",
+          "type": "color_correction",
+          "enabled": true,
+          "params": {
+            "brightness": 1.03,
+            "contrast": 1.08,
+            "saturation": 1.12,
+            "hue": 0
+          }
+        },
+        {
+          "id": "realistic-main-video-a-outline",
+          "type": "outline",
+          "enabled": true,
+          "params": {
+            "colour": "#121820",
+            "thickness": 2,
+            "opacity": 0.65
+          }
+        },
+        {
+          "id": "realistic-main-video-a-fade",
+          "type": "fade",
+          "enabled": true,
+          "params": {
+            "opacity": 0.96
+          }
+        }
+      ],
+      "colorCorrection": {
+        "enabled": true,
+        "brightness": 1.03,
+        "contrast": 1.08,
+        "saturation": 1.12,
+        "hue": 0
+      }
+    },
+    {
+      "id": "realistic-main-video-b",
+      "type": "video",
+      "name": "Picture in picture B-roll",
+      "layer": 1,
+      "startTime": 4,
+      "duration": 16,
+      "offset": 8,
+      "x": 0,
+      "y": 0,
+      "width": 640,
+      "height": 360,
+      "sourceWidth": 3840,
+      "sourceHeight": 2160,
+      "rotation": 0,
+      "scaleX": 0.94,
+      "scaleY": 0.94,
+      "opacity": 1,
+      "enableAnimation": true,
+      "endX": 0,
+      "endY": 0,
+      "easing": "linear",
+      "src": "file:///Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+      "filePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+      "proxyFilePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+      "volume": 0,
+      "muted": true,
+      "keyframes": [
+        {
+          "id": "realistic-main-video-b-keyframe-0",
+          "time": 4,
+          "x": 0,
+          "y": 0,
+          "easing": "linear"
+        },
+        {
+          "id": "realistic-main-video-b-keyframe-1",
+          "time": 12,
+          "x": 24,
+          "y": -12,
+          "easing": "easeInOutQuad"
+        },
+        {
+          "id": "realistic-main-video-b-keyframe-2",
+          "time": 20,
+          "x": 0,
+          "y": 0,
+          "easing": "easeInOutQuad"
+        }
+      ],
+      "filters": [
+        {
+          "id": "realistic-main-video-b-colour",
+          "type": "color_correction",
+          "enabled": true,
+          "params": {
+            "brightness": 1.03,
+            "contrast": 1.08,
+            "saturation": 1.12,
+            "hue": 0
+          }
+        },
+        {
+          "id": "realistic-main-video-b-outline",
+          "type": "outline",
+          "enabled": true,
+          "params": {
+            "colour": "#121820",
+            "thickness": 2,
+            "opacity": 0.65
+          }
+        },
+        {
+          "id": "realistic-main-video-b-fade",
+          "type": "fade",
+          "enabled": true,
+          "params": {
+            "opacity": 0.96
+          }
+        }
+      ],
+      "subjectCropEnabled": true,
+      "subjectCropKeyframes": [
+        {
+          "id": "realistic-crop-0",
+          "time": 4,
+          "x": 0.08,
+          "y": 0.08,
+          "width": 0.84,
+          "height": 0.84
+        },
+        {
+          "id": "realistic-crop-1",
+          "time": 12,
+          "x": 0.16,
+          "y": 0.1,
+          "width": 0.7,
+          "height": 0.78
+        },
+        {
+          "id": "realistic-crop-2",
+          "time": 20,
+          "x": 0.1,
+          "y": 0.12,
+          "width": 0.8,
+          "height": 0.76
+        }
+      ],
+      "colorCorrection": {
+        "enabled": true,
+        "brightness": 1.03,
+        "contrast": 1.08,
+        "saturation": 1.12,
+        "hue": 0
+      }
+    },
+    {
+      "id": "realistic-main-audio",
+      "type": "audio",
+      "name": "Dialogue and music bed",
+      "layer": 2,
+      "startTime": 0,
+      "duration": 24,
+      "offset": 0,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "opacity": 1,
+      "enableAnimation": false,
+      "endX": 0,
+      "endY": 0,
+      "easing": "linear",
+      "src": "file:///Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-bed.wav",
+      "filePath": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-bed.wav",
+      "volume": 0.82,
+      "muted": false,
+      "filters": []
+    }
+  ]
+}

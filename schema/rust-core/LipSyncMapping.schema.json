@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LipSyncMapping",
+  "description": "リップシンク用の母音/子音マッピング。`src/types.ts` の\n`LipSyncSetting.mapping` と同形の固定フィールド構造体。",
+  "type": "object",
+  "properties": {
+    "a": {
+      "type": "string"
+    },
+    "e": {
+      "type": "string"
+    },
+    "i": {
+      "type": "string"
+    },
+    "n": {
+      "type": "string"
+    },
+    "o": {
+      "type": "string"
+    },
+    "u": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "a",
+    "i",
+    "u",
+    "e",
+    "o",
+    "n"
+  ]
+}

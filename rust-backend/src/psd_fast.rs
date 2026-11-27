@@ -1,0 +1,3252 @@
+/// Minimal PSD pixel extractor.
+///
+/// The `psd` crate's `rgba()` allocates a *full-canvas* buffer for every layer
+/// (psd_width × psd_height × 4 bytes) and transforms pixel indices to canvas
+/// space.  For a 1920×1080 document with 172 layers that is ~1.4 GB of
+/// allocations — explaining the 6–14 s benchmark result.
+///
+/// This module parses the PSD binary format directly, decompresses only the
+/// pixels actually belonging to each layer (no canvas-size allocation), and
+/// returns layer-sized RGBA `Vec<u8>` buffers.
+///
+/// Supported:
+///   - PSD (version 1)  and PSB (version 2, large document)
+///   - 8-bit and 16-bit depth
+///   - RGB colour mode
+///   - Compression: 0 = raw, 1 = PackBits (RLE), 2/3 = ZIP (via flate2)
+///
+/// Not supported (returns empty pixels):
+///   - CMYK, Lab, Grayscale, Bitmap colour modes
+///   - 32-bit float depth
+use std::collections::HashMap;
+use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::sync::{Arc, Mutex, OnceLock};
+use uxfd_golden_harness::RgbaFrame;
+
+use rayon::prelude::*;
+
+use crate::psd_layer_cache::{
+    global_psd_layer_cache, CachedPsdLayer, PsdFileIdentity, PsdLayerCache, PsdLayerCacheKey,
+};
+
+// ── I/O helpers ──────────────────────────────────────────────────────────────
+
+type R<T> = Result<T, String>;
+
+macro_rules! read_be {
+    ($c:expr, $t:ty) => {{
+        let mut b = [0u8; std::mem::size_of::<$t>()];
+        $c.read_exact(&mut b).map_err(|e| e.to_string())?;
+        Ok(<$t>::from_be_bytes(b))
+    }};
+}
+
+fn read_u8(c: &mut Cursor<&[u8]>) -> R<u8> {
+    let mut b = [0u8; 1];
+    c.read_exact(&mut b).map_err(|e| e.to_string())?;
+    Ok(b[0])
+}
+fn read_u16(c: &mut Cursor<&[u8]>) -> R<u16> {
+    read_be!(c, u16)
+}
+fn read_i16(c: &mut Cursor<&[u8]>) -> R<i16> {
+    read_be!(c, i16)
+}
+fn read_u32(c: &mut Cursor<&[u8]>) -> R<u32> {
+    read_be!(c, u32)
+}
+fn read_i32(c: &mut Cursor<&[u8]>) -> R<i32> {
+    read_be!(c, i32)
+}
+fn read_u64(c: &mut Cursor<&[u8]>) -> R<u64> {
+    read_be!(c, u64)
+}
+
+fn skip(c: &mut Cursor<&[u8]>, n: u64) -> R<()> {
+    c.seek(SeekFrom::Current(n as i64))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn read_vec(c: &mut Cursor<&[u8]>, n: usize) -> R<Vec<u8>> {
+    let mut v = vec![0u8; n];
+    c.read_exact(&mut v).map_err(|e| e.to_string())?;
+    Ok(v)
+}
+
+fn read_tag(c: &mut Cursor<&[u8]>) -> R<[u8; 4]> {
+    let mut t = [0u8; 4];
+    c.read_exact(&mut t).map_err(|e| e.to_string())?;
+    Ok(t)
+}
+
+// ── PackBits (RLE) decompressor ───────────────────────────────────────────────
+
+fn decompress_packbits(src: &[u8], expected_bytes: usize) -> Vec<u8> {
+    let mut dst = Vec::with_capacity(expected_bytes);
+    let mut i = 0usize;
+
+    while i < src.len() && dst.len() < expected_bytes {
+        let header = src[i] as i8;
+        i += 1;
+        if header >= 0 {
+            // (header + 1) literal bytes follow
+            let n = header as usize + 1;
+            let end = (i + n).min(src.len());
+            dst.extend_from_slice(&src[i..end]);
+            i = i + n;
+        } else if header != -128i8 {
+            // (1 - header) copies of the next byte
+            let n = (1i32 - header as i32) as usize;
+            if i < src.len() {
+                let byte = src[i];
+                i += 1;
+                dst.resize(dst.len() + n, byte);
+            }
+        }
+        // -128 is a no-op
+    }
+
+    dst
+}
+
+// ── Channel → RGBA interleaver ────────────────────────────────────────────────
+
+/// Interleave separated R/G/B/A channel planes into a packed RGBA Vec<u8>.
+///
+/// `channel_data` is `(channel_id, plane_bytes)` where channel IDs follow the
+/// PSD convention: −1 = alpha, 0 = R, 1 = G, 2 = B.
+fn interleave_rgba(channel_data: &[(i16, Vec<u8>)], pixel_count: usize) -> Vec<u8> {
+    let mut rgba = vec![255u8; pixel_count * 4]; // default: fully opaque black
+
+    for (channel_id, pixels) in channel_data {
+        let component = match channel_id {
+            -1 => 3, // alpha
+            0 => 0,  // red (or L for grayscale)
+            1 => 1,  // green
+            2 => 2,  // blue
+            _ => continue,
+        };
+
+        for (i, &px) in pixels.iter().take(pixel_count).enumerate() {
+            rgba[i * 4 + component] = px;
+        }
+    }
+
+    rgba
+}
+
+// ── Additional-layer-info block parser ───────────────────────────────────────
+
+/// Parse a single additional layer info block.
+///
+/// Returns `(key, data_range_start, data_range_len)` so the caller can seek
+/// to the data and/or skip it.
+///
+/// PSB uses 8-byte lengths for a specific set of keys.
+fn read_ali_block_header(c: &mut Cursor<&[u8]>, is_psb: bool) -> R<([u8; 4], u64)> {
+    let sig = read_tag(c)?;
+    if &sig != b"8BIM" && &sig != b"8B64" {
+        return Err(format!("Unexpected ALI sig: {:?}", sig));
+    }
+    let key = read_tag(c)?;
+
+    // PSB uses 8-byte length for these keys; everything else uses 4-byte.
+    const PSB_LONG_KEYS: &[&[u8; 4]] = &[
+        b"LMsk", b"Lr16", b"Lr32", b"layr", b"Mt16", b"Mt32", b"Mtrn", b"Alph", b"FMsk", b"lnkD",
+        b"lnk2", b"lnk3", b"lnkE", b"vmsk", b"vogk", b"vsms",
+    ];
+    let use_long = is_psb && PSB_LONG_KEYS.iter().any(|k| **k == key);
+    let block_len = if use_long {
+        read_u64(c)?
+    } else {
+        read_u32(c)? as u64
+    };
+
+    Ok((key, block_len))
+}
+
+// ── Layer record ──────────────────────────────────────────────────────────────
+
+struct ChannelInfo {
+    channel_id: i16,
+    /// Byte length of this channel's entry in the channel image data section
+    /// (includes the 2-byte compression-type prefix).
+    data_len: u64,
+}
+
+struct LayerRecord {
+    top: i32,
+    left: i32,
+    bottom: i32,
+    right: i32,
+    visible: bool,
+    name: String,
+    channels: Vec<ChannelInfo>,
+    /// 0 = regular, 1 = open group, 2 = closed group, 3 = section-end divider
+    layer_type: u32,
+}
+
+fn parse_layer_record(c: &mut Cursor<&[u8]>, is_psb: bool) -> R<LayerRecord> {
+    let top = read_i32(c)?;
+    let left = read_i32(c)?;
+    let bottom = read_i32(c)?;
+    let right = read_i32(c)?;
+
+    let num_ch = read_u16(c)? as usize;
+    let mut channels = Vec::with_capacity(num_ch);
+    for _ in 0..num_ch {
+        let ch_id = read_i16(c)?;
+        let data_len = if is_psb {
+            read_u64(c)?
+        } else {
+            read_u32(c)? as u64
+        };
+        channels.push(ChannelInfo {
+            channel_id: ch_id,
+            data_len,
+        });
+    }
+
+    // Blend mode (8BIM + 4-char key + opacity + clipping + flags + pad = 12 bytes)
+    skip(c, 4)?; // "8BIM"
+    skip(c, 4)?; // blend mode key
+    skip(c, 1)?; // opacity
+    skip(c, 1)?; // clipping
+    let flags = read_u8(c)?;
+    skip(c, 1)?; // filler
+    let visible = (flags & 2) == 0; // bit 1 set → hidden
+
+    // Extra data section
+    let extra_len = read_u32(c)? as u64;
+    let extra_end = c.position() + extra_len;
+
+    // ── within extra data ────────────────────────────────────────────────────
+    // Layer mask data (length-prefixed)
+    let mask_len = read_u32(c)? as u64;
+    skip(c, mask_len)?;
+
+    // Layer blending ranges (length-prefixed)
+    let blend_len = read_u32(c)? as u64;
+    skip(c, blend_len)?;
+
+    // Pascal string name (1-byte length + bytes, padded to 4-byte boundary
+    // counting the length byte itself)
+    let name_len = read_u8(c)? as usize;
+    let name_raw = read_vec(c, name_len)?;
+    let used = name_len + 1; // +1 for the length byte
+    let pad = (4 - (used & 3)) & 3;
+    skip(c, pad as u64)?;
+
+    // Raw Pascal-string name — caller can run restoreLayerNameEncoding on it.
+    // We store it as latin-1 / raw bytes cast to char so Shift-JIS is preserved.
+    let raw_name = name_raw.iter().map(|&b| b as char).collect::<String>();
+
+    // Additional layer info blocks
+    let mut layer_type = 0u32;
+    let mut unicode_name: Option<String> = None;
+
+    while c.position() + 12 <= extra_end {
+        let _pos_before = c.position();
+        let (key, block_len) = match read_ali_block_header(c, is_psb) {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+        let data_start = c.position();
+
+        match &key {
+            b"lsct" | b"lsdk" => {
+                if block_len >= 4 {
+                    layer_type = read_u32(c)?;
+                }
+            }
+            b"luni" => {
+                // Unicode layer name: 4-byte char count, then UTF-16 BE code units
+                if block_len >= 4 {
+                    let char_count = read_u32(c)? as usize;
+                    let needed = char_count * 2;
+                    if block_len >= 4 + needed as u64 {
+                        let mut units = Vec::with_capacity(char_count);
+                        for _ in 0..char_count {
+                            units.push(read_u16(c)?);
+                        }
+                        unicode_name = String::from_utf16(&units).ok();
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        // Seek to end of block regardless of how much we read
+        c.seek(SeekFrom::Start(data_start + block_len))
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Jump to end of extra data (handles any unrecognised trailing blocks)
+    c.seek(SeekFrom::Start(extra_end))
+        .map_err(|e| e.to_string())?;
+
+    let name = unicode_name.unwrap_or(raw_name);
+
+    Ok(LayerRecord {
+        top,
+        left,
+        bottom,
+        right,
+        visible,
+        name,
+        channels,
+        layer_type,
+    })
+}
+
+// ── Channel image data decoder ────────────────────────────────────────────────
+
+/// Decode all channels for one layer and interleave them into RGBA.
+///
+/// Returns `None` if the layer is empty or decompression fails.
+fn decode_layer_rgba(
+    c: &mut Cursor<&[u8]>,
+    channels: &[ChannelInfo],
+    width: u32,
+    height: u32,
+    depth: u16,
+    is_psb: bool,
+) -> Option<Vec<u8>> {
+    let pixel_count = width as usize * height as usize;
+    if pixel_count == 0 {
+        // Skip all channel data even for empty layers
+        for ch in channels {
+            let _ = skip(c, ch.data_len);
+        }
+        return None;
+    }
+
+    let bytes_per_sample: usize = match depth {
+        8 => 1,
+        16 => 2,
+        _ => 1, // fallback
+    };
+
+    let mut channel_data: Vec<(i16, Vec<u8>)> = Vec::with_capacity(channels.len());
+
+    for ch in channels {
+        let comp = match read_u16(c) {
+            Ok(v) => v,
+            Err(_) => return None,
+        };
+        let payload_len = ch.data_len.saturating_sub(2);
+
+        let plane = match comp {
+            // ── Raw ──
+            0 => {
+                let raw = match read_vec(c, pixel_count * bytes_per_sample) {
+                    Ok(v) => v,
+                    Err(_) => return None,
+                };
+                if depth == 8 {
+                    raw
+                } else {
+                    // 16-bit: keep high byte
+                    raw.chunks_exact(2).map(|b| b[0]).collect()
+                }
+            }
+
+            // ── PackBits RLE ──
+            1 => {
+                let row_count = height as usize;
+                let mut row_lens: Vec<usize> = Vec::with_capacity(row_count);
+                for _ in 0..row_count {
+                    let rl = if is_psb {
+                        match read_u32(c) {
+                            Ok(v) => v as usize,
+                            Err(_) => return None,
+                        }
+                    } else {
+                        match read_u16(c) {
+                            Ok(v) => v as usize,
+                            Err(_) => return None,
+                        }
+                    };
+                    row_lens.push(rl);
+                }
+
+                let total: usize = row_lens.iter().sum();
+                let compressed = match read_vec(c, total) {
+                    Ok(v) => v,
+                    Err(_) => return None,
+                };
+
+                let row_pixels = width as usize * bytes_per_sample;
+                let mut raw: Vec<u8> = Vec::with_capacity(pixel_count * bytes_per_sample);
+                let mut offset = 0usize;
+                for &rlen in &row_lens {
+                    let end = (offset + rlen).min(compressed.len());
+                    let row = decompress_packbits(&compressed[offset..end], row_pixels);
+                    raw.extend_from_slice(&row);
+                    offset += rlen;
+                }
+
+                if depth == 8 {
+                    raw
+                } else {
+                    raw.chunks_exact(2).map(|b| b[0]).collect()
+                }
+            }
+
+            // ── ZIP (with/without prediction) ──
+            2 | 3 => {
+                let compressed = match read_vec(c, payload_len as usize) {
+                    Ok(v) => v,
+                    Err(_) => return None,
+                };
+
+                // Decompress with raw deflate (no zlib header in PSD ZIP blocks).
+                use std::io::Read as _;
+                let mut dec = flate2::read::DeflateDecoder::new(std::io::Cursor::new(&compressed));
+                let mut raw: Vec<u8> = Vec::with_capacity(pixel_count * bytes_per_sample);
+                let _ = dec.read_to_end(&mut raw);
+
+                // For "ZIP with prediction" (type 3), undo horizontal delta.
+                if comp == 3 {
+                    let stride = width as usize * bytes_per_sample;
+                    for row in 0..height as usize {
+                        let base = row * stride;
+                        if depth == 8 {
+                            for col in 1..width as usize {
+                                raw[base + col] = raw[base + col].wrapping_add(raw[base + col - 1]);
+                            }
+                        } else if depth == 16 {
+                            // Delta is on pairs of bytes (big-endian u16)
+                            for col in 1..width as usize {
+                                let prev = u16::from_be_bytes([
+                                    raw[base + (col - 1) * 2],
+                                    raw[base + (col - 1) * 2 + 1],
+                                ]);
+                                let cur = u16::from_be_bytes([
+                                    raw[base + col * 2],
+                                    raw[base + col * 2 + 1],
+                                ]);
+                                let val = cur.wrapping_add(prev).to_be_bytes();
+                                raw[base + col * 2] = val[0];
+                                raw[base + col * 2 + 1] = val[1];
+                            }
+                        }
+                    }
+                }
+
+                if depth == 8 {
+                    raw
+                } else {
+                    raw.chunks_exact(2).map(|b| b[0]).collect()
+                }
+            }
+
+            // ── Unknown ──
+            _ => {
+                let _ = skip(c, payload_len);
+                return None;
+            }
+        };
+
+        channel_data.push((ch.channel_id, plane));
+    }
+
+    Some(interleave_rgba(&channel_data, pixel_count))
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/// A parsed PSD layer, including decompressed RGBA pixel data.
+///
+/// Layers are flattened pre-order (group node first, then its children,
+/// siblings bottom-to-top) so that indices and group ids reproduce the
+/// ag-psd walk used by the UI (`src/utils/psdAgPsdWorker.ts`).  The first
+/// entry is therefore the bottom-most element of the layer stack.
+pub struct PsdFastLayer {
+    pub stable_id: String,
+    pub name: String,
+    pub top: i32,
+    pub left: i32,
+    pub width: u32,
+    pub height: u32,
+    pub visible: bool,
+    /// Group ID of the *parent* group, if any.  Group IDs are assigned
+    /// pre-order during flattening (same numbering as the ag-psd UI walk).
+    pub parent_group_id: Option<u32>,
+    /// If this layer is a group, its own group ID (assigned sequentially).
+    pub is_group: bool,
+    pub own_group_id: Option<u32>,
+    /// RGBA pixel data (`width × height × 4` bytes).  `None` for groups,
+    /// section-end dividers, invisible-but-empty layers, or decode failures.
+    /// `Arc`-wrapped so a stage-2 per-layer cache hit
+    /// (`parse_psd_fast_for_display_with_cache`) can share the decoded
+    /// buffer across calls without a deep copy; `parse_psd_fast`/
+    /// `parse_psd_fast_for_display` simply wrap a freshly decoded `Vec<u8>`.
+    pub rgba: Option<Arc<Vec<u8>>>,
+}
+
+pub struct PsdFastResult {
+    pub width: u32,
+    pub height: u32,
+    /// Bit depth per channel, as read from the PSD file header (8/16/32).
+    /// Callers that only support 8-bit colour must check this explicitly —
+    /// `PsdFastResult` itself does not reject other depths.
+    pub depth: u16,
+    pub layers: Vec<PsdFastLayer>,
+}
+
+pub fn composite_visible_psd_layers(psd: &PsdFastResult) -> Result<RgbaFrame, String> {
+    composite_visible_psd_layers_with_filter(psd, None)
+}
+
+pub fn composite_visible_psd_layers_with_active_layer_ids(
+    psd: &PsdFastResult,
+    active_layer_ids: &[String],
+) -> Result<RgbaFrame, String> {
+    if active_layer_ids.is_empty() {
+        return composite_visible_psd_layers(psd);
+    }
+    composite_visible_psd_layers_with_filter(psd, Some(active_layer_ids))
+}
+
+/// `psd.renderComposite` RPC の合成レイヤー選択ロジック。`active_layer_ids`
+/// が `None`（RPCパラメータ省略）または空集合のときは visible な全リーフ
+/// レイヤーを合成し、指定時はそのレイヤー集合のみを合成する。3Dステージの
+/// PSDビルボードは PixiJS extract 撤去により合成手段を失っており、この
+/// 関数はビルボードテクスチャ用の「PSDファイル→合成RGBA」経路の中核選択肢。
+pub fn select_psd_composite_frame(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
+    match active_layer_ids {
+        Some(ids) if !ids.is_empty() => {
+            composite_visible_psd_layers_with_active_layer_ids(psd, ids)
+        }
+        _ => composite_visible_psd_layers(psd),
+    }
+}
+
+/// Validates and collects, in canvas paint order (bottom to top), the leaf
+/// layers `active_layer_ids` selects — the exact same inclusion test
+/// `select_psd_composite_frame` has always used (own bit/id AND every
+/// ancestor group's bit/id). Shared by both the row-band parallel compositor
+/// (production) and the serial reference oracle (`cfg(test)` only) so the
+/// two paths can never disagree about *which* layers to draw, only about
+/// *how* — isolating any test failure to the banding/paint code itself.
+fn collect_composite_layers<'a>(
+    psd: &'a PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<Vec<(&'a PsdFastLayer, &'a [u8])>, String> {
+    // own_group_id → group layer（祖先の可視性/active 判定に使う）。
+    let groups: HashMap<u32, &PsdFastLayer> = psd
+        .layers
+        .iter()
+        .filter_map(|layer| layer.own_group_id.map(|id| (id, layer)))
+        .collect();
+
+    // parent_group_id チェーンを辿り、全ての祖先グループが述語を満たすか。
+    let ancestors_all = |mut parent: Option<u32>, predicate: &dyn Fn(&PsdFastLayer) -> bool| {
+        let mut remaining = psd.layers.len();
+        while let Some(group_id) = parent {
+            let Some(group) = groups.get(&group_id) else {
+                break; // 参照先不明のグループは判定不能なので無視する
+            };
+            if !predicate(group) {
+                return false;
+            }
+            parent = group.parent_group_id;
+            remaining = remaining.saturating_sub(1);
+            if remaining == 0 {
+                break; // 循環防御
+            }
+        }
+        true
+    };
+
+    // psd.layers は pre-order フラット列（先頭が最背面）。前から順に
+    // source-over で塗ることで下→上の重なりを再現する。
+    let mut selected = Vec::new();
+    for layer in psd.layers.iter() {
+        if layer.is_group {
+            continue;
+        }
+        let included = match active_layer_ids {
+            // activeLayerIds は UI の選択状態そのもの（radio 差分レイヤーは
+            // ファイル上 hidden でも選択され得る）。ファイルの可視フラグでは
+            // なく、リーフ自身と祖先グループの active 状態だけで判定する。
+            Some(active_layer_ids) => {
+                let is_active =
+                    |candidate: &PsdFastLayer| active_layer_ids.contains(&candidate.stable_id);
+                is_active(layer) && ancestors_all(layer.parent_group_id, &is_active)
+            }
+            // 無指定時は Photoshop と同様、リーフ自身と祖先グループの
+            // 可視フラグを継承する。
+            None => layer.visible && ancestors_all(layer.parent_group_id, &|g| g.visible),
+        };
+        if !included {
+            continue;
+        }
+        let Some(rgba) = layer.rgba.as_ref() else {
+            continue;
+        };
+        let layer_len = usize::try_from(layer.width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(layer.height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(|| format!("PSD layer '{}' byte length overflows", layer.name))?;
+        if rgba.len() != layer_len {
+            return Err(format!(
+                "PSD layer '{}' RGBA byte length mismatch: expected={}, actual={}",
+                layer.name,
+                layer_len,
+                rgba.len()
+            ));
+        }
+        selected.push((layer, rgba.as_slice()));
+    }
+    Ok(selected)
+}
+
+/// Production DISPLAY-path composite: this is the single seam
+/// `composite_visible_psd_layers`/`composite_visible_psd_layers_with_active_layer_ids`/
+/// `select_psd_composite_frame` all funnel through, so switching it to the
+/// row-band parallel compositor (`vm_tuning_research/notes/composite-parallelisation.md`)
+/// covers every DISPLAY-path call site (lib.rs, source_frames.rs, media.rs)
+/// without touching any of them.
+fn composite_visible_psd_layers_with_filter(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
+    let selected = collect_composite_layers(psd, active_layer_ids)?;
+    composite_selected_layers_row_bands(psd.width, psd.height, &selected)
+}
+
+/// Composite every selected layer, in order, into `band` — a mutable slice
+/// covering canvas rows `[band_top, band_top + band_height)` only (row-major
+/// RGBA8, `canvas_width` pixels wide). Each layer's absolute row range is
+/// intersected with the band's row range up front, so only rows the band
+/// actually owns are ever visited — this replaces the per-pixel `canvas_y`
+/// bounds check `composite_layer_source_over` does, since a band's rows are
+/// already known to be inside `[0, canvas_height)`. Horizontal clipping is
+/// still a per-pixel bounds check (unchanged from `composite_layer_source_over`)
+/// since a layer can extend past the canvas left/right edges independently
+/// of the row band.
+fn composite_band(
+    band: &mut [u8],
+    band_top: u32,
+    band_height: u32,
+    canvas_width: u32,
+    layers: &[(&PsdFastLayer, &[u8])],
+) {
+    let canvas_width_i32 = i32::try_from(canvas_width).unwrap_or(i32::MAX);
+    let canvas_width_usize = usize::try_from(canvas_width).unwrap_or(0);
+    let band_top_i32 = i32::try_from(band_top).unwrap_or(i32::MAX);
+    let band_bottom_i32 = band_top_i32.saturating_add(i32::try_from(band_height).unwrap_or(0));
+
+    for (layer, rgba) in layers {
+        let layer_width_usize = usize::try_from(layer.width).unwrap_or(0);
+        let layer_top = layer.top;
+        let layer_bottom = layer_top.saturating_add(i32::try_from(layer.height).unwrap_or(0));
+
+        // Intersection of the layer's absolute row range with this band's
+        // absolute row range.
+        let y_start = layer_top.max(band_top_i32);
+        let y_end = layer_bottom.min(band_bottom_i32);
+        if y_start >= y_end {
+            continue;
+        }
+
+        for canvas_y in y_start..y_end {
+            let layer_y = usize::try_from(canvas_y - layer_top).unwrap_or(0);
+            let local_row = usize::try_from(canvas_y - band_top_i32).unwrap_or(0);
+            for x in 0..layer.width {
+                let canvas_x = layer.left + i32::try_from(x).unwrap_or(i32::MAX);
+                if canvas_x < 0 || canvas_x >= canvas_width_i32 {
+                    continue;
+                }
+                let src_index =
+                    (layer_y * layer_width_usize + usize::try_from(x).unwrap_or(0)) * 4;
+                let dst_index =
+                    (local_row * canvas_width_usize + usize::try_from(canvas_x).unwrap_or(0)) * 4;
+                source_over_pixel(&mut band[dst_index..dst_index + 4], &rgba[src_index..src_index + 4]);
+            }
+        }
+    }
+}
+
+/// Row-band parallel composite: splits the canvas into N horizontal row
+/// bands (N = the shared DISPLAY-path pool's thread count, `min(8, cores)` —
+/// the same pool stage 1's parallel decode uses, built once via
+/// `display_decode_pool()`) and composites each band — every selected layer,
+/// clipped to that band's rows — on its own thread. Falls back to a single
+/// whole-canvas "band" with no parallel dispatch when there is nothing to
+/// draw or the canvas has zero area.
+fn composite_selected_layers_row_bands(
+    width: u32,
+    height: u32,
+    selected: &[(&PsdFastLayer, &[u8])],
+) -> Result<RgbaFrame, String> {
+    let canvas_len = usize::try_from(width)
+        .ok()
+        .and_then(|w| usize::try_from(height).ok().and_then(|h| w.checked_mul(h)))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
+    let mut canvas = vec![0u8; canvas_len];
+
+    let row_bytes = usize::try_from(width).unwrap_or(0) * 4;
+    if !selected.is_empty() && row_bytes > 0 {
+        let pool = display_decode_pool();
+        let num_bands = pool.current_num_threads().max(1);
+        let height_usize = usize::try_from(height).unwrap_or(0);
+        let band_rows = ((height_usize + num_bands - 1) / num_bands).max(1);
+        let band_chunk_bytes = band_rows * row_bytes;
+
+        pool.install(|| {
+            canvas
+                .par_chunks_mut(band_chunk_bytes)
+                .enumerate()
+                .for_each(|(band_idx, band_slice)| {
+                    let band_top = u32::try_from(band_idx * band_rows).unwrap_or(u32::MAX);
+                    let band_height_rows = band_slice.len() / row_bytes;
+                    let band_height = u32::try_from(band_height_rows).unwrap_or(0);
+                    composite_band(band_slice, band_top, band_height, width, selected);
+                });
+        });
+    }
+
+    RgbaFrame::from_rgba8(width, height, canvas)
+        .map_err(|error| format!("PSD composite frame is invalid: {error:?}"))
+}
+
+/// Serial reference oracle for the row-band parallel compositor above —
+/// deliberately the *original* single-pass implementation (whole-canvas
+/// `composite_layer_source_over`, unchanged since before stage 3), kept
+/// `cfg(test)`-only so it never becomes a second production code path to
+/// keep in sync. Test-only: never called outside `mod tests`.
+#[cfg(test)]
+fn composite_visible_psd_layers_with_filter_serial(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
+    let canvas_len = usize::try_from(psd.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(psd.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
+    let mut canvas = vec![0u8; canvas_len];
+
+    let selected = collect_composite_layers(psd, active_layer_ids)?;
+    for (layer, rgba) in selected {
+        composite_layer_source_over(&mut canvas, psd.width, psd.height, layer, rgba);
+    }
+
+    RgbaFrame::from_rgba8(psd.width, psd.height, canvas)
+        .map_err(|error| format!("PSD composite frame is invalid: {error:?}"))
+}
+
+fn stable_layer_id(layer_index: usize, is_group: bool, own_group_id: Option<u32>) -> String {
+    if is_group {
+        format!("psd-group-{}", own_group_id.unwrap_or(layer_index as u32))
+    } else {
+        format!("psd-layer-{layer_index}")
+    }
+}
+
+fn composite_layer_source_over(
+    canvas: &mut [u8],
+    canvas_width: u32,
+    canvas_height: u32,
+    layer: &PsdFastLayer,
+    rgba: &[u8],
+) {
+    let canvas_width_i32 = i32::try_from(canvas_width).unwrap_or(i32::MAX);
+    let canvas_height_i32 = i32::try_from(canvas_height).unwrap_or(i32::MAX);
+    let canvas_width_usize = usize::try_from(canvas_width).unwrap_or(0);
+    let layer_width_usize = usize::try_from(layer.width).unwrap_or(0);
+
+    for y in 0..layer.height {
+        let canvas_y = layer.top + i32::try_from(y).unwrap_or(i32::MAX);
+        if canvas_y < 0 || canvas_y >= canvas_height_i32 {
+            continue;
+        }
+        for x in 0..layer.width {
+            let canvas_x = layer.left + i32::try_from(x).unwrap_or(i32::MAX);
+            if canvas_x < 0 || canvas_x >= canvas_width_i32 {
+                continue;
+            }
+
+            let src_index = ((usize::try_from(y).unwrap_or(0) * layer_width_usize)
+                + usize::try_from(x).unwrap_or(0))
+                * 4;
+            let dst_index = ((usize::try_from(canvas_y).unwrap_or(0) * canvas_width_usize)
+                + usize::try_from(canvas_x).unwrap_or(0))
+                * 4;
+            source_over_pixel(
+                &mut canvas[dst_index..dst_index + 4],
+                &rgba[src_index..src_index + 4],
+            );
+        }
+    }
+}
+
+fn source_over_pixel(dst: &mut [u8], src: &[u8]) {
+    let src_alpha = f32::from(src[3]) / 255.0;
+    if src_alpha <= 0.0 {
+        return;
+    }
+    let dst_alpha = f32::from(dst[3]) / 255.0;
+    let out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha);
+    if out_alpha <= 0.0 {
+        dst.copy_from_slice(&[0, 0, 0, 0]);
+        return;
+    }
+
+    for channel in 0..3 {
+        let src_channel = f32::from(src[channel]) / 255.0;
+        let dst_channel = f32::from(dst[channel]) / 255.0;
+        let out_channel =
+            (src_channel * src_alpha + dst_channel * dst_alpha * (1.0 - src_alpha)) / out_alpha;
+        dst[channel] = (out_channel * 255.0).round().clamp(0.0, 255.0) as u8;
+    }
+    dst[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
+}
+
+/// Parse a PSD/PSB file from raw bytes and return per-layer RGBA pixel data.
+pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header ──────────────────────────────────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    // ── Skip colour mode data ─────────────────────────────────────────────────
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    // ── Skip image resources ──────────────────────────────────────────────────
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    // ── Layer and mask info ───────────────────────────────────────────────────
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    // ── Layer info ────────────────────────────────────────────────────────────
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    // Layer count (negative = merged image has alpha)
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 2: decode channel image data ────────────────────────────────────
+    // Channel image data follows the layer records in the same (file) order.
+    let mut pixel_data: Vec<Option<Vec<u8>>> = Vec::with_capacity(layer_count);
+    for rec in &records {
+        match rec.layer_type {
+            0 => {
+                // Leaf layer: decode pixels
+                let w = (rec.right - rec.left).max(0) as u32;
+                let h = (rec.bottom - rec.top).max(0) as u32;
+                let rgba = decode_layer_rgba(&mut c, &rec.channels, w, h, depth, is_psb);
+                pixel_data.push(rgba);
+            }
+            _ => {
+                // Group or section-end: skip all channel data
+                for ch in &rec.channels {
+                    skip(&mut c, ch.data_len)?;
+                }
+                pixel_data.push(None);
+            }
+        }
+    }
+
+    // ── Phase 3: rebuild the group tree from file order ──────────────────────
+    // PSD stores layer records bottom-to-top.  A group is encoded as:
+    //   [bounding section divider (type 3)]  ← below the group's content
+    //   [child layers …]
+    //   [group header (type 1/2)]            ← the visible group entry
+    // So, scanning in file order, a type-3 divider OPENS a group's content and
+    // the header CLOSES it.
+    enum TreeNode {
+        Leaf { record_idx: usize },
+        Group { record_idx: usize, children: Vec<TreeNode> },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                // Malformed files may miss the matching divider; degrade to an
+                // empty group instead of corrupting the root level.
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    // Unmatched dividers: merge orphaned accumulators back into the root.
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk ───────────
+    // The UI (src/utils/psdAgPsdWorker.ts walkLayers) flattens the layer tree
+    // pre-order: group node first, then its children, siblings in file order
+    // (bottom-to-top).  layerIndex is the flattened index (dividers excluded)
+    // and ownGroupId is assigned pre-order.  stable ids MUST reproduce that
+    // numbering, otherwise activeLayerIds from the UI never match.
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Vec<u8>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take().map(Arc::new),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        depth,
+        layers,
+    })
+}
+
+/// Parse a PSD/PSB file's layer *tree* only — same `PsdFastResult` shape as
+/// `parse_psd_fast` (ids, names, bounds, visibility, group structure, order),
+/// but every `rgba` is `None`. Channel image data is never decompressed:
+/// each layer's channel bytes are skipped by their already-known `data_len`
+/// (cursor arithmetic only), the same no-decompress trick as
+/// `vm_tuning_research/tools/psd-native-bench/src/psd_fast.rs`'s
+/// `compute_leaf_ranges`. Used by `psd.parseMeta`, which never needs pixels
+/// (see `media.rs::handle_psd_parse_meta` and
+/// `vm_tuning_research/notes/e2e-path-b-metadata-only.md`).
+///
+/// Deliberately a standalone function rather than a flag threaded through
+/// `parse_psd_fast`: keeps the pixel-carrying path (used by
+/// `source_frames.rs`'s independent re-decode, and `psd.parse`'s blob
+/// export) completely unchanged.
+pub fn parse_psd_meta_only(bytes: &[u8]) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header (identical to parse_psd_fast) ────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    if depth != 8 {
+        // `parse_psd_fast`（フル pixel decode）は 16-bit を高位バイトのみ
+        // 保持する近似デコードで通しているが、この meta-only 経路はそれを
+        // 経由しない呼び出し元（レイヤーツリーだけを必要とする RPC）にも
+        // 使われるため、ここで明示的に拒否する。ag-psd 経路
+        // （`psdWasm.ts`）も `depth: 8` を決め打ちしており、この拒否は
+        // 既存動作からの後退ではない。16-bit/32-bit の実デコードは対象外
+        // （R5-1 で意図的にスコープ外とした）。
+        return Err(format!("16bit/32bit PSD は未対応です（depth={depth}）"));
+    }
+    let _color_mode = read_u16(&mut c)?;
+
+    // ── Skip colour mode data ─────────────────────────────────────────────────
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    // ── Skip image resources ──────────────────────────────────────────────────
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    // ── Layer and mask info ───────────────────────────────────────────────────
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    // ── Layer info ────────────────────────────────────────────────────────────
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    // Layer count (negative = merged image has alpha)
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 2 (skipped): jump over every layer's channel image data by its
+    // already-known `data_len` — no compression-type read, no decompress, no
+    // RGBA interleave. This is the whole of the "meta-only" saving.
+    for rec in &records {
+        for ch in &rec.channels {
+            skip(&mut c, ch.data_len)?;
+        }
+    }
+
+    // ── Phase 3: rebuild the group tree from file order (identical logic to
+    // parse_psd_fast; duplicated rather than shared so parse_psd_fast stays
+    // untouched — see module doc on this function). ───────────────────────────
+    enum TreeNode {
+        Leaf { record_idx: usize },
+        Group { record_idx: usize, children: Vec<TreeNode> },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk. `rgba` is
+    // always None — that is the entire point of this function.
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: None,
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(children, Some(own_group_id), records, group_id_counter, layers);
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(roots, None, &records, &mut group_id_counter, &mut layers);
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        depth,
+        layers,
+    })
+}
+
+// ── DISPLAY-path decode: parallel + selection-aware leaf decode ──────────────
+//
+// Promotion of vm_tuning_research/notes/display-path-phase-split.md into
+// production. `parse_psd_fast` above stays byte-for-byte unchanged (other
+// callers — `psd.parse`'s blob export and `psd.parseMeta` — are unaffected).
+// This section adds a DISPLAY-only entry point that decodes exactly the leaf
+// layers `select_psd_composite_frame` would read for a given selection (no
+// more, no fewer), on a shared bounded thread pool.
+
+/// Byte range (into the original `bytes` slice) holding one leaf layer's
+/// channel image data, plus the pixel dimensions needed to decode it.
+/// Computed by walking the channel-image-data section without decompressing
+/// anything (cursor arithmetic only, using the already-known per-channel
+/// `data_len`), so decoding can be deferred and parallelised per layer.
+struct DisplayLeafRange {
+    start: usize,
+    end: usize,
+    w: u32,
+    h: u32,
+}
+
+fn compute_display_leaf_ranges(
+    c: &mut Cursor<&[u8]>,
+    records: &[LayerRecord],
+) -> R<Vec<Option<DisplayLeafRange>>> {
+    let mut ranges = Vec::with_capacity(records.len());
+    for rec in records {
+        match rec.layer_type {
+            0 => {
+                let w = (rec.right - rec.left).max(0) as u32;
+                let h = (rec.bottom - rec.top).max(0) as u32;
+                let start = c.position() as usize;
+                let total_len: u64 = rec.channels.iter().map(|ch| ch.data_len).sum();
+                skip(c, total_len)?;
+                let end = c.position() as usize;
+                if w == 0 || h == 0 {
+                    ranges.push(None);
+                } else {
+                    ranges.push(Some(DisplayLeafRange { start, end, w, h }));
+                }
+            }
+            _ => {
+                for ch in &rec.channels {
+                    skip(c, ch.data_len)?;
+                }
+                ranges.push(None);
+            }
+        }
+    }
+    Ok(ranges)
+}
+
+/// Decode one leaf layer from its precomputed byte range. Sub-slicing
+/// `bytes` gives each call an independent `Cursor`, which is what makes the
+/// per-layer decode safe to run across threads with no shared mutable state.
+fn decode_display_leaf_from_range(
+    bytes: &[u8],
+    range: &DisplayLeafRange,
+    channels: &[ChannelInfo],
+    depth: u16,
+    is_psb: bool,
+) -> Option<Vec<u8>> {
+    let mut sub = Cursor::new(&bytes[range.start..range.end]);
+    decode_layer_rgba(&mut sub, channels, range.w, range.h, depth, is_psb)
+}
+
+/// Shared rayon thread pool for `parse_psd_fast_for_display`'s leaf decode,
+/// built once (`OnceLock`) rather than per call — a fresh
+/// `ThreadPoolBuilder::build()` measured ~50ms overhead per call in
+/// `vm_tuning_research/notes/parallel-layer-decode-scaling.md`, which would
+/// swamp the DISPLAY-path saving on small/medium PSDs. Capped at 8 threads:
+/// measurements in `display-path-phase-split.md` found no further benefit
+/// beyond N=8 on the reference hardware.
+fn display_decode_pool() -> &'static rayon::ThreadPool {
+    static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
+    POOL.get_or_init(|| {
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .min(8);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("failed to build PSD DISPLAY-path decode thread pool")
+    })
+}
+
+// ── Tree walk for selection metadata (stable ids / group linkage only) ──────
+// Self-contained (mirrors the `TreeNode`/`flatten` shapes inside
+// `parse_psd_fast` above) rather than sharing state with it, so the existing
+// full-decode path is never touched by this addition.
+
+enum DisplayTreeNode {
+    Leaf { record_idx: usize },
+    Group {
+        record_idx: usize,
+        children: Vec<DisplayTreeNode>,
+    },
+}
+
+fn build_display_layer_tree(records: &[LayerRecord]) -> Vec<DisplayTreeNode> {
+    let mut stack: Vec<Vec<DisplayTreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(DisplayTreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(DisplayTreeNode::Leaf { record_idx: i }),
+        }
+    }
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    stack.pop().unwrap_or_default()
+}
+
+/// Per-record selection metadata: stable id and group linkage, computed by
+/// the same pre-order walk `flatten` uses (so stable ids match exactly),
+/// without touching any pixel data. `None` for section-end dividers.
+struct DisplayLayerMeta {
+    stable_id: String,
+    own_group_id: Option<u32>,
+    parent_group_id: Option<u32>,
+    visible: bool,
+}
+
+fn compute_display_layer_meta(records: &[LayerRecord]) -> Vec<Option<DisplayLayerMeta>> {
+    let roots = build_display_layer_tree(records);
+    let mut meta: Vec<Option<DisplayLayerMeta>> = (0..records.len()).map(|_| None).collect();
+    let mut group_id_counter = 0u32;
+    let mut flat_idx = 0usize;
+
+    fn walk(
+        nodes: &[DisplayTreeNode],
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        group_id_counter: &mut u32,
+        flat_idx: &mut usize,
+        meta: &mut [Option<DisplayLayerMeta>],
+    ) {
+        for node in nodes {
+            match node {
+                DisplayTreeNode::Leaf { record_idx } => {
+                    let stable_id = stable_layer_id(*flat_idx, false, None);
+                    *flat_idx += 1;
+                    meta[*record_idx] = Some(DisplayLayerMeta {
+                        stable_id,
+                        own_group_id: None,
+                        parent_group_id,
+                        visible: records[*record_idx].visible,
+                    });
+                }
+                DisplayTreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let stable_id = stable_layer_id(*flat_idx, true, Some(own_group_id));
+                    *flat_idx += 1;
+                    meta[*record_idx] = Some(DisplayLayerMeta {
+                        stable_id,
+                        own_group_id: Some(own_group_id),
+                        parent_group_id,
+                        visible: records[*record_idx].visible,
+                    });
+                    walk(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        group_id_counter,
+                        flat_idx,
+                        meta,
+                    );
+                }
+            }
+        }
+    }
+
+    walk(&roots, None, records, &mut group_id_counter, &mut flat_idx, &mut meta);
+    meta
+}
+
+/// Which leaf records `select_psd_composite_frame(_, selection)` would
+/// actually read, replicated exactly from
+/// `composite_visible_psd_layers_with_filter`'s inclusion test (own bit/id
+/// AND every ancestor group's bit/id) but evaluated over pre-decode metadata
+/// instead of the flattened `PsdFastLayer` list. `selection` uses the same
+/// `Option<&[String]>` shape as `select_psd_composite_frame`, including its
+/// "`Some(&[])` behaves like `None`" rule.
+fn compute_display_selection_flags(
+    records: &[LayerRecord],
+    meta: &[Option<DisplayLayerMeta>],
+    selection: Option<&[String]>,
+) -> Vec<bool> {
+    let group_by_id: HashMap<u32, usize> = meta
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, m)| m.as_ref().and_then(|m| m.own_group_id.map(|g| (g, idx))))
+        .collect();
+
+    let ancestors_all = |mut parent: Option<u32>, predicate: &dyn Fn(&DisplayLayerMeta) -> bool| -> bool {
+        let mut remaining = meta.len();
+        while let Some(group_id) = parent {
+            let Some(&group_idx) = group_by_id.get(&group_id) else {
+                break;
+            };
+            let Some(group_meta) = meta[group_idx].as_ref() else {
+                break;
+            };
+            if !predicate(group_meta) {
+                return false;
+            }
+            parent = group_meta.parent_group_id;
+            remaining = remaining.saturating_sub(1);
+            if remaining == 0 {
+                break;
+            }
+        }
+        true
+    };
+
+    let mut flags = vec![false; records.len()];
+    for (idx, rec) in records.iter().enumerate() {
+        if rec.layer_type != 0 {
+            continue; // groups/dividers are never decoded as leaves
+        }
+        let Some(m) = meta[idx].as_ref() else {
+            continue;
+        };
+        flags[idx] = match selection {
+            Some(active_ids) if !active_ids.is_empty() => {
+                let is_active = |stable_id: &str| active_ids.iter().any(|id| id == stable_id);
+                is_active(&m.stable_id)
+                    && ancestors_all(m.parent_group_id, &|g| is_active(&g.stable_id))
+            }
+            _ => m.visible && ancestors_all(m.parent_group_id, &|g| g.visible),
+        };
+    }
+    flags
+}
+
+/// Parse a PSD/PSB file for the DISPLAY path: decode only the leaf layers
+/// `select_psd_composite_frame(result, selection)` would actually read
+/// (`selection = None` → default visible/ancestor-visible chain,
+/// `selection = Some(active_layer_ids)` → the UI active-id chain, exactly
+/// mirroring `composite_visible_psd_layers_with_filter`'s inclusion test),
+/// decoded in parallel on a shared bounded thread pool
+/// (`display_decode_pool`). Every layer (leaf or group, selected or not)
+/// still appears in the returned `PsdFastResult` with correct
+/// metadata/tree position — only `rgba` is withheld for leaves outside the
+/// selection, so `select_psd_composite_frame` run against this result
+/// composites byte-identically to running it against `parse_psd_fast`'s
+/// full decode.
+///
+/// `parse_psd_fast` itself is left untouched; this is purely additive.
+pub fn parse_psd_fast_for_display(
+    bytes: &[u8],
+    selection: Option<&[String]>,
+) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header (identical to parse_psd_fast) ────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 1.5: selection metadata (stable ids / group chain) + flags ──────
+    // Determines, per leaf record, whether select_psd_composite_frame would
+    // read it under `selection` — purely from already-parsed metadata, no
+    // channel bytes touched.
+    let meta = compute_display_layer_meta(&records);
+    let selected = compute_display_selection_flags(&records, &meta, selection);
+
+    // ── Phase 2: byte-range precompute + selection-filtered parallel decode ──
+    let ranges = compute_display_leaf_ranges(&mut c, &records)?;
+    let ranges: Vec<Option<DisplayLeafRange>> = ranges
+        .into_iter()
+        .enumerate()
+        .map(|(idx, r)| if selected[idx] { r } else { None })
+        .collect();
+
+    let pixel_data: Vec<Option<Vec<u8>>> = display_decode_pool().install(|| {
+        records
+            .par_iter()
+            .zip(ranges.par_iter())
+            .map(|(rec, range)| match range {
+                Some(r) => decode_display_leaf_from_range(bytes, r, &rec.channels, depth, is_psb),
+                None => None,
+            })
+            .collect()
+    });
+    // Arc-wrap once up front so `flatten` below (shared shape with the
+    // stage-2 cached entry point) never needs to know whether a buffer came
+    // from a fresh decode or a cache hit.
+    let mut pixel_data: Vec<Option<Arc<Vec<u8>>>> =
+        pixel_data.into_iter().map(|opt| opt.map(Arc::new)).collect();
+
+    // ── Phase 3+4: rebuild the group tree + flatten pre-order (identical
+    // logic to parse_psd_fast, duplicated so that function stays untouched).
+    enum TreeNode {
+        Leaf {
+            record_idx: usize,
+        },
+        Group {
+            record_idx: usize,
+            children: Vec<TreeNode>,
+        },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Arc<Vec<u8>>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take(),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    let mut pixel_data = pixel_data;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        depth,
+        layers,
+    })
+}
+
+// ── DISPLAY-path decode: per-layer decoded-RGBA cache (stage 2) ─────────────
+//
+// Promotion of vm_tuning_research/notes/display-path-toggle-redecode.md.
+// Stage 1 (`parse_psd_fast_for_display` above) already skips leaves outside
+// the selection, but a layer *toggle* only changes which leaves are
+// selected — the underlying file is untouched — so every toggle still pays
+// a full re-decode of whatever just became selected. This section adds a
+// (file identity, layer stable_id) → decoded-RGBA cache
+// (`crate::psd_layer_cache`) so a toggle reuses any leaf it already decoded
+// and pays only for the newly-selected leaves plus the composite.
+
+/// Parse a PSD/PSB file for the DISPLAY path using the process-wide shared
+/// per-layer cache (`psd_layer_cache::global_psd_layer_cache`). Semantically
+/// identical to `parse_psd_fast_for_display` (same selection rules, same
+/// composite parity), but a leaf already decoded for this exact
+/// `file_identity` (same path/mtime/size) is reused from the cache instead
+/// of being re-decoded, regardless of what selection requested it.
+pub fn parse_psd_fast_for_display_cached(
+    bytes: &[u8],
+    selection: Option<&[String]>,
+    file_identity: &PsdFileIdentity,
+) -> Result<PsdFastResult, String> {
+    parse_psd_fast_for_display_with_cache(bytes, selection, file_identity, global_psd_layer_cache())
+}
+
+/// Cache-parametrised implementation behind `parse_psd_fast_for_display_cached`.
+/// Kept separate (and cache-injectable) so tests can exercise cache
+/// behaviour — hit/miss/decode/eviction counts, a small injected byte
+/// budget — without touching the process-wide singleton.
+fn parse_psd_fast_for_display_with_cache(
+    bytes: &[u8],
+    selection: Option<&[String]>,
+    file_identity: &PsdFileIdentity,
+    cache: &Mutex<PsdLayerCache>,
+) -> Result<PsdFastResult, String> {
+    let mut c = Cursor::new(bytes);
+
+    // ── File header (identical to parse_psd_fast) ────────────────────────────
+    let sig = read_tag(&mut c)?;
+    if &sig != b"8BPS" {
+        return Err("Not a PSD file (bad signature)".into());
+    }
+    let version = read_u16(&mut c)?;
+    if version != 1 && version != 2 {
+        return Err(format!("Unsupported PSD version: {version}"));
+    }
+    let is_psb = version == 2;
+    skip(&mut c, 6)?; // reserved
+    let _num_channels = read_u16(&mut c)?;
+    let doc_height = read_u32(&mut c)?;
+    let doc_width = read_u32(&mut c)?;
+    let depth = read_u16(&mut c)?;
+    let _color_mode = read_u16(&mut c)?;
+
+    let cml = read_u32(&mut c)? as u64;
+    skip(&mut c, cml)?;
+
+    let irl = read_u32(&mut c)? as u64;
+    skip(&mut c, irl)?;
+
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if lam_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
+    if li_len == 0 {
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            depth,
+            layers: vec![],
+        });
+    }
+
+    let raw_count = read_i16(&mut c)?;
+    let layer_count = raw_count.unsigned_abs() as usize;
+
+    // ── Phase 1: parse all layer records (metadata only, no pixels yet) ───────
+    let mut records: Vec<LayerRecord> = Vec::with_capacity(layer_count);
+    for _ in 0..layer_count {
+        records.push(parse_layer_record(&mut c, is_psb)?);
+    }
+
+    // ── Phase 1.5: selection metadata (stable ids / group chain) + flags ──────
+    let meta = compute_display_layer_meta(&records);
+    let selected = compute_display_selection_flags(&records, &meta, selection);
+
+    // ── Phase 1.75: cache lookup for every selected leaf, before any channel
+    // bytes are touched. Locked once for the whole lookup batch and released
+    // before decoding, so the parallel decode phase never blocks on it.
+    let mut pixel_data: Vec<Option<Arc<Vec<u8>>>> = (0..records.len()).map(|_| None).collect();
+    let mut miss_keys: Vec<Option<PsdLayerCacheKey>> = (0..records.len()).map(|_| None).collect();
+    {
+        let mut cache_guard = cache.lock().expect("PSD layer cache mutex poisoned");
+        for (idx, is_selected) in selected.iter().enumerate() {
+            if !is_selected {
+                continue;
+            }
+            let Some(layer_meta) = meta[idx].as_ref() else {
+                continue;
+            };
+            let key = PsdLayerCacheKey::new(file_identity, &layer_meta.stable_id);
+            match cache_guard.get(&key) {
+                Some(cached) => pixel_data[idx] = Some(Arc::clone(&cached.rgba)),
+                None => miss_keys[idx] = Some(key),
+            }
+        }
+    }
+
+    // ── Phase 2: byte-range precompute (whole file, cursor must walk every
+    // leaf regardless of selection) + parallel decode of cache misses only.
+    let ranges = compute_display_leaf_ranges(&mut c, &records)?;
+    let ranges: Vec<Option<DisplayLeafRange>> = ranges
+        .into_iter()
+        .enumerate()
+        .map(|(idx, r)| if miss_keys[idx].is_some() { r } else { None })
+        .collect();
+
+    let decoded: Vec<Option<Vec<u8>>> = display_decode_pool().install(|| {
+        records
+            .par_iter()
+            .zip(ranges.par_iter())
+            .map(|(rec, range)| match range {
+                Some(r) => decode_display_leaf_from_range(bytes, r, &rec.channels, depth, is_psb),
+                None => None,
+            })
+            .collect()
+    });
+
+    // ── Phase 2.5: insert newly decoded leaves into the cache and fill in
+    // the remaining pixel_data slots.
+    {
+        let mut cache_guard = cache.lock().expect("PSD layer cache mutex poisoned");
+        for (idx, maybe_rgba) in decoded.into_iter().enumerate() {
+            let (Some(rgba), Some(key)) = (maybe_rgba, miss_keys[idx].take()) else {
+                continue;
+            };
+            let rec = &records[idx];
+            let width = (rec.right - rec.left).max(0) as u32;
+            let height = (rec.bottom - rec.top).max(0) as u32;
+            let arc_rgba = Arc::new(rgba);
+            cache_guard.insert(
+                key,
+                Arc::new(CachedPsdLayer {
+                    width,
+                    height,
+                    rgba: Arc::clone(&arc_rgba),
+                }),
+            );
+            pixel_data[idx] = Some(arc_rgba);
+        }
+    }
+
+    // ── Phase 3+4: rebuild the group tree + flatten pre-order (identical
+    // logic to parse_psd_fast, duplicated so that function stays untouched).
+    enum TreeNode {
+        Leaf {
+            record_idx: usize,
+        },
+        Group {
+            record_idx: usize,
+            children: Vec<TreeNode>,
+        },
+    }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Arc<Vec<u8>>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take(),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    let mut pixel_data = pixel_data;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
+
+    Ok(PsdFastResult {
+        width: doc_width,
+        height: doc_height,
+        depth,
+        layers,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── メタデータ専用パースの契約 ────────────────────────────────────────────
+    // `parse_psd_meta_only` は `parse_psd_fast` と同じレイヤーツリー
+    // （id・名前・座標・可視性・親子構造・並び順）を返すが、チャンネル画像
+    // データの伸長は一切行わない（全レイヤーの `rgba` が常に `None`）。
+    // 手書きの最小 PSD バイト列（グループ1つ＋子リーフ1つ）で両関数を実PSD
+    // バイトに対して実行し、メタデータが完全一致すること・ピクセルの有無が
+    // 意図通りに異なることを確認する。
+
+    fn push_u16_be(bytes: &mut Vec<u8>, value: u16) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    fn push_i16_be(bytes: &mut Vec<u8>, value: i16) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    fn push_u32_be(bytes: &mut Vec<u8>, value: u32) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    fn push_i32_be(bytes: &mut Vec<u8>, value: i32) {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+
+    struct FixtureLayer {
+        top: i32,
+        left: i32,
+        bottom: i32,
+        right: i32,
+        visible: bool,
+        name: &'static str,
+        /// (channel_id, raw pixel plane). Written with compression type 0 (raw).
+        channels: Vec<(i16, Vec<u8>)>,
+        /// `lsct` additional-layer-info value: 1/2 = group header (open/closed),
+        /// 3 = bounding section divider. `None` = ordinary leaf layer.
+        lsct: Option<u32>,
+    }
+
+    fn build_layer_record_and_data(layer: &FixtureLayer) -> (Vec<u8>, Vec<u8>) {
+        let mut record = Vec::new();
+        push_i32_be(&mut record, layer.top);
+        push_i32_be(&mut record, layer.left);
+        push_i32_be(&mut record, layer.bottom);
+        push_i32_be(&mut record, layer.right);
+        push_u16_be(&mut record, layer.channels.len() as u16);
+
+        let mut channel_data = Vec::new();
+        for (channel_id, plane) in &layer.channels {
+            let channel_len = 2 + plane.len() as u32; // +2 for the raw compression-type prefix
+            push_i16_be(&mut record, *channel_id);
+            push_u32_be(&mut record, channel_len);
+            push_u16_be(&mut channel_data, 0); // compression = raw
+            channel_data.extend_from_slice(plane);
+        }
+
+        record.extend_from_slice(b"8BIM");
+        record.extend_from_slice(b"norm");
+        record.push(255); // opacity
+        record.push(0); // clipping
+        record.push(if layer.visible { 0 } else { 2 }); // flags: bit1 set = hidden
+        record.push(0); // filler
+
+        let mut extra = Vec::new();
+        push_u32_be(&mut extra, 0); // layer mask data length
+        push_u32_be(&mut extra, 0); // layer blending ranges length
+        let name_bytes = layer.name.as_bytes();
+        extra.push(name_bytes.len() as u8);
+        extra.extend_from_slice(name_bytes);
+        let used = 1 + name_bytes.len();
+        let pad = (4 - (used & 3)) & 3;
+        extra.resize(extra.len() + pad, 0);
+        if let Some(lsct_value) = layer.lsct {
+            extra.extend_from_slice(b"8BIM");
+            extra.extend_from_slice(b"lsct");
+            push_u32_be(&mut extra, 4);
+            push_u32_be(&mut extra, lsct_value);
+        }
+
+        push_u32_be(&mut record, extra.len() as u32);
+        record.extend_from_slice(&extra);
+
+        (record, channel_data)
+    }
+
+    /// One group ("Group 1") containing one leaf ("Child Leaf", 2×2 RGBA),
+    /// stored in file order (bottom→top): divider, child, group header —
+    /// matching `build_layer_tree`'s expectations documented above `flatten`.
+    fn group_and_leaf_psd_bytes() -> Vec<u8> {
+        let plane = |v: u8| vec![v; 4]; // 2×2 = 4 pixels
+        let divider = FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            visible: true,
+            name: "</Layer group>",
+            channels: vec![],
+            lsct: Some(3),
+        };
+        let child = FixtureLayer {
+            top: 1,
+            left: 1,
+            bottom: 3,
+            right: 3,
+            visible: true,
+            name: "Child Leaf",
+            channels: vec![
+                (0i16, plane(10)),
+                (1i16, plane(20)),
+                (2i16, plane(30)),
+                (-1i16, plane(255)),
+            ],
+            lsct: None,
+        };
+        let group_header = FixtureLayer {
+            top: 1,
+            left: 1,
+            bottom: 3,
+            right: 3,
+            visible: true,
+            name: "Group 1",
+            channels: vec![],
+            lsct: Some(2), // closed group
+        };
+
+        let mut layer_records_bytes = Vec::new();
+        let mut channel_data_bytes = Vec::new();
+        for layer in [&divider, &child, &group_header] {
+            let (record, cdata) = build_layer_record_and_data(layer);
+            layer_records_bytes.extend_from_slice(&record);
+            channel_data_bytes.extend_from_slice(&cdata);
+        }
+
+        let layer_info_len = 2 + layer_records_bytes.len() + channel_data_bytes.len();
+        let layer_and_mask_len = 4 + layer_info_len;
+
+        let mut psd = Vec::new();
+        psd.extend_from_slice(b"8BPS");
+        push_u16_be(&mut psd, 1);
+        psd.extend_from_slice(&[0; 6]);
+        push_u16_be(&mut psd, 4);
+        push_u32_be(&mut psd, 4); // doc height
+        push_u32_be(&mut psd, 4); // doc width
+        push_u16_be(&mut psd, 8);
+        push_u16_be(&mut psd, 3);
+        push_u32_be(&mut psd, 0); // colour mode data length
+        push_u32_be(&mut psd, 0); // image resources length
+        push_u32_be(&mut psd, layer_and_mask_len as u32);
+        push_u32_be(&mut psd, layer_info_len as u32);
+        push_i16_be(&mut psd, 3); // layer count
+        psd.extend_from_slice(&layer_records_bytes);
+        psd.extend_from_slice(&channel_data_bytes);
+        psd
+    }
+
+    /// Every field except `rgba` — the one field meta-only is allowed to differ on.
+    fn layer_metadata_key(
+        layer: &PsdFastLayer,
+    ) -> (&str, &str, i32, i32, u32, u32, bool, Option<u32>, bool, Option<u32>) {
+        (
+            &layer.stable_id,
+            &layer.name,
+            layer.top,
+            layer.left,
+            layer.width,
+            layer.height,
+            layer.visible,
+            layer.parent_group_id,
+            layer.is_group,
+            layer.own_group_id,
+        )
+    }
+
+    #[test]
+    fn parse_psd_meta_only_matches_full_parse_metadata_without_decoding_pixels() {
+        let bytes = group_and_leaf_psd_bytes();
+
+        let full = parse_psd_fast(&bytes).expect("full parse succeeds");
+        let meta = parse_psd_meta_only(&bytes).expect("meta-only parse succeeds");
+
+        assert_eq!(full.width, meta.width);
+        assert_eq!(full.height, meta.height);
+        assert_eq!(full.layers.len(), meta.layers.len());
+        assert_eq!(full.layers.len(), 2, "divider must not become an output entry");
+
+        let full_keys: Vec<_> = full.layers.iter().map(layer_metadata_key).collect();
+        let meta_keys: Vec<_> = meta.layers.iter().map(layer_metadata_key).collect();
+        assert_eq!(full_keys, meta_keys, "metadata must be identical between the two parsers");
+
+        // The full parse actually decoded the child leaf's pixels...
+        let full_leaf = full.layers.iter().find(|l| !l.is_group).expect("full leaf");
+        assert_eq!(full_leaf.rgba.as_ref().map(|d| d.len()), Some(4 * 4));
+
+        // ...while the metadata-only parse never touched channel image data.
+        for layer in &meta.layers {
+            assert!(layer.rgba.is_none(), "meta-only parse must not decode any pixels");
+        }
+    }
+
+    // ── 契約メモ ──────────────────────────────────────────────────────────────
+    // `PsdFastResult::layers` は ag-psd worker（src/utils/psdAgPsdWorker.ts の
+    // walkLayers）と同じ「pre-order DFS のフラット列」でなければならない:
+    //   - グループノードが先、その子が後（ファイル上は逆順で格納されている）
+    //   - 兄弟はファイル格納順（＝下→上の重なり順）
+    //   - layerIndex は section divider を除いたフラット index
+    //   - ownGroupId は pre-order で 0 から採番
+    // この採番が UI 側 buildStablePsdLayerNodeId と一致することで、
+    // activeLayerIds（psd-layer-N / psd-group-N）が合成側と噛み合う。
+
+    fn leaf(
+        stable_id: &str,
+        name: &str,
+        parent_group_id: Option<u32>,
+        visible: bool,
+        rgba: Vec<u8>,
+        (left, top, width, height): (i32, i32, u32, u32),
+    ) -> PsdFastLayer {
+        PsdFastLayer {
+            stable_id: stable_id.to_string(),
+            name: name.to_string(),
+            top,
+            left,
+            width,
+            height,
+            visible,
+            parent_group_id,
+            is_group: false,
+            own_group_id: None,
+            rgba: Some(Arc::new(rgba)),
+        }
+    }
+
+    fn group(
+        own_group_id: u32,
+        name: &str,
+        parent_group_id: Option<u32>,
+        visible: bool,
+    ) -> PsdFastLayer {
+        PsdFastLayer {
+            stable_id: format!("psd-group-{own_group_id}"),
+            name: name.to_string(),
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            visible,
+            parent_group_id,
+            is_group: true,
+            own_group_id: Some(own_group_id),
+            rgba: None,
+        }
+    }
+
+    // ── 合成順序: layers はフラット列で「先頭が最背面」。前から順に塗る ──────
+
+    #[test]
+    fn composite_visible_psd_layers_draws_leaf_layers_from_bottom_to_top() {
+        let psd = PsdFastResult {
+            width: 3,
+            height: 2,
+            depth: 8,
+            layers: vec![
+                // フラット列の先頭 = 最背面（PSD ファイル格納順は下→上）。
+                leaf(
+                    "psd-layer-0",
+                    "back",
+                    None,
+                    true,
+                    vec![
+                        0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+                        255, 0, 0, 255, 255,
+                    ],
+                    (0, 0, 3, 2),
+                ),
+                group(1, "group", None, true),
+                leaf(
+                    "psd-layer-2",
+                    "hidden",
+                    None,
+                    false,
+                    vec![0, 255, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+                leaf(
+                    "psd-layer-3",
+                    "front",
+                    None,
+                    true,
+                    vec![255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128],
+                    (1, 0, 2, 2),
+                ),
+            ],
+        };
+
+        let frame = composite_visible_psd_layers(&psd).expect("composited PSD frame");
+
+        assert_eq!(frame.width, 3);
+        assert_eq!(frame.height, 2);
+        // front(半透明の赤) が back(青) の上に乗る。
+        assert_eq!(
+            frame.pixels,
+            vec![
+                0, 0, 255, 255, 128, 0, 127, 255, 128, 0, 127, 255, 0, 0, 255, 255, 128, 0, 127,
+                255, 128, 0, 127, 255,
+            ]
+        );
+    }
+
+    #[test]
+    fn composite_visible_psd_layers_skips_leaves_inside_hidden_groups() {
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            depth: 8,
+            layers: vec![
+                leaf(
+                    "psd-layer-0",
+                    "base",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                group(0, "hidden group", None, false),
+                // グループ自体が非表示なら、可視フラグ付きの子リーフも描かない。
+                leaf(
+                    "psd-layer-2",
+                    "child of hidden group",
+                    Some(0),
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+            ],
+        };
+
+        let frame = composite_visible_psd_layers(&psd).expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    // ── activeLayerIds 指定時: UI の選択集合が唯一の真実 ─────────────────────
+
+    #[test]
+    fn composite_visible_psd_layers_with_active_ids_draws_only_selected_leaf_layers() {
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            depth: 8,
+            layers: vec![
+                leaf(
+                    "psd-layer-0",
+                    "back",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                leaf(
+                    "psd-layer-1",
+                    "front",
+                    None,
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+            ],
+        };
+
+        let frame =
+            composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-0".to_string()])
+                .expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    #[test]
+    fn composite_with_active_ids_draws_default_hidden_leaf_when_selected() {
+        // ラジオグループの差分レイヤーはファイル上 hidden で保存されることが
+        // 多い。UI で選択（activeLayerIds に列挙）されたら描画しなければ
+        // ならない — ファイルの hidden フラグで選択を打ち消してはいけない。
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            depth: 8,
+            layers: vec![leaf(
+                "psd-layer-0",
+                "wink",
+                None,
+                false,
+                vec![255, 0, 0, 255],
+                (0, 0, 1, 1),
+            )],
+        };
+
+        let frame =
+            composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-0".to_string()])
+                .expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn composite_with_active_ids_skips_leaf_when_ancestor_group_is_inactive() {
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            depth: 8,
+            layers: vec![
+                leaf(
+                    "psd-layer-0",
+                    "base",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                group(3, "deactivated group", None, true),
+                leaf(
+                    "psd-layer-2",
+                    "child",
+                    Some(3),
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+            ],
+        };
+
+        // 祖先グループ psd-group-3 が activeLayerIds に無い → 子は描かない。
+        let frame = composite_visible_psd_layers_with_active_layer_ids(
+            &psd,
+            &["psd-layer-0".to_string(), "psd-layer-2".to_string()],
+        )
+        .expect("composited PSD frame");
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+
+        // 祖先グループも active なら子を描く。
+        let frame = composite_visible_psd_layers_with_active_layer_ids(
+            &psd,
+            &[
+                "psd-layer-0".to_string(),
+                "psd-group-3".to_string(),
+                "psd-layer-2".to_string(),
+            ],
+        )
+        .expect("composited PSD frame");
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    fn two_layer_psd_fixture() -> PsdFastResult {
+        PsdFastResult {
+            width: 1,
+            height: 1,
+            depth: 8,
+            layers: vec![
+                leaf(
+                    "psd-layer-0",
+                    "back",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                leaf(
+                    "psd-layer-1",
+                    "front",
+                    None,
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+            ],
+        }
+    }
+
+    #[test]
+    fn select_psd_composite_frame_composites_all_visible_layers_when_active_ids_is_none() {
+        let psd = two_layer_psd_fixture();
+
+        let frame = select_psd_composite_frame(&psd, None).expect("composited PSD frame");
+
+        // 上に乗る front(赤, alpha 255) が back(青) を完全に覆う。
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn select_psd_composite_frame_composites_all_visible_layers_when_active_ids_is_empty() {
+        let psd = two_layer_psd_fixture();
+
+        let frame = select_psd_composite_frame(&psd, Some(&[])).expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn select_psd_composite_frame_composites_only_the_requested_active_layers() {
+        let psd = two_layer_psd_fixture();
+
+        let frame = select_psd_composite_frame(&psd, Some(&["psd-layer-0".to_string()]))
+            .expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    // ── パーサ: フラット化順序と stable id の ag-psd 互換性 ──────────────────
+
+    /// テスト用の最小 PSD バイナリを生成する。
+    /// `records` はファイル格納順（下→上）。kind: 0=リーフ, 1=グループヘッダ,
+    /// 3=bounding section divider。リーフはチャネル 0 本（全画素が不透明白に
+    /// フォールバックする）で表現する。
+    fn build_test_psd(
+        doc_width: u32,
+        doc_height: u32,
+        records: &[(u8, &str, (i32, i32, i32, i32), bool)],
+    ) -> Vec<u8> {
+        build_test_psd_with_depth(doc_width, doc_height, 8, records)
+    }
+
+    fn build_test_psd_with_depth(
+        doc_width: u32,
+        doc_height: u32,
+        depth: u16,
+        records: &[(u8, &str, (i32, i32, i32, i32), bool)],
+    ) -> Vec<u8> {
+        let mut record_bytes: Vec<u8> = Vec::new();
+        for (kind, name, (top, left, bottom, right), hidden) in records {
+            record_bytes.extend(top.to_be_bytes());
+            record_bytes.extend(left.to_be_bytes());
+            record_bytes.extend(bottom.to_be_bytes());
+            record_bytes.extend(right.to_be_bytes());
+            record_bytes.extend(0u16.to_be_bytes()); // channel count = 0
+            record_bytes.extend(b"8BIM");
+            record_bytes.extend(b"norm");
+            record_bytes.push(255); // opacity
+            record_bytes.push(0); // clipping
+            record_bytes.push(if *hidden { 2 } else { 0 }); // flags
+            record_bytes.push(0); // filler
+
+            let mut extra: Vec<u8> = Vec::new();
+            extra.extend(0u32.to_be_bytes()); // layer mask data
+            extra.extend(0u32.to_be_bytes()); // blending ranges
+            let name_bytes = name.as_bytes();
+            extra.push(u8::try_from(name_bytes.len()).expect("test name fits in pascal string"));
+            extra.extend(name_bytes);
+            let used = name_bytes.len() + 1;
+            extra.extend(std::iter::repeat(0u8).take((4 - (used & 3)) & 3));
+            if *kind != 0 {
+                extra.extend(b"8BIM");
+                extra.extend(b"lsct");
+                extra.extend(4u32.to_be_bytes());
+                extra.extend(u32::from(*kind).to_be_bytes());
+            }
+            record_bytes.extend(u32::try_from(extra.len()).unwrap().to_be_bytes());
+            record_bytes.extend(extra);
+        }
+
+        let layer_info_len = 2 + record_bytes.len(); // i16 count + records
+        let lam_len = 4 + layer_info_len; // u32 layer-info length + layer info
+
+        let mut bytes: Vec<u8> = Vec::new();
+        bytes.extend(b"8BPS");
+        bytes.extend(1u16.to_be_bytes()); // version
+        bytes.extend([0u8; 6]); // reserved
+        bytes.extend(3u16.to_be_bytes()); // channels
+        bytes.extend(doc_height.to_be_bytes());
+        bytes.extend(doc_width.to_be_bytes());
+        bytes.extend(depth.to_be_bytes()); // depth
+        bytes.extend(3u16.to_be_bytes()); // colour mode = RGB
+        bytes.extend(0u32.to_be_bytes()); // colour mode data
+        bytes.extend(0u32.to_be_bytes()); // image resources
+        bytes.extend(u32::try_from(lam_len).unwrap().to_be_bytes());
+        bytes.extend(u32::try_from(layer_info_len).unwrap().to_be_bytes());
+        bytes.extend(
+            i16::try_from(records.len())
+                .expect("test layer count fits in i16")
+                .to_be_bytes(),
+        );
+        bytes.extend(record_bytes);
+        bytes
+    }
+
+    #[test]
+    fn parse_psd_fast_flattens_groups_in_ag_psd_pre_order() {
+        // ファイル格納順（下→上）: bottom リーフ, divider, グループの子,
+        // グループヘッダ（hidden）。Photoshop パネル表現では
+        // root = [bottom, G[child]]（bottom が最背面）。
+        let bytes = build_test_psd(
+            2,
+            2,
+            &[
+                (0, "bottom", (0, 0, 1, 1), false),
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (0, "child", (0, 0, 1, 1), false),
+                (1, "G", (0, 0, 0, 0), true),
+            ],
+        );
+
+        let psd = parse_psd_fast(&bytes).expect("parsed test PSD");
+
+        assert_eq!(psd.layers.len(), 3, "divider はフラット列に含めない");
+
+        // [0] 最背面のリーフ。
+        assert_eq!(psd.layers[0].name, "bottom");
+        assert_eq!(psd.layers[0].stable_id, "psd-layer-0");
+        assert!(!psd.layers[0].is_group);
+        assert_eq!(psd.layers[0].parent_group_id, None);
+        assert!(psd.layers[0].visible);
+
+        // [1] グループが子より先（pre-order）。ownGroupId は pre-order 採番。
+        assert_eq!(psd.layers[1].name, "G");
+        assert_eq!(psd.layers[1].stable_id, "psd-group-0");
+        assert!(psd.layers[1].is_group);
+        assert_eq!(psd.layers[1].own_group_id, Some(0));
+        assert_eq!(psd.layers[1].parent_group_id, None);
+        assert!(!psd.layers[1].visible, "グループヘッダの hidden フラグを反映する");
+
+        // [2] グループの子。layerIndex はフラット index。
+        assert_eq!(psd.layers[2].name, "child");
+        assert_eq!(psd.layers[2].stable_id, "psd-layer-2");
+        assert_eq!(psd.layers[2].parent_group_id, Some(0));
+        assert!(psd.layers[2].visible);
+    }
+
+    #[test]
+    fn parse_psd_fast_nests_sibling_groups_like_ag_psd() {
+        // root = [A[a1], B[B1[b1], b2]]（A が最背面）。ファイル格納順は
+        // 下→上なので divider→子→ヘッダ の並びが 2 系統続く。
+        let bytes = build_test_psd(
+            2,
+            2,
+            &[
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (0, "a1", (0, 0, 1, 1), false),
+                (1, "A", (0, 0, 0, 0), false),
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (0, "b1", (0, 0, 1, 1), false),
+                (1, "B1", (0, 0, 0, 0), false),
+                (0, "b2", (0, 0, 1, 1), false),
+                (1, "B", (0, 0, 0, 0), false),
+            ],
+        );
+
+        let psd = parse_psd_fast(&bytes).expect("parsed test PSD");
+
+        let summary: Vec<(String, String, Option<u32>)> = psd
+            .layers
+            .iter()
+            .map(|l| (l.name.clone(), l.stable_id.clone(), l.parent_group_id))
+            .collect();
+
+        assert_eq!(
+            summary,
+            vec![
+                ("A".to_string(), "psd-group-0".to_string(), None),
+                ("a1".to_string(), "psd-layer-1".to_string(), Some(0)),
+                ("B".to_string(), "psd-group-1".to_string(), None),
+                ("B1".to_string(), "psd-group-2".to_string(), Some(1)),
+                ("b1".to_string(), "psd-layer-4".to_string(), Some(2)),
+                ("b2".to_string(), "psd-layer-5".to_string(), Some(1)),
+            ]
+        );
+    }
+
+    /// 実素材による回帰テスト。素材が存在しない環境では skip する。
+    /// 期待値は ag-psd（UI 側パーサ）の pre-order フラット化結果と一致する
+    /// こと（node で実測済みの値をハードコード）。
+    #[test]
+    fn parse_psd_fast_matches_ag_psd_layer_ids_for_real_asset() {
+        let path = "/Users/yuki/GitHub/UX-Film-Director/葵ちゃん.psd";
+        let Ok(bytes) = std::fs::read(path) else {
+            eprintln!("skip: {path} not found");
+            return;
+        };
+
+        let psd = parse_psd_fast(&bytes).expect("parsed real PSD");
+
+        assert_eq!(psd.layers.len(), 171);
+
+        // ag-psd 実測: [0] psd-group-0 "!髪", [1] psd-group-1 "*髪 ショート"
+        // (hidden, parent=0), [2] psd-layer-2 "!髪　色" (parent=1),
+        // [4] psd-group-2 "*髪 ロング" (parent=0), [5] psd-layer-5 "!髪 色"。
+        assert_eq!(psd.layers[0].stable_id, "psd-group-0");
+        assert_eq!(psd.layers[0].name, "!髪");
+        assert!(psd.layers[0].visible);
+
+        assert_eq!(psd.layers[1].stable_id, "psd-group-1");
+        assert_eq!(psd.layers[1].name, "*髪 ショート");
+        assert!(!psd.layers[1].visible);
+        assert_eq!(psd.layers[1].parent_group_id, Some(0));
+
+        assert_eq!(psd.layers[2].stable_id, "psd-layer-2");
+        assert_eq!(psd.layers[2].name, "!髪\u{3000}色");
+        assert_eq!(psd.layers[2].parent_group_id, Some(1));
+
+        assert_eq!(psd.layers[4].stable_id, "psd-group-2");
+        assert_eq!(psd.layers[4].name, "*髪 ロング");
+        assert_eq!(psd.layers[4].parent_group_id, Some(0));
+
+        assert_eq!(psd.layers[5].stable_id, "psd-layer-5");
+        assert_eq!(psd.layers[5].name, "!髪 色");
+        assert_eq!(psd.layers[5].parent_group_id, Some(2));
+    }
+
+    // ── DISPLAY経路: parse_psd_fast_for_display の合成パリティ／スキップ証明 ──
+    // vm_tuning_research/notes/display-path-phase-split.md の昇格。
+    // select_psd_composite_frame が実際に読むレイヤーだけをデコードする
+    // 新エントリポイントが、フルデコード経路と「合成結果は完全一致」
+    // 「除外レイヤーは本当にデコードをスキップしている」の両方を満たすこと
+    // を、ネストしたグループ・非表示リーフ・activeLayerIds 上書き
+    // （デフォルト非表示レイヤーをON、デフォルト表示レイヤーをOFF）を含む
+    // 手書き PSD バイト列で確認する。
+
+    /// 任意個数の `FixtureLayer` をファイル格納順（下→上）のまま連結し、
+    /// 1枚の PSD バイト列に組み立てる（`group_and_leaf_psd_bytes` の汎用版）。
+    fn build_psd_from_fixture_layers(
+        doc_width: u32,
+        doc_height: u32,
+        layers_in_file_order: &[FixtureLayer],
+    ) -> Vec<u8> {
+        let mut layer_records_bytes = Vec::new();
+        let mut channel_data_bytes = Vec::new();
+        for layer in layers_in_file_order {
+            let (record, cdata) = build_layer_record_and_data(layer);
+            layer_records_bytes.extend_from_slice(&record);
+            channel_data_bytes.extend_from_slice(&cdata);
+        }
+
+        let layer_info_len = 2 + layer_records_bytes.len() + channel_data_bytes.len();
+        let layer_and_mask_len = 4 + layer_info_len;
+
+        let mut psd = Vec::new();
+        psd.extend_from_slice(b"8BPS");
+        push_u16_be(&mut psd, 1);
+        psd.extend_from_slice(&[0; 6]);
+        push_u16_be(&mut psd, 4);
+        push_u32_be(&mut psd, doc_height);
+        push_u32_be(&mut psd, doc_width);
+        push_u16_be(&mut psd, 8);
+        push_u16_be(&mut psd, 3);
+        push_u32_be(&mut psd, 0); // colour mode data length
+        push_u32_be(&mut psd, 0); // image resources length
+        push_u32_be(&mut psd, layer_and_mask_len as u32);
+        push_u32_be(&mut psd, layer_info_len as u32);
+        push_i16_be(&mut psd, layers_in_file_order.len() as i16); // layer count
+        psd.extend_from_slice(&layer_records_bytes);
+        psd.extend_from_slice(&channel_data_bytes);
+        psd
+    }
+
+    /// root = [base, G1{g1_hidden, g1_visible}, G2{g2_child}], 4×1 canvas,
+    /// each leaf occupies a distinct non-overlapping 1×1 pixel column so the
+    /// composited canvas records exactly which leaves were painted:
+    ///   - base (visible, col0, red): always in the default chain.
+    ///   - g1_visible (visible, col1, blue): in the default chain (G1 visible).
+    ///   - g1_hidden (hidden, col2, green): NOT in the default chain (own bit).
+    ///   - g2_child (visible, col3, yellow): NOT in the default chain
+    ///     (ancestor group G2 is hidden) — this is the "default-hidden via
+    ///     ancestor" case an activeLayerIds override can turn on.
+    fn nested_groups_display_fixture_bytes() -> Vec<u8> {
+        let px = |r: u8, g: u8, b: u8| vec![(0i16, vec![r]), (1i16, vec![g]), (2i16, vec![b]), (-1i16, vec![255u8])];
+        let leaf_at = |left: i32, name: &'static str, visible: bool, colour: (u8, u8, u8)| FixtureLayer {
+            top: 0,
+            left,
+            bottom: 1,
+            right: left + 1,
+            visible,
+            name,
+            channels: px(colour.0, colour.1, colour.2),
+            lsct: None,
+        };
+        let divider = || FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            visible: true,
+            name: "</Layer group>",
+            channels: vec![],
+            lsct: Some(3),
+        };
+        let group_header = |name: &'static str, visible: bool| FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            visible,
+            name,
+            channels: vec![],
+            lsct: Some(2),
+        };
+
+        let layers = vec![
+            leaf_at(0, "base", true, (255, 0, 0)),
+            divider(),
+            leaf_at(2, "g1_hidden", false, (0, 255, 0)),
+            leaf_at(1, "g1_visible", true, (0, 0, 255)),
+            group_header("G1", true),
+            divider(),
+            leaf_at(3, "g2_child", true, (255, 255, 0)),
+            group_header("G2", false),
+        ];
+        build_psd_from_fixture_layers(4, 1, &layers)
+    }
+
+    fn find_layer<'a>(psd: &'a PsdFastResult, name: &str) -> &'a PsdFastLayer {
+        psd.layers
+            .iter()
+            .find(|l| l.name == name)
+            .unwrap_or_else(|| panic!("fixture layer '{name}' must exist"))
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_default_selection_matches_full_parse_composite_and_skips_excluded_leaves(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+
+        let full = parse_psd_fast(&bytes).expect("full parse");
+        let display = parse_psd_fast_for_display(&bytes, None).expect("display parse");
+
+        // 合成パリティ: select_psd_composite_frame(None) の出力が完全一致。
+        let full_frame = select_psd_composite_frame(&full, None).expect("full composite");
+        let display_frame = select_psd_composite_frame(&display, None).expect("display composite");
+        assert_eq!(full_frame.width, display_frame.width);
+        assert_eq!(full_frame.height, display_frame.height);
+        assert_eq!(full_frame.pixels, display_frame.pixels);
+        // base + g1_visible のみが不透明で描かれ、g1_hidden/g2_child の列は
+        // 透明（キャンバス初期値 0）のまま — デフォルトチェーンの中身を実測。
+        assert_eq!(
+            full_frame.pixels,
+            vec![
+                255, 0, 0, 255, // col0 base
+                0, 0, 255, 255, // col1 g1_visible
+                0, 0, 0, 0, // col2 g1_hidden (excluded)
+                0, 0, 0, 0, // col3 g2_child (excluded, ancestor hidden)
+            ]
+        );
+
+        // スキップ証明: デフォルトチェーン外のリーフはデコードされていない。
+        assert!(find_layer(&display, "base").rgba.is_some());
+        assert!(find_layer(&display, "g1_visible").rgba.is_some());
+        assert!(find_layer(&display, "g1_hidden").rgba.is_none());
+        assert!(find_layer(&display, "g2_child").rgba.is_none());
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_active_override_matches_full_parse_composite_and_skips_excluded_leaves(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+
+        // フルパースで実測した stable_id から activeLayerIds を組み立てる
+        // （pre-order 採番をハードコードしない）。デフォルト非表示の
+        // g2_child を ON、デフォルト表示の g1_visible を OFF にする上書き。
+        let full_for_ids = parse_psd_fast(&bytes).expect("full parse for ids");
+        let active_ids: Vec<String> = vec![
+            find_layer(&full_for_ids, "base").stable_id.clone(),
+            full_for_ids
+                .layers
+                .iter()
+                .find(|l| l.name == "G2")
+                .expect("G2 group exists")
+                .stable_id
+                .clone(),
+            find_layer(&full_for_ids, "g2_child").stable_id.clone(),
+        ];
+
+        let full = parse_psd_fast(&bytes).expect("full parse");
+        let display =
+            parse_psd_fast_for_display(&bytes, Some(active_ids.as_slice())).expect("display parse");
+
+        let full_frame = select_psd_composite_frame(&full, Some(active_ids.as_slice()))
+            .expect("full composite");
+        let display_frame = select_psd_composite_frame(&display, Some(active_ids.as_slice()))
+            .expect("display composite");
+        assert_eq!(full_frame.pixels, display_frame.pixels);
+        assert_eq!(
+            full_frame.pixels,
+            vec![
+                255, 0, 0, 255, // col0 base (active)
+                0, 0, 0, 0, // col1 g1_visible (now OFF: not in active set)
+                0, 0, 0, 0, // col2 g1_hidden (never active)
+                255, 255, 0, 255, // col3 g2_child (now ON via G2 + itself active)
+            ]
+        );
+
+        assert!(find_layer(&display, "base").rgba.is_some());
+        assert!(find_layer(&display, "g2_child").rgba.is_some());
+        assert!(find_layer(&display, "g1_visible").rgba.is_none());
+        assert!(find_layer(&display, "g1_hidden").rgba.is_none());
+    }
+
+    // ── Stage 2: レイヤー単位デコード済みRGBAキャッシュ ──────────────────────
+    // vm_tuning_research/notes/display-path-toggle-redecode.md の昇格。
+    // レイヤートグルは activeLayerIds だけを変える操作なので、ファイル
+    // identity（path, mtime_nanos, file_len）が同じ限り、選択が変わっても
+    // 既にデコード済みのリーフは再デコードせず Arc 共有で再利用されること、
+    // かつ合成結果はキャッシュの有無に関わらず byte-identical であることを
+    // 固定する。
+
+    fn test_psd_identity(bytes: &[u8], mtime_nanos: i128) -> PsdFileIdentity {
+        PsdFileIdentity {
+            path: "test-fixture.psd".to_string(),
+            mtime_nanos,
+            file_len: bytes.len() as u64,
+        }
+    }
+
+    /// stage 1 フィクスチャ（base / G1{g1_hidden, g1_visible} / G2{g2_child}）
+    /// に対する「デフォルト非表示の g2_child を ON、デフォルト表示の
+    /// g1_visible を OFF、base は維持」という stage 1 と同じ上書き選択の
+    /// stable_id を、フルパースの実測値から組み立てる。
+    fn g2_on_g1_visible_off_active_ids(bytes: &[u8]) -> Vec<String> {
+        let full_for_ids = parse_psd_fast(bytes).expect("full parse for ids");
+        vec![
+            find_layer(&full_for_ids, "base").stable_id.clone(),
+            full_for_ids
+                .layers
+                .iter()
+                .find(|l| l.name == "G2")
+                .expect("G2 group exists")
+                .stable_id
+                .clone(),
+            find_layer(&full_for_ids, "g2_child").stable_id.clone(),
+        ]
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_decodes_only_newly_required_leaves_on_selection_change(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+        let identity = test_psd_identity(&bytes, 1);
+        let cache = Mutex::new(PsdLayerCache::with_budget(64 * 1024 * 1024));
+
+        // 1回目: デフォルト選択（base + g1_visible の2枚）。
+        let first = parse_psd_fast_for_display_with_cache(&bytes, None, &identity, &cache)
+            .expect("first cached parse");
+        assert!(find_layer(&first, "base").rgba.is_some());
+        assert!(find_layer(&first, "g1_visible").rgba.is_some());
+        {
+            let stats = cache.lock().unwrap().stats();
+            assert_eq!(stats.decodes, 2, "初回は base + g1_visible の2枚をデコード");
+            assert_eq!(stats.hits, 0);
+            assert_eq!(stats.misses, 2);
+        }
+
+        // 2回目: g2_child を ON、g1_visible を OFF、base は active のまま
+        // （前回デコード済みなのでキャッシュヒットするはず）。
+        let active_ids = g2_on_g1_visible_off_active_ids(&bytes);
+        let second = parse_psd_fast_for_display_with_cache(
+            &bytes,
+            Some(active_ids.as_slice()),
+            &identity,
+            &cache,
+        )
+        .expect("second cached parse");
+        assert!(find_layer(&second, "base").rgba.is_some());
+        assert!(find_layer(&second, "g2_child").rgba.is_some());
+        assert!(find_layer(&second, "g1_visible").rgba.is_none());
+
+        let stats = cache.lock().unwrap().stats();
+        assert_eq!(stats.decodes, 3, "2回目は g2_child の1枚だけ追加デコード");
+        assert_eq!(stats.hits, 1, "base はキャッシュヒットするはず");
+        assert_eq!(stats.misses, 3, "累計ミスは初回2 + g2_child 1");
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_matches_uncached_stage1_composite_across_two_selections(
+    ) {
+        let bytes = nested_groups_display_fixture_bytes();
+        let identity = test_psd_identity(&bytes, 1);
+        let cache = Mutex::new(PsdLayerCache::with_budget(64 * 1024 * 1024));
+        let active_ids = g2_on_g1_visible_off_active_ids(&bytes);
+
+        for selection in [None, Some(active_ids.as_slice())] {
+            let cached = parse_psd_fast_for_display_with_cache(&bytes, selection, &identity, &cache)
+                .expect("cached parse");
+            let uncached =
+                parse_psd_fast_for_display(&bytes, selection).expect("uncached stage1 parse");
+
+            let cached_frame =
+                select_psd_composite_frame(&cached, selection).expect("cached composite");
+            let uncached_frame =
+                select_psd_composite_frame(&uncached, selection).expect("uncached composite");
+            assert_eq!(cached_frame.width, uncached_frame.width);
+            assert_eq!(cached_frame.height, uncached_frame.height);
+            assert_eq!(
+                cached_frame.pixels, uncached_frame.pixels,
+                "selection {selection:?} の合成結果はキャッシュ有無に関わらず一致するはず"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_full_redecodes_when_file_identity_mtime_changes() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let cache = Mutex::new(PsdLayerCache::with_budget(64 * 1024 * 1024));
+
+        let identity_a = test_psd_identity(&bytes, 1);
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity_a, &cache)
+            .expect("first parse");
+
+        // mtime_nanos だけ変わった別 identity（ファイル更新をシミュレート）。
+        let identity_b = test_psd_identity(&bytes, 2);
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity_b, &cache)
+            .expect("second parse under new identity");
+
+        let stats = cache.lock().unwrap().stats();
+        assert_eq!(stats.hits, 0, "identity が変わったキーは一致しないため常にミス");
+        assert_eq!(stats.misses, 4, "2回とも base+g1_visible の2枚ずつフルミス");
+        assert_eq!(stats.decodes, 4);
+    }
+
+    #[test]
+    fn parse_psd_fast_for_display_with_cache_evicts_lru_entries_beyond_injected_byte_budget() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let identity = test_psd_identity(&bytes, 1);
+        // 各リーフは 1×1 RGBA = 4 bytes。予算を1枚分だけに絞り、2枚目の
+        // 挿入で1枚目（LRU）が追い出されることを確認する。
+        let cache = Mutex::new(PsdLayerCache::with_budget(4));
+
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity, &cache)
+            .expect("parse decodes base then g1_visible, evicting the older one");
+
+        {
+            let mut guard = cache.lock().unwrap();
+            assert_eq!(guard.len(), 1, "予算超過分は追い出され1枚だけ残る");
+            let stats = guard.stats();
+            assert!(stats.evictions >= 1, "少なくとも1回はLRU追い出しが起きるはず");
+        }
+
+        let stats_before = cache.lock().unwrap().stats();
+        parse_psd_fast_for_display_with_cache(&bytes, None, &identity, &cache)
+            .expect("re-parse after eviction");
+        let stats_after = cache.lock().unwrap().stats();
+        assert!(
+            stats_after.misses > stats_before.misses,
+            "追い出されたリーフは再パース時にミスとして再デコードされるはず"
+        );
+    }
+
+    // ── Stage 3: 行バンド並列合成の正当性 ────────────────────────────────────
+    // vm_tuning_research/notes/composite-parallelisation.md の昇格。
+    // select_psd_composite_frame（＝全呼び出し元が到達する内部シーム
+    // composite_visible_psd_layers_with_filter）は行バンド並列で合成する。
+    // composite_visible_psd_layers_with_filter_serial（cfg(test)専用の
+    // オリジナル単一パス実装、独立したオラクル）と byte-identical であること
+    // を、ネストしたグループ＋選択上書き・キャンバス外にはみ出すレイヤー・
+    // 1px高キャンバス（バンド数>行数）・空選択の各フィクスチャで固定する。
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_nested_groups_and_selection_override() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+        let active_ids = g2_on_g1_visible_off_active_ids(&bytes);
+
+        for selection in [None, Some(active_ids.as_slice())] {
+            let parallel = select_psd_composite_frame(&psd, selection).expect("parallel composite");
+            let serial = composite_visible_psd_layers_with_filter_serial(&psd, selection)
+                .expect("serial oracle composite");
+            assert_eq!(parallel.width, serial.width);
+            assert_eq!(parallel.height, serial.height);
+            assert_eq!(
+                parallel.pixels, serial.pixels,
+                "selection {selection:?} の並列合成は直列オラクルと一致するはず"
+            );
+        }
+    }
+
+    /// 4×4 キャンバス、A: left=-2,top=-2,right=2,bottom=2（左上がキャンバス外
+    /// にはみ出す赤）、B: left=2,top=2,right=6,bottom=6（右下がキャンバス外
+    /// にはみ出す青）。行バンド分割後も per-pixel の水平クリップと
+    /// 行レンジ交差の垂直クリップが両方生き残ることを確認する。
+    fn edge_overflow_layers_fixture_bytes() -> Vec<u8> {
+        let px = |r: u8, g: u8, b: u8| vec![(0i16, vec![r; 16]), (1i16, vec![g; 16]), (2i16, vec![b; 16]), (-1i16, vec![255u8; 16])];
+        let layer_a = FixtureLayer {
+            top: -2,
+            left: -2,
+            bottom: 2,
+            right: 2,
+            visible: true,
+            name: "overflow_top_left",
+            channels: px(255, 0, 0),
+            lsct: None,
+        };
+        let layer_b = FixtureLayer {
+            top: 2,
+            left: 2,
+            bottom: 6,
+            right: 6,
+            visible: true,
+            name: "overflow_bottom_right",
+            channels: px(0, 0, 255),
+            lsct: None,
+        };
+        build_psd_from_fixture_layers(4, 4, &[layer_a, layer_b])
+    }
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_layers_overflowing_canvas_bounds() {
+        let bytes = edge_overflow_layers_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+
+        let parallel = select_psd_composite_frame(&psd, None).expect("parallel composite");
+        let serial =
+            composite_visible_psd_layers_with_filter_serial(&psd, None).expect("serial oracle");
+        assert_eq!(parallel.pixels, serial.pixels);
+        // 実際にクリップが効いていることも直接確認する: 左上2×2は赤、
+        // 右下2×2は青、それ以外は透明のまま。
+        assert_eq!(
+            parallel.pixels,
+            vec![
+                255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, //
+                255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, //
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 255, 255, //
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 255, 255, //
+            ]
+        );
+    }
+
+    /// doc_height=1（バンド数がスレッド数min(8,コア数)まで増えても行数を
+    /// 上回るエッジケース）、幅5に2枚の非重複リーフ。
+    fn one_pixel_tall_canvas_fixture_bytes() -> Vec<u8> {
+        let px = |r: u8, g: u8, b: u8| vec![(0i16, vec![r]), (1i16, vec![g]), (2i16, vec![b]), (-1i16, vec![255u8])];
+        let left_leaf = FixtureLayer {
+            top: 0,
+            left: 0,
+            bottom: 1,
+            right: 1,
+            visible: true,
+            name: "left",
+            channels: px(255, 0, 0),
+            lsct: None,
+        };
+        let right_leaf = FixtureLayer {
+            top: 0,
+            left: 3,
+            bottom: 1,
+            right: 4,
+            visible: true,
+            name: "right",
+            channels: px(0, 0, 255),
+            lsct: None,
+        };
+        build_psd_from_fixture_layers(5, 1, &[left_leaf, right_leaf])
+    }
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_one_pixel_tall_canvas() {
+        let bytes = one_pixel_tall_canvas_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+
+        let parallel = select_psd_composite_frame(&psd, None).expect("parallel composite");
+        let serial =
+            composite_visible_psd_layers_with_filter_serial(&psd, None).expect("serial oracle");
+        assert_eq!(parallel.width, 5);
+        assert_eq!(parallel.height, 1);
+        assert_eq!(parallel.pixels, serial.pixels);
+        assert_eq!(
+            parallel.pixels,
+            vec![
+                255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0,
+            ]
+        );
+    }
+
+    #[test]
+    fn row_band_composite_matches_serial_oracle_for_selection_matching_no_layers() {
+        let bytes = nested_groups_display_fixture_bytes();
+        let psd = parse_psd_fast(&bytes).expect("full parse");
+        let empty_selection = vec!["definitely-not-a-real-stable-id".to_string()];
+
+        let parallel = select_psd_composite_frame(&psd, Some(empty_selection.as_slice()))
+            .expect("parallel composite");
+        let serial =
+            composite_visible_psd_layers_with_filter_serial(&psd, Some(empty_selection.as_slice()))
+                .expect("serial oracle");
+        assert_eq!(parallel.pixels, serial.pixels);
+        assert!(
+            parallel.pixels.iter().all(|&byte| byte == 0),
+            "一致するレイヤーが無ければキャンバスは全透明のまま"
+        );
+    }
+
+    #[test]
+    fn parse_psd_meta_only_rejects_16bit_depth() {
+        let bytes = build_test_psd_with_depth(1, 1, 16, &[(0, "leaf", (0, 0, 1, 1), false)]);
+        let err = match parse_psd_meta_only(&bytes) {
+            Err(err) => err,
+            Ok(_) => panic!("16bit depth must be rejected"),
+        };
+        assert!(
+            err.contains("16bit/32bit PSD"),
+            "エラーメッセージが未対応 depth を示していない: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_psd_meta_only_accepts_8bit_depth() {
+        let bytes = build_test_psd_with_depth(1, 1, 8, &[(0, "leaf", (0, 0, 1, 1), false)]);
+        let meta = parse_psd_meta_only(&bytes).expect("8bit depth must be accepted");
+        assert_eq!(meta.depth, 8);
+    }
+}

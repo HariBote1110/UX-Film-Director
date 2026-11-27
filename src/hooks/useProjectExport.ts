@@ -1,139 +1,538 @@
-import { useEffect } from 'react';
-import * as PIXI from 'pixi.js';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
-import { shallow } from 'zustand/shallow';
+import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMixdown';
+import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
+import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
+import { transcodeRustBackendVideo } from '../utils/rustBackendVideoEncodeControl';
+import { renderProjectExportFrame } from '../utils/projectExportFrameRenderer';
+import type { RenderProjectExportFrameResult } from '../utils/projectExportFrameRenderer';
+import {
+  buildProjectExportFrameSourcePlan,
+  createSingleUseProjectExportFrameSourceCloser,
+  formatProjectExportRustFrameSourceUnavailableDetail,
+  hasProjectExportNativeRenderMediaObjects,
+  resolveProjectExportFrameSourcePolicyForEncode,
+  resolveProjectExportRustFrameSourceContext,
+  type ProjectExportRustFrameSourceContext,
+  type ProjectExportRustFrameSource,
+} from '../utils/projectExportFrameCanvas';
+import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff';
+import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCompatibilityEncoder';
+import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
+import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
+import { resolveProjectExportVideoTranscodeFastPath } from '../utils/projectExportVideoTranscodeFastPath';
+import { resolveVideoExportEncodeSettings } from '../utils/videoExportEncodeSettings';
+import {
+  buildVideoExportCodecPayload,
+  getVideoExportCodecDescriptor,
+  resolveVideoExportSaveDialogOptions,
+  validateVideoExportOutputPath,
+} from '../utils/videoExportEncodeSettings';
+import type {
+  RustBackendVideoEncodeFrame,
+  RustBackendVideoEncodeNativeFramePayloadFrame,
+  RustBackendVideoEncodeResidentSceneFramePayloadFrame,
+  RustBackendVideoEncodeSharedFramePayloadFrame,
+} from '../utils/rustBackendVideoEncodeExport';
 
-const { ipcRenderer } = window;
+const createRustEncodeSessionId = (): string =>
+  `uxfd-export-${Date.now().toString(36)}`;
+
+const getProjectExportIpcRenderer = (): Window['ipcRenderer'] => {
+  const maybeIpcRenderer = (window as Partial<Window>).ipcRenderer;
+  if (!maybeIpcRenderer || typeof maybeIpcRenderer.invoke !== 'function') {
+    throw new Error('Electron IPC is unavailable. Export must be run from the Electron app window, not a plain browser tab.');
+  }
+  return maybeIpcRenderer;
+};
+
+const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
+  if ('bitmap' in frame) {
+    frame.bitmap.close();
+  }
+};
+
+const prepareProjectExportTranscodeAudioPath = async ({
+  objects,
+  exportDuration,
+  sampleRate,
+  ipcRenderer,
+}: {
+  objects: TimelineObject[];
+  exportDuration: number;
+  sampleRate: number;
+  ipcRenderer: Window['ipcRenderer'];
+}): Promise<string> => {
+  const mixedAudioWav = await buildExportAudioMixWav(objects, exportDuration, sampleRate);
+  if (!mixedAudioWav) {
+    throw new Error('混在音声の一時WAVを生成できませんでした');
+  }
+  const audioSaveResult = await ipcRenderer.invoke('save-temp-audio', mixedAudioWav);
+  if (!audioSaveResult?.success || typeof audioSaveResult.path !== 'string') {
+    throw new Error(audioSaveResult?.error || '音声一時ファイルを保存できませんでした');
+  }
+  return audioSaveResult.path;
+};
+
+const withExportStepTimeout = async <T,>(
+  promise: Promise<T>,
+  detail: string,
+  timeoutMs = 15000,
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`${detail} timed out after ${timeoutMs}ms.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
 
 export const useProjectExport = (
-  pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
-  videoElementsRef: React.MutableRefObject<Map<string, HTMLVideoElement>>,
-  renderScene: (time: number, objects: TimelineObject[]) => void
+  renderScene: (time: number, objects: TimelineObject[]) => void | Promise<void>,
+  getExportCanvas?: () => HTMLCanvasElement | null,
+  getRustExportFrameSource?: (context: ProjectExportRustFrameSourceContext) => ProjectExportRustFrameSource | null,
 ) => {
-  const { isExporting, setExporting, setTime } = useStore((state) => ({
-    isExporting: state.isExporting,
-    setExporting: state.setExporting,
-    setTime: state.setTime,
-  }), shallow);
+  const isExporting = useStore((state) => state.isExporting);
+
+  // コールバックの最新値を ref 経由で参照する。
+  // effect の依存配列は isExporting のみとし、renderScene などの identity 変化で
+  // effect が再発火して二重にエクスポートセッションが走るのを防ぐ。
+  const latestCallbacksRef = useRef({ renderScene, getExportCanvas, getRustExportFrameSource });
+  latestCallbacksRef.current = { renderScene, getExportCanvas, getRustExportFrameSource };
 
   useEffect(() => {
     if (!isExporting) return;
 
+    const { setExporting, setTime, setExportProgress } = useStore.getState();
+
     let cancelled = false;
+    // 副作用クリーンアップ（cancelled）とユーザーによるキャンセル要求の双方を見る。
+    const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
-        const app = pixiAppRef.current;
-        if (!app) return;
+      const ipcRenderer = getProjectExportIpcRenderer();
+      const rustExportOnly = import.meta.env.VITE_UXFD_RUST_EXPORT_ONLY === '1';
+      const exportEncodeSettings = resolveVideoExportEncodeSettings({
+        preset: import.meta.env.VITE_UXFD_VIDEO_EXPORT_QUALITY_PRESET,
+        videoBitrateKbps: Number(import.meta.env.VITE_UXFD_VIDEO_EXPORT_BITRATE_KBPS),
+      });
+      const rustExportRenderAheadFrameCount = Number(import.meta.env.VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES);
+      const { projectSettings, objects, layers, exportVideoCodec } = useStore.getState();
+      const exportCodecDescriptor = getVideoExportCodecDescriptor(exportVideoCodec);
+      const exportCodecPayload = buildVideoExportCodecPayload(exportVideoCodec);
+      const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+      const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
+      const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
+        editorMode: projectSettings.editorMode ?? '2d',
+        codec: exportVideoCodec,
+        rustExportOnly,
+        hasVideoObjects,
+        rustVideoEncoderBridge: window.rustVideoEncoder,
+      });
+      if (!exportEncodePlan.ok) {
+        alert(`エクスポート失敗: ${exportEncodePlan.detail}`);
+        setExporting(false);
+        return;
+      }
+      const hasNativeRenderMediaObjects = hasProjectExportNativeRenderMediaObjects(exportObjects);
+      const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
+        editorMode: projectSettings.editorMode ?? '2d',
+        rustExportOnly,
+        hasVideoObjects,
+        hasNativeRenderMediaObjects,
+        encodeEngine: exportEncodePlan.engine,
+      });
+      setExportProgress({
+        phase: 'preparing',
+        currentFrame: 0,
+        totalFrames: 0,
+        stepDetail: 'Rust export: resolving shared-frame source',
+      });
+      let rustFrameSourceUnavailableDetail: string | undefined;
+      const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
+        rustFrameSource: latestCallbacksRef.current.getRustExportFrameSource?.(resolveProjectExportRustFrameSourceContext({
+          objects: exportObjects,
+          time: 0,
+          encodeEngine: exportEncodePlan.engine,
+          presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined,
+          onFrameSourceUnavailable: (decision) => {
+            rustFrameSourceUnavailableDetail = formatProjectExportRustFrameSourceUnavailableDetail(decision);
+          },
+        })) ?? null,
+        rustFrameSourceUnavailableDetail,
+        rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
+        rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
+        hasVideoObjects,
+        hasNativeRenderMediaObjects,
+        getExportCanvas: latestCallbacksRef.current.getExportCanvas,
+      });
+      if (!initialFrameSourcePlan.ok) {
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames: 0,
+          stepDetail: 'Rust export: shared-frame source unavailable',
+          exportFrameSourcePlanFailure: {
+            reason: initialFrameSourcePlan.reason,
+            detail: initialFrameSourcePlan.detail,
+          },
+        });
+        alert(`エクスポート失敗: ${initialFrameSourcePlan.detail}`);
+        setExporting(false);
+        return;
+      }
+      const exportFrameSourcePlan = initialFrameSourcePlan;
+      const closeRustFrameSource = exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
+        ? createSingleUseProjectExportFrameSourceCloser(exportFrameSourcePlan.frameSource)
+        : null;
 
-        let exportSessionOpened = false;
+      try {
+        const fps = projectSettings.fps;
+        const width = projectSettings.width;
+        const height = projectSettings.height;
+        const sampleRate = projectSettings.sampleRate || 44100;
+        const lastEnd = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
+        const exportDuration = Math.max(lastEnd, 1);
+        const totalFrames = Math.ceil(exportDuration * fps);
+        // 進捗更新のスロットル間隔（約 10 回/秒）。
+        const progressStep = Math.max(1, Math.round(fps / 10));
 
-        try {
-            const { projectSettings, objects } = useStore.getState();
-            const fps = projectSettings.fps;
-            const dt = 1 / fps;
-            const videoObjects = objects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
-            
-            // Calculate total duration
-            const lastObjectEndTime = Math.max(...objects.map(o => o.startTime + o.duration), 0);
-            const exportDuration = Math.max(lastObjectEndTime, 1);
-            const totalFrames = Math.ceil(exportDuration * fps);
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames,
+          stepDetail: 'Rust export: waiting for save path',
+        });
 
-            // Pause all videos initially
-            const videos = Array.from(videoElementsRef.current.values());
-            videos.forEach(v => v.pause());
-
-            // Start export process via Electron
-            const result = await ipcRenderer.invoke('start-export', { 
-                width: projectSettings.width, 
-                height: projectSettings.height, 
-                fps: fps 
-            });
-
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to start export');
-            }
-            exportSessionOpened = true;
-
-            // Frame Rendering Loop
-            for (let i = 0; i < totalFrames; i++) {
-                if (cancelled) break;
-
-                const t = i * dt;
-                if (i % Math.max(1, Math.floor(fps / 2)) === 0) {
-                    setTime(t);
-                }
-
-                // Handle Video Seeking
-                const activeVideos = videoObjects.filter(obj => t >= obj.startTime && t < obj.startTime + obj.duration);
-                if (activeVideos.length > 0) {
-                    const seekPromises = activeVideos.map(obj => {
-                        const video = videoElementsRef.current.get(obj.id);
-                        if (video && video.readyState >= 1) {
-                            const offset = obj.offset || 0;
-                            const targetTime = (t - obj.startTime) + offset;
-                            
-                            if (Math.abs(video.currentTime - targetTime) < 0.001) return Promise.resolve();
-
-                            return new Promise<void>((resolve) => {
-                                const onSeeked = () => {
-                                    video.removeEventListener('seeked', onSeeked);
-                                    resolve();
-                                };
-                                // Timeout fallback
-                                setTimeout(() => {
-                                    video.removeEventListener('seeked', onSeeked);
-                                    resolve();
-                                }, 1000);
-                                video.addEventListener('seeked', onSeeked);
-                                video.currentTime = targetTime;
-                            });
-                        }
-                        return Promise.resolve();
-                    });
-                    await Promise.all(seekPromises);
-                }
-
-                // Render Frame
-                renderScene(t, objects);
-                
-                // Capture and write frame
-                const blob = await new Promise<Blob | null>((resolve) => {
-                  app.canvas.toBlob(resolve, 'image/jpeg', 0.90);
-                });
-                if (!blob) continue;
-
-                const frameBuffer = await blob.arrayBuffer();
-                const wrote = await ipcRenderer.invoke('write-frame', frameBuffer);
-                if (!wrote) {
-                    throw new Error(`Failed to write frame ${i + 1}/${totalFrames}`);
-                }
-            }
-
-            const ended = await ipcRenderer.invoke('end-export');
-            exportSessionOpened = false;
-            if (!ended) {
-                throw new Error('Failed to finalise export');
-            }
-
-            if (!cancelled) {
-                alert("Export Finished!");
-            }
-        } catch (error) {
-            if (!cancelled) {
-                alert(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
-            }
-        } finally {
-            if (exportSessionOpened) {
-                await ipcRenderer.invoke('end-export');
-            }
-            setExporting(false);
+        // ファイル保存先を先に決定（ユーザー操作が必要なため）
+        const savePath = await ipcRenderer.invoke(
+          'show-save-dialog',
+          resolveVideoExportSaveDialogOptions(exportVideoCodec),
+        );
+        if (!savePath) { setExporting(false); return; }
+        const invalidSavePathMessage = validateVideoExportOutputPath(savePath, exportVideoCodec);
+        if (invalidSavePathMessage) {
+          alert(`エクスポート失敗: ${invalidSavePathMessage}`);
+          setExporting(false);
+          return;
         }
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames,
+          stepDetail: 'Rust export: preparing encoder',
+        });
+
+        const encWidth = width % 2 === 0 ? width : width - 1;
+        const encHeight = height % 2 === 0 ? height : height - 1;
+        const rustEncodeSessionId = createRustEncodeSessionId();
+        const transcodeFastPath = resolveProjectExportVideoTranscodeFastPath({
+          objects: exportObjects,
+          width: encWidth,
+          height: encHeight,
+          fps,
+          durationSeconds: exportDuration,
+        });
+
+        if (
+          exportEncodePlan.engine === 'rustBackendVideoEncoder'
+          && transcodeFastPath
+          && typeof window.rustVideoEncoder.transcodeVideo === 'function'
+        ) {
+          const { requiresAudioMix, ...transcodePayload } = transcodeFastPath;
+          let preparedTranscodeAudioPath: string | null = null;
+          setExportProgress({
+            phase: 'transcoding',
+            currentFrame: 0,
+            totalFrames,
+            startedAtMs: Date.now(),
+            stepDetail: 'Rust export: direct video transcode running',
+          });
+          const unsubscribeTranscodeProgress = window.rustVideoEncoder.onTranscodeProgress?.((event) => {
+            if (event.sessionId !== rustEncodeSessionId) return;
+            const currentProgress = useStore.getState().exportProgress;
+            setExportProgress(updateExportProgressPhase(currentProgress, {
+              phase: 'transcoding',
+              currentFrame: event.completedFrames,
+              totalFrames: event.totalFrames,
+              stepDetail: `Rust export: direct video transcode ${event.percent.toFixed(1)}%`,
+            }));
+          });
+          const transcodeResponse = await (async () => {
+            try {
+              const transcodeAudioPath = requiresAudioMix
+                ? await prepareProjectExportTranscodeAudioPath({
+                  objects: exportObjects,
+                  exportDuration,
+                  sampleRate,
+                  ipcRenderer,
+                })
+                : null;
+              preparedTranscodeAudioPath = transcodeAudioPath;
+              return await transcodeRustBackendVideo({
+                ...transcodePayload,
+                ...exportEncodeSettings,
+                ...exportCodecPayload,
+                audioPath: transcodeAudioPath,
+                sessionId: rustEncodeSessionId,
+                outputPath: savePath,
+              });
+            } finally {
+              unsubscribeTranscodeProgress?.();
+              if (preparedTranscodeAudioPath) {
+                await ipcRenderer.invoke('delete-temp-file', { filePath: preparedTranscodeAudioPath }).catch(() => {});
+              }
+            }
+          })();
+          if (!transcodeResponse.success) {
+            throw new Error(transcodeResponse.error ?? 'Rust backend video transcode failed.');
+          }
+          const transcodeResult = transcodeResponse.result as { frameCount?: number } | undefined;
+          if (isCancelled()) return;
+          const savingProgress = useStore.getState().exportProgress;
+          setExportProgress(updateExportProgressPhase(savingProgress, {
+            phase: 'saving',
+            currentFrame: totalFrames,
+            totalFrames,
+            stepDetail: 'Rust export: direct video transcode finished',
+          }));
+          alert(`エクスポート完了！\nコーデック: Rust backend direct transcode\n選択コーデック: ${exportCodecDescriptor.label}\nフレーム: ${transcodeResult?.frameCount ?? totalFrames}\n保存先: ${savePath}`);
+          return;
+        }
+
+        async function* renderFrames(preferSharedFrame: boolean) {
+          let rustFrameSourceBlocked = false;
+
+          for (let i = 0; i < totalFrames; i++) {
+            if (isCancelled()) break;
+
+            // 進捗を更新（スロットル）。
+            if (i % progressStep === 0) {
+              const progress = useStore.getState().exportProgress;
+              setExportProgress(updateExportProgressPhase(progress, {
+                phase: 'rendering',
+                currentFrame: i,
+                totalFrames,
+                stepDetail: preferSharedFrame
+                  ? `Rust export: waiting for shared-frame source frame=${i}`
+                  : `Rust export: rendering compatibility frame=${i}`,
+              }));
+            }
+
+            const stepDetail = preferSharedFrame
+              ? `Rust export shared-frame source frame=${i}`
+              : `Rust export compatibility frame=${i}`;
+            const result: RenderProjectExportFrameResult = await withExportStepTimeout(renderProjectExportFrame({
+              frameSourcePlan: exportFrameSourcePlan,
+              rustFrameSourceBlocked,
+              frameIndex: i,
+              fps,
+              width: encWidth,
+              height: encHeight,
+              objects: exportObjects,
+              encodeSessionId: rustEncodeSessionId,
+              preferSharedFrame,
+              renderScene: latestCallbacksRef.current.renderScene,
+              getExportCanvas: latestCallbacksRef.current.getExportCanvas,
+              closeRustFrameSource: closeRustFrameSource ?? undefined,
+              onSynchroniseTimeline: setTime,
+              onRustFrameSourceBlocked: (event) => {
+                const currentProgress = useStore.getState().exportProgress;
+                if (currentProgress) {
+                  setExportProgress({
+                    ...currentProgress,
+                    stepDetail: `Rust export: shared-frame source blocked frame=${event.frameIndex}`,
+                    rustFrameSourceBlocked: event,
+                  });
+                }
+              },
+              onRustFrameSourceFallback: (event) => {
+                console.warn('[Export] Rust/shared renderer frame source blocked.', event);
+              },
+            }), stepDetail);
+            rustFrameSourceBlocked = result.rustFrameSourceBlocked;
+            yield result.frame;
+            closeEncodedFrameBitmap(result.frame);
+          }
+
+        }
+
+        async function* renderRustEncodeFrames(): AsyncGenerator<
+          RustBackendVideoEncodeSharedFramePayloadFrame
+          | RustBackendVideoEncodeNativeFramePayloadFrame
+          | RustBackendVideoEncodeResidentSceneFramePayloadFrame
+        > {
+          for await (const frame of renderFrames(true)) {
+            if (
+              'sharedFramePayload' in frame
+              || 'nativeEncodeFramePayload' in frame
+              || 'residentSceneEncodeFramePayload' in frame
+            ) {
+              yield frame;
+              continue;
+            }
+            frame.bitmap.close();
+            throw new Error(
+              'Rust backend encoder requires shared-frame, native encode, or resident scene payloads from the export frame source.'
+            );
+          }
+        }
+
+        if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
+          let audioPath: string | null = null;
+          try {
+            setExportProgress({
+              phase: 'preparing',
+              currentFrame: 0,
+              totalFrames,
+              stepDetail: 'Rust export: preparing audio mix',
+            });
+            const mixedAudioWav = await buildExportAudioMixWav(exportObjects, exportDuration, sampleRate);
+            if (mixedAudioWav) {
+              setExportProgress({
+                phase: 'preparing',
+                currentFrame: 0,
+                totalFrames,
+                stepDetail: 'Rust export: saving temporary audio',
+              });
+              const audioSaveResult = await ipcRenderer.invoke('save-temp-audio', mixedAudioWav);
+              if (!audioSaveResult?.success || typeof audioSaveResult.path !== 'string') {
+                throw new Error(audioSaveResult?.error || '音声一時ファイルを保存できませんでした');
+              }
+              audioPath = audioSaveResult.path;
+            }
+
+            const result = await runRustBackendVideoEncodeExport({
+              filePath: savePath,
+              audioPath,
+              sessionId: rustEncodeSessionId,
+              width: encWidth,
+              height: encHeight,
+              fps,
+              ...exportCodecPayload,
+              iosurfaceEncode: (
+                exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
+                && exportFrameSourcePlan.frameSource.encodeTarget === 'iosurfaceVideoToolbox'
+              ),
+              frames: renderRustEncodeFrames(),
+              renderAheadFrameCount: rustExportRenderAheadFrameCount,
+              onNativeRenderOutputRelease: (event) => {
+                const currentProgress = useStore.getState().exportProgress;
+                if (!currentProgress) return;
+                setExportProgress({
+                  ...currentProgress,
+                  stepDetail: currentProgress.stepDetail ?? 'Rust export: releasing native render output',
+                  nativeRenderOutputRelease: event,
+                });
+              },
+            });
+            if (isCancelled()) return;
+
+            const savingProgress = useStore.getState().exportProgress;
+            setExportProgress(updateExportProgressPhase(savingProgress, {
+              phase: 'saving',
+              currentFrame: totalFrames,
+              totalFrames,
+              stepDetail: 'Rust export: finishing encoder',
+            }));
+            alert(`エクスポート完了！\nコーデック: ${result.encoderPath}\n選択コーデック: ${exportCodecDescriptor.label}\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
+          } finally {
+            if (audioPath) {
+              await ipcRenderer.invoke('delete-temp-file', { filePath: audioPath }).catch(() => {});
+            }
+          }
+          return;
+        }
+
+        if (exportVideoCodec !== 'h264') {
+          throw new Error(`${exportCodecDescriptor.label} は Rust バックエンドのエンコーダーでのみ書き出せます。`);
+        }
+
+        if (hasVideoObjects) {
+          throw new Error('Video export requires the Rust backend encoder before opening the WebCodecs export stream.');
+        }
+
+        const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames,
+          stepDetail: 'Rust export: opening compatibility stream',
+        });
+
+        // 出力をディスクへ逐次書き出す（出力全体をメモリに保持しない）。
+        const openRes = await ipcRenderer.invoke('export-stream-open', { filePath: savePath });
+        if (!openRes?.success) throw new Error(openRes?.error || '出力ファイルを開けませんでした');
+        const streamId = openRes.id as number;
+        let writtenBytes = 0;
+        let streamClosed = false;
+        const closeStream = async () => {
+          if (streamClosed) return;
+          streamClosed = true;
+          await ipcRenderer.invoke('export-stream-close', { id: streamId }).catch(() => {});
+        };
+
+        let result;
+        try {
+          result = await encodeProjectExportCompatibilityVideo({
+            width,
+            height,
+            fps,
+            frames: renderFrames(false) as AsyncIterable<{ timestamp: number; bitmap: ImageBitmap }>,
+            audioBuffer,
+            hasVideoObjects,
+            writeChunk: async (data, position) => {
+              const end = position + data.byteLength;
+              if (end > writtenBytes) writtenBytes = end;
+              const w = await ipcRenderer.invoke('export-stream-write', {
+                id: streamId,
+                chunk: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+                position,
+              });
+              if (!w?.success) throw new Error(w?.error || 'チャンク書き込みに失敗しました');
+            },
+          });
+        } finally {
+          await closeStream();
+        }
+
+        if (isCancelled()) return;
+
+        if (!isCancelled()) {
+          const savingProgress = useStore.getState().exportProgress;
+          setExportProgress(updateExportProgressPhase(savingProgress, {
+            phase: 'saving',
+            currentFrame: totalFrames,
+            totalFrames,
+            stepDetail: 'Rust export: compatibility encode finished',
+          }));
+          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\n選択コーデック: ${exportCodecDescriptor.label}\nサイズ: ${(writtenBytes / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
+        }
+
+      } catch (error) {
+        if (!isCancelled()) {
+          alert(`エクスポート失敗: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      } finally {
+        if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource') {
+          await closeRustFrameSource?.();
+        }
+        setExporting(false);
+        logLastExportDiagnostics(useStore.getState().lastExportDiagnostics);
+      }
     };
 
     runExport();
-    return () => {
-      cancelled = true;
-    };
-  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef]);
+    return () => { cancelled = true; };
+  }, [isExporting]);
 };

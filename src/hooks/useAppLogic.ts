@@ -1,27 +1,63 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
+import { commandBus } from '../commands/commandBus';
+import { registerAppCommands } from '../commands/registerAppCommands';
+import { resolveKeyCommand, shouldIgnoreEditableTargetShortcut } from './keyCommandResolver';
+import { connectRemoteDeckToCommandBus } from '../remoteDeck/connectRemoteDeckToCommandBus';
+import { subscribeStoreToRemoteDeckState } from '../remoteDeck/remoteDeckStatePush';
+import { subscribeStoreToRemoteDeckPlayback } from '../remoteDeck/remoteDeckPlaybackPush';
+import { shouldRunRendererPlaybackClock } from '../utils/playbackClockOwnership';
 
 export const useAppLogic = () => {
-  const { 
-    isPlaying, 
-    togglePlay, 
-    advanceTime, 
-    selectedId, 
-    deleteObject, 
-    selectObject,
-    undo,
-    redo
+  const {
+    isPlaying,
+    nativePlaybackActive,
+    advanceTime,
+    selectedIds,
+    copySelectedObjects,
+    cutSelectedObjects,
+    pasteClipboardObjects,
+    duplicateSelectedObjects,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
   } = useStore((state) => ({
     isPlaying: state.isPlaying,
-    togglePlay: state.togglePlay,
+    nativePlaybackActive: state.nativePlaybackActive,
     advanceTime: state.advanceTime,
-    selectedId: state.selectedId,
-    deleteObject: state.deleteObject,
-    selectObject: state.selectObject,
-    undo: state.undo,
-    redo: state.redo,
+    selectedIds: state.selectedIds,
+    copySelectedObjects: state.copySelectedObjects,
+    cutSelectedObjects: state.cutSelectedObjects,
+    pasteClipboardObjects: state.pasteClipboardObjects,
+    duplicateSelectedObjects: state.duplicateSelectedObjects,
+    groupSelectedObjects: state.groupSelectedObjects,
+    ungroupSelectedObjects: state.ungroupSelectedObjects,
   }), shallow);
+
+  // --- 0. CommandBus wiring (registered once; handlers read live store state) ---
+  useEffect(() => {
+    registerAppCommands(commandBus, useStore);
+    // Remote Control Deck (Phase 2): main が転送する remote-deck:command を
+    // 同じ CommandBus で実行する。ipcRenderer が無い環境（テスト等）では省略。
+    const ipc = window.ipcRenderer;
+    if (typeof ipc?.on !== 'function' || typeof ipc?.off !== 'function') return undefined;
+    const disconnectCommands = connectRemoteDeckToCommandBus(ipc, commandBus);
+    // Phase 4: 選択コンテキスト（TouchBar 風操作面の内容）を main 経由で
+    // デッキへ push。変化があったときだけ送信する。
+    const canSend = typeof ipc.send === 'function';
+    const unsubscribeState = canSend
+      ? subscribeStoreToRemoteDeckState(useStore, (channel, context) => ipc.send(channel, context))
+      : () => undefined;
+    // Phase 5: 再生状態 + タイムコード。時刻のみの更新は約5Hzに間引く。
+    const unsubscribePlayback = canSend
+      ? subscribeStoreToRemoteDeckPlayback(useStore, (channel, state) => ipc.send(channel, state))
+      : () => undefined;
+    return () => {
+      disconnectCommands();
+      unsubscribeState();
+      unsubscribePlayback();
+    };
+  }, []);
 
   // --- 1. Animation Loop (Playback Engine) ---
   const lastTimeRef = useRef<number>(0);
@@ -37,7 +73,7 @@ export const useAppLogic = () => {
   };
 
   useEffect(() => {
-    if (isPlaying) {
+    if (shouldRunRendererPlaybackClock({ isPlaying, nativePlaybackActive })) {
       lastTimeRef.current = 0; // Reset last time to avoid huge jump
       requestRef.current = requestAnimationFrame(animate);
     } else {
@@ -50,50 +86,71 @@ export const useAppLogic = () => {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [isPlaying]); // Re-run when play state changes
+  }, [isPlaying, nativePlaybackActive]); // Re-run when clock ownership changes
 
   // --- 2. Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore shortcuts if user is typing in an input field
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Keep native text undo in ordinary fields. Filter controls route
+      // application undo/redo so their pending edit session can be flushed.
+      const hasEditableTarget = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      const hasFilterParamEditor = e.target instanceof Element
+        && e.target.closest('[data-filter-param-editor]') !== null;
+      if (shouldIgnoreEditableTargetShortcut(e, hasEditableTarget, hasFilterParamEditor)) {
         return;
       }
 
-      // Undo/Redo
-      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
+      // Commands routed through the CommandBus (Remote_Control_Deck_Plan.md Phase 1)
+      const resolution = resolveKeyCommand(e, { hasSelection: selectedIds.length > 0 });
+      if (resolution) {
+        if (resolution.preventDefault) {
           e.preventDefault();
-          if (e.shiftKey) {
-              redo();
-          } else {
-              undo();
-          }
+        }
+        commandBus.execute(resolution.id, resolution.payload);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyC') {
+          e.preventDefault();
+          copySelectedObjects();
           return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyY') {
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyX') {
           e.preventDefault();
-          redo();
+          cutSelectedObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyV') {
+          e.preventDefault();
+          pasteClipboardObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyD') {
+          e.preventDefault();
+          duplicateSelectedObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyG') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            ungroupSelectedObjects();
+          } else {
+            groupSelectedObjects();
+          }
           return;
       }
 
-      switch (e.code) {
-        case 'Space':
-          e.preventDefault(); // Prevent scrolling
-          togglePlay();
-          break;
-        case 'Delete':
-        case 'Backspace':
-          if (selectedId) {
-            deleteObject(selectedId);
-          }
-          break;
-        case 'Escape':
-          selectObject(null);
-          break;
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, togglePlay, deleteObject, selectObject, undo, redo]);
+  }, [
+    selectedIds,
+    copySelectedObjects,
+    cutSelectedObjects,
+    pasteClipboardObjects,
+    duplicateSelectedObjects,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
+  ]);
 };

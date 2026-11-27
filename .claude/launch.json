@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "renderer-only",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "VITEST=true npx vite --port 5199 --strictPort"],
+      "port": 5199
+    }
+  ]
+}

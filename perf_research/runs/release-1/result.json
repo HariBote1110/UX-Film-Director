@@ -1,0 +1,2103 @@
+{
+  "passed": true,
+  "paths": {
+    "video": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+    "proxy": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+    "image": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+    "audio": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-bed.wav",
+    "project": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit.uxfd.json",
+    "screenshot": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/viewport.png",
+    "export": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-preview.mp4",
+    "chromiumRendererTrace": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/chromium-renderer-trace.json"
+  },
+  "seed": {
+    "ok": true,
+    "stage": "seeded",
+    "inspection": {
+      "ok": true,
+      "errors": [],
+      "sceneCount": 3,
+      "objectCount": 58,
+      "uniqueObjectIdCount": 58,
+      "nonFiniteNumberCount": 0,
+      "danglingReferenceCount": 0
+    },
+    "snapshot": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 36,
+      "totalObjectCount": 58,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 0,
+      "duration": 24,
+      "timelineItemCount": 36,
+      "presenterStatus": null,
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "ready",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false
+    }
+  },
+  "exercise": {
+    "ok": true,
+    "errors": [],
+    "before": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 36,
+      "totalObjectCount": 58,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 0,
+      "duration": 24,
+      "timelineItemCount": 36,
+      "presenterStatus": null,
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "ready",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false
+    },
+    "after": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 45,
+      "totalObjectCount": 67,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 2.9688999999999997,
+      "duration": 24,
+      "timelineItemCount": 45,
+      "presenterStatus": "ready",
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "ready",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false
+    },
+    "scrubIterations": 360,
+    "scrubDurationMs": 506.5899999141693,
+    "clearedSelectionBeforePlayback": false,
+    "duplicatedObjectCount": 45,
+    "undoObjectCount": 36,
+    "redoObjectCount": 45,
+    "playbackMs": 3000,
+    "rafSampleCount": 179,
+    "rafMeanMs": 16.67301675993637,
+    "rafP95Ms": 20.194999933242798,
+    "rafMaxMs": 23.75,
+    "longTaskCount": 2,
+    "longTaskMaxMs": 72,
+    "reactProfile": {
+      "enabled": true,
+      "sampleCount": 199,
+      "droppedSampleCount": 0,
+      "components": [
+        {
+          "id": "Viewport",
+          "commitCount": 187,
+          "totalActualDurationMs": 35.755000591278076,
+          "maxActualDurationMs": 0.7349998950958252,
+          "totalBaseDurationMs": 36.459999561309814,
+          "meanActualDurationMs": 0.1912032117180646
+        },
+        {
+          "id": "PropertyPanel",
+          "commitCount": 7,
+          "totalActualDurationMs": 2.260000467300415,
+          "maxActualDurationMs": 0.6200001239776611,
+          "totalBaseDurationMs": 1.890000343322754,
+          "meanActualDurationMs": 0.322857209614345
+        },
+        {
+          "id": "Timeline",
+          "commitCount": 5,
+          "totalActualDurationMs": 28.359997510910034,
+          "maxActualDurationMs": 8.559999942779541,
+          "totalBaseDurationMs": 19.844998598098755,
+          "meanActualDurationMs": 5.671999502182007
+        }
+      ],
+      "samples": [
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.7349998950958252,
+          "baseDuration": 0.6449997425079346,
+          "startTime": 10114.560000181198,
+          "commitTime": 10115.40499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2349998950958252,
+          "baseDuration": 0.18499994277954102,
+          "startTime": 10151.430000066757,
+          "commitTime": 10151.685000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.32000017166137695,
+          "baseDuration": 0.25500011444091797,
+          "startTime": 10195.15499997139,
+          "commitTime": 10203.950000047684
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.6200001239776611,
+          "baseDuration": 0.4650001525878906,
+          "startTime": 10195.480000019073,
+          "commitTime": 10203.950000047684
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 7.499998569488525,
+          "baseDuration": 4.6399986743927,
+          "startTime": 10196.140000104904,
+          "commitTime": 10203.950000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "nested-update",
+          "actualDuration": 0.1700000762939453,
+          "baseDuration": 0.1400003433227539,
+          "startTime": 10206.44000005722,
+          "commitTime": 10211.370000123978
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "nested-update",
+          "actualDuration": 0.2200002670288086,
+          "baseDuration": 0.18000030517578125,
+          "startTime": 10206.615000009537,
+          "commitTime": 10211.370000123978
+        },
+        {
+          "id": "Timeline",
+          "phase": "nested-update",
+          "actualDuration": 4.139998912811279,
+          "baseDuration": 2.5250003337860107,
+          "startTime": 10206.850000143051,
+          "commitTime": 10211.370000123978
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25999999046325684,
+          "baseDuration": 0.20000004768371582,
+          "startTime": 10218.045000076294,
+          "commitTime": 10218.730000019073
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.24000000953674316,
+          "baseDuration": 0.23000025749206543,
+          "startTime": 10218.310000181198,
+          "commitTime": 10218.730000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24000000953674316,
+          "baseDuration": 0.20000028610229492,
+          "startTime": 10241.620000123978,
+          "commitTime": 10251.045000076294
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.2500002384185791,
+          "baseDuration": 0.21500015258789062,
+          "startTime": 10241.865000009537,
+          "commitTime": 10251.045000076294
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 8.559999942779541,
+          "baseDuration": 4.425000190734863,
+          "startTime": 10242.125,
+          "commitTime": 10251.045000076294
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25,
+          "baseDuration": 0.18499970436096191,
+          "startTime": 10264.590000152588,
+          "commitTime": 10265.125
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.1700000762939453,
+          "baseDuration": 0.23000001907348633,
+          "startTime": 10264.840000152588,
+          "commitTime": 10265.125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3899998664855957,
+          "baseDuration": 0.2849996089935303,
+          "startTime": 10276.91000008583,
+          "commitTime": 10283.56500005722
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.5699996948242188,
+          "baseDuration": 0.4249997138977051,
+          "startTime": 10277.310000181198,
+          "commitTime": 10283.56500005722
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 5.220000267028809,
+          "baseDuration": 4.97499942779541,
+          "startTime": 10277.914999961853,
+          "commitTime": 10283.56500005722
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3400001525878906,
+          "baseDuration": 0.2850000858306885,
+          "startTime": 10443.230000019073,
+          "commitTime": 10443.600000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 10622.289999961853,
+          "commitTime": 10622.505000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 10689.370000123978,
+          "commitTime": 10689.670000076294
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499993324279785,
+          "baseDuration": 0.1550002098083496,
+          "startTime": 10692.335000038147,
+          "commitTime": 10692.555000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19999980926513672,
+          "baseDuration": 0.14499998092651367,
+          "startTime": 10924.110000133514,
+          "commitTime": 10924.335000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21499991416931152,
+          "baseDuration": 0.15999984741210938,
+          "startTime": 10946.715000152588,
+          "commitTime": 10946.945000171661
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.315000057220459,
+          "baseDuration": 0.2649996280670166,
+          "startTime": 10968.03500008583,
+          "commitTime": 10968.380000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.1699998378753662,
+          "baseDuration": 0.12999987602233887,
+          "startTime": 10985.740000009537,
+          "commitTime": 10985.935000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18499994277954102,
+          "baseDuration": 0.13500022888183594,
+          "startTime": 11006.580000162125,
+          "commitTime": 11006.78500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2349998950958252,
+          "baseDuration": 0.19499993324279785,
+          "startTime": 11035.330000162125,
+          "commitTime": 11035.59500002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.22999978065490723,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 11056.505000114441,
+          "commitTime": 11056.755000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19000005722045898,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 11078.789999961853,
+          "commitTime": 11079.005000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.1699998378753662,
+          "baseDuration": 0.13000011444091797,
+          "startTime": 11095.840000152588,
+          "commitTime": 11096.02999997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.4049999713897705,
+          "baseDuration": 0.315000057220459,
+          "startTime": 11117.200000047684,
+          "commitTime": 11117.65499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.315000057220459,
+          "startTime": 11156.640000104904,
+          "commitTime": 11156.91000008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.22500014305114746,
+          "baseDuration": 0.17000031471252441,
+          "startTime": 11175.105000019073,
+          "commitTime": 11175.355000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.47499990463256836,
+          "baseDuration": 0.38499999046325684,
+          "startTime": 11201.759999990463,
+          "commitTime": 11202.28500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.309999942779541,
+          "baseDuration": 0.25500035285949707,
+          "startTime": 11223.950000047684,
+          "commitTime": 11224.28500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.23000001907348633,
+          "baseDuration": 0.17499995231628418,
+          "startTime": 11245.965000152588,
+          "commitTime": 11246.215000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.30500006675720215,
+          "baseDuration": 0.22500014305114746,
+          "startTime": 11262.52999997139,
+          "commitTime": 11262.860000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21000003814697266,
+          "baseDuration": 0.15999984741210938,
+          "startTime": 11281.65499997139,
+          "commitTime": 11281.884999990463
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.15000009536743164,
+          "startTime": 11303.960000038147,
+          "commitTime": 11304.180000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499993324279785,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 11320.610000133514,
+          "commitTime": 11320.820000171661
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24500012397766113,
+          "baseDuration": 0.19000029563903809,
+          "startTime": 11339.09500002861,
+          "commitTime": 11339.360000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25499987602233887,
+          "baseDuration": 0.18499994277954102,
+          "startTime": 11354.605000019073,
+          "commitTime": 11354.890000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2350001335144043,
+          "baseDuration": 0.17999982833862305,
+          "startTime": 11373.730000019073,
+          "commitTime": 11373.980000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.17000031471252441,
+          "baseDuration": 0.1250002384185791,
+          "startTime": 11390.15499997139,
+          "commitTime": 11390.350000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25500011444091797,
+          "baseDuration": 0.19499993324279785,
+          "startTime": 11408.170000076294,
+          "commitTime": 11408.450000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499993324279785,
+          "baseDuration": 0.14500021934509277,
+          "startTime": 11424.06500005722,
+          "commitTime": 11424.275000095367
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499993324279785,
+          "baseDuration": 0.14499998092651367,
+          "startTime": 11440.680000066757,
+          "commitTime": 11440.894999980927
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2850000858306885,
+          "baseDuration": 0.2349998950958252,
+          "startTime": 11461.394999980927,
+          "commitTime": 11461.710000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2350001335144043,
+          "baseDuration": 0.18000006675720215,
+          "startTime": 11480.134999990463,
+          "commitTime": 11480.40499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2049999237060547,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 11503.31500005722,
+          "commitTime": 11503.53500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2850000858306885,
+          "baseDuration": 0.19499969482421875,
+          "startTime": 11518.84500002861,
+          "commitTime": 11519.19000005722
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.1700000762939453,
+          "baseDuration": 0.125,
+          "startTime": 11534.72000002861,
+          "commitTime": 11534.90499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2050001621246338,
+          "baseDuration": 0.1549999713897705,
+          "startTime": 11548.615000009537,
+          "commitTime": 11548.835000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.23000001907348633,
+          "baseDuration": 0.18499970436096191,
+          "startTime": 11561.394999980927,
+          "commitTime": 11561.680000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.18499970436096191,
+          "startTime": 11574.245000123978,
+          "commitTime": 11574.40499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.30500006675720215,
+          "baseDuration": 0.2349998950958252,
+          "startTime": 11578.295000076294,
+          "commitTime": 11578.640000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.2349998950958252,
+          "startTime": 11591.295000076294,
+          "commitTime": 11591.420000076294
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.26999998092651367,
+          "baseDuration": 0.19500017166137695,
+          "startTime": 11594.019999980927,
+          "commitTime": 11594.325000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.19500017166137695,
+          "startTime": 11606.295000076294,
+          "commitTime": 11606.40499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24000000953674316,
+          "baseDuration": 0.19000029563903809,
+          "startTime": 11611.350000143051,
+          "commitTime": 11611.610000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.19000029563903809,
+          "startTime": 11622.670000076294,
+          "commitTime": 11622.81500005722
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.31999993324279785,
+          "baseDuration": 0.23000001907348633,
+          "startTime": 11627.56500005722,
+          "commitTime": 11627.930000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.23000001907348633,
+          "startTime": 11641.424999952316,
+          "commitTime": 11641.549999952316
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.375,
+          "baseDuration": 0.27499985694885254,
+          "startTime": 11645.640000104904,
+          "commitTime": 11646.080000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.27499985694885254,
+          "startTime": 11657.789999961853,
+          "commitTime": 11657.950000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25499987602233887,
+          "baseDuration": 0.19499993324279785,
+          "startTime": 11661.725000143051,
+          "commitTime": 11662.005000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.19499993324279785,
+          "startTime": 11675.140000104904,
+          "commitTime": 11675.265000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.1549999713897705,
+          "baseDuration": 0.11500000953674316,
+          "startTime": 11677.430000066757,
+          "commitTime": 11677.59500002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.11500000953674316,
+          "startTime": 11690.765000104904,
+          "commitTime": 11690.884999990463
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499993324279785,
+          "baseDuration": 0.14500021934509277,
+          "startTime": 11694.705000162125,
+          "commitTime": 11694.935000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.004999876022338867,
+          "baseDuration": 0.14500021934509277,
+          "startTime": 11708.525000095367,
+          "commitTime": 11708.650000095367
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18500018119812012,
+          "baseDuration": 0.12000012397766113,
+          "startTime": 11711.265000104904,
+          "commitTime": 11711.480000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.12000012397766113,
+          "startTime": 11723.060000181198,
+          "commitTime": 11723.185000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3899998664855957,
+          "baseDuration": 0.309999942779541,
+          "startTime": 11728.53500008583,
+          "commitTime": 11728.955000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25999999046325684,
+          "baseDuration": 0.20000028610229492,
+          "startTime": 11745.664999961853,
+          "commitTime": 11745.950000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21499991416931152,
+          "baseDuration": 0.16000008583068848,
+          "startTime": 11762.400000095367,
+          "commitTime": 11762.634999990463
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.16000008583068848,
+          "startTime": 11775.085000038147,
+          "commitTime": 11775.210000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20999979972839355,
+          "baseDuration": 0.14499974250793457,
+          "startTime": 11777.695000171661,
+          "commitTime": 11777.920000076294
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.14499974250793457,
+          "startTime": 11791.769999980927,
+          "commitTime": 11791.930000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.434999942779541,
+          "baseDuration": 0.38500022888183594,
+          "startTime": 11794.049999952316,
+          "commitTime": 11794.509999990463
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2200000286102295,
+          "baseDuration": 0.18000006675720215,
+          "startTime": 11815.505000114441,
+          "commitTime": 11815.755000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3450000286102295,
+          "baseDuration": 0.29000043869018555,
+          "startTime": 11838.52999997139,
+          "commitTime": 11838.900000095367
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.14499998092651367,
+          "startTime": 11854.670000076294,
+          "commitTime": 11854.890000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21500015258789062,
+          "baseDuration": 0.1700000762939453,
+          "startTime": 11873.144999980927,
+          "commitTime": 11873.380000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2200000286102295,
+          "baseDuration": 0.16500020027160645,
+          "startTime": 11887.705000162125,
+          "commitTime": 11887.955000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21499991416931152,
+          "baseDuration": 0.16000008583068848,
+          "startTime": 11905.840000152588,
+          "commitTime": 11906.075000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25999999046325684,
+          "baseDuration": 0.19500041007995605,
+          "startTime": 11922.555000066757,
+          "commitTime": 11922.840000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.22500014305114746,
+          "baseDuration": 0.17499971389770508,
+          "startTime": 11937.759999990463,
+          "commitTime": 11938.005000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2049999237060547,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 11953.195000171661,
+          "commitTime": 11953.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24000000953674316,
+          "baseDuration": 0.17999982833862305,
+          "startTime": 11969.134999990463,
+          "commitTime": 11969.41000008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25,
+          "baseDuration": 0.18499994277954102,
+          "startTime": 11984.920000076294,
+          "commitTime": 11985.195000171661
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2950000762939453,
+          "baseDuration": 0.20999979972839355,
+          "startTime": 12004.755000114441,
+          "commitTime": 12005.085000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19500017166137695,
+          "baseDuration": 0.15000033378601074,
+          "startTime": 12019.914999961853,
+          "commitTime": 12020.140000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24000000953674316,
+          "baseDuration": 0.18500018119812012,
+          "startTime": 12046.674999952316,
+          "commitTime": 12046.930000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2349998950958252,
+          "baseDuration": 0.18999981880187988,
+          "startTime": 12062.16000008583,
+          "commitTime": 12062.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.18999981880187988,
+          "startTime": 12074.44000005722,
+          "commitTime": 12074.590000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.33500003814697266,
+          "baseDuration": 0.24499988555908203,
+          "startTime": 12078.590000152588,
+          "commitTime": 12078.975000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21000003814697266,
+          "baseDuration": 0.16500020027160645,
+          "startTime": 12103.350000143051,
+          "commitTime": 12103.600000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19500017166137695,
+          "baseDuration": 0.16499996185302734,
+          "startTime": 12120.835000038147,
+          "commitTime": 12121.049999952316
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.375,
+          "baseDuration": 0.2999999523162842,
+          "startTime": 12145.350000143051,
+          "commitTime": 12145.810000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2999999523162842,
+          "baseDuration": 0.21499943733215332,
+          "startTime": 12162.965000152588,
+          "commitTime": 12163.28500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21499991416931152,
+          "baseDuration": 0.15999984741210938,
+          "startTime": 12190.920000076294,
+          "commitTime": 12191.164999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19999980926513672,
+          "baseDuration": 0.1549997329711914,
+          "startTime": 12204.570000171661,
+          "commitTime": 12204.789999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2049999237060547,
+          "baseDuration": 0.16000032424926758,
+          "startTime": 12219.705000162125,
+          "commitTime": 12219.930000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24499988555908203,
+          "baseDuration": 0.18999981880187988,
+          "startTime": 12235.310000181198,
+          "commitTime": 12235.585000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.14500045776367188,
+          "startTime": 12248.02999997139,
+          "commitTime": 12248.265000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18499994277954102,
+          "baseDuration": 0.13499999046325684,
+          "startTime": 12262.210000038147,
+          "commitTime": 12262.41000008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.13499999046325684,
+          "startTime": 12275.130000114441,
+          "commitTime": 12275.289999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.17499995231628418,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12278.710000038147,
+          "commitTime": 12278.900000095367
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.004999876022338867,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12290.335000038147,
+          "commitTime": 12290.465000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24500012397766113,
+          "baseDuration": 0.20000004768371582,
+          "startTime": 12295.09500002861,
+          "commitTime": 12295.360000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.20000004768371582,
+          "startTime": 12306.525000095367,
+          "commitTime": 12306.66000008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18499994277954102,
+          "baseDuration": 0.1399996280670166,
+          "startTime": 12311.620000123978,
+          "commitTime": 12311.820000171661
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1399996280670166,
+          "startTime": 12323.005000114441,
+          "commitTime": 12323.130000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.14500021934509277,
+          "startTime": 12327.775000095367,
+          "commitTime": 12328.015000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.14500021934509277,
+          "startTime": 12339.56500005722,
+          "commitTime": 12339.664999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2349998950958252,
+          "baseDuration": 0.18499970436096191,
+          "startTime": 12345.269999980927,
+          "commitTime": 12345.539999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.18499970436096191,
+          "startTime": 12357.03500008583,
+          "commitTime": 12357.15499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.1400001049041748,
+          "baseDuration": 0.11500048637390137,
+          "startTime": 12361.795000076294,
+          "commitTime": 12361.955000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.11500048637390137,
+          "startTime": 12372.930000066757,
+          "commitTime": 12373.039999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2049999237060547,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12378.460000038147,
+          "commitTime": 12378.680000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12390.140000104904,
+          "commitTime": 12390.28500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.4050002098083496,
+          "baseDuration": 0.28999996185302734,
+          "startTime": 12395.164999961853,
+          "commitTime": 12395.605000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.28999996185302734,
+          "startTime": 12407.144999980927,
+          "commitTime": 12407.289999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2849998474121094,
+          "baseDuration": 0.22500014305114746,
+          "startTime": 12411.985000133514,
+          "commitTime": 12412.305000066757
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.22500014305114746,
+          "startTime": 12424.40499997139,
+          "commitTime": 12424.53500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.38499999046325684,
+          "baseDuration": 0.3250000476837158,
+          "startTime": 12428.700000047684,
+          "commitTime": 12429.125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.3250000476837158,
+          "startTime": 12442.130000114441,
+          "commitTime": 12442.240000009537
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.17499995231628418,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12446.075000047684,
+          "commitTime": 12446.269999980927
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12458.360000133514,
+          "commitTime": 12458.480000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2949998378753662,
+          "baseDuration": 0.22999978065490723,
+          "startTime": 12461.100000143051,
+          "commitTime": 12461.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.22999978065490723,
+          "startTime": 12475.590000152588,
+          "commitTime": 12475.72000002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2799999713897705,
+          "baseDuration": 0.2199997901916504,
+          "startTime": 12478.84500002861,
+          "commitTime": 12479.150000095367
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499969482421875,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12496.890000104904,
+          "commitTime": 12497.134999990463
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000028610229492,
+          "baseDuration": 0.15000033378601074,
+          "startTime": 12514.900000095367,
+          "commitTime": 12515.130000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19500017166137695,
+          "baseDuration": 0.13500022888183594,
+          "startTime": 12530.005000114441,
+          "commitTime": 12530.225000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.13500022888183594,
+          "startTime": 12542.575000047684,
+          "commitTime": 12542.745000123978
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.15000009536743164,
+          "baseDuration": 0.10000014305114746,
+          "startTime": 12544.894999980927,
+          "commitTime": 12545.060000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.10000014305114746,
+          "startTime": 12560.170000076294,
+          "commitTime": 12560.310000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18499994277954102,
+          "baseDuration": 0.1099998950958252,
+          "startTime": 12561.995000123978,
+          "commitTime": 12562.230000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1099998950958252,
+          "startTime": 12578.56500005722,
+          "commitTime": 12578.860000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.33500027656555176,
+          "baseDuration": 0.2650001049041748,
+          "startTime": 12579.59500002861,
+          "commitTime": 12579.965000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.2650001049041748,
+          "startTime": 12600.240000009537,
+          "commitTime": 12600.375
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19000005722045898,
+          "baseDuration": 0.14499974250793457,
+          "startTime": 12601.509999990463,
+          "commitTime": 12601.725000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.15000009536743164,
+          "startTime": 12621.370000123978,
+          "commitTime": 12621.590000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2050001621246338,
+          "baseDuration": 0.15000009536743164,
+          "startTime": 12642.25,
+          "commitTime": 12642.47000002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21500015258789062,
+          "baseDuration": 0.16000008583068848,
+          "startTime": 12658.125,
+          "commitTime": 12658.360000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24500012397766113,
+          "baseDuration": 0.19500041007995605,
+          "startTime": 12675.625,
+          "commitTime": 12675.894999980927
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.38499999046325684,
+          "baseDuration": 0.2999999523162842,
+          "startTime": 12698.430000066757,
+          "commitTime": 12698.850000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21000003814697266,
+          "baseDuration": 0.17000031471252441,
+          "startTime": 12716.16000008583,
+          "commitTime": 12716.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20999979972839355,
+          "baseDuration": 0.16499996185302734,
+          "startTime": 12735.185000181198,
+          "commitTime": 12735.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2350001335144043,
+          "baseDuration": 0.17500019073486328,
+          "startTime": 12749.335000038147,
+          "commitTime": 12749.590000152588
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2050001621246338,
+          "baseDuration": 0.16500043869018555,
+          "startTime": 12764.634999990463,
+          "commitTime": 12764.860000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19000005722045898,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12778.75,
+          "commitTime": 12778.960000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1399998664855957,
+          "startTime": 12791.945000171661,
+          "commitTime": 12792.06500005722
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19500017166137695,
+          "baseDuration": 0.14500045776367188,
+          "startTime": 12795.894999980927,
+          "commitTime": 12796.110000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.14500045776367188,
+          "startTime": 12808.335000038147,
+          "commitTime": 12808.505000114441
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2649996280670166,
+          "baseDuration": 0.19499993324279785,
+          "startTime": 12812.955000162125,
+          "commitTime": 12813.269999980927
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.19499993324279785,
+          "startTime": 12828.519999980927,
+          "commitTime": 12828.78500008583
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.15000009536743164,
+          "baseDuration": 0.10500001907348633,
+          "startTime": 12829.370000123978,
+          "commitTime": 12829.539999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.10500001907348633,
+          "startTime": 12842.695000171661,
+          "commitTime": 12842.795000076294
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21000003814697266,
+          "baseDuration": 0.17499971389770508,
+          "startTime": 12845.725000143051,
+          "commitTime": 12845.950000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.17499971389770508,
+          "startTime": 12858.110000133514,
+          "commitTime": 12858.230000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.26999998092651367,
+          "baseDuration": 0.19999957084655762,
+          "startTime": 12862.365000009537,
+          "commitTime": 12862.65499997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.19999957084655762,
+          "startTime": 12874.335000038147,
+          "commitTime": 12874.455000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3249998092651367,
+          "baseDuration": 0.2799997329711914,
+          "startTime": 12879.060000181198,
+          "commitTime": 12879.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.22499990463256836,
+          "baseDuration": 0.18999981880187988,
+          "startTime": 12896.360000133514,
+          "commitTime": 12896.610000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20000004768371582,
+          "baseDuration": 0.1399996280670166,
+          "startTime": 12912.775000095367,
+          "commitTime": 12912.990000009537
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1399996280670166,
+          "startTime": 12925.515000104904,
+          "commitTime": 12925.640000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18499994277954102,
+          "baseDuration": 0.13500022888183594,
+          "startTime": 12929.630000114441,
+          "commitTime": 12929.830000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.13500022888183594,
+          "startTime": 12941.625,
+          "commitTime": 12941.769999980927
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.375,
+          "baseDuration": 0.3100001811981201,
+          "startTime": 12945.884999990463,
+          "commitTime": 12946.295000076294
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.5200004577636719,
+          "baseDuration": 0.4249999523162842,
+          "startTime": 12962.299999952316,
+          "commitTime": 12962.850000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.4249999523162842,
+          "startTime": 12975.480000019073,
+          "commitTime": 12975.615000009537
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2049999237060547,
+          "baseDuration": 0.1699998378753662,
+          "startTime": 12979.185000181198,
+          "commitTime": 12979.400000095367
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.1699998378753662,
+          "startTime": 12992.22000002861,
+          "commitTime": 12992.34500002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3450000286102295,
+          "baseDuration": 0.26999974250793457,
+          "startTime": 12995.674999952316,
+          "commitTime": 12996.06500005722
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.005000114440917969,
+          "baseDuration": 0.26999974250793457,
+          "startTime": 13013.185000181198,
+          "commitTime": 13013.450000047684
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.4250001907348633,
+          "baseDuration": 0.31999993324279785,
+          "startTime": 13014.049999952316,
+          "commitTime": 13014.52999997139
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.25,
+          "baseDuration": 0.19999980926513672,
+          "startTime": 13034.555000066757,
+          "commitTime": 13034.855000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18999981880187988,
+          "baseDuration": 0.14999985694885254,
+          "startTime": 13052.205000162125,
+          "commitTime": 13052.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2200000286102295,
+          "baseDuration": 0.17000031471252441,
+          "startTime": 13067.72000002861,
+          "commitTime": 13067.960000038147
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2350001335144043,
+          "baseDuration": 0.17500019073486328,
+          "startTime": 13080.955000162125,
+          "commitTime": 13081.22000002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.17500019073486328,
+          "startTime": 13095.25,
+          "commitTime": 13095.475000143051
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.14499974250793457,
+          "baseDuration": 0.09999966621398926,
+          "startTime": 13096.445000171661,
+          "commitTime": 13096.605000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.21500015258789062,
+          "baseDuration": 0.17000031471252441,
+          "startTime": 13112.980000019073,
+          "commitTime": 13113.230000019073
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.17000031471252441,
+          "startTime": 13126.355000019073,
+          "commitTime": 13126.47000002861
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.7200000286102295,
+          "baseDuration": 0.565000057220459,
+          "startTime": 13129.480000019073,
+          "commitTime": 13130.265000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0,
+          "baseDuration": 0.565000057220459,
+          "startTime": 13142.485000133514,
+          "commitTime": 13142.610000133514
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.19499993324279785,
+          "baseDuration": 0.1550002098083496,
+          "startTime": 13145.920000076294,
+          "commitTime": 13146.140000104904
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.4549999237060547,
+          "baseDuration": 0.3449995517730713,
+          "startTime": 13165.180000066757,
+          "commitTime": 13165.69000005722
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.20999979972839355,
+          "baseDuration": 0.16499972343444824,
+          "startTime": 13189.180000066757,
+          "commitTime": 13189.414999961853
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.24000000953674316,
+          "baseDuration": 0.19500017166137695,
+          "startTime": 13214.805000066757,
+          "commitTime": 13215.070000171661
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.3900001049041748,
+          "baseDuration": 0.30500006675720215,
+          "startTime": 13232.230000019073,
+          "commitTime": 13232.685000181198
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.2350001335144043,
+          "baseDuration": 0.18999981880187988,
+          "startTime": 13258.450000047684,
+          "commitTime": 13258.705000162125
+        },
+        {
+          "id": "Viewport",
+          "phase": "update",
+          "actualDuration": 0.18499994277954102,
+          "baseDuration": 0.1549999713897705,
+          "startTime": 13277.245000123978,
+          "commitTime": 13280.830000162125
+        },
+        {
+          "id": "PropertyPanel",
+          "phase": "update",
+          "actualDuration": 0.19000005722045898,
+          "baseDuration": 0.14499974250793457,
+          "startTime": 13277.435000181198,
+          "commitTime": 13280.830000162125
+        },
+        {
+          "id": "Timeline",
+          "phase": "update",
+          "actualDuration": 2.93999981880188,
+          "baseDuration": 3.2799999713897705,
+          "startTime": 13277.640000104904,
+          "commitTime": 13280.830000162125
+        }
+      ]
+    },
+    "playbackClockHealth": {
+      "healthy": true,
+      "expectedMinRafSampleCount": 90
+    },
+    "presenterRestarts": {
+      "before": 2,
+      "after": 135,
+      "duringPlayback": 133
+    }
+  },
+  "roundTrip": {
+    "ok": true,
+    "fingerprintBefore": "b811fa6d",
+    "fingerprintAfter": "b811fa6d",
+    "stable": true,
+    "objectCount": 67,
+    "uniqueIdCount": 67,
+    "snapshot": {
+      "ok": true,
+      "activeSceneId": "realistic-heavy-main",
+      "activeObjectCount": 45,
+      "totalObjectCount": 67,
+      "sceneCount": 3,
+      "selectedObjectCount": 0,
+      "currentTime": 0,
+      "duration": 24,
+      "timelineItemCount": 45,
+      "presenterStatus": "ready",
+      "presenterFailureReason": null,
+      "rustTimelineStatus": "pending",
+      "rustTimelineDetail": null,
+      "planMode": "sharedRenderer",
+      "surfaceGate": "ok",
+      "nativeOverlayAttempt": null,
+      "nativeOverlayFailureReason": null,
+      "hasMissingSourceText": false
+    }
+  },
+  "exportPreparation": {
+    "ok": true,
+    "duration": 2,
+    "objectCount": 45,
+    "videoCount": 2,
+    "expectedDurationSeconds": 2.24,
+    "expectedFrameCount": 135
+  },
+  "exportRun": {
+    "ok": true,
+    "durationMs": 43586,
+    "dialog": {
+      "type": "alert",
+      "message": "エクスポート完了！\nコーデック: ffmpegRawRgba\nフレーム: 135\n保存先: /Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-preview.mp4"
+    }
+  },
+  "exportedFile": {
+    "exists": true,
+    "size": 2399840,
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "nb_frames": "134"
+        }
+      ],
+      "format": {
+        "duration": "2.240000"
+      }
+    },
+    "expectedDurationSeconds": 2.24,
+    "expectedFrameCount": 135,
+    "actualDurationSeconds": 2.24,
+    "actualFrameCount": 134,
+    "geometryMatches": true,
+    "durationMatches": true,
+    "frameCountMatches": true,
+    "ok": true
+  },
+  "finalSnapshot": {
+    "ok": true,
+    "activeSceneId": "realistic-heavy-main",
+    "activeObjectCount": 45,
+    "totalObjectCount": 67,
+    "sceneCount": 3,
+    "selectedObjectCount": 0,
+    "currentTime": 0,
+    "duration": 2,
+    "timelineItemCount": 45,
+    "presenterStatus": "ready",
+    "presenterFailureReason": null,
+    "rustTimelineStatus": "ready",
+    "rustTimelineDetail": null,
+    "planMode": "sharedRenderer",
+    "surfaceGate": "ok",
+    "nativeOverlayAttempt": null,
+    "nativeOverlayFailureReason": null,
+    "hasMissingSourceText": false,
+    "settled": true,
+    "settleWaitMs": 0
+  },
+  "screenshotInspection": {
+    "ok": true,
+    "width": 2560,
+    "height": 1600,
+    "visiblePixelCount": 260874,
+    "colourfulPixelCount": 21900
+  },
+  "processesDuringPlayback": [
+    "12061 75542   0.0  0.0   1408 /bin/zsh -c source /Users/yuki/.claude/shell-snapshots/snapshot-zsh-1786036139975-pzl369.sh 2>/dev/null || true && setopt NO_EXTENDED_GLOB NO_BARE_GLOB_QUAL 2>/dev/null || true && { \\builtin unalias -- 'unsetenv'; \\builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'UXFD_RUST_BACKEND_BIN=/Users/yuki/GitHub/UX-Film-Director/rust-backend/target/release/uxfd-rust-backend UXFD_REALISTIC_HEAVY_EDIT_TIMEOUT_MS=540000 npm run test:realistic-heavy-edit:e2e > /private/tmp/claude-501/-Users-yuki-GitHub-UX-Film-Director/bc4c380e-e379-49fa-a891-198751d2dfd4/scratchpad/release-run1.log 2>&1; echo \"exit=$?\"; mkdir -p perf_research/runs/release-1 && cp .codex/realistic-heavy-edit-e2e/result.json perf_research/runs/release-1/result.json' < /dev/null && pwd -P >| /tmp/claude-be7a-cwd",
+    "12383 12089   0.0  0.1  34448 node /Users/yuki/GitHub/UX-Film-Director/node_modules/.bin/electron --remote-debugging-port=9344 --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-12089 .",
+    "12384 12383  78.8  0.8 278192 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --remote-debugging-port=9344 --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-12089 .",
+    "12390 12384   0.0  0.1  39424 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=network.mojom.NetworkService --lang=ja --service-sandbox-type=network --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-12089 --shared-files --field-trial-handle=1718379636,r,4871469169451168583,8793453353898728377,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version --seatbelt-client=34",
+    "12589 12384  74.3  1.0 342832 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer) --type=renderer --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-12089 --app-path=/Users/yuki/GitHub/UX-Film-Director --no-sandbox --no-zygote --enable-unsafe-webgpu --remote-debugging-port=9344 --lang=ja --num-raster-threads=4 --enable-zero-copy --enable-gpu-memory-buffer-compositor-resources --enable-main-frame-before-activation --renderer-client-id=5 --time-ticks-at-unix-epoch=-1784599863894228 --launch-time-ticks=1437281809544 --shared-files --field-trial-handle=1718379636,r,4871469169451168583,8793453353898728377,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version",
+    "12663 12384  34.6  0.4 122688 /Users/yuki/GitHub/UX-Film-Director/rust-backend/target/release/uxfd-rust-backend",
+    "12682 12384   0.3  0.1  46000 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=audio.mojom.AudioService --lang=ja --service-sandbox-type=audio --message-loop-type-ui --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-12089 --shared-files --field-trial-handle=1718379636,r,4871469169451168583,8793453353898728377,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version --seatbelt-client=66",
+    "12687 12384   0.1  0.1  37664 /Users/yuki/GitHub/UX-Film-Director/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=tracing.mojom.TracingService --lang=ja --service-sandbox-type=service --user-data-dir=/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/electron-profile-12089 --shared-files --field-trial-handle=1718379636,r,4871469169451168583,8793453353898728377,262144 --enable-features=CanvasOopRasterization,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma,SharedArrayBuffer,kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version --seatbelt-client=66"
+  ],
+  "chromiumRendererTrace": {
+    "collected": true,
+    "traceEventCount": 124063,
+    "path": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/chromium-renderer-trace.json",
+    "performanceMetrics": {
+      "taskMs": 1734.195,
+      "scriptMs": 207.786,
+      "layoutMs": 48.987,
+      "recalcStyleMs": 29.011,
+      "layoutCount": 213,
+      "recalcStyleCount": 217,
+      "jsHeapUsedBytesDelta": 5346588,
+      "nodeCountDelta": 141
+    },
+    "rendererMainThread": {
+      "pid": 12589,
+      "tid": 259
+    },
+    "wallDurationMs": 3632.682,
+    "busyMs": 1744.508,
+    "busyRatio": 0.480225904717231,
+    "categories": {
+      "scriptingMs": 267.833,
+      "renderingMs": 219.846,
+      "gcMs": 54.456
+    },
+    "topEvents": [
+      {
+        "name": "RunTask",
+        "totalMs": 1929.032,
+        "count": 5794,
+        "maxMs": 61.691
+      },
+      {
+        "name": "ThreadControllerImpl::RunTask",
+        "totalMs": 1649.053,
+        "count": 5329,
+        "maxMs": 58.098
+      },
+      {
+        "name": "Receive mojo reply",
+        "totalMs": 874.873,
+        "count": 471,
+        "maxMs": 10.697
+      },
+      {
+        "name": "v8.callFunction",
+        "totalMs": 375.784,
+        "count": 606,
+        "maxMs": 57.998
+      },
+      {
+        "name": "FunctionCall",
+        "totalMs": 209.044,
+        "count": 608,
+        "maxMs": 18.13
+      },
+      {
+        "name": "FireAnimationFrame",
+        "totalMs": 167.393,
+        "count": 395,
+        "maxMs": 21.479
+      },
+      {
+        "name": "SimpleWatcher::OnHandleReady",
+        "totalMs": 129.839,
+        "count": 391,
+        "maxMs": 3.557
+      },
+      {
+        "name": "BlinkScheduler_PerformMicrotaskCheckpoint",
+        "totalMs": 67.632,
+        "count": 2862,
+        "maxMs": 4.698
+      },
+      {
+        "name": "HandlePostMessage",
+        "totalMs": 66.412,
+        "count": 4,
+        "maxMs": 58.095
+      },
+      {
+        "name": "Layerize",
+        "totalMs": 56.342,
+        "count": 216,
+        "maxMs": 0.801
+      },
+      {
+        "name": "Paint",
+        "totalMs": 56.186,
+        "count": 214,
+        "maxMs": 0.782
+      },
+      {
+        "name": "Layout",
+        "totalMs": 47.397,
+        "count": 213,
+        "maxMs": 1.957
+      },
+      {
+        "name": "PrePaint",
+        "totalMs": 30.851,
+        "count": 216,
+        "maxMs": 0.74
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "totalMs": 28.697,
+        "count": 214,
+        "maxMs": 0.82
+      },
+      {
+        "name": "Commit",
+        "totalMs": 27.165,
+        "count": 216,
+        "maxMs": 1.513
+      },
+      {
+        "name": "MajorGC",
+        "totalMs": 26.393,
+        "count": 6,
+        "maxMs": 7.516
+      },
+      {
+        "name": "V8.GCFinalizeMC",
+        "totalMs": 26.312,
+        "count": 6,
+        "maxMs": 7.504
+      },
+      {
+        "name": "V8.GC_MARK_COMPACTOR",
+        "totalMs": 26.274,
+        "count": 6,
+        "maxMs": 7.498
+      },
+      {
+        "name": "Receive mojo message",
+        "totalMs": 18.168,
+        "count": 427,
+        "maxMs": 7.493
+      },
+      {
+        "name": "V8.GCIncrementalMarking",
+        "totalMs": 13.517,
+        "count": 398,
+        "maxMs": 0.172
+      }
+    ],
+    "topFunctions": [
+      {
+        "functionName": "performWorkUntilDeadline",
+        "url": "http://localhost:5312/node_modules/.vite/deps/chunk-6W5FFVKH.js?v=99e81adf",
+        "lineNumber": 377,
+        "totalMs": 95.607,
+        "callCount": 185,
+        "maxMs": 1.426
+      },
+      {
+        "functionName": "animate",
+        "url": "http://localhost:5312/src/hooks/useAppLogic.ts",
+        "lineNumber": 51,
+        "totalMs": 57.783,
+        "callCount": 179,
+        "maxMs": 0.772
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/node_modules/.vite/deps/chunk-6W5FFVKH.js?v=99e81adf",
+        "lineNumber": 18625,
+        "totalMs": 46.429,
+        "callCount": 5,
+        "maxMs": 18.13
+      },
+      {
+        "functionName": "tick",
+        "url": "http://localhost:5312/src/e2e/realisticHeavyEditHarness.ts",
+        "lineNumber": 45,
+        "totalMs": 5.707,
+        "callCount": 180,
+        "maxMs": 0.339
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/src/components/Viewport.tsx",
+        "lineNumber": 497,
+        "totalMs": 1.382,
+        "callCount": 8,
+        "maxMs": 0.656
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/src/e2e/realisticHeavyEditHarness.ts",
+        "lineNumber": 14,
+        "totalMs": 0.839,
+        "callCount": 36,
+        "maxMs": 0.17
+      },
+      {
+        "functionName": "dispatchEvent",
+        "url": "http://localhost:5312/node_modules/.vite/deps/chunk-6W5FFVKH.js?v=99e81adf",
+        "lineNumber": 5467,
+        "totalMs": 0.593,
+        "callCount": 2,
+        "maxMs": 0.396
+      },
+      {
+        "functionName": "onMessage",
+        "url": "http://localhost:5312/src/utils/sharedVideoFrameUploadBridge.ts",
+        "lineNumber": 209,
+        "totalMs": 0.178,
+        "callCount": 4,
+        "maxMs": 0.083
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "/Users/yuki/GitHub/UX-Film-Director/dist-electron/preload.js",
+        "lineNumber": 254,
+        "totalMs": 0.173,
+        "callCount": 4,
+        "maxMs": 0.087
+      },
+      {
+        "functionName": "fireOnce",
+        "url": "http://localhost:5312/src/utils/sharedRendererExternalVideoSource.ts",
+        "lineNumber": 47,
+        "totalMs": 0.163,
+        "callCount": 2,
+        "maxMs": 0.091
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "http://localhost:5312/src/e2e/realisticHeavyEditHarness.ts",
+        "lineNumber": 177,
+        "totalMs": 0.158,
+        "callCount": 1,
+        "maxMs": 0.158
+      },
+      {
+        "functionName": "(anonymous)",
+        "url": "",
+        "lineNumber": null,
+        "totalMs": 0.032,
+        "callCount": 2,
+        "maxMs": 0.024
+      }
+    ],
+    "userTimings": []
+  },
+  "runtimeErrors": [],
+  "missingSourceLines": [],
+  "nativeRenderErrorLines": [],
+  "dialogs": [
+    {
+      "type": "alert",
+      "message": "エクスポート完了！\nコーデック: ffmpegRawRgba\nフレーム: 135\n保存先: /Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-preview.mp4"
+    }
+  ]
+}

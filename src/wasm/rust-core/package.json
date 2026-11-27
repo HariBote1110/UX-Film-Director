@@ -1,0 +1,15 @@
+{
+  "name": "uxfd-rust-core-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "uxfd_rust_core_wasm_bg.wasm",
+    "uxfd_rust_core_wasm.js",
+    "uxfd_rust_core_wasm.d.ts"
+  ],
+  "main": "uxfd_rust_core_wasm.js",
+  "types": "uxfd_rust_core_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

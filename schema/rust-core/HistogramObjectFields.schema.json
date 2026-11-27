@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HistogramObjectFields",
+  "description": "`HistogramObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、histogram 固有部分。TS 側は\n`BaseObject & HistogramObjectFields & { type: 'histogram' }` として組み立てる。\n\n`width`/`height` は `histogramObjectFactory.ts` の\n`buildAviUtlHistogramObject` の固定リテラル（256, 200）をそのまま採用する\n（プロジェクトサイズに依存しない固定値のため、ニュートラル化はしない）。\n他のフィールドも同ファイルの固定リテラル（binValues:\n[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36], heightScalePercent: 100,\nlineWidth: 1, showLuminance/showRed/showGreen/showBlue: true,\nchannelColours: ['#ffffff','#ff4b4b','#4bff6a','#4b8cff'],\nbackgroundColour: '#000000'）をそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "binValues": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "format": "float"
+      }
+    },
+    "channelColours": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "heightScalePercent": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "showBlue": {
+      "type": "boolean"
+    },
+    "showGreen": {
+      "type": "boolean"
+    },
+    "showLuminance": {
+      "type": "boolean"
+    },
+    "showRed": {
+      "type": "boolean"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "binValues",
+    "heightScalePercent",
+    "lineWidth",
+    "showLuminance",
+    "showRed",
+    "showGreen",
+    "showBlue",
+    "channelColours",
+    "backgroundColour"
+  ]
+}

@@ -1,0 +1,190 @@
+diff --git a/electron/rustVideoEncodeBackendBridge.ts b/electron/rustVideoEncodeBackendBridge.ts
+index ea417521..54e7e32d 100644
+--- a/electron/rustVideoEncodeBackendBridge.ts
++++ b/electron/rustVideoEncodeBackendBridge.ts
+@@ -20,6 +20,40 @@ const ABORT_ENCODE_TIMEOUT_MS = 10_000;
+ const toErrorMessage = (error: unknown): string =>
+   error instanceof Error ? error.message : String(error);
+ 
++// ── encode_research 用の一時計測（未コミット・撤去前提）──────────────────
++// backend RPC 応答の timings と main プロセスで見た RPC 壁時計を集計し、
++// encode.finish 時に stdout へサマリを出す。
++interface EncodeResearchStats {
++  count: number;
++  wallMs: number;
++  backend: Record<string, number>;
++}
++const encodeResearchStats = new Map<string, EncodeResearchStats>();
++const recordEncodeResearchCall = (method: string, wallMs: number, result: unknown) => {
++  const stats = encodeResearchStats.get(method) ?? { count: 0, wallMs: 0, backend: {} };
++  stats.count += 1;
++  stats.wallMs += wallMs;
++  const timings = (result as { timings?: Record<string, unknown> } | undefined)?.timings;
++  if (timings && typeof timings === 'object') {
++    for (const [key, value] of Object.entries(timings)) {
++      if (typeof value === 'number') stats.backend[key] = (stats.backend[key] ?? 0) + value;
++    }
++  }
++  encodeResearchStats.set(method, stats);
++};
++const dumpEncodeResearchStats = () => {
++  for (const [method, stats] of encodeResearchStats) {
++    const backend = Object.entries(stats.backend)
++      .map(([key, value]) => `${key}=${(value / stats.count).toFixed(2)}`)
++      .join(' ');
++    console.log(
++      `[encode-research] ${method} count=${stats.count} avgWallMs=${(stats.wallMs / stats.count).toFixed(2)} ${backend}`
++    );
++  }
++  encodeResearchStats.clear();
++};
++// ────────────────────────────────────────────────────────────────────────
++
+ const callRustVideoEncodeRpc = async (
+   method: string,
+   payload: unknown,
+@@ -27,7 +61,10 @@ const callRustVideoEncodeRpc = async (
+   timeoutMs: number
+ ): Promise<RustVideoEncodeBackendBridgeResult> => {
+   try {
++    const startedAt = performance.now();
+     const result = await callRustBackend(method, payload, timeoutMs);
++    recordEncodeResearchCall(method, performance.now() - startedAt, result);
++    if (method === 'encode.finish') dumpEncodeResearchStats();
+     return { success: true, result };
+   } catch (error) {
+     return {
+diff --git a/rust-backend/src/native_render.rs b/rust-backend/src/native_render.rs
+index 771fbc02..92466189 100644
+--- a/rust-backend/src/native_render.rs
++++ b/rust-backend/src/native_render.rs
+@@ -39,6 +39,8 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
+     params: Value,
+     state: &mut BackendState,
+ ) -> RpcResponse {
++    // encode_research 用の一時計測（未コミット・撤去前提）: 前処理の分割計時。
++    let research_entry = std::time::Instant::now();
+     let parsed = match serde_json::from_value::<EncodeWriteResidentSceneFrameParams>(params.clone())
+     {
+         Ok(value) => value,
+@@ -50,6 +52,7 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
+             );
+         }
+     };
++    let research_parse_ms = research_entry.elapsed().as_secs_f64() * 1000.0;
+     let Some(scene_session) = state.scene_sessions.get(&parsed.scene_id) else {
+         return response_error(id, -32060, "No resident scene session for export");
+     };
+@@ -61,6 +64,7 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
+         );
+     }
+ 
++    let research_evaluate_started = std::time::Instant::now();
+     let snapshot = evaluate_frame(&scene_session.project, parsed.frame_index);
+     let referenced_media_ids: HashSet<&str> = snapshot
+         .clips
+@@ -118,6 +122,8 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
+         Err(message) => return response_error(id, -32071, &message),
+     };
+ 
++    let research_evaluate_ms = research_evaluate_started.elapsed().as_secs_f64() * 1000.0;
++    let research_json_started = std::time::Instant::now();
+     let mut native_params = params;
+     let Value::Object(native_object) = &mut native_params else {
+         return response_error(id, -32602, "Resident scene encode params must be an object");
+@@ -139,9 +145,35 @@ pub(crate) fn handle_encode_write_resident_scene_frame(
+         .entry("sources".to_string())
+         .or_insert_with(|| Value::Array(Vec::new()));
+ 
++    let research_json_build_ms = research_json_started.elapsed().as_secs_f64() * 1000.0;
++    RESEARCH_PRE.with(|cell| {
++        cell.set(Some(ResearchPre {
++            parse_ms: research_parse_ms,
++            evaluate_ms: research_evaluate_ms,
++            json_build_ms: research_json_build_ms,
++            native_call_started: std::time::Instant::now(),
++        }))
++    });
+     handle_encode_write_native_frame(id, native_params, state)
+ }
+ 
++// encode_research 用の一時計測（未コミット・撤去前提）: resident scene ハンドラの
++// 前処理分割値を native handler の timings 出力へ橋渡しする。
++#[cfg(unix)]
++#[derive(Clone, Copy)]
++struct ResearchPre {
++    parse_ms: f64,
++    evaluate_ms: f64,
++    json_build_ms: f64,
++    native_call_started: std::time::Instant,
++}
++
++#[cfg(unix)]
++thread_local! {
++    static RESEARCH_PRE: std::cell::Cell<Option<ResearchPre>> =
++        const { std::cell::Cell::new(None) };
++}
++
+ #[cfg(not(unix))]
+ pub(crate) fn handle_encode_write_resident_scene_frame(
+     id: u64,
+@@ -161,6 +193,8 @@ pub(crate) fn handle_encode_write_native_frame(
+     params: Value,
+     state: &mut BackendState,
+ ) -> RpcResponse {
++    // encode_research 用の一時計測（未コミット・撤去前提）
++    let research_native_entry = std::time::Instant::now();
+     let parsed = match serde_json::from_value::<EncodeWriteNativeFrameParams>(params) {
+         Ok(value) => value,
+         Err(error) => {
+@@ -193,6 +227,8 @@ pub(crate) fn handle_encode_write_native_frame(
+             );
+         }
+     }
++    let research_native_parse_ms = research_native_entry.elapsed().as_secs_f64() * 1000.0;
++    let research_collect_started = std::time::Instant::now();
+ 
+     let sources =
+         match collect_native_render_sources(
+@@ -206,6 +242,7 @@ pub(crate) fn handle_encode_write_native_frame(
+                 return response_error(id, native_render_source_error_code(&message), &message);
+             }
+         };
++    let research_collect_sources_ms = research_collect_started.elapsed().as_secs_f64() * 1000.0;
+     let particle_sources =
+         match collect_native_render_particle_sources(&parsed.snapshot, &parsed.media) {
+             Ok(value) => value,
+@@ -276,6 +313,7 @@ pub(crate) fn handle_encode_write_native_frame(
+         );
+     }
+ 
++    let research_collect_ms = research_collect_started.elapsed().as_secs_f64() * 1000.0;
+     let uses_iosurface_encoder = state
+         .encode_sessions
+         .get(&parsed.session_id)
+@@ -389,6 +427,11 @@ pub(crate) fn handle_encode_write_native_frame(
+ 
+     #[cfg(target_os = "macos")]
+     if let Some(iosurface_frame) = iosurface_frame {
++        // encode_research 用の一時計測（未コミット・撤去前提）
++        let research_pre = RESEARCH_PRE.with(|cell| cell.take());
++        let research_native_pre_ms = research_pre
++            .map(|pre| pre.native_call_started.elapsed().as_secs_f64() * 1000.0)
++            .unwrap_or(0.0);
+         let timings = match pollster::block_on(
+             renderer.render_frame_to_bgra_iosurface_with_audio_waveforms(
+                 &parsed.snapshot,
+@@ -453,6 +496,13 @@ pub(crate) fn handle_encode_write_native_frame(
+                     "readbackEncodeMs": 0.0,
+                     "steadyStateMs": timings.steady_state.as_secs_f64() * 1000.0,
+                     "totalMs": timings.total.as_secs_f64() * 1000.0,
++                    "researchResidentParseMs": research_pre.map(|pre| pre.parse_ms).unwrap_or(0.0),
++                    "researchEvaluateMs": research_pre.map(|pre| pre.evaluate_ms).unwrap_or(0.0),
++                    "researchJsonBuildMs": research_pre.map(|pre| pre.json_build_ms).unwrap_or(0.0),
++                    "researchNativePreMs": research_native_pre_ms,
++                    "researchNativeParseMs": research_native_parse_ms,
++                    "researchCollectMs": research_collect_ms,
++                    "researchCollectSourcesMs": research_collect_sources_ms,
+                 },
+             })),
+             error: None,

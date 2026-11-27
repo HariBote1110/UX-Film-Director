@@ -1,0 +1,152 @@
+diff --git a/electron/rustVideoEncodeBackendBridge.ts b/electron/rustVideoEncodeBackendBridge.ts
+index ea417521..54e7e32d 100644
+--- a/electron/rustVideoEncodeBackendBridge.ts
++++ b/electron/rustVideoEncodeBackendBridge.ts
+@@ -20,6 +20,40 @@ const ABORT_ENCODE_TIMEOUT_MS = 10_000;
+ const toErrorMessage = (error: unknown): string =>
+   error instanceof Error ? error.message : String(error);
+ 
++// ── encode_research 用の一時計測（未コミット・撤去前提）──────────────────
++// backend RPC 応答の timings と main プロセスで見た RPC 壁時計を集計し、
++// encode.finish 時に stdout へサマリを出す。
++interface EncodeResearchStats {
++  count: number;
++  wallMs: number;
++  backend: Record<string, number>;
++}
++const encodeResearchStats = new Map<string, EncodeResearchStats>();
++const recordEncodeResearchCall = (method: string, wallMs: number, result: unknown) => {
++  const stats = encodeResearchStats.get(method) ?? { count: 0, wallMs: 0, backend: {} };
++  stats.count += 1;
++  stats.wallMs += wallMs;
++  const timings = (result as { timings?: Record<string, unknown> } | undefined)?.timings;
++  if (timings && typeof timings === 'object') {
++    for (const [key, value] of Object.entries(timings)) {
++      if (typeof value === 'number') stats.backend[key] = (stats.backend[key] ?? 0) + value;
++    }
++  }
++  encodeResearchStats.set(method, stats);
++};
++const dumpEncodeResearchStats = () => {
++  for (const [method, stats] of encodeResearchStats) {
++    const backend = Object.entries(stats.backend)
++      .map(([key, value]) => `${key}=${(value / stats.count).toFixed(2)}`)
++      .join(' ');
++    console.log(
++      `[encode-research] ${method} count=${stats.count} avgWallMs=${(stats.wallMs / stats.count).toFixed(2)} ${backend}`
++    );
++  }
++  encodeResearchStats.clear();
++};
++// ────────────────────────────────────────────────────────────────────────
++
+ const callRustVideoEncodeRpc = async (
+   method: string,
+   payload: unknown,
+@@ -27,7 +61,10 @@ const callRustVideoEncodeRpc = async (
+   timeoutMs: number
+ ): Promise<RustVideoEncodeBackendBridgeResult> => {
+   try {
++    const startedAt = performance.now();
+     const result = await callRustBackend(method, payload, timeoutMs);
++    recordEncodeResearchCall(method, performance.now() - startedAt, result);
++    if (method === 'encode.finish') dumpEncodeResearchStats();
+     return { success: true, result };
+   } catch (error) {
+     return {
+diff --git a/rust-backend/src/native_render.rs b/rust-backend/src/native_render.rs
+index 771fbc02..72582f98 100644
+--- a/rust-backend/src/native_render.rs
++++ b/rust-backend/src/native_render.rs
+@@ -389,6 +389,8 @@ pub(crate) fn handle_encode_write_native_frame(
+ 
+     #[cfg(target_os = "macos")]
+     if let Some(iosurface_frame) = iosurface_frame {
++        // encode_research 用の一時計測（未コミット・撤去前提）
++        let research_render_started = std::time::Instant::now();
+         let timings = match pollster::block_on(
+             renderer.render_frame_to_bgra_iosurface_with_audio_waveforms(
+                 &parsed.snapshot,
+@@ -413,6 +415,8 @@ pub(crate) fn handle_encode_write_native_frame(
+                 );
+             }
+         };
++        let research_block_on_ms = research_render_started.elapsed().as_secs_f64() * 1000.0;
++        let research_append_started = std::time::Instant::now();
+         let (session_id, frame_count) = {
+             let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+                 return response_error(id, -32052, "No active encode session");
+@@ -430,6 +434,7 @@ pub(crate) fn handle_encode_write_native_frame(
+             session.frame_count += 1;
+             (session.session_id.clone(), session.frame_count)
+         };
++        let research_append_ms = research_append_started.elapsed().as_secs_f64() * 1000.0;
+         let nv12_zero_copy_media_ids: Vec<&str> =
+             nv12_sources.keys().map(String::as_str).collect();
+         return RpcResponse {
+@@ -453,6 +458,8 @@ pub(crate) fn handle_encode_write_native_frame(
+                     "readbackEncodeMs": 0.0,
+                     "steadyStateMs": timings.steady_state.as_secs_f64() * 1000.0,
+                     "totalMs": timings.total.as_secs_f64() * 1000.0,
++                    "researchBlockOnMs": research_block_on_ms,
++                    "researchAppendMs": research_append_ms,
+                 },
+             })),
+             error: None,
+diff --git a/src/utils/rustBackendVideoEncodeExport.ts b/src/utils/rustBackendVideoEncodeExport.ts
+index 2989eb7c..89263e6b 100644
+--- a/src/utils/rustBackendVideoEncodeExport.ts
++++ b/src/utils/rustBackendVideoEncodeExport.ts
+@@ -185,7 +185,17 @@ export const runRustBackendVideoEncodeExport = async ({
+         prefetchNextFrame();
+       }
+     };
++    // ── encode_research 用の一時計測（未コミット・撤去前提）────────────────
++    // フレーム供給待ち（produce）と backend 書き込み待ち（write）の壁時計を
++    // 集計し、e2e が progressSnapshot で回収する dataset へ書き出す。
++    let researchProduceWaitMs = 0;
++    let researchWriteWaitMs = 0;
++    let researchFrameCount = 0;
++    const researchLoopStartedAt = performance.now();
++    // ──────────────────────────────────────────────────────────────────────
++    let researchProduceStartedAt = performance.now();
+     let nextFrameResult = await frameIterator.next();
++    researchProduceWaitMs += performance.now() - researchProduceStartedAt;
+     while (!nextFrameResult.done) {
+       const frame = nextFrameResult.value;
+       if (
+@@ -205,6 +215,7 @@ export const runRustBackendVideoEncodeExport = async ({
+         onNativeRenderOutputRelease
+       );
+       fillRenderAheadQueue();
++      const researchWriteStartedAt = performance.now();
+       try {
+         await writeFrameResult;
+       } catch (error) {
+@@ -215,11 +226,26 @@ export const runRustBackendVideoEncodeExport = async ({
+         );
+         throw error;
+       }
++      researchWriteWaitMs += performance.now() - researchWriteStartedAt;
++      researchFrameCount += 1;
++      researchProduceStartedAt = performance.now();
+       nextFrameResult = prefetchedFrameResults.length > 0
+         ? await prefetchedFrameResults.shift()!
+         : await frameIterator.next();
++      researchProduceWaitMs += performance.now() - researchProduceStartedAt;
+     }
+     await Promise.allSettled(prefetchedFrameResults);
++    // ── encode_research: 集計を dataset へ ────────────────────────────────
++    if (researchFrameCount > 0 && typeof document !== 'undefined') {
++      const loopMs = performance.now() - researchLoopStartedAt;
++      document.documentElement.dataset.uxfdEncodeResearchLoop = [
++        `frames=${researchFrameCount}`,
++        `loopAvgMs=${(loopMs / researchFrameCount).toFixed(2)}`,
++        `produceWaitAvgMs=${(researchProduceWaitMs / researchFrameCount).toFixed(2)}`,
++        `writeWaitAvgMs=${(researchWriteWaitMs / researchFrameCount).toFixed(2)}`,
++      ].join(' ');
++    }
++    // ──────────────────────────────────────────────────────────────────────
+ 
+     const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
+     assertBridgeSuccess(finishResponse.success, finishResponse.error, 'Rust backend video encode finish failed.');

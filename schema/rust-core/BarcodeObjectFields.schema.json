@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BarcodeObjectFields",
+  "description": "`BarcodeObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、barcode 固有部分。TS 側は\n`BaseObject & BarcodeObjectFields & { type: 'barcode' }` として組み立てる。\n\n`width`/`height` は `barcodeObjectFactory.ts` の `buildAviUtlBarcodeObject`\nがプロジェクトサイズから都度計算するため固定既定値が無く、ニュートラルな\n`0.0` にする。他のフィールドは同ファイルの固定リテラル\n（data: 'AviUtl', minimumBarWidth: 2, horizontalMargin: 30,\nverticalMargin: 20, foregroundColour: '#000000', backgroundColour: '#ffffff'）\nをそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "data": {
+      "type": "string"
+    },
+    "foregroundColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "horizontalMargin": {
+      "type": "number",
+      "format": "float"
+    },
+    "minimumBarWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "verticalMargin": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "data",
+    "minimumBarWidth",
+    "horizontalMargin",
+    "verticalMargin",
+    "foregroundColour",
+    "backgroundColour"
+  ]
+}

@@ -1,0 +1,432 @@
+import type { EditorMode, TimelineObject } from '../types';
+import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
+import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
+import { isSupportedSceneObject } from './sharedRendererSceneObjectSupport';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererPresentedFrameTypes';
+
+export type ProjectExportFrameCanvasSource =
+  | 'explicitExportCanvas'
+  | 'legacyCanvas';
+
+export type ProjectExportRustFrameSourcePolicy =
+  | 'allowLegacyCanvas'
+  | 'requireRustFrameSource';
+
+export type ProjectExportRustFrameSourceBlockedFallback =
+  | 'legacyCanvas'
+  | 'failExport';
+
+export interface ProjectExportRustFrameRequest {
+  frameIndex: number;
+  timestampUs: number;
+  time: number;
+  width: number;
+  height: number;
+  objects: readonly TimelineObject[];
+}
+
+export interface ProjectExportRustEncodeFrameRequest extends ProjectExportRustFrameRequest {
+  encodeSessionId: string;
+}
+
+export interface ProjectExportRustFrameSource {
+  encodeTarget?: 'iosurfaceVideoToolbox';
+  renderFrame?: (request: ProjectExportRustFrameRequest) => Promise<ImageBitmap>;
+  renderEncodeFrame?: (request: ProjectExportRustEncodeFrameRequest) => Promise<RustBackendVideoEncodeFrame>;
+  close?: () => Promise<void> | void;
+}
+
+export interface ProjectExportRustFrameSourceContext {
+  objects: TimelineObject[];
+  hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
+  time: number;
+  preferEncodeOnly?: boolean;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  onFrameSourceUnavailable?: (decision: ProjectExportRustFrameSourceUnavailableDecision) => void;
+}
+
+export type ProjectExportRustFrameSourceUnavailableDecision = {
+  reason: string;
+  detail: string;
+  nativeRenderEnvelope?: ProjectExportRustFrameSourceUnavailableNativeRenderEnvelope;
+};
+
+export type ProjectExportRustFrameSourceUnavailableNativeRenderEnvelope =
+  | {
+      ok: true;
+      mediaCount: number;
+      mediaKinds: string[];
+      sourceCount: number;
+      sourceMediaIds: string[];
+    }
+  | {
+      ok: false;
+      reason: string;
+      detail: string;
+    };
+
+export type ResolveProjectExportFrameCanvasResult =
+  | {
+      ok: true;
+      canvas: HTMLCanvasElement;
+      source: ProjectExportFrameCanvasSource;
+    }
+  | {
+      ok: false;
+      reason: 'exportCanvasUnavailable';
+      detail: string;
+    };
+
+export interface ResolveProjectExportFrameCanvasInput {
+  getExportCanvas?: () => HTMLCanvasElement | null;
+  legacyCanvas?: HTMLCanvasElement | null;
+}
+
+export type ProjectExportFrameSourcePlanResult =
+  | {
+      ok: true;
+      source: 'sharedRendererRustFrameSource';
+      frameSource: ProjectExportRustFrameSource;
+      captureCanvas: false;
+      requiresRenderScene: false;
+      usesExportFrameOverrides: false;
+      rustFrameSourceBlockedFallback: ProjectExportRustFrameSourceBlockedFallback;
+    }
+  | {
+      ok: true;
+      source: ProjectExportFrameCanvasSource;
+      canvas: HTMLCanvasElement;
+      captureCanvas: true;
+      requiresRenderScene: true;
+      usesExportFrameOverrides: true;
+    }
+  | {
+      ok: false;
+      reason: 'exportFrameSourceUnavailable' | 'rustFrameSourceRequired';
+      detail: string;
+    };
+
+export type ProjectExportRuntimeFrameSource =
+  | 'sharedRendererRustFrameSource'
+  | 'sharedRendererRustFrameSourceBlocked'
+  | 'legacyCanvasAfterRustBlocked'
+  | ProjectExportFrameCanvasSource;
+
+export interface ProjectExportFrameRuntimePlan {
+  source: ProjectExportRuntimeFrameSource;
+  captureCanvas: boolean;
+  requiresRenderScene: boolean;
+  usesExportFrameOverrides: boolean;
+  shouldCloseRustFrameSource: boolean;
+  shouldFailOnRustFrameSourceBlocked: boolean;
+}
+
+export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectExportFrameCanvasInput {
+  rustFrameSource?: ProjectExportRustFrameSource | null;
+  rustFrameSourceUnavailableDetail?: string;
+  rustFrameSourcePolicy?: ProjectExportRustFrameSourcePolicy;
+  rustFrameSourceBlockedFallback?: ProjectExportRustFrameSourceBlockedFallback;
+  hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
+}
+
+export interface ResolveProjectExportFrameRuntimePlanInput {
+  frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }>;
+  rustFrameSourceBlocked: boolean;
+}
+
+export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
+  editorMode: EditorMode;
+  rustExportOnly: boolean;
+  hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
+  encodeEngine: ProjectExportEncodeEngine;
+}
+
+export interface ProjectExportFrameSourcePolicyForEncode {
+  rustFrameSourcePolicy: ProjectExportRustFrameSourcePolicy;
+  rustFrameSourceBlockedFallback: ProjectExportRustFrameSourceBlockedFallback;
+}
+
+export interface ResolveProjectExportRustFrameSourceContextInput {
+  objects: TimelineObject[];
+  time: number;
+  encodeEngine: ProjectExportEncodeEngine;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  onFrameSourceUnavailable?: ProjectExportRustFrameSourceContext['onFrameSourceUnavailable'];
+}
+
+export const resolveProjectExportFrameCanvas = ({
+  getExportCanvas,
+  legacyCanvas = null,
+}: ResolveProjectExportFrameCanvasInput): ResolveProjectExportFrameCanvasResult => {
+  const explicitCanvas = getExportCanvas?.() ?? null;
+  if (explicitCanvas) {
+    return {
+      ok: true,
+      canvas: explicitCanvas,
+      source: 'explicitExportCanvas',
+    };
+  }
+
+  if (legacyCanvas) {
+    return {
+      ok: true,
+      canvas: legacyCanvas,
+      source: 'legacyCanvas',
+    };
+  }
+
+  return {
+    ok: false,
+    reason: 'exportCanvasUnavailable',
+    detail: 'Export requires a frame canvas from the shared renderer export path or the legacy canvas fallback.',
+  };
+};
+
+export const buildProjectExportFrameSourcePlan = ({
+  rustFrameSource = null,
+  rustFrameSourceUnavailableDetail,
+  rustFrameSourcePolicy = 'allowLegacyCanvas',
+  rustFrameSourceBlockedFallback = 'legacyCanvas',
+  hasVideoObjects,
+  hasNativeRenderMediaObjects = false,
+  getExportCanvas,
+  legacyCanvas = null,
+}: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
+  if (rustFrameSource) {
+    if ((hasVideoObjects || rustFrameSourcePolicy === 'requireRustFrameSource') && !rustFrameSource.renderEncodeFrame) {
+      return {
+        ok: false,
+        reason: 'rustFrameSourceRequired',
+        detail: hasVideoObjects
+          ? 'Video export requires a shared-frame Rust export source.'
+          : 'Rust-only export requires a shared-frame Rust export source.',
+      };
+    }
+
+    const effectiveRustFrameSourceBlockedFallback = hasVideoObjects
+      ? 'failExport'
+      : rustFrameSourceBlockedFallback;
+
+    return {
+      ok: true,
+      source: 'sharedRendererRustFrameSource',
+      frameSource: rustFrameSource,
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      rustFrameSourceBlockedFallback: effectiveRustFrameSourceBlockedFallback,
+    };
+  }
+
+  if (rustFrameSourcePolicy === 'requireRustFrameSource') {
+    return {
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: appendRustFrameSourceUnavailableDetail(
+        hasNativeRenderMediaObjects
+          ? 'Image/PSD export requires a shared renderer Rust frame source.'
+          : 'Rust-only export requires a shared renderer Rust frame source.',
+        rustFrameSourceUnavailableDetail
+      ),
+    };
+  }
+
+  if (hasVideoObjects) {
+    return {
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: appendRustFrameSourceUnavailableDetail(
+        'Video export requires a shared renderer Rust frame source.',
+        rustFrameSourceUnavailableDetail
+      ),
+    };
+  }
+
+  const canvas = resolveProjectExportFrameCanvas({
+    getExportCanvas,
+    legacyCanvas,
+  });
+  if (canvas.ok) {
+    return {
+      ok: true,
+      source: canvas.source,
+      canvas: canvas.canvas,
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: true,
+    };
+  }
+
+  return {
+    ok: false,
+    reason: 'exportFrameSourceUnavailable',
+    detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy canvas.',
+  };
+};
+
+const appendRustFrameSourceUnavailableDetail = (
+  baseDetail: string,
+  unavailableDetail: string | undefined
+): string => unavailableDetail
+  ? `${baseDetail} ${unavailableDetail}`
+  : baseDetail;
+
+export const formatProjectExportRustFrameSourceUnavailableDetail = (
+  decision: ProjectExportRustFrameSourceUnavailableDecision
+): string => {
+  const diagnostics = [`fallback=${decision.reason}`];
+  if (decision.nativeRenderEnvelope) {
+    diagnostics.push(formatUnavailableNativeRenderEnvelope(decision.nativeRenderEnvelope));
+  }
+  return `${decision.detail} [${diagnostics.join('; ')}]`;
+};
+
+const formatUnavailableNativeRenderEnvelope = (
+  envelope: ProjectExportRustFrameSourceUnavailableNativeRenderEnvelope
+): string => {
+  if (!envelope.ok) {
+    return `nativeRenderEnvelope=${envelope.reason}: ${envelope.detail}`;
+  }
+  return [
+    'nativeRenderEnvelope=ready',
+    `media=${envelope.mediaCount}`,
+    `kinds=${envelope.mediaKinds.join(',')}`,
+    `sources=${envelope.sourceCount}`,
+    `sourceMediaIds=${envelope.sourceMediaIds.join(',')}`,
+  ].join(' ');
+};
+
+export const resolveProjectExportFrameSourcePolicyForEncode = ({
+  editorMode,
+  rustExportOnly,
+  hasVideoObjects,
+  hasNativeRenderMediaObjects = false,
+  encodeEngine,
+}: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
+  if (editorMode === '3d_stage' && encodeEngine === 'webCodecsMp4Muxer') {
+    return {
+      rustFrameSourcePolicy: 'allowLegacyCanvas',
+      rustFrameSourceBlockedFallback: 'legacyCanvas',
+    };
+  }
+
+  const requiresRustFrameSource = rustExportOnly
+    || encodeEngine === 'rustBackendVideoEncoder'
+    || hasVideoObjects
+    || hasNativeRenderMediaObjects;
+
+  return {
+    rustFrameSourcePolicy: requiresRustFrameSource ? 'requireRustFrameSource' : 'allowLegacyCanvas',
+    rustFrameSourceBlockedFallback: requiresRustFrameSource ? 'failExport' : 'legacyCanvas',
+  };
+};
+
+// Rust/native側が実際にサポートするobject typeの単一情報源(SSOT)は
+// sharedRendererSceneObjectSupport.tsのisSupportedSceneObjectであり、ここでは手書きのOR式で
+// 二重管理しない。二重管理はどちらかの更新漏れ(実際にshattered_sphereと
+// plain_effector_lineが export 判定側から漏れていた)を必ず生むため、SSOTから導出する。
+// textも除外しない。PixiJSはPhase 4/5で完全撤去済みで、Chromium側はテキストの
+// グリフを一切描いていない(実描画はrust-backend/src/generated/text.rsのcosmic-text
+// が担い、textBoxMeasurement.tsのmeasureTextはボックス寸法測定のみ)。2D exportの
+// 「legacy canvas」はgetExportCanvas(Viewport.tsx)が返すshared rendererのsurface
+// canvasであり、中身は既にRustが描いた結果をprojectExportLegacyCanvasCapture.tsが
+// createImageBitmapでCPU往復コピーしているだけなので、textだけを除外する理由が無い。
+// テキストのみのプロジェクトもRust frame sourceを必須とし、用意できなければ
+// (resolveProjectExportFrameSourcePolicyForEncodeによりfailExportとなり)
+// legacy canvasへ逃げずにexport失敗させる。これは意図した挙動である: legacy canvas
+// の中身はshared rendererのsurface canvasに過ぎず、Rust frame sourceが用意できない
+// 状況ではそのcanvas自体も空か古いフレームである可能性が高い。無音で空フレームを
+// 書き出すより失敗した方がよい。image/psdのみのプロジェクトは既に同じ扱いであり、
+// textだけが例外である理由も無い。
+export const hasProjectExportNativeRenderMediaObjects = (
+  objects: readonly TimelineObject[]
+): boolean =>
+  objects.some(isSupportedSceneObject);
+
+export const resolveProjectExportRustFrameSourceContext = ({
+  objects,
+  time,
+  encodeEngine,
+  presentedFrameSharedFrameTaker,
+  onFrameSourceUnavailable,
+}: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => {
+  const hasVideoObjects = objects.some((object) => object.type === 'video');
+  const hasNativeRenderMediaObjects = hasProjectExportNativeRenderMediaObjects(objects);
+
+  return {
+    objects,
+    hasVideoObjects,
+    ...(hasNativeRenderMediaObjects ? { hasNativeRenderMediaObjects } : {}),
+    time,
+    preferEncodeOnly: encodeEngine === 'rustBackendVideoEncoder' || hasVideoObjects,
+    presentedFrameSharedFrameTaker,
+    onFrameSourceUnavailable,
+  };
+};
+
+export const resolveProjectExportFrameRuntimePlan = ({
+  frameSourcePlan,
+  rustFrameSourceBlocked,
+}: ResolveProjectExportFrameRuntimePlanInput): ProjectExportFrameRuntimePlan => {
+  if (frameSourcePlan.source === 'sharedRendererRustFrameSource') {
+    if (!rustFrameSourceBlocked) {
+      return {
+        source: 'sharedRendererRustFrameSource',
+        captureCanvas: false,
+        requiresRenderScene: false,
+        usesExportFrameOverrides: false,
+        shouldCloseRustFrameSource: false,
+        shouldFailOnRustFrameSourceBlocked: false,
+      };
+    }
+
+    if (frameSourcePlan.rustFrameSourceBlockedFallback === 'failExport') {
+      return {
+        source: 'sharedRendererRustFrameSourceBlocked',
+        captureCanvas: false,
+        requiresRenderScene: false,
+        usesExportFrameOverrides: false,
+        shouldCloseRustFrameSource: true,
+        shouldFailOnRustFrameSourceBlocked: true,
+      };
+    }
+
+    return {
+      source: 'legacyCanvasAfterRustBlocked',
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: false,
+      shouldCloseRustFrameSource: true,
+      shouldFailOnRustFrameSourceBlocked: false,
+    };
+  }
+
+  return {
+    source: frameSourcePlan.source,
+    captureCanvas: true,
+    requiresRenderScene: true,
+    usesExportFrameOverrides: frameSourcePlan.usesExportFrameOverrides,
+    shouldCloseRustFrameSource: false,
+    shouldFailOnRustFrameSourceBlocked: false,
+  };
+};
+
+export const shouldSynchroniseTimelineForProjectExportFrame = (
+  frameRuntimePlan: Pick<ProjectExportFrameRuntimePlan, 'requiresRenderScene'>
+): boolean => frameRuntimePlan.requiresRenderScene;
+
+export const createSingleUseProjectExportFrameSourceCloser = (
+  frameSource: Pick<ProjectExportRustFrameSource, 'close'>
+): (() => Promise<void>) => {
+  let closePromise: Promise<void> | null = null;
+
+  return () => {
+    if (!closePromise) {
+      closePromise = Promise.resolve(frameSource.close?.()).then(() => undefined);
+    }
+    return closePromise;
+  };
+};

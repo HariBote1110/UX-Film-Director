@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DisplacementPolyObjectFields",
+  "description": "`displacement_poly` kind (`src/types.ts` の `DisplacementPolyObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & DisplacementPolyObjectFields & { type: 'displacement_poly' }`\nとして組み立てる。\n\n`width`/`height` は `displacementPolyObjectFactory.ts` の\n`buildAviUtlDisplacementPolyObject` の固定リテラル (800x450) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "columns": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "depthScale": {
+      "type": "number",
+      "format": "float"
+    },
+    "displacementScale": {
+      "type": "number",
+      "format": "float"
+    },
+    "fillColour": {
+      "type": "string"
+    },
+    "fillOpacity": {
+      "type": "number",
+      "format": "float"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineColour": {
+      "type": "string"
+    },
+    "meshOpacity": {
+      "type": "number",
+      "format": "float"
+    },
+    "rows": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "columns",
+    "rows",
+    "displacementScale",
+    "depthScale",
+    "meshOpacity",
+    "fillOpacity",
+    "lineColour",
+    "fillColour",
+    "seed"
+  ]
+}

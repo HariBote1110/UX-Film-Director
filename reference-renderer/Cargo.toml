@@ -1,0 +1,11 @@
+[package]
+name = "uxfd-reference-renderer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "uxfd_reference_renderer"
+
+[dependencies]
+uxfd-golden-harness = { path = "../golden-harness" }
+uxfd-rust-core = { path = "../rust-core" }

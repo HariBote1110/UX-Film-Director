@@ -1,0 +1,1740 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentProjectSpec",
+  "type": "object",
+  "properties": {
+    "layers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AgentLayerSpec"
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AgentObjectSpec"
+      }
+    },
+    "project": {
+      "$ref": "#/$defs/AgentProjectSettings"
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "version",
+    "project",
+    "layers",
+    "objects"
+  ],
+  "$defs": {
+    "AgentAlignSpec": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentAlignValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "y": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentAlignValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AgentAlignValue": {
+      "type": "string",
+      "enum": [
+        "start",
+        "center",
+        "end"
+      ]
+    },
+    "AgentBlurFilterSpec": {
+      "type": "object",
+      "properties": {
+        "quality": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "strength": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      }
+    },
+    "AgentFilterSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "blur"
+            }
+          },
+          "$ref": "#/$defs/AgentBlurFilterSpec",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "AgentGradientKind": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "radial"
+      ]
+    },
+    "AgentGradientSpec": {
+      "type": "object",
+      "properties": {
+        "colours": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "direction": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "stops": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/AgentGradientKind"
+        }
+      },
+      "required": [
+        "type",
+        "colours",
+        "stops"
+      ]
+    },
+    "AgentLayerSpec": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "locked": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "visible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "AgentObjectSpec": {
+      "description": "`src/agentProject/agentProject.ts` の `AgentObjectSpec` 判別共用体と同形。\nTS 側は `AgentObjectBase & { kind: 'xxx', ... }` の交差型だが、Rust では\n`TimelineObject` と同じ内部タグ付き enum + flatten パターンで表現する。",
+      "oneOf": [
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "cornerRadius": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fill": {
+              "type": "string"
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "gradient": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentGradientSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "shape"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "shape": {
+              "$ref": "#/$defs/ShapeType"
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration",
+            "shape",
+            "fill"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fill": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "fontFamily": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fontSize": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "letterSpacing": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "text": {
+              "type": "string"
+            },
+            "textAlignment": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextAlignment"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "textShadow": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextShadow"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "textStroke": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextStroke"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration",
+            "text"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "colour": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "particle"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "lifetimeSeconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "particleCount": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "seed": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            },
+            "size": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "speed": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "spread": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "backgroundColour": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "columns": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dotSize": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "foregroundColour": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "dotField"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "rows": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "secondaryColour": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "colour": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "shatteredSphere"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "seed": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "image"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "src": {
+              "type": "string"
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration",
+            "src"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "video"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "muted": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "src": {
+              "type": "string"
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "volume": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration",
+            "src"
+          ]
+        },
+        {
+          "description": "`AgentObjectBase`（`src/agentProject/agentProject.ts`）と同形。\n`kind` 判別自体は `AgentObjectSpec`（下）の `#[serde(tag = \"kind\")]` が\n担うため、ここには含めない（`BaseObject`/`TimelineObject` の関係と同じ\nパターン）。",
+          "type": "object",
+          "properties": {
+            "align": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentAlignSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "format": "float"
+            },
+            "easing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Easing"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filters": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/AgentFilterSpec"
+              }
+            },
+            "height": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "audio"
+            },
+            "layer": {
+              "type": "string"
+            },
+            "muted": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "padding": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "relativeTo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rotation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleX": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "scaleY": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "src": {
+              "type": "string"
+            },
+            "start": {
+              "type": "number",
+              "format": "float"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentToSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "volume": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "width": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "layer",
+            "start",
+            "duration",
+            "src"
+          ]
+        }
+      ]
+    },
+    "AgentProjectSettings": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "number",
+          "format": "float"
+        },
+        "editorMode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EditorMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fps": {
+          "type": "number",
+          "format": "float"
+        },
+        "height": {
+          "type": "number",
+          "format": "float"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sampleRate": {
+          "type": "number",
+          "format": "float"
+        },
+        "width": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "fps",
+        "sampleRate",
+        "duration"
+      ]
+    },
+    "AgentToSpec": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "Easing": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "easeInSine",
+        "easeOutSine",
+        "easeInOutSine",
+        "easeInQuad",
+        "easeOutQuad",
+        "easeInOutQuad",
+        "easeInCubic",
+        "easeOutCubic",
+        "easeInOutCubic",
+        "easeInQuart",
+        "easeOutQuart",
+        "easeInOutQuart",
+        "easeInQuint",
+        "easeOutQuint",
+        "easeInOutQuint",
+        "easeInExpo",
+        "easeOutExpo",
+        "easeInOutExpo",
+        "easeInCirc",
+        "easeOutCirc",
+        "easeInOutCirc",
+        "easeInBack",
+        "easeOutBack",
+        "easeInOutBack",
+        "easeInElastic",
+        "easeOutElastic",
+        "easeInOutElastic",
+        "easeInBounce",
+        "easeOutBounce",
+        "easeInOutBounce"
+      ]
+    },
+    "EditorMode": {
+      "description": "`src/types.ts` の `EditorMode`（`'2d' | '3d_stage'`）と同形。",
+      "type": "string",
+      "enum": [
+        "2d",
+        "3d_stage"
+      ]
+    },
+    "ShapeType": {
+      "type": "string",
+      "enum": [
+        "rect",
+        "rounded_rect",
+        "circle",
+        "ellipse",
+        "triangle",
+        "star",
+        "pentagon",
+        "diamond",
+        "arrow",
+        "heart",
+        "cross"
+      ]
+    },
+    "TextAlignment": {
+      "type": "string",
+      "enum": [
+        "left",
+        "centre",
+        "right"
+      ]
+    },
+    "TextShadow": {
+      "description": "`src/types.ts` の手書き `TextShadow` と構造的に同じ形にした編集モデル用型。",
+      "type": "object",
+      "properties": {
+        "blur": {
+          "type": "number",
+          "format": "float"
+        },
+        "colour": {
+          "type": "string"
+        },
+        "offsetX": {
+          "type": "number",
+          "format": "float"
+        },
+        "offsetY": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "colour",
+        "offsetX",
+        "offsetY",
+        "blur"
+      ]
+    },
+    "TextStroke": {
+      "description": "`src/types.ts` の手書き `TextStroke` と構造的に同じ形にした編集モデル用型。",
+      "type": "object",
+      "properties": {
+        "colour": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "colour",
+        "width"
+      ]
+    }
+  }
+}

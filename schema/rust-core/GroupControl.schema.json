@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GroupControl",
+  "type": "object",
+  "properties": {
+    "duration_frames": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "id": {
+      "type": "string"
+    },
+    "opacity": {
+      "type": "number",
+      "format": "float"
+    },
+    "position_keyframes": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PositionKeyframe"
+      }
+    },
+    "start_frame": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "target_track_ids": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "transform": {
+      "$ref": "#/$defs/Transform",
+      "default": {
+        "rotation_degrees": 0.0,
+        "sampling": "nearest",
+        "scale_x": 1.0,
+        "scale_y": 1.0,
+        "translation_x": 0.0,
+        "translation_y": 0.0
+      }
+    }
+  },
+  "required": [
+    "id",
+    "start_frame",
+    "duration_frames",
+    "opacity"
+  ],
+  "$defs": {
+    "Easing": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "easeInSine",
+        "easeOutSine",
+        "easeInOutSine",
+        "easeInQuad",
+        "easeOutQuad",
+        "easeInOutQuad",
+        "easeInCubic",
+        "easeOutCubic",
+        "easeInOutCubic",
+        "easeInQuart",
+        "easeOutQuart",
+        "easeInOutQuart",
+        "easeInQuint",
+        "easeOutQuint",
+        "easeInOutQuint",
+        "easeInExpo",
+        "easeOutExpo",
+        "easeInOutExpo",
+        "easeInCirc",
+        "easeOutCirc",
+        "easeInOutCirc",
+        "easeInBack",
+        "easeOutBack",
+        "easeInOutBack",
+        "easeInElastic",
+        "easeOutElastic",
+        "easeInOutElastic",
+        "easeInBounce",
+        "easeOutBounce",
+        "easeInOutBounce"
+      ]
+    },
+    "PositionKeyframe": {
+      "type": "object",
+      "properties": {
+        "easing": {
+          "$ref": "#/$defs/Easing",
+          "default": "linear"
+        },
+        "frame_offset": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "frame_offset",
+        "x",
+        "y"
+      ]
+    },
+    "SamplingMode": {
+      "type": "string",
+      "enum": [
+        "nearest",
+        "bilinear"
+      ]
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "rotation_degrees": {
+          "type": "number",
+          "format": "float"
+        },
+        "sampling": {
+          "$ref": "#/$defs/SamplingMode",
+          "default": "nearest"
+        },
+        "scale_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "scale_y": {
+          "type": "number",
+          "format": "float"
+        },
+        "translation_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "translation_y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "translation_x",
+        "translation_y",
+        "scale_x",
+        "scale_y",
+        "rotation_degrees"
+      ]
+    }
+  }
+}

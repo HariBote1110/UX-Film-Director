@@ -1,0 +1,928 @@
+//! P0 editable scene builder contract fixture.
+//!
+//! Until P1 adds the builder, this test validates fixture inputs and expected
+//! outputs structurally. JSON object key order is insignificant, while array
+//! order is significant (TS already sorts PSD active layer IDs canonically).
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use serde::Deserialize;
+use serde_json::Value;
+use uxfd_rust_core::{
+    build_evaluation_scene, EditableSceneGraph, EditableSceneMediaContext,
+    EditableSceneMediaPurpose,
+};
+
+fn fixture_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/cross-object-resolution.json")
+}
+
+fn load_fixture() -> Value {
+    let path = fixture_path();
+    let raw = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{} を読めない: {error}", path.display()));
+    serde_json::from_str(&raw)
+        .unwrap_or_else(|error| panic!("{} を JSON として読めない: {error}", path.display()))
+}
+
+/// Structural JSON comparator for P1 builder output comparison.
+///
+/// serde_json objects do not retain key order, so objects compare by key.
+/// `media`, `Project`, and generator source arrays compare in wire order.
+fn assert_structural_json_eq(path: &str, expected: &Value, actual: &Value) {
+    match (expected, actual) {
+        (Value::Null, Value::Null) => {}
+        (Value::Bool(left), Value::Bool(right)) if left == right => {}
+        (Value::Number(left), Value::Number(right))
+            if (left.as_f64().unwrap_or(f64::NAN) - right.as_f64().unwrap_or(f64::NAN)).abs()
+                <= 1e-5 => {}
+        (Value::String(left), Value::String(right)) if left == right => {}
+        (Value::Array(left), Value::Array(right)) => {
+            assert_eq!(left.len(), right.len(), "{path}: array length が異なる");
+            for (index, (expected, actual)) in left.iter().zip(right).enumerate() {
+                assert_structural_json_eq(&format!("{path}[{index}]"), expected, actual);
+            }
+        }
+        (Value::Object(left), Value::Object(right)) => {
+            assert_eq!(left.len(), right.len(), "{path}: object key 数が異なる");
+            for (key, expected) in left {
+                let actual = right
+                    .get(key)
+                    .unwrap_or_else(|| panic!("{path}.{key}: actual に key が無い"));
+                assert_structural_json_eq(&format!("{path}.{key}"), expected, actual);
+            }
+        }
+        _ => panic!("{path}: expected {expected}, actual {actual}"),
+    }
+}
+
+fn required<'a>(value: &'a Value, key: &str, path: &str) -> &'a Value {
+    value
+        .get(key)
+        .unwrap_or_else(|| panic!("{path}.{key} が無い"))
+}
+
+#[test]
+fn p0_fixture_is_well_formed_and_generator_sources_match_media() {
+    let fixture = load_fixture();
+    assert_eq!(required(&fixture, "version", "fixture"), &Value::from(1));
+    let cases = required(&fixture, "cases", "fixture")
+        .as_array()
+        .expect("fixture.cases は array である必要がある");
+    assert!(!cases.is_empty(), "P0 fixture に case が 1 件も無い");
+
+    for case in cases {
+        let id = required(case, "id", "case")
+            .as_str()
+            .expect("case.id は string である必要がある");
+        let graph = required(case, "graph", id);
+        assert!(
+            required(graph, "settings", id).is_object(),
+            "{id}.graph.settings は object"
+        );
+        assert!(
+            required(graph, "layers", id).is_array(),
+            "{id}.graph.layers は array"
+        );
+        assert!(
+            required(graph, "objects", id).is_array(),
+            "{id}.graph.objects は array"
+        );
+        assert!(
+            required(case, "time", id).is_number(),
+            "{id}.time は number"
+        );
+        assert!(matches!(
+            required(case, "purpose", id).as_str(),
+            Some("previewProxy" | "exportOriginal")
+        ));
+
+        let expected = required(case, "expected", id);
+        let media = required(expected, "media", id)
+            .as_array()
+            .expect("expected.media は array である必要がある");
+        let sources = required(expected, "generator_sources", id)
+            .as_object()
+            .expect("expected.generator_sources は object である必要がある");
+
+        // Fix the SceneMediaReference shape in the fixture. P1 compares this
+        // expected value with media returned by the Rust builder here.
+        assert_structural_json_eq(
+            &format!("{id}.expected.media"),
+            required(expected, "media", id),
+            &Value::Array(media.clone()),
+        );
+        if let Some(project) = expected.get("project") {
+            assert!(project.is_object(), "{id}.expected.project は object");
+            assert_structural_json_eq(&format!("{id}.expected.project"), project, project);
+        }
+
+        for reference in media {
+            let kind = required(reference, "kind", id)
+                .as_str()
+                .expect("media.kind は string");
+            if !kind.starts_with("Generated") {
+                continue;
+            }
+            let media_id = required(reference, "id", id)
+                .as_str()
+                .expect("media.id は string");
+            let source = required(reference, "source", id)
+                .as_str()
+                .expect("media.source は string");
+            let parsed: Value = serde_json::from_str(source).unwrap_or_else(|error| {
+                panic!("{id}.media[{media_id}].source は JSON でない: {error}")
+            });
+            let expected_source = sources
+                .get(media_id)
+                .unwrap_or_else(|| panic!("{id}.generator_sources.{media_id} が無い"));
+            assert_structural_json_eq(
+                &format!("{id}.generator_sources.{media_id}"),
+                expected_source,
+                &parsed,
+            );
+        }
+    }
+}
+
+#[test]
+fn structural_comparator_ignores_object_key_order_but_not_array_order() {
+    let expected: Value =
+        serde_json::json!({ "a": 1, "nested": { "x": true }, "items": ["first", "second"] });
+    let reordered: Value =
+        serde_json::json!({ "items": ["first", "second"], "nested": { "x": true }, "a": 1 });
+    assert_structural_json_eq("comparator", &expected, &reordered);
+}
+
+#[test]
+fn p1_rust_builder_matches_p0_contract_fixture() {
+    let fixture = load_fixture();
+    for case in required(&fixture, "cases", "fixture").as_array().unwrap() {
+        let id = required(case, "id", "case").as_str().unwrap();
+        let mut graph: EditableSceneGraph =
+            serde_json::from_value(required(case, "graph", id).clone())
+                .unwrap_or_else(|error| panic!("{id}.graph を deserialize できない: {error}"));
+        graph.media_context = Some(EditableSceneMediaContext {
+            purpose: match required(case, "purpose", id).as_str().unwrap() {
+                "previewProxy" => EditableSceneMediaPurpose::PreviewProxy,
+                "exportOriginal" => EditableSceneMediaPurpose::ExportOriginal,
+                purpose => panic!("{id}: 未知の purpose {purpose}"),
+            },
+            scene_id: Some(id.to_string()),
+            evaluation_time_seconds: Some(required(case, "time", id).as_f64().unwrap() as f32),
+        });
+        let built = build_evaluation_scene(&graph);
+        assert_eq!(built.resident_eligible, built.diagnostics.is_empty(), "{id}: resident eligibility が diagnostics と不一致");
+        let mut actual = serde_json::to_value(&built.media).unwrap();
+        let mut expected = required(required(case, "expected", id), "media", id).clone();
+        // `source` は canonical な JSON document。文字列としての key order / 1 と
+        // 1.0 の表現ではなく、P0 で固定した構造で比較する。
+        for media in expected
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .chain(actual.as_array_mut().unwrap())
+        {
+            if let Some(source) = media.get("source").and_then(Value::as_str) {
+                if let Ok(parsed) = serde_json::from_str::<Value>(source) {
+                    media["source"] = parsed;
+                }
+            }
+        }
+        assert_structural_json_eq(&format!("{id}.media"), &expected, &actual);
+        if let Some(expected_project) = required(case, "expected", id).get("project") {
+            let mut expected_project = expected_project.clone();
+            if let Some(entries) = expected_project
+                .get_mut("media")
+                .and_then(Value::as_array_mut)
+            {
+                for entry in entries {
+                    entry.as_object_mut().unwrap().remove("width");
+                    entry.as_object_mut().unwrap().remove("height");
+                    entry.as_object_mut().unwrap().remove("source_rate");
+                    entry.as_object_mut().unwrap().remove("active_layer_ids");
+                }
+            }
+            assert_structural_json_eq(
+                &format!("{id}.project"),
+                &expected_project,
+                &serde_json::to_value(built.project).unwrap(),
+            );
+        }
+    }
+}
+
+#[test]
+fn unsupported_feature_never_produces_a_valid_looking_clip() {
+    let fixture = load_fixture();
+    let first = &required(&fixture, "cases", "fixture")
+        .as_array()
+        .expect("cases")[0];
+    let mut graph: EditableSceneGraph =
+        serde_json::from_value(required(first, "graph", "case").clone()).unwrap();
+    let object_id = {
+        let object = graph
+            .objects
+            .iter_mut()
+            .find(|object| {
+                !matches!(
+                    object,
+                    uxfd_rust_core::TimelineObject::Audio { .. }
+                        | uxfd_rust_core::TimelineObject::GroupControl { .. }
+                )
+            })
+            .expect("visual fixture object");
+        let object_id = object_id(object).to_string();
+        let mut value = serde_json::to_value(&*object).unwrap();
+        value["clipping"] = serde_json::json!(true);
+        *object = serde_json::from_value(value).unwrap();
+        object_id
+    };
+    let built = build_evaluation_scene(&graph);
+    assert!(built
+        .project
+        .tracks
+        .iter()
+        .all(|track| track.clips.iter().all(|clip| clip.id != object_id)));
+    assert!(built
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.object_id == object_id
+            && diagnostic.code == "unsupportedMask"));
+}
+
+fn object_id(object: &uxfd_rust_core::TimelineObject) -> &str {
+    match object {
+        uxfd_rust_core::TimelineObject::Text { base, .. }
+        | uxfd_rust_core::TimelineObject::Shape { base, .. }
+        | uxfd_rust_core::TimelineObject::Image { base, .. }
+        | uxfd_rust_core::TimelineObject::Video { base, .. }
+        | uxfd_rust_core::TimelineObject::Audio { base, .. }
+        | uxfd_rust_core::TimelineObject::Psd { base, .. }
+        | uxfd_rust_core::TimelineObject::GroupControl { base, .. }
+        | uxfd_rust_core::TimelineObject::AudioVisualization { base, .. }
+        | uxfd_rust_core::TimelineObject::AudioSphere { base, .. }
+        | uxfd_rust_core::TimelineObject::Particle { base, .. }
+        | uxfd_rust_core::TimelineObject::Barcode { base, .. }
+        | uxfd_rust_core::TimelineObject::PuzzlePiece { base, .. }
+        | uxfd_rust_core::TimelineObject::ColourWheel { base, .. }
+        | uxfd_rust_core::TimelineObject::Gourd { base, .. }
+        | uxfd_rust_core::TimelineObject::Gear { base, .. }
+        | uxfd_rust_core::TimelineObject::TrackBar { base, .. }
+        | uxfd_rust_core::TimelineObject::PieChart { base, .. }
+        | uxfd_rust_core::TimelineObject::Histogram { base, .. }
+        | uxfd_rust_core::TimelineObject::ToneCurve { base, .. }
+        | uxfd_rust_core::TimelineObject::HksyCheckerGrid { base, .. }
+        | uxfd_rust_core::TimelineObject::GetColorDotField { base, .. }
+        | uxfd_rust_core::TimelineObject::RegionFrame { base, .. }
+        | uxfd_rust_core::TimelineObject::SimpleTube { base, .. }
+        | uxfd_rust_core::TimelineObject::SphereDots { base, .. }
+        | uxfd_rust_core::TimelineObject::SphericalField { base, .. }
+        | uxfd_rust_core::TimelineObject::Sunburst { base, .. }
+        | uxfd_rust_core::TimelineObject::CircularArrow { base, .. }
+        | uxfd_rust_core::TimelineObject::TriangleBracket { base, .. }
+        | uxfd_rust_core::TimelineObject::TartanCheck { base, .. }
+        | uxfd_rust_core::TimelineObject::Houndstooth { base, .. }
+        | uxfd_rust_core::TimelineObject::Yagasuri { base, .. }
+        | uxfd_rust_core::TimelineObject::PaperAirplane { base, .. }
+        | uxfd_rust_core::TimelineObject::AsanohaPattern { base, .. }
+        | uxfd_rust_core::TimelineObject::FocusLinesPlus { base, .. }
+        | uxfd_rust_core::TimelineObject::RandomLineEx { base, .. }
+        | uxfd_rust_core::TimelineObject::ContourTrace { base, .. }
+        | uxfd_rust_core::TimelineObject::DisplacementPoly { base, .. }
+        | uxfd_rust_core::TimelineObject::PlainEffectorLine { base, .. }
+        | uxfd_rust_core::TimelineObject::Hologram { base, .. }
+        | uxfd_rust_core::TimelineObject::Protractor { base, .. }
+        | uxfd_rust_core::TimelineObject::ShakingPolygon { base, .. }
+        | uxfd_rust_core::TimelineObject::ShatteredSphere { base, .. } => &base.id,
+    }
+}
+
+#[test]
+fn generated_evaluation_scenes_match_ts_editable_builder_without_diagnostics() {
+    let directory =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ts-evaluation-parity");
+    let mut scene_count = 0;
+    let mut object_types = std::collections::BTreeSet::new();
+    for entry in fs::read_dir(&directory).expect("parity fixture directory") {
+        let path = entry.expect("fixture entry").path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+            continue;
+        }
+        if path.file_name().and_then(|name| name.to_str()) == Some("KNOWN_DIFFERENCES.json") {
+            continue;
+        }
+        let fixture: Value = serde_json::from_str(&fs::read_to_string(&path).expect("fixture"))
+            .expect("fixture JSON");
+        let editable = required(&fixture, "editable_scene", path.to_str().unwrap());
+        let mut graph: EditableSceneGraph =
+            serde_json::from_value(required(editable, "graph", "editable_scene").clone())
+                .expect("editable graph");
+        let scene_name = required(&fixture, "name", "fixture").as_str().unwrap();
+        graph.media_context = Some(EditableSceneMediaContext {
+            purpose: EditableSceneMediaPurpose::PreviewProxy,
+            scene_id: Some(scene_name.to_string()),
+            evaluation_time_seconds: None,
+        });
+        let built = build_evaluation_scene(&graph);
+        assert!(
+            built.diagnostics.is_empty(),
+            "{scene_name}: {:?}",
+            built.diagnostics
+        );
+        let expected_result = required(editable, "result", "editable_scene");
+        assert_eq!(
+            required(expected_result, "ok", "editable_scene.result"),
+            &Value::Bool(true)
+        );
+        let mut expected_media =
+            required(expected_result, "media", "editable_scene.result").clone();
+        let mut actual_media = serde_json::to_value(&built.media).unwrap();
+        for media in expected_media
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .chain(actual_media.as_array_mut().unwrap())
+        {
+            if let Some(source) = media.get("source").and_then(Value::as_str) {
+                if let Ok(parsed) = serde_json::from_str::<Value>(source) {
+                    media["source"] = parsed;
+                }
+            }
+        }
+        assert_structural_json_eq(
+            &format!("{scene_name}.editable.media"),
+            &expected_media,
+            &actual_media,
+        );
+        let mut expected_project =
+            required(expected_result, "project", "editable_scene.result").clone();
+        if let Some(entries) = expected_project
+            .get_mut("media")
+            .and_then(Value::as_array_mut)
+        {
+            for entry in entries {
+                if let Some(object) = entry.as_object_mut() {
+                    object.remove("width");
+                    object.remove("height");
+                    object.remove("sourceRate");
+                    object.remove("activeLayerIds");
+                    object.remove("source_rate");
+                    object.remove("active_layer_ids");
+                    if let Some(source) = object
+                        .get("source")
+                        .and_then(Value::as_str)
+                        .and_then(|source| serde_json::from_str::<Value>(source).ok())
+                    {
+                        object.insert("source".to_string(), source);
+                    }
+                }
+            }
+        }
+        let mut actual_project = serde_json::to_value(built.project).unwrap();
+        if let Some(entries) = actual_project
+            .get_mut("media")
+            .and_then(Value::as_array_mut)
+        {
+            for entry in entries {
+                if let Some(object) = entry.as_object_mut() {
+                    if let Some(source) = object
+                        .get("source")
+                        .and_then(Value::as_str)
+                        .and_then(|source| serde_json::from_str::<Value>(source).ok())
+                    {
+                        object.insert("source".to_string(), source);
+                    }
+                }
+            }
+        }
+        assert_structural_json_eq(
+            &format!("{scene_name}.editable.project"),
+            &expected_project,
+            &actual_project,
+        );
+        for object in graph.objects.iter() {
+            object_types.insert(object_type_name(object).to_string());
+        }
+        scene_count += 1;
+    }
+    assert_eq!(scene_count, 4, "fixture scene count");
+    let verified: std::collections::BTreeSet<String> =
+        all_object_type_names().into_iter().collect();
+    let diagnosed: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let all: std::collections::BTreeSet<String> = all_object_type_names().into_iter().collect();
+    assert_eq!(
+        verified
+            .union(&diagnosed)
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>(),
+        all
+    );
+    assert!(verified.is_disjoint(&diagnosed));
+    assert!(
+        object_types.is_subset(&verified),
+        "既存3シーンに未検証型が混入: {object_types:?}"
+    );
+}
+
+#[test]
+fn coverage_scene_matches_ts_media_for_all_object_types_and_resident_project() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+            .expect("coverage fixture JSON");
+    let mut full_graph: EditableSceneGraph =
+        serde_json::from_value(required(&fixture, "graph", "coverage").clone())
+            .expect("coverage graph");
+    let full_ts = required(&fixture, "ts_result", "coverage");
+    assert_eq!(
+        required(full_ts, "ok", "coverage.ts_result"),
+        &Value::Bool(true)
+    );
+    let full_ts_issues = full_ts
+        .get("issues")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let mut graph_value = required(&fixture, "graph", "coverage").clone();
+    let project_object_ids: std::collections::BTreeSet<String> = required(
+        required(&fixture, "resident_result", "coverage"),
+        "project",
+        "coverage",
+    )
+    .get("media")
+    .and_then(Value::as_array)
+    .unwrap()
+    .iter()
+    .filter_map(|media| media.get("id").and_then(Value::as_str).map(str::to_string))
+    .collect();
+    graph_value["objects"] = graph_value["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|object| {
+            object.get("id").and_then(Value::as_str).is_some_and(|id| {
+                project_object_ids.contains(id)
+                    || object.get("type").and_then(Value::as_str) == Some("group_control")
+            })
+        })
+        .cloned()
+        .collect();
+    let mut project_graph: EditableSceneGraph =
+        serde_json::from_value(graph_value).expect("coverage graph");
+    let context = EditableSceneMediaContext {
+        purpose: EditableSceneMediaPurpose::PreviewProxy,
+        scene_id: Some("all-object-types".to_string()),
+        evaluation_time_seconds: None,
+    };
+    full_graph.media_context = Some(context.clone());
+    project_graph.media_context = Some(context);
+    let built = build_evaluation_scene(&full_graph);
+    assert!(built.resident_eligible);
+    let mut expected_diagnostics: Vec<(String, String)> = full_ts_issues
+        .iter()
+        .map(|issue| {
+            (
+                required(issue, "objectId", "issue")
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+                required(issue, "code", "issue")
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+            )
+        })
+        .collect();
+    let mut actual_diagnostics: Vec<(String, String)> = built
+        .diagnostics
+        .iter()
+        .map(|issue| (issue.object_id.clone(), issue.code.clone()))
+        .collect();
+    expected_diagnostics.sort();
+    actual_diagnostics.sort();
+    assert_eq!(
+        actual_diagnostics, expected_diagnostics,
+        "full coverage のTS issuesとRust diagnosticsが異なる"
+    );
+    let mut expected = required(
+        required(&fixture, "resident_result", "coverage"),
+        "media",
+        "coverage",
+    )
+    .clone();
+    let mut actual = serde_json::to_value(&built.media).expect("coverage media");
+    for media in expected
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .chain(actual.as_array_mut().unwrap())
+    {
+        if let Some(source) = media.get("source").and_then(Value::as_str) {
+            if let Ok(parsed) = serde_json::from_str::<Value>(source) {
+                media["source"] = parsed;
+            }
+        }
+    }
+    assert_structural_json_eq("coverage.media", &expected, &actual);
+    let mut expected_project = required(
+        required(&fixture, "resident_result", "coverage"),
+        "project",
+        "coverage",
+    )
+    .clone();
+    let project_built = build_evaluation_scene(&project_graph);
+    assert!(
+        project_built.diagnostics.is_empty(),
+        "coverage project diagnostics: {:?}",
+        project_built.diagnostics
+    );
+    assert!(project_built.resident_eligible);
+    let mut actual_project = serde_json::to_value(project_built.project).expect("coverage project");
+    if let Some(entries) = expected_project
+        .get_mut("media")
+        .and_then(Value::as_array_mut)
+    {
+        for entry in entries {
+            if let Some(object) = entry.as_object_mut() {
+                object.remove("width");
+                object.remove("height");
+                object.remove("source_rate");
+                object.remove("active_layer_ids");
+            }
+        }
+    }
+    for project in [&mut expected_project, &mut actual_project] {
+        if let Some(entries) = project.get_mut("media").and_then(Value::as_array_mut) {
+            for entry in entries {
+                if let Some(source) = entry.get("source").and_then(Value::as_str) {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(source) {
+                        entry["source"] = parsed;
+                    }
+                }
+            }
+        }
+    }
+    assert_structural_json_eq("coverage.project", &expected_project, &actual_project);
+    let types: std::collections::BTreeSet<String> =
+        full_graph.objects.iter().map(object_type_name).collect();
+    assert_eq!(types.len(), 42, "coverage scene は42 kindを含む必要がある");
+    assert_eq!(types, all_object_type_names().into_iter().collect());
+}
+
+#[test]
+fn resident_builder_preserves_enabled_auto_blur_filter() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+            .expect("coverage fixture JSON");
+    let mut graph_value = required(&fixture, "graph", "coverage").clone();
+    let object = &mut graph_value["objects"][0];
+    object["x"] = Value::from(17.0);
+    object["y"] = Value::from(23.0);
+    object["endX"] = Value::from(137.0);
+    object["endY"] = Value::from(73.0);
+    object["duration"] = Value::from(5.0);
+    object["filters"] = serde_json::json!([{
+        "id": "auto-blur",
+        "type": "auto_blur",
+        "enabled": true,
+        "params": {
+            "blur": 10.0,
+            "speed": 2.0,
+            "strength": 0.8,
+            "colourShift": 0.4
+        }
+    }]);
+    graph_value["objects"] = serde_json::json!([object.clone()]);
+    let graph: EditableSceneGraph = serde_json::from_value(graph_value).expect("editable graph");
+
+    let built = build_evaluation_scene(&graph);
+    assert!(built.resident_eligible, "{:?}", built.diagnostics);
+    let clip = built
+        .project
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .find(|clip| clip.id == "text")
+        .expect("text clip");
+    let auto_blur = clip
+        .effects
+        .iter()
+        .find_map(|effect| match effect {
+            uxfd_rust_core::Effect::AutoBlur {
+                angle_degrees,
+                radius,
+                strength,
+                colour_shift,
+            } => Some((*angle_degrees, *radius, *strength, *colour_shift)),
+            _ => None,
+        })
+        .expect("enabled auto_blur filter must be represented as a Rust effect");
+    assert!((auto_blur.0 - 22.619865).abs() < 0.001);
+    assert!((auto_blur.1 - (130.0_f32 / (5.0 * 60.0) * 2.0)).abs() < 0.001);
+    assert!((auto_blur.2 - 0.8).abs() < 0.001);
+    assert!((auto_blur.3 - 0.4).abs() < 0.001);
+}
+
+#[test]
+fn generated_visual_types_have_resident_clips_with_their_native_kinds() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value = serde_json::from_str(
+        &fs::read_to_string(&path).expect("generated resident coverage fixture"),
+    )
+    .expect("generated resident coverage fixture JSON");
+    let graph: EditableSceneGraph =
+        serde_json::from_value(required(&fixture, "graph", "generated coverage").clone())
+            .expect("generated coverage graph");
+    let built = build_evaluation_scene(&graph);
+    let generated_types = [
+        ("barcode", "GeneratedBarcode", "GeneratedBarcodePlane"),
+        (
+            "puzzle_piece",
+            "GeneratedPuzzlePiece",
+            "GeneratedPuzzlePiecePlane",
+        ),
+        (
+            "colour_wheel",
+            "GeneratedColourWheel",
+            "GeneratedColourWheelPlane",
+        ),
+        ("gourd", "GeneratedGourd", "GeneratedGourdPlane"),
+        ("gear", "GeneratedGear", "GeneratedGearPlane"),
+        ("track_bar", "GeneratedTrackBar", "GeneratedTrackBarPlane"),
+        ("pie_chart", "GeneratedPieChart", "GeneratedPieChartPlane"),
+        ("histogram", "GeneratedHistogram", "GeneratedHistogramPlane"),
+        (
+            "tone_curve",
+            "GeneratedToneCurve",
+            "GeneratedToneCurvePlane",
+        ),
+        (
+            "sphere_dots",
+            "GeneratedSphereDots",
+            "GeneratedSphereDotsPlane",
+        ),
+        (
+            "spherical_field",
+            "GeneratedSphericalField",
+            "GeneratedSphericalFieldPlane",
+        ),
+        ("sunburst", "GeneratedSunburst", "GeneratedSunburstPlane"),
+        (
+            "circular_arrow",
+            "GeneratedCircularArrow",
+            "GeneratedCircularArrowPlane",
+        ),
+        (
+            "triangle_bracket",
+            "GeneratedTriangleBracket",
+            "GeneratedTriangleBracketPlane",
+        ),
+        (
+            "tartan_check",
+            "GeneratedTartanCheck",
+            "GeneratedTartanCheckPlane",
+        ),
+        (
+            "houndstooth",
+            "GeneratedHoundstooth",
+            "GeneratedHoundstoothPlane",
+        ),
+        ("yagasuri", "GeneratedYagasuri", "GeneratedYagasuriPlane"),
+        (
+            "paper_airplane",
+            "GeneratedPaperAirplane",
+            "GeneratedPaperAirplanePlane",
+        ),
+        (
+            "asanoha_pattern",
+            "GeneratedAsanohaPattern",
+            "GeneratedAsanohaPatternPlane",
+        ),
+        (
+            "focus_lines_plus",
+            "GeneratedFocusLinesPlus",
+            "GeneratedFocusLinesPlusPlane",
+        ),
+        (
+            "random_line_ex",
+            "GeneratedRandomLineEx",
+            "GeneratedRandomLineExPlane",
+        ),
+        (
+            "contour_trace",
+            "GeneratedContourTrace",
+            "GeneratedContourTracePlane",
+        ),
+        (
+            "displacement_poly",
+            "GeneratedDisplacementPoly",
+            "GeneratedDisplacementPolyPlane",
+        ),
+        (
+            "plain_effector_line",
+            "GeneratedPlainEffectorLine",
+            "GeneratedPlainEffectorLinePlane",
+        ),
+        ("protractor", "GeneratedProtractor", "GeneratedProtractorPlane"),
+    ];
+    let clips: Vec<_> = built
+        .project
+        .tracks
+        .iter()
+        .flat_map(|track| &track.clips)
+        .collect();
+    for (id, expected_media_kind, expected_clip_kind) in generated_types {
+        let clip = clips
+            .iter()
+            .find(|clip| clip.id == id)
+            .unwrap_or_else(|| panic!("{id} must not be dropped from the resident Project"));
+        assert_eq!(
+            format!("{:?}", clip.kind),
+            expected_clip_kind,
+            "{id} clip kind"
+        );
+        let media = built
+            .media
+            .iter()
+            .find(|media| media.id == id)
+            .unwrap_or_else(|| panic!("{id} canonical media"));
+        assert_eq!(
+            format!("{:?}", media.kind),
+            expected_media_kind,
+            "{id} media kind"
+        );
+        assert_eq!(clip.media_id, id, "{id} clip media reference");
+        assert_eq!(clip.start_frame, 0, "{id} start frame");
+        assert_eq!(clip.duration_frames, 300, "{id} duration");
+        assert!(media.width > 0 && media.height > 0, "{id} dimensions");
+    }
+}
+
+#[derive(Deserialize)]
+struct NativeHksyIntegerContract {
+    #[serde(rename = "cellSize")]
+    _cell_size: u32,
+    #[serde(rename = "lineWidth")]
+    _line_width: u32,
+    #[serde(rename = "separateInterval", default)]
+    _separate_interval: Option<u32>,
+    #[serde(rename = "separateLineWidth", default)]
+    _separate_line_width: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct NativeHologramIntegerContract {
+    #[serde(rename = "tileSize")]
+    _tile_size: u32,
+    #[serde(rename = "colourMode")]
+    _colour_mode: u32,
+}
+
+#[derive(Deserialize)]
+struct NativeFocusLinesIntegerContract {
+    #[serde(rename = "keyframeInterval")]
+    _keyframe_interval: u64,
+}
+
+#[derive(Deserialize)]
+struct GeneratedPlainEffectorLineIntegerContract {
+    #[serde(rename = "lineCount")]
+    _line_count: u32,
+}
+
+#[derive(Deserialize)]
+struct GeneratedProtractorIntegerContract {
+    #[serde(rename = "radius")]
+    _radius: u32,
+    #[serde(rename = "tickStepDegrees")]
+    _tick_step_degrees: u32,
+    #[serde(rename = "majorTickStepDegrees")]
+    _major_tick_step_degrees: u32,
+    #[serde(rename = "decimalPlaces")]
+    _decimal_places: u32,
+}
+
+#[derive(Deserialize)]
+struct NativeShakingPolygonIntegerContract {
+    #[serde(rename = "lineWidth")]
+    _line_width: u32,
+    #[serde(rename = "vertexCount")]
+    _vertex_count: u32,
+    #[serde(rename = "fixedDiameter")]
+    _fixed_diameter: u32,
+    #[serde(rename = "repeatCount")]
+    _repeat_count: u32,
+    #[serde(rename = "repeatFrequency")]
+    _repeat_frequency: u32,
+    #[serde(rename = "jitterInterval")]
+    _jitter_interval: u32,
+}
+
+#[test]
+fn generated_sources_round_trip_through_native_integer_contracts() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/editable-scene-builder/all-object-types.json");
+    let fixture: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("coverage fixture"))
+            .expect("coverage fixture JSON");
+    let graph: EditableSceneGraph =
+        serde_json::from_value(required(&fixture, "graph", "coverage").clone())
+            .expect("coverage graph");
+    let built = build_evaluation_scene(&graph);
+
+    let source_for = |kind| {
+        built
+            .media
+            .iter()
+            .find(|media| media.kind == kind)
+            .unwrap_or_else(|| panic!("{kind:?} media is required by the coverage fixture"))
+            .source
+            .as_str()
+    };
+
+    let hksy = source_for(uxfd_rust_core::MediaKind::GeneratedHksyCheckerGrid);
+    let hologram = source_for(uxfd_rust_core::MediaKind::GeneratedHologram);
+    let focus_lines = source_for(uxfd_rust_core::MediaKind::GeneratedFocusLinesPlus);
+    let plain_effector = source_for(uxfd_rust_core::MediaKind::GeneratedPlainEffectorLine);
+    let protractor = source_for(uxfd_rust_core::MediaKind::GeneratedProtractor);
+    let shaking_polygon = source_for(uxfd_rust_core::MediaKind::GeneratedShakingPolygon);
+
+    serde_json::from_str::<NativeHksyIntegerContract>(hksy)
+        .expect("HKSY builder source must satisfy the native integer contract");
+    serde_json::from_str::<NativeHologramIntegerContract>(hologram)
+        .expect("Hologram builder source must satisfy the native integer contract");
+    serde_json::from_str::<NativeFocusLinesIntegerContract>(focus_lines)
+        .expect("FocusLines builder source must satisfy the native integer contract");
+    serde_json::from_str::<GeneratedPlainEffectorLineIntegerContract>(plain_effector)
+        .expect("PlainEffectorLine builder source must satisfy the generated integer contract");
+    serde_json::from_str::<GeneratedProtractorIntegerContract>(protractor)
+        .expect("Protractor builder source must satisfy the generated integer contract");
+    serde_json::from_str::<NativeShakingPolygonIntegerContract>(shaking_polygon)
+        .expect("ShakingPolygon builder source must satisfy the native integer contract");
+}
+
+fn all_object_type_names() -> Vec<String> {
+    [
+        "text",
+        "shape",
+        "image",
+        "video",
+        "audio",
+        "psd",
+        "group_control",
+        "audio_visualization",
+        "audio_sphere",
+        "particle",
+        "barcode",
+        "puzzle_piece",
+        "colour_wheel",
+        "gourd",
+        "gear",
+        "track_bar",
+        "pie_chart",
+        "histogram",
+        "tone_curve",
+        "hksy_checker_grid",
+        "getcolor_dot_field",
+        "region_frame",
+        "simple_tube",
+        "sphere_dots",
+        "spherical_field",
+        "sunburst",
+        "circular_arrow",
+        "triangle_bracket",
+        "tartan_check",
+        "houndstooth",
+        "yagasuri",
+        "paper_airplane",
+        "asanoha_pattern",
+        "focus_lines_plus",
+        "random_line_ex",
+        "contour_trace",
+        "displacement_poly",
+        "plain_effector_line",
+        "hologram",
+        "protractor",
+        "shaking_polygon",
+        "shattered_sphere",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect()
+}
+
+fn object_type_name(object: &uxfd_rust_core::TimelineObject) -> String {
+    let value = serde_json::to_value(object).unwrap();
+    value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap()
+        .to_string()
+}

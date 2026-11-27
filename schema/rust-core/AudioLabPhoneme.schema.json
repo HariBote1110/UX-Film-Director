@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AudioLabPhoneme",
+  "description": "`audio` kind の音素タイミング1件（`.lab` ファイル由来）。編集モデル専用の型で、\n`src/utils/labParser.ts` の `LabPhoneme` に対応する。`audio` kind 以外では\n使われない専用データのため rust-core に新規追加した。",
+  "type": "object",
+  "properties": {
+    "endTime": {
+      "type": "number",
+      "format": "float"
+    },
+    "phoneme": {
+      "type": "string"
+    },
+    "startTime": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "startTime",
+    "endTime",
+    "phoneme"
+  ]
+}

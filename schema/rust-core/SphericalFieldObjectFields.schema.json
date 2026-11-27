@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SphericalFieldObjectFields",
+  "description": "`spherical_field` kind (`src/types.ts` の `SphericalFieldObject`) の kind\n固有フィールド。編集モデル型は\n`BaseObject & SphericalFieldObjectFields & { type: 'spherical_field' }`\nとして組み立てる。\n\n`width`/`height` は `sphericalFieldObjectFactory.ts` の\n`buildAviUtlSphericalFieldObject` がプロジェクトサイズから都度計算する\nため ニュートラルな `0.0` にする。他のフィールドは同ファイルの固定\nリテラルをそのまま採用する。",
+  "type": "object",
+  "properties": {
+    "alphaAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "backgroundOpacity": {
+      "type": "number",
+      "format": "float"
+    },
+    "colourAmount": {
+      "type": "number",
+      "format": "float"
+    },
+    "container": {
+      "type": "boolean"
+    },
+    "fieldColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "radius": {
+      "type": "number",
+      "format": "float"
+    },
+    "ringCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "secondaryColour": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "strength": {
+      "type": "number",
+      "format": "float"
+    },
+    "vectorCount": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "radius",
+    "strength",
+    "colourAmount",
+    "alphaAmount",
+    "lineWidth",
+    "ringCount",
+    "vectorCount",
+    "fieldColour",
+    "secondaryColour",
+    "backgroundOpacity",
+    "container",
+    "seed"
+  ]
+}

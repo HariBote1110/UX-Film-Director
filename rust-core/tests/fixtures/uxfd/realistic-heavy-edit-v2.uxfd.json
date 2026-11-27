@@ -1,0 +1,4352 @@
+{
+  "format": "uxfd-project",
+  "version": 2,
+  "savedAt": "2026-08-07T02:16:16.191Z",
+  "projectSettings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "sampleRate": 48000,
+    "editorMode": "2d"
+  },
+  "activeSceneId": "realistic-heavy-main",
+  "scenes": [
+    {
+      "id": "realistic-heavy-main",
+      "name": "Heavy main edit",
+      "duration": 24,
+      "layers": [
+        {
+          "name": "Layer 1",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 2",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 3",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 4",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 6",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 7",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 8",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 9",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 10",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 11",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 12",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 13",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 14",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 15",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 16",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 17",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 18",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 19",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 20",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 21",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 22",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 23",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 24",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 25",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 26",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 27",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 28",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 29",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 30",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 31",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 32",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 33",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 34",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 35",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 36",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 37",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 38",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 39",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 40",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 41",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 42",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 43",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 44",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 45",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 46",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 47",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 48",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 49",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 50",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 51",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 52",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 53",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 54",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 55",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 56",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 57",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 58",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 59",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 60",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 61",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 62",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 63",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 64",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 65",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 66",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 67",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 68",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 69",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 70",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 71",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 72",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 73",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 74",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 75",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 76",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 77",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 78",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 79",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 80",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 81",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 82",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 83",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 84",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 85",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 86",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 87",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 88",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 89",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 90",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 91",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 92",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 93",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 94",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 95",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 96",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 97",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 98",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 99",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 100",
+          "visible": true,
+          "locked": false
+        }
+      ],
+      "objects": [
+        {
+          "id": "realistic-main-video-a",
+          "type": "video",
+          "name": "Primary 4K interview",
+          "layer": 0,
+          "startTime": 0,
+          "duration": 23.5,
+          "offset": 0.25,
+          "x": 18,
+          "y": 10,
+          "width": 1920,
+          "height": 1080,
+          "sourceWidth": 3840,
+          "sourceHeight": 2160,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 18,
+          "endY": 10,
+          "easing": "linear",
+          "src": "file:///Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+          "filePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+          "proxyFilePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+          "volume": 1,
+          "muted": false,
+          "keyframes": [
+            {
+              "id": "realistic-main-video-a-keyframe-0",
+              "time": 0,
+              "x": 18,
+              "y": 10,
+              "easing": "linear"
+            },
+            {
+              "id": "realistic-main-video-a-keyframe-1",
+              "time": 12,
+              "x": 42,
+              "y": -2,
+              "easing": "easeInOutQuad"
+            },
+            {
+              "id": "realistic-main-video-a-keyframe-2",
+              "time": 23.5,
+              "x": 18,
+              "y": 10,
+              "easing": "easeInOutQuad"
+            }
+          ],
+          "filters": [
+            {
+              "id": "realistic-main-video-a-colour",
+              "type": "color_correction",
+              "enabled": true,
+              "params": {
+                "brightness": 1.03,
+                "contrast": 1.08,
+                "saturation": 1.12,
+                "hue": 0
+              }
+            },
+            {
+              "id": "realistic-main-video-a-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#121820",
+                "thickness": 2,
+                "opacity": 0.65
+              }
+            },
+            {
+              "id": "realistic-main-video-a-fade",
+              "type": "fade",
+              "enabled": true,
+              "params": {
+                "opacity": 0.96
+              }
+            }
+          ],
+          "colorCorrection": {
+            "enabled": true,
+            "brightness": 1.03,
+            "contrast": 1.08,
+            "saturation": 1.12,
+            "hue": 0
+          }
+        },
+        {
+          "id": "realistic-main-video-b",
+          "type": "video",
+          "name": "Picture in picture B-roll",
+          "layer": 1,
+          "startTime": 4,
+          "duration": 16,
+          "offset": 8,
+          "x": 0,
+          "y": 0,
+          "width": 640,
+          "height": 360,
+          "sourceWidth": 3840,
+          "sourceHeight": 2160,
+          "rotation": 0,
+          "scaleX": 0.94,
+          "scaleY": 0.94,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 0,
+          "endY": 0,
+          "easing": "linear",
+          "src": "file:///Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+          "filePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+          "proxyFilePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+          "volume": 0,
+          "muted": true,
+          "keyframes": [
+            {
+              "id": "realistic-main-video-b-keyframe-0",
+              "time": 4,
+              "x": 0,
+              "y": 0,
+              "easing": "linear"
+            },
+            {
+              "id": "realistic-main-video-b-keyframe-1",
+              "time": 12,
+              "x": 24,
+              "y": -12,
+              "easing": "easeInOutQuad"
+            },
+            {
+              "id": "realistic-main-video-b-keyframe-2",
+              "time": 20,
+              "x": 0,
+              "y": 0,
+              "easing": "easeInOutQuad"
+            }
+          ],
+          "filters": [
+            {
+              "id": "realistic-main-video-b-colour",
+              "type": "color_correction",
+              "enabled": true,
+              "params": {
+                "brightness": 1.03,
+                "contrast": 1.08,
+                "saturation": 1.12,
+                "hue": 0
+              }
+            },
+            {
+              "id": "realistic-main-video-b-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#121820",
+                "thickness": 2,
+                "opacity": 0.65
+              }
+            },
+            {
+              "id": "realistic-main-video-b-fade",
+              "type": "fade",
+              "enabled": true,
+              "params": {
+                "opacity": 0.96
+              }
+            }
+          ],
+          "subjectCropEnabled": true,
+          "subjectCropKeyframes": [
+            {
+              "id": "realistic-crop-0",
+              "time": 4,
+              "x": 0.08,
+              "y": 0.08,
+              "width": 0.84,
+              "height": 0.84
+            },
+            {
+              "id": "realistic-crop-1",
+              "time": 12,
+              "x": 0.16,
+              "y": 0.1,
+              "width": 0.7,
+              "height": 0.78
+            },
+            {
+              "id": "realistic-crop-2",
+              "time": 20,
+              "x": 0.1,
+              "y": 0.12,
+              "width": 0.8,
+              "height": 0.76
+            }
+          ],
+          "colorCorrection": {
+            "enabled": true,
+            "brightness": 1.03,
+            "contrast": 1.08,
+            "saturation": 1.12,
+            "hue": 0
+          }
+        },
+        {
+          "id": "realistic-main-audio",
+          "type": "audio",
+          "name": "Dialogue and music bed",
+          "layer": 2,
+          "startTime": 0,
+          "duration": 24,
+          "offset": 0,
+          "x": 0,
+          "y": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 0,
+          "endY": 0,
+          "easing": "linear",
+          "src": "file:///Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-bed.wav",
+          "filePath": "/Users/yuki/GitHub/UX-Film-Director/.codex/realistic-heavy-edit-e2e/realistic-heavy-edit-bed.wav",
+          "volume": 0.82,
+          "muted": false,
+          "filters": []
+        },
+        {
+          "id": "realistic-main-audio-waveform",
+          "type": "audio_visualization",
+          "name": "Resident GPU audio waveform",
+          "layer": 14,
+          "startTime": 0,
+          "duration": 24,
+          "x": 120,
+          "y": 870,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.9,
+          "enableAnimation": false,
+          "endX": 120,
+          "endY": 870,
+          "easing": "linear",
+          "targetAudioId": "realistic-main-audio",
+          "targetLayer": 2,
+          "visualizationType": "waveform",
+          "color": "#35f29a",
+          "thickness": 3,
+          "width": 720,
+          "height": 140,
+          "amplitude": 0.8,
+          "filters": []
+        },
+        {
+          "id": "realistic-main-image",
+          "type": "image",
+          "name": "Brand overlay image",
+          "layer": 3,
+          "startTime": 2,
+          "duration": 18,
+          "x": 1480,
+          "y": 80,
+          "width": 1024,
+          "height": 1024,
+          "rotation": -2,
+          "scaleX": 0.3125,
+          "scaleY": 0.3125,
+          "opacity": 0.88,
+          "enableAnimation": true,
+          "endX": 1450,
+          "endY": 100,
+          "easing": "easeOutCubic",
+          "src": "file:///Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+          "filePath": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+          "filters": [
+            {
+              "id": "realistic-main-image-shadow",
+              "type": "shadow",
+              "enabled": true,
+              "params": {
+                "colour": "#000000",
+                "blur": 12,
+                "offsetX": 8,
+                "offsetY": 10,
+                "opacity": 0.55
+              }
+            }
+          ],
+          "shadow": {
+            "enabled": true,
+            "colour": "#000000",
+            "blur": 12,
+            "offsetX": 8,
+            "offsetY": 10,
+            "opacity": 0.55
+          }
+        },
+        {
+          "id": "realistic-main-title",
+          "type": "text",
+          "name": "Animated lower third",
+          "layer": 4,
+          "startTime": 1,
+          "duration": 7,
+          "x": 110,
+          "y": 760,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 160,
+          "endY": 760,
+          "easing": "easeOutCubic",
+          "text": "重いけれど現実的な編集",
+          "fontSize": 76,
+          "fontFamily": "Hiragino Sans",
+          "fill": "#ffffff",
+          "textAlignment": "left",
+          "letterSpacing": 2,
+          "textStroke": {
+            "colour": "#111827",
+            "width": 5
+          },
+          "textShadow": {
+            "colour": "#000000",
+            "offsetX": 8,
+            "offsetY": 10,
+            "blur": 8
+          },
+          "filters": [
+            {
+              "id": "realistic-main-title-wipe",
+              "type": "wipe",
+              "enabled": true,
+              "params": {
+                "edge": "left",
+                "reverse": false
+              }
+            }
+          ],
+          "measuredWidth": 858,
+          "measuredHeight": 95
+        },
+        {
+          "id": "realistic-main-group-control",
+          "type": "group_control",
+          "name": "Lower third group control",
+          "layer": 5,
+          "startTime": 0,
+          "duration": 24,
+          "x": 0,
+          "y": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 0,
+          "endY": 0,
+          "easing": "linear",
+          "targetLayerCount": 8,
+          "groupGradient": {
+            "enabled": true,
+            "type": "linear",
+            "scope": "group",
+            "colours": [
+              "#35c2ff",
+              "#ff5c8a"
+            ],
+            "stops": [
+              0,
+              1
+            ],
+            "direction": 18
+          },
+          "filters": []
+        },
+        {
+          "id": "realistic-main-shape-0",
+          "groupId": "realistic-main-cards",
+          "type": "shape",
+          "name": "Editorial card 1",
+          "layer": 6,
+          "startTime": 0,
+          "duration": 10,
+          "x": 90,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-main-shape-1",
+          "groupId": "realistic-main-cards",
+          "type": "shape",
+          "name": "Editorial card 2",
+          "layer": 7,
+          "startTime": 1.5,
+          "duration": 10,
+          "x": 420,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-main-shape-2",
+          "groupId": "realistic-main-cards",
+          "type": "shape",
+          "name": "Editorial card 3",
+          "layer": 8,
+          "startTime": 3,
+          "duration": 10,
+          "x": 750,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-main-shape-3",
+          "groupId": "realistic-main-cards",
+          "type": "shape",
+          "name": "Editorial card 4",
+          "layer": 9,
+          "startTime": 4.5,
+          "duration": 10,
+          "x": 90,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-3-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-3-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-main-shape-4",
+          "groupId": "realistic-main-cards",
+          "type": "shape",
+          "name": "Editorial card 5",
+          "layer": 10,
+          "startTime": 6,
+          "duration": 10,
+          "x": 420,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-4-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-4-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "main-a-polish-colour-card",
+          "type": "shape",
+          "name": "GetColor sample colour card main-a",
+          "layer": 16,
+          "startTime": 0,
+          "duration": 12,
+          "x": 96,
+          "y": 96,
+          "width": 360,
+          "height": 240,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 96,
+          "easing": "linear",
+          "shapeType": "rect",
+          "fill": "#ff5c8a",
+          "groupId": "main-a-group",
+          "filters": []
+        },
+        {
+          "id": "main-a-polish-getcolor-sampled",
+          "type": "getcolor_dot_field",
+          "name": "GetColor V2R 画像サンプリングドット main-a",
+          "layer": 17,
+          "startTime": 0,
+          "duration": 12,
+          "x": 544,
+          "y": 114,
+          "width": 680,
+          "height": 360,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 544,
+          "endY": 114,
+          "easing": "linear",
+          "columns": 32,
+          "rows": 18,
+          "dotSize": 16,
+          "sizeInfluence": 0.65,
+          "luminanceInfluence": 0.7,
+          "hueShiftDegrees": 0,
+          "alternateRows": true,
+          "foregroundColour": "#ffffff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#10131a",
+          "seed": 93,
+          "dotShape": "circle",
+          "strokeWidth": 0,
+          "sampleStrength": 0.85,
+          "groupId": "main-a-group",
+          "sampleSourcePath": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+          "filters": []
+        },
+        {
+          "id": "main-a-polish-hksy-measured-grid",
+          "type": "hksy_checker_grid",
+          "name": "hksy グリッド main-a",
+          "layer": 18,
+          "startTime": 0,
+          "duration": 12,
+          "x": 96,
+          "y": 656,
+          "width": 720,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 656,
+          "easing": "linear",
+          "cellSize": 40,
+          "lineWidth": 1,
+          "checkerEnabled": false,
+          "gridEnabled": true,
+          "foregroundColour": "#d8f3ff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#08111f",
+          "pattern": "measured-grid",
+          "separateInterval": 4,
+          "separateLineWidth": 4,
+          "groupId": "main-a-group",
+          "filters": []
+        },
+        {
+          "id": "main-a-polish-hksy-anchor-line",
+          "type": "hksy_checker_grid",
+          "name": "hksy ライン（アンカー指定） main-a",
+          "layer": 19,
+          "startTime": 0,
+          "duration": 12,
+          "x": 924,
+          "y": 620,
+          "width": 380,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 924,
+          "endY": 620,
+          "easing": "linear",
+          "cellSize": 64,
+          "lineWidth": 18,
+          "checkerEnabled": false,
+          "gridEnabled": false,
+          "foregroundColour": "#ffd166",
+          "secondaryColour": "#ffffff",
+          "backgroundColour": "#000000",
+          "pattern": "anchor-line",
+          "anchorPoints": [
+            {
+              "x": -140,
+              "y": 80
+            },
+            {
+              "x": -20,
+              "y": -120
+            },
+            {
+              "x": 140,
+              "y": 70
+            }
+          ],
+          "roundCaps": true,
+          "maxJoinDistance": 80,
+          "groupId": "main-a-group",
+          "filters": []
+        },
+        {
+          "id": "main-a-polish-93-region-frame",
+          "type": "region_frame",
+          "layer": 20,
+          "startTime": 0,
+          "duration": 12,
+          "x": 1320,
+          "y": 114,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1320,
+          "endY": 114,
+          "easing": "linear",
+          "lineWidth": 10,
+          "extraWidth": 0,
+          "extraHeight": 0,
+          "backgroundOpacity": 0.28,
+          "frameColour": "#ffffff",
+          "backgroundColour": "#243b6b",
+          "name": "93 領域枠 main-a",
+          "shape": "rectangle",
+          "filters": []
+        },
+        {
+          "id": "main-a-polish-93-simple-tube",
+          "type": "simple_tube",
+          "layer": 21,
+          "startTime": 0,
+          "duration": 12,
+          "x": 1344,
+          "y": 456,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1344,
+          "endY": 456,
+          "easing": "linear",
+          "radius": 120,
+          "depth": 240,
+          "segments": 20,
+          "rings": 12,
+          "twistDegrees": 80,
+          "randomAmount": 0,
+          "strokeWidth": 3,
+          "colour": "#36c2ff",
+          "secondaryColour": "#ffffff",
+          "colourPattern": "ring",
+          "fogStrength": 0,
+          "fogColour": "#ffffff",
+          "seed": 93,
+          "torus": false,
+          "name": "93 SimpleTube main-a",
+          "filters": []
+        },
+        {
+          "id": "main-a-polish-93-audio-sphere",
+          "type": "audio_sphere",
+          "name": "93 音声玉 main-a",
+          "layer": 22,
+          "startTime": 0,
+          "duration": 12,
+          "x": 1410,
+          "y": 720,
+          "width": 320,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1410,
+          "endY": 720,
+          "easing": "linear",
+          "columns": 16,
+          "rows": 12,
+          "baseRadius": 170,
+          "audioInfluence": 0.6,
+          "pointSize": 5,
+          "polygonSize": 0.35,
+          "randomAmount": 0.05,
+          "colour": "#70e000",
+          "targetAudioId": "realistic-main-audio",
+          "targetLayer": 2,
+          "sampleWindowSeconds": 0.1,
+          "seed": 93,
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-colour-card",
+          "type": "shape",
+          "name": "GetColor sample colour card main-b",
+          "layer": 32,
+          "startTime": 6,
+          "duration": 12,
+          "x": 96,
+          "y": 96,
+          "width": 360,
+          "height": 240,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 96,
+          "easing": "linear",
+          "shapeType": "rect",
+          "fill": "#ff5c8a",
+          "groupId": "main-b-group",
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-getcolor-sampled",
+          "type": "getcolor_dot_field",
+          "name": "GetColor V2R 画像サンプリングドット main-b",
+          "layer": 33,
+          "startTime": 6,
+          "duration": 12,
+          "x": 544,
+          "y": 114,
+          "width": 680,
+          "height": 360,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 544,
+          "endY": 114,
+          "easing": "linear",
+          "columns": 32,
+          "rows": 18,
+          "dotSize": 16,
+          "sizeInfluence": 0.65,
+          "luminanceInfluence": 0.7,
+          "hueShiftDegrees": 0,
+          "alternateRows": true,
+          "foregroundColour": "#ffffff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#10131a",
+          "seed": 93,
+          "dotShape": "circle",
+          "strokeWidth": 0,
+          "sampleStrength": 0.85,
+          "groupId": "main-b-group",
+          "sampleSourcePath": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-hksy-measured-grid",
+          "type": "hksy_checker_grid",
+          "name": "hksy グリッド main-b",
+          "layer": 34,
+          "startTime": 6,
+          "duration": 12,
+          "x": 96,
+          "y": 656,
+          "width": 720,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 656,
+          "easing": "linear",
+          "cellSize": 40,
+          "lineWidth": 1,
+          "checkerEnabled": false,
+          "gridEnabled": true,
+          "foregroundColour": "#d8f3ff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#08111f",
+          "pattern": "measured-grid",
+          "separateInterval": 4,
+          "separateLineWidth": 4,
+          "groupId": "main-b-group",
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-hksy-anchor-line",
+          "type": "hksy_checker_grid",
+          "name": "hksy ライン（アンカー指定） main-b",
+          "layer": 35,
+          "startTime": 6,
+          "duration": 12,
+          "x": 924,
+          "y": 620,
+          "width": 380,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 924,
+          "endY": 620,
+          "easing": "linear",
+          "cellSize": 64,
+          "lineWidth": 18,
+          "checkerEnabled": false,
+          "gridEnabled": false,
+          "foregroundColour": "#ffd166",
+          "secondaryColour": "#ffffff",
+          "backgroundColour": "#000000",
+          "pattern": "anchor-line",
+          "anchorPoints": [
+            {
+              "x": -140,
+              "y": 80
+            },
+            {
+              "x": -20,
+              "y": -120
+            },
+            {
+              "x": 140,
+              "y": 70
+            }
+          ],
+          "roundCaps": true,
+          "maxJoinDistance": 80,
+          "groupId": "main-b-group",
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-93-region-frame",
+          "type": "region_frame",
+          "layer": 36,
+          "startTime": 6,
+          "duration": 12,
+          "x": 1320,
+          "y": 114,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1320,
+          "endY": 114,
+          "easing": "linear",
+          "lineWidth": 10,
+          "extraWidth": 0,
+          "extraHeight": 0,
+          "backgroundOpacity": 0.28,
+          "frameColour": "#ffffff",
+          "backgroundColour": "#243b6b",
+          "name": "93 領域枠 main-b",
+          "shape": "rectangle",
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-93-simple-tube",
+          "type": "simple_tube",
+          "layer": 37,
+          "startTime": 6,
+          "duration": 12,
+          "x": 1344,
+          "y": 456,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1344,
+          "endY": 456,
+          "easing": "linear",
+          "radius": 120,
+          "depth": 240,
+          "segments": 20,
+          "rings": 12,
+          "twistDegrees": 80,
+          "randomAmount": 0,
+          "strokeWidth": 3,
+          "colour": "#36c2ff",
+          "secondaryColour": "#ffffff",
+          "colourPattern": "ring",
+          "fogStrength": 0,
+          "fogColour": "#ffffff",
+          "seed": 93,
+          "torus": false,
+          "name": "93 SimpleTube main-b",
+          "filters": []
+        },
+        {
+          "id": "main-b-polish-93-audio-sphere",
+          "type": "audio_sphere",
+          "name": "93 音声玉 main-b",
+          "layer": 38,
+          "startTime": 6,
+          "duration": 12,
+          "x": 1410,
+          "y": 720,
+          "width": 320,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1410,
+          "endY": 720,
+          "easing": "linear",
+          "columns": 16,
+          "rows": 12,
+          "baseRadius": 170,
+          "audioInfluence": 0.6,
+          "pointSize": 5,
+          "polygonSize": 0.35,
+          "randomAmount": 0.05,
+          "colour": "#70e000",
+          "targetAudioId": "realistic-main-audio",
+          "targetLayer": 2,
+          "sampleWindowSeconds": 0.1,
+          "seed": 93,
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-colour-card",
+          "type": "shape",
+          "name": "GetColor sample colour card main-c",
+          "layer": 48,
+          "startTime": 12,
+          "duration": 12,
+          "x": 96,
+          "y": 96,
+          "width": 360,
+          "height": 240,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 96,
+          "easing": "linear",
+          "shapeType": "rect",
+          "fill": "#ff5c8a",
+          "groupId": "main-c-group",
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-getcolor-sampled",
+          "type": "getcolor_dot_field",
+          "name": "GetColor V2R 画像サンプリングドット main-c",
+          "layer": 49,
+          "startTime": 12,
+          "duration": 12,
+          "x": 544,
+          "y": 114,
+          "width": 680,
+          "height": 360,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 544,
+          "endY": 114,
+          "easing": "linear",
+          "columns": 32,
+          "rows": 18,
+          "dotSize": 16,
+          "sizeInfluence": 0.65,
+          "luminanceInfluence": 0.7,
+          "hueShiftDegrees": 0,
+          "alternateRows": true,
+          "foregroundColour": "#ffffff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#10131a",
+          "seed": 93,
+          "dotShape": "circle",
+          "strokeWidth": 0,
+          "sampleStrength": 0.85,
+          "groupId": "main-c-group",
+          "sampleSourcePath": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-hksy-measured-grid",
+          "type": "hksy_checker_grid",
+          "name": "hksy グリッド main-c",
+          "layer": 50,
+          "startTime": 12,
+          "duration": 12,
+          "x": 96,
+          "y": 656,
+          "width": 720,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 656,
+          "easing": "linear",
+          "cellSize": 40,
+          "lineWidth": 1,
+          "checkerEnabled": false,
+          "gridEnabled": true,
+          "foregroundColour": "#d8f3ff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#08111f",
+          "pattern": "measured-grid",
+          "separateInterval": 4,
+          "separateLineWidth": 4,
+          "groupId": "main-c-group",
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-hksy-anchor-line",
+          "type": "hksy_checker_grid",
+          "name": "hksy ライン（アンカー指定） main-c",
+          "layer": 51,
+          "startTime": 12,
+          "duration": 12,
+          "x": 924,
+          "y": 620,
+          "width": 380,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 924,
+          "endY": 620,
+          "easing": "linear",
+          "cellSize": 64,
+          "lineWidth": 18,
+          "checkerEnabled": false,
+          "gridEnabled": false,
+          "foregroundColour": "#ffd166",
+          "secondaryColour": "#ffffff",
+          "backgroundColour": "#000000",
+          "pattern": "anchor-line",
+          "anchorPoints": [
+            {
+              "x": -140,
+              "y": 80
+            },
+            {
+              "x": -20,
+              "y": -120
+            },
+            {
+              "x": 140,
+              "y": 70
+            }
+          ],
+          "roundCaps": true,
+          "maxJoinDistance": 80,
+          "groupId": "main-c-group",
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-93-region-frame",
+          "type": "region_frame",
+          "layer": 52,
+          "startTime": 12,
+          "duration": 12,
+          "x": 1320,
+          "y": 114,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1320,
+          "endY": 114,
+          "easing": "linear",
+          "lineWidth": 10,
+          "extraWidth": 0,
+          "extraHeight": 0,
+          "backgroundOpacity": 0.28,
+          "frameColour": "#ffffff",
+          "backgroundColour": "#243b6b",
+          "name": "93 領域枠 main-c",
+          "shape": "rectangle",
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-93-simple-tube",
+          "type": "simple_tube",
+          "layer": 53,
+          "startTime": 12,
+          "duration": 12,
+          "x": 1344,
+          "y": 456,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1344,
+          "endY": 456,
+          "easing": "linear",
+          "radius": 120,
+          "depth": 240,
+          "segments": 20,
+          "rings": 12,
+          "twistDegrees": 80,
+          "randomAmount": 0,
+          "strokeWidth": 3,
+          "colour": "#36c2ff",
+          "secondaryColour": "#ffffff",
+          "colourPattern": "ring",
+          "fogStrength": 0,
+          "fogColour": "#ffffff",
+          "seed": 93,
+          "torus": false,
+          "name": "93 SimpleTube main-c",
+          "filters": []
+        },
+        {
+          "id": "main-c-polish-93-audio-sphere",
+          "type": "audio_sphere",
+          "name": "93 音声玉 main-c",
+          "layer": 54,
+          "startTime": 12,
+          "duration": 12,
+          "x": 1410,
+          "y": 720,
+          "width": 320,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1410,
+          "endY": 720,
+          "easing": "linear",
+          "columns": 16,
+          "rows": 12,
+          "baseRadius": 170,
+          "audioInfluence": 0.6,
+          "pointSize": 5,
+          "polygonSize": 0.35,
+          "randomAmount": 0.05,
+          "colour": "#70e000",
+          "targetAudioId": "realistic-main-audio",
+          "targetLayer": 2,
+          "sampleWindowSeconds": 0.1,
+          "seed": 93,
+          "filters": []
+        },
+        {
+          "id": "realistic-main-hologram",
+          "type": "hologram",
+          "name": "ホログラム",
+          "layer": 91,
+          "startTime": 0,
+          "duration": 24,
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.22,
+          "enableAnimation": false,
+          "endX": 0,
+          "endY": 0,
+          "easing": "linear",
+          "tileSize": 96,
+          "rotationDegrees": 17,
+          "gradientAngleDegrees": -60,
+          "colourMode": 2,
+          "tintColour": "#80c0ff",
+          "filters": []
+        },
+        {
+          "id": "realistic-main-shaking-polygon",
+          "type": "shaking_polygon",
+          "name": "多角形_震える",
+          "layer": 92,
+          "startTime": 0,
+          "duration": 24,
+          "x": 780,
+          "y": 360,
+          "width": 360,
+          "height": 360,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 780,
+          "endY": 360,
+          "easing": "linear",
+          "lineWidth": 6,
+          "vertexCount": 5,
+          "fixedDiameter": 260,
+          "verticalDistortionPercent": 0,
+          "repeatCount": 3,
+          "repeatFrequency": 2,
+          "fill": true,
+          "jitterRange": 14,
+          "jitterInterval": 4,
+          "stepped": false,
+          "colour": "#ff9f1c",
+          "seed": 93,
+          "filters": []
+        },
+        {
+          "id": "realistic-main-shattered-sphere",
+          "type": "shattered_sphere",
+          "name": "93 砕け散る球",
+          "layer": 93,
+          "startTime": 0,
+          "duration": 24,
+          "x": 780,
+          "y": 360,
+          "width": 360,
+          "height": 360,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 780,
+          "endY": 360,
+          "easing": "linear",
+          "fractureAmount": 100,
+          "delay": 18,
+          "radius": 160,
+          "limitDistance": 180,
+          "thickness": 24,
+          "fragmentSize": 10,
+          "randomShape": 85,
+          "speed": 120,
+          "impact": 110,
+          "gravityX": 0,
+          "gravityY": 130,
+          "gravityZ": 0,
+          "spin": 120,
+          "directionDiffusion": 95,
+          "colour": "#80d8ff",
+          "seed": 93,
+          "filters": []
+        },
+        {
+          "id": "06272c76-df7e-4b11-9751-00ff0485c691",
+          "groupId": "realistic-main-cards-object-copy-ext-1",
+          "type": "shape",
+          "name": "Editorial card 1 ObjectCopyEXT 1",
+          "layer": 7,
+          "startTime": 0.1,
+          "duration": 10,
+          "x": 106,
+          "y": 96,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 146,
+          "endY": 116,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "20543a04-3eee-4747-a430-980cda44112b",
+          "groupId": "realistic-main-cards-object-copy-ext-2",
+          "type": "shape",
+          "name": "Editorial card 1 ObjectCopyEXT 2",
+          "layer": 8,
+          "startTime": 0.2,
+          "duration": 10,
+          "x": 122,
+          "y": 112,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 162,
+          "endY": 132,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "847d0fa0-4975-4e3c-b9f9-f5d3599ee6da",
+          "groupId": "realistic-main-cards-object-copy-ext-3",
+          "type": "shape",
+          "name": "Editorial card 1 ObjectCopyEXT 3",
+          "layer": 9,
+          "startTime": 0.3,
+          "duration": 10,
+          "x": 138,
+          "y": 128,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 178,
+          "endY": 148,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "da3a9ebc-b70a-4bfd-984c-59b99d5ecd3d",
+          "groupId": "realistic-main-cards-object-copy-ext-1",
+          "type": "shape",
+          "name": "Editorial card 2 ObjectCopyEXT 1",
+          "layer": 8,
+          "startTime": 1.6,
+          "duration": 10,
+          "x": 436,
+          "y": 96,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 476,
+          "endY": 116,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "5821939a-1627-4130-8046-b3740284a342",
+          "groupId": "realistic-main-cards-object-copy-ext-2",
+          "type": "shape",
+          "name": "Editorial card 2 ObjectCopyEXT 2",
+          "layer": 9,
+          "startTime": 1.7,
+          "duration": 10,
+          "x": 452,
+          "y": 112,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 492,
+          "endY": 132,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "b3a99a7b-9137-4785-a33c-257bea9b327e",
+          "groupId": "realistic-main-cards-object-copy-ext-3",
+          "type": "shape",
+          "name": "Editorial card 2 ObjectCopyEXT 3",
+          "layer": 10,
+          "startTime": 1.8,
+          "duration": 10,
+          "x": 468,
+          "y": 128,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 508,
+          "endY": 148,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "bc5b4d76-da2f-442a-996c-a2eca3acc0ea",
+          "groupId": "realistic-main-cards-object-copy-ext-1",
+          "type": "shape",
+          "name": "Editorial card 3 ObjectCopyEXT 1",
+          "layer": 9,
+          "startTime": 3.1,
+          "duration": 10,
+          "x": 766,
+          "y": 96,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 806,
+          "endY": 116,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "931d7e2d-769c-4416-8f9e-71c79f83ef3e",
+          "groupId": "realistic-main-cards-object-copy-ext-2",
+          "type": "shape",
+          "name": "Editorial card 3 ObjectCopyEXT 2",
+          "layer": 10,
+          "startTime": 3.2,
+          "duration": 10,
+          "x": 782,
+          "y": 112,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 822,
+          "endY": 132,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "a9643da0-9332-4f55-a5d0-aa6ef28f1d8c",
+          "groupId": "realistic-main-cards-object-copy-ext-3",
+          "type": "shape",
+          "name": "Editorial card 3 ObjectCopyEXT 3",
+          "layer": 11,
+          "startTime": 3.3,
+          "duration": 10,
+          "x": 798,
+          "y": 128,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 838,
+          "endY": 148,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-main-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-main-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        }
+      ],
+      "camera": {
+        "centreOffsetX": 0,
+        "centreOffsetY": 0,
+        "zoom": 1,
+        "rotationDeg": 0
+      },
+      "stageCamera3D": {
+        "position": {
+          "x": 0,
+          "y": 1.6,
+          "z": 6
+        },
+        "target": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        }
+      }
+    },
+    {
+      "id": "realistic-heavy-cutaway",
+      "name": "Cutaway and treatment",
+      "duration": 16,
+      "layers": [
+        {
+          "name": "Layer 1",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 2",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 3",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 4",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 6",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 7",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 8",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 9",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 10",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 11",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 12",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 13",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 14",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 15",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 16",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 17",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 18",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 19",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 20",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 21",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 22",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 23",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 24",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 25",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 26",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 27",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 28",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 29",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 30",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 31",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 32",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 33",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 34",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 35",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 36",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 37",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 38",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 39",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 40",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 41",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 42",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 43",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 44",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 45",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 46",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 47",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 48",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 49",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 50",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 51",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 52",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 53",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 54",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 55",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 56",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 57",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 58",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 59",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 60",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 61",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 62",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 63",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 64",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 65",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 66",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 67",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 68",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 69",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 70",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 71",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 72",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 73",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 74",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 75",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 76",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 77",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 78",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 79",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 80",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 81",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 82",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 83",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 84",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 85",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 86",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 87",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 88",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 89",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 90",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 91",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 92",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 93",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 94",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 95",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 96",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 97",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 98",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 99",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 100",
+          "visible": true,
+          "locked": false
+        }
+      ],
+      "objects": [
+        {
+          "id": "realistic-cutaway-video",
+          "type": "video",
+          "name": "Cutaway 4K source",
+          "layer": 0,
+          "startTime": 0,
+          "duration": 16,
+          "offset": 0,
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "sourceWidth": 3840,
+          "sourceHeight": 2160,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 0,
+          "endY": 0,
+          "easing": "linear",
+          "src": "file:///Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+          "filePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.MP4",
+          "proxyFilePath": "/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/GX010052.proxy.mp4",
+          "volume": 1,
+          "muted": false,
+          "keyframes": [
+            {
+              "id": "realistic-cutaway-video-keyframe-0",
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "easing": "linear"
+            },
+            {
+              "id": "realistic-cutaway-video-keyframe-1",
+              "time": 12,
+              "x": 24,
+              "y": -12,
+              "easing": "easeInOutQuad"
+            },
+            {
+              "id": "realistic-cutaway-video-keyframe-2",
+              "time": 16,
+              "x": 0,
+              "y": 0,
+              "easing": "easeInOutQuad"
+            }
+          ],
+          "filters": [
+            {
+              "id": "realistic-cutaway-colour",
+              "type": "color_correction",
+              "enabled": true,
+              "params": {
+                "brightness": 0.98,
+                "contrast": 1.14,
+                "saturation": 0.9,
+                "hue": -3
+              }
+            }
+          ],
+          "colorCorrection": {
+            "enabled": true,
+            "brightness": 0.98,
+            "contrast": 1.14,
+            "saturation": 0.9,
+            "hue": -3
+          }
+        },
+        {
+          "id": "realistic-cutaway-title",
+          "type": "text",
+          "name": "Cutaway title",
+          "layer": 3,
+          "startTime": 0.5,
+          "duration": 7,
+          "x": 110,
+          "y": 760,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 160,
+          "endY": 760,
+          "easing": "easeOutCubic",
+          "text": "重いけれど現実的な編集",
+          "fontSize": 76,
+          "fontFamily": "Hiragino Sans",
+          "fill": "#ffffff",
+          "textAlignment": "left",
+          "letterSpacing": 2,
+          "textStroke": {
+            "colour": "#111827",
+            "width": 5
+          },
+          "textShadow": {
+            "colour": "#000000",
+            "offsetX": 8,
+            "offsetY": 10,
+            "blur": 8
+          },
+          "filters": [
+            {
+              "id": "realistic-cutaway-title-wipe",
+              "type": "wipe",
+              "enabled": true,
+              "params": {
+                "edge": "left",
+                "reverse": false
+              }
+            }
+          ],
+          "measuredWidth": 858,
+          "measuredHeight": 95
+        },
+        {
+          "id": "realistic-cutaway-shape-0",
+          "type": "shape",
+          "name": "Editorial card 1",
+          "layer": 5,
+          "startTime": 0,
+          "duration": 10,
+          "x": 90,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-cutaway-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-cutaway-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-cutaway-shape-1",
+          "type": "shape",
+          "name": "Editorial card 2",
+          "layer": 6,
+          "startTime": 1.5,
+          "duration": 10,
+          "x": 420,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-cutaway-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-cutaway-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-cutaway-shape-2",
+          "type": "shape",
+          "name": "Editorial card 3",
+          "layer": 7,
+          "startTime": 3,
+          "duration": 10,
+          "x": 750,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-cutaway-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-cutaway-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-cutaway-shape-3",
+          "type": "shape",
+          "name": "Editorial card 4",
+          "layer": 8,
+          "startTime": 4.5,
+          "duration": 10,
+          "x": 90,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-cutaway-shape-3-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-cutaway-shape-3-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-cutaway-shape-4",
+          "type": "shape",
+          "name": "Editorial card 5",
+          "layer": 9,
+          "startTime": 6,
+          "duration": 10,
+          "x": 420,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-cutaway-shape-4-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-cutaway-shape-4-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-cutaway-shape-5",
+          "type": "shape",
+          "name": "Editorial card 6",
+          "layer": 10,
+          "startTime": 7.5,
+          "duration": 10,
+          "x": 750,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-cutaway-shape-5-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-cutaway-shape-5-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "cutaway-a-polish-colour-card",
+          "type": "shape",
+          "name": "GetColor sample colour card cutaway-a",
+          "layer": 20,
+          "startTime": 2,
+          "duration": 10,
+          "x": 96,
+          "y": 96,
+          "width": 360,
+          "height": 240,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 96,
+          "easing": "linear",
+          "shapeType": "rect",
+          "fill": "#ff5c8a",
+          "groupId": "cutaway-a-group",
+          "filters": []
+        },
+        {
+          "id": "cutaway-a-polish-getcolor-sampled",
+          "type": "getcolor_dot_field",
+          "name": "GetColor V2R 画像サンプリングドット cutaway-a",
+          "layer": 21,
+          "startTime": 2,
+          "duration": 10,
+          "x": 544,
+          "y": 114,
+          "width": 680,
+          "height": 360,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 544,
+          "endY": 114,
+          "easing": "linear",
+          "columns": 32,
+          "rows": 18,
+          "dotSize": 16,
+          "sizeInfluence": 0.65,
+          "luminanceInfluence": 0.7,
+          "hueShiftDegrees": 0,
+          "alternateRows": true,
+          "foregroundColour": "#ffffff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#10131a",
+          "seed": 93,
+          "dotShape": "circle",
+          "strokeWidth": 0,
+          "sampleStrength": 0.85,
+          "groupId": "cutaway-a-group",
+          "sampleSourcePath": "/Users/yuki/GitHub/UX-Film-Director/public/icon.jpg",
+          "filters": []
+        },
+        {
+          "id": "cutaway-a-polish-hksy-measured-grid",
+          "type": "hksy_checker_grid",
+          "name": "hksy グリッド cutaway-a",
+          "layer": 22,
+          "startTime": 2,
+          "duration": 10,
+          "x": 96,
+          "y": 656,
+          "width": 720,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 96,
+          "endY": 656,
+          "easing": "linear",
+          "cellSize": 40,
+          "lineWidth": 1,
+          "checkerEnabled": false,
+          "gridEnabled": true,
+          "foregroundColour": "#d8f3ff",
+          "secondaryColour": "#36c2ff",
+          "backgroundColour": "#08111f",
+          "pattern": "measured-grid",
+          "separateInterval": 4,
+          "separateLineWidth": 4,
+          "groupId": "cutaway-a-group",
+          "filters": []
+        },
+        {
+          "id": "cutaway-a-polish-hksy-anchor-line",
+          "type": "hksy_checker_grid",
+          "name": "hksy ライン（アンカー指定） cutaway-a",
+          "layer": 23,
+          "startTime": 2,
+          "duration": 10,
+          "x": 924,
+          "y": 620,
+          "width": 380,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 924,
+          "endY": 620,
+          "easing": "linear",
+          "cellSize": 64,
+          "lineWidth": 18,
+          "checkerEnabled": false,
+          "gridEnabled": false,
+          "foregroundColour": "#ffd166",
+          "secondaryColour": "#ffffff",
+          "backgroundColour": "#000000",
+          "pattern": "anchor-line",
+          "anchorPoints": [
+            {
+              "x": -140,
+              "y": 80
+            },
+            {
+              "x": -20,
+              "y": -120
+            },
+            {
+              "x": 140,
+              "y": 70
+            }
+          ],
+          "roundCaps": true,
+          "maxJoinDistance": 80,
+          "groupId": "cutaway-a-group",
+          "filters": []
+        },
+        {
+          "id": "cutaway-a-polish-93-region-frame",
+          "type": "region_frame",
+          "layer": 24,
+          "startTime": 2,
+          "duration": 10,
+          "x": 1320,
+          "y": 114,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1320,
+          "endY": 114,
+          "easing": "linear",
+          "lineWidth": 10,
+          "extraWidth": 0,
+          "extraHeight": 0,
+          "backgroundOpacity": 0.28,
+          "frameColour": "#ffffff",
+          "backgroundColour": "#243b6b",
+          "name": "93 領域枠 cutaway-a",
+          "shape": "rectangle",
+          "filters": []
+        },
+        {
+          "id": "cutaway-a-polish-93-simple-tube",
+          "type": "simple_tube",
+          "layer": 25,
+          "startTime": 2,
+          "duration": 10,
+          "x": 1344,
+          "y": 456,
+          "width": 460,
+          "height": 280,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": false,
+          "endX": 1344,
+          "endY": 456,
+          "easing": "linear",
+          "radius": 120,
+          "depth": 240,
+          "segments": 20,
+          "rings": 12,
+          "twistDegrees": 80,
+          "randomAmount": 0,
+          "strokeWidth": 3,
+          "colour": "#36c2ff",
+          "secondaryColour": "#ffffff",
+          "colourPattern": "ring",
+          "fogStrength": 0,
+          "fogColour": "#ffffff",
+          "seed": 93,
+          "torus": false,
+          "name": "93 SimpleTube cutaway-a",
+          "filters": []
+        }
+      ],
+      "camera": {
+        "centreOffsetX": 0,
+        "centreOffsetY": 0,
+        "zoom": 1,
+        "rotationDeg": 0
+      },
+      "stageCamera3D": {
+        "position": {
+          "x": 0,
+          "y": 1.6,
+          "z": 6
+        },
+        "target": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        }
+      }
+    },
+    {
+      "id": "realistic-heavy-titles",
+      "name": "Titles and cards",
+      "duration": 12,
+      "layers": [
+        {
+          "name": "Layer 1",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 2",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 3",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 4",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 6",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 7",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 8",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 9",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 10",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 11",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 12",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 13",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 14",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 15",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 16",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 17",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 18",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 19",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 20",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 21",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 22",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 23",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 24",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 25",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 26",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 27",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 28",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 29",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 30",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 31",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 32",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 33",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 34",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 35",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 36",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 37",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 38",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 39",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 40",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 41",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 42",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 43",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 44",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 45",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 46",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 47",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 48",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 49",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 50",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 51",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 52",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 53",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 54",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 55",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 56",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 57",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 58",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 59",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 60",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 61",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 62",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 63",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 64",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 65",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 66",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 67",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 68",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 69",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 70",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 71",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 72",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 73",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 74",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 75",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 76",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 77",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 78",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 79",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 80",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 81",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 82",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 83",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 84",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 85",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 86",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 87",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 88",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 89",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 90",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 91",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 92",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 93",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 94",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 95",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 96",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 97",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 98",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 99",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "name": "Layer 100",
+          "visible": true,
+          "locked": false
+        }
+      ],
+      "objects": [
+        {
+          "id": "realistic-titles-heading",
+          "type": "text",
+          "name": "Opening title",
+          "layer": 2,
+          "startTime": 0,
+          "duration": 7,
+          "x": 110,
+          "y": 760,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 1,
+          "enableAnimation": true,
+          "endX": 160,
+          "endY": 760,
+          "easing": "easeOutCubic",
+          "text": "重いけれど現実的な編集",
+          "fontSize": 76,
+          "fontFamily": "Hiragino Sans",
+          "fill": "#ffffff",
+          "textAlignment": "left",
+          "letterSpacing": 2,
+          "textStroke": {
+            "colour": "#111827",
+            "width": 5
+          },
+          "textShadow": {
+            "colour": "#000000",
+            "offsetX": 8,
+            "offsetY": 10,
+            "blur": 8
+          },
+          "filters": [
+            {
+              "id": "realistic-titles-heading-wipe",
+              "type": "wipe",
+              "enabled": true,
+              "params": {
+                "edge": "left",
+                "reverse": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-0",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 1",
+          "layer": 4,
+          "startTime": 0,
+          "duration": 10,
+          "x": 90,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-0-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-0-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-1",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 2",
+          "layer": 5,
+          "startTime": 1.5,
+          "duration": 10,
+          "x": 420,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-1-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-1-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-2",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 3",
+          "layer": 6,
+          "startTime": 3,
+          "duration": 10,
+          "x": 750,
+          "y": 80,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 100,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-2-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-2-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-3",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 4",
+          "layer": 7,
+          "startTime": 4.5,
+          "duration": 10,
+          "x": 90,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-3-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-3-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-4",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 5",
+          "layer": 8,
+          "startTime": 6,
+          "duration": 10,
+          "x": 420,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 460,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-4-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-4-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-5",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 6",
+          "layer": 9,
+          "startTime": 7.5,
+          "duration": 10,
+          "x": 750,
+          "y": 300,
+          "width": 280,
+          "height": 170,
+          "rotation": 2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 790,
+          "endY": 320,
+          "easing": "easeInOutQuad",
+          "shapeType": "rect",
+          "cornerRadius": 20,
+          "fill": "#351c4d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-5-blur",
+              "type": "blur",
+              "enabled": false,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-5-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        },
+        {
+          "id": "realistic-titles-shape-6",
+          "groupId": "realistic-title-cards",
+          "type": "shape",
+          "name": "Editorial card 7",
+          "layer": 10,
+          "startTime": 9,
+          "duration": 10,
+          "x": 90,
+          "y": 520,
+          "width": 280,
+          "height": 170,
+          "rotation": -2,
+          "scaleX": 1,
+          "scaleY": 1,
+          "opacity": 0.78,
+          "enableAnimation": true,
+          "endX": 130,
+          "endY": 540,
+          "easing": "easeInOutQuad",
+          "shapeType": "rounded_rect",
+          "cornerRadius": 20,
+          "fill": "#12213d",
+          "filters": [
+            {
+              "id": "realistic-titles-shape-6-blur",
+              "type": "blur",
+              "enabled": true,
+              "params": {
+                "strength": 2,
+                "quality": 2
+              }
+            },
+            {
+              "id": "realistic-titles-shape-6-outline",
+              "type": "outline",
+              "enabled": true,
+              "params": {
+                "colour": "#ffffff",
+                "thickness": 2,
+                "opacity": 0.45
+              }
+            }
+          ]
+        }
+      ],
+      "camera": {
+        "centreOffsetX": 0,
+        "centreOffsetY": 0,
+        "zoom": 1,
+        "rotationDeg": 0
+      },
+      "stageCamera3D": {
+        "position": {
+          "x": 0,
+          "y": 1.6,
+          "z": 6
+        },
+        "target": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        }
+      }
+    }
+  ]
+}

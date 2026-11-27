@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ImageObjectFields",
+  "description": "`ImageObject`（`src/types.ts`）の `type` / `BaseObject` 由来フィールドを\n除いた、image 固有部分。TS 側は `BaseObject & ImageObjectFields & { type: 'image' }`\nとして組み立てる。\n\n`image` は shape/text と異なり、Timeline.tsx の `handleImageChange` が\n選択したファイルから `src` / `filePath` / `width` / `height` を都度決めるため、\nUI 側に固定既定値が存在しない（`objectFactories/` にも専用ファイルは無い）。\n`Default` はニュートラルな空値にする。",
+  "type": "object",
+  "properties": {
+    "filePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "src": {
+      "type": "string"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "src",
+    "width",
+    "height"
+  ]
+}

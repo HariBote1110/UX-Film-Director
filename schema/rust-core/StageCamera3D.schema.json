@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StageCamera3D",
+  "description": "透視カメラ（lookAt target）。`src/types.ts` の `StageCamera3D` と同形。",
+  "type": "object",
+  "properties": {
+    "position": {
+      "$ref": "#/$defs/Vec3"
+    },
+    "target": {
+      "$ref": "#/$defs/Vec3"
+    }
+  },
+  "required": [
+    "position",
+    "target"
+  ],
+  "$defs": {
+    "Vec3": {
+      "description": "3D ステージ用ワールド座標。`src/types.ts` の `Vec3` と同形。",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    }
+  }
+}

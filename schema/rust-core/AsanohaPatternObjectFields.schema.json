@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AsanohaPatternObjectFields",
+  "description": "`asanoha_pattern` kind (`src/types.ts` の `AsanohaPatternObject`) の\nkind 固有フィールド。編集モデル型は\n`BaseObject & AsanohaPatternObjectFields & { type: 'asanoha_pattern' }`\nとして組み立てる。\n\n`width`/`height` は `asanohaPatternObjectFactory.ts` の\n`buildAviUtlAsanohaPatternObject` の固定リテラル (800x450) をそのまま\n採用する（プロジェクトサイズ依存の計算値ではない）。",
+  "type": "object",
+  "properties": {
+    "backgroundColour": {
+      "type": "string"
+    },
+    "foregroundColour": {
+      "type": "string"
+    },
+    "height": {
+      "type": "number",
+      "format": "float"
+    },
+    "lineWidth": {
+      "type": "number",
+      "format": "float"
+    },
+    "patternSize": {
+      "type": "number",
+      "format": "float"
+    },
+    "width": {
+      "type": "number",
+      "format": "float"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "patternSize",
+    "lineWidth",
+    "foregroundColour",
+    "backgroundColour"
+  ]
+}
